@@ -1,39 +1,28 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+import React, { useState } from 'react';
+import { AuthForm } from './components/ui/AuthForm';
+import { ProfileForm } from './components/ui/ProfileForm';
 
-function App(): JSX.Element {
+const App: React.FC = () => {
+  const [token, setToken] = useState<string | null>(null);
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+
+  if (!token) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <AuthForm mode={mode} onAuthSuccess={setToken} />
+        <button
+          className="mt-4 text-blue-600 underline"
+          onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+        >
+          {mode === 'login' ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen w-full flex items-center justify-center">
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="outline">Show Dialog</Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete your account and remove
-              your data from our servers.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction>Continue</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  )
-}
+    <ProfileForm token={token} onLogout={() => setToken(null)} />
+  );
+};
 
-export default App
+export default App;
