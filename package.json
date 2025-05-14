@@ -1,0 +1,133 @@
+{
+  "name": "anthropic-claude-aleph1",
+  "version": "1.0.1",
+  "private": true,
+  "main": "public/electron.js",
+  "license": "MIT",
+  "author": {
+    "name": "Aleph1",
+    "url": "https://aleph1.io/",
+    "email": "hello@aleph1.io"
+  },
+  "homepage": "./",
+  "description": "This app allows you to communicate with Anthropic's Claude through an intuitive UI. You can save conversations, configure models and parameters, and get generated responses from the models.",
+  "scripts": {
+    "build": "react-app-rewired build",
+    "start": "react-app-rewired start",
+    "start:dev": "concurrently -k \"BROWSER=none npm start\" \"npm:electron:dev\"",
+    "start:prod": "npm run build && npm run electron:prod",
+    "electron:dev": "wait-on http://127.0.0.1:3000 && cross-env NODE_ENV=DEV electron .",
+    "electron:prod": "cross-env NODE_ENV=PROD electron .",
+    "package": "npm run build && electron-builder",
+    "lint": "eslint . --ext .ts --ext .js --ext .tsx",
+    "lint:fix": "eslint --fix . --ext .ts --ext .js --ext .tsx",
+    "prettify": "prettier --write .",
+    "stylelint": "stylelint '**/*.{css,scss}'"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.0.8",
+    "@dnd-kit/sortable": "^7.0.2",
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@mui/material": "^5.13.5",
+    "@reduxjs/toolkit": "^1.9.5",
+    "classnames": "^2.3.2",
+    "cors": "^2.8.5",
+    "cross-env": "^7.0.3",
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.6",
+    "normalize.css": "^8.0.1",
+    "path": "^0.12.7",
+    "prismjs": "^1.29.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-outside-click-handler": "^1.3.0",
+    "react-redux": "^8.0.7",
+    "react-router-dom": "^6.11.2",
+    "react-scripts": "^5.0.1",
+    "react-toastify": "^9.1.3",
+    "redux": "^4.2.1",
+    "redux-persist": "^6.0.0",
+    "remark": "^14.0.3",
+    "remark-parse": "^10.0.2",
+    "remark-slate": "^1.8.6",
+    "remark-slate-transformer": "^0.7.5",
+    "slate": "^0.94.1",
+    "slate-history": "^0.93.0",
+    "slate-react": "^0.97.1",
+    "typescript": "^5.0.4",
+    "unified": "^10.1.2",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^6.1.1",
+    "@types/mdast": "^3.0.11",
+    "@types/node": "^16.18.34",
+    "@types/prismjs": "^1.26.0",
+    "@types/react": "^18.2.7",
+    "@types/react-dom": "^18.2.4",
+    "@types/react-outside-click-handler": "^1.3.1",
+    "@types/react-redux": "^7.1.25",
+    "@types/uuid": "^9.0.2",
+    "@typescript-eslint/eslint-plugin": "^5.59.8",
+    "@typescript-eslint/parser": "^5.59.8",
+    "concurrently": "^8.0.1",
+    "customize-cra": "^1.0.0",
+    "electron": "^25.0.0",
+    "electron-builder": "^24.4.0",
+    "electron-devtools-installer": "^3.2.0",
+    "prettier": "^2.8.8",
+    "react-app-rewired": "^2.2.1",
+    "sass": "^1.62.1",
+    "sass-resources-loader": "^2.2.5",
+    "tsconfig-paths-webpack-plugin": "^4.0.1",
+    "wait-on": "^7.0.1"
+  },
+  "build": {
+    "directories": {
+      "buildResources": "build"
+    },
+    "files": [
+      "build/**/*",
+      "public/**/*"
+    ],
+    "dmg": {
+      "sign": false
+    },
+    "mac": {
+      "icon": "build/icons/icon.icns"
+    },
+    "appId": "anthropic.app",
+    "productName": "Claude ft. Aleph1",
+    "artifactName": "claude-aleph1.${ext}",
+    "linux": {
+      "target": [
+        "deb",
+        "rpm",
+        "snap"
+      ],
+      "category": "Utility",
+      "icon": "build/icons/icon.icns"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "artifactName": "${productName}-${os}.${ext}",
+      "icon": "build/icons/icon.ico"
+    }
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

@@ -1,0 +1,199 @@
+.chatMainContainer {
+  width: 100%;
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.chatGeneralContainer {
+  display: flex;
+  flex-direction: column;
+  padding: 0 30px 25px;
+  margin: 0 auto;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 1500px;
+  position: relative;
+
+  @media (width >= 1900px) {
+    padding: 0 100px 25px;
+  }
+}
+
+.chatGeneralContainerNew {
+  padding: 30px 30px 25px;
+}
+
+.conversationName {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  z-index: 2;
+  padding: 20px 0 10px 60px;
+  background-color: var(--bg-color-main);
+  margin: 0 0 18px;
+
+  input {
+    font-family: var(--font-family-bold);
+    font-weight: 700;
+  }
+}
+
+.chatPromptContainer {
+  display: flex;
+  margin-bottom: 15px;
+  justify-content: center;
+  align-self: center;
+  flex-direction: row;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.chatBgContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  align-self: center;
+  position: absolute;
+  row-gap: 50px;
+  width: 100%;
+  height: 100%;
+  margin-top: -60px;
+}
+
+.titleAiContainer {
+  display: flex;
+  justify-content: center;
+}
+
+.iconTitle {
+  margin-right: 14px;
+}
+
+.bgImg {
+  justify-content: center;
+  align-items: center;
+}
+
+.chatButtonsContainer {
+  width: 100%;
+  margin-top: auto;
+
+  & > div {
+    padding-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
+.buttonsColumn {
+  align-items: center;
+  display: flex;
+  column-gap: 15px;
+}
+
+.buttonAddChat {
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 0;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  transition: 0.3s;
+  z-index: 1;
+
+  svg {
+    transition: 0.3s;
+    stroke: #ffffff;
+  }
+
+  &:not(:disabled):hover {
+    background-color: var(--primary-hover);
+  }
+
+  &:disabled {
+    background-color: var(--bg-btn-disabled);
+    cursor: default;
+
+    svg {
+      stroke: var(--text-disabled);
+    }
+  }
+}
+
+.iconRegenerate {
+  margin-left: 15px;
+}
+
+.iconAiMagic {
+  margin-top: -32px;
+  margin-left: 15px;
+}
+
+.confirmationRename {
+  opacity: 0;
+  flex-shrink: 0;
+  display: flex;
+  column-gap: 5px;
+  align-items: center;
+  margin-left: auto;
+  transition: 0.3s;
+
+  svg {
+    stroke: var(--bg-default);
+    transition: 0.3s;
+    cursor: pointer;
+
+    &:hover {
+      stroke: var(--text-primary);
+    }
+  }
+
+  &.edited {
+    opacity: 1;
+  }
+}
+
+.toastContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.toasterDiv {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.toasterSpan {
+  font-family: var(--font-family-main);
+  font-weight: 500;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+.iconHeart {
+  align-self: center;
+  margin-left: 8px;
+}
+
+.iconClose {
+  align-self: center;
+  margin-right: 8px;
+}

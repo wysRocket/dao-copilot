@@ -1,0 +1,10 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "DevChat.OpenAI.model": "gpt-3.5-turbo-16k",
+  "editor.acceptSuggestionOnEnter": "on",
+  "DevChat.DevChatPath": "/Users/mininet/.chat/mamba/envs/devchat/bin/devchat",
+  "DevChat.PythonVirtualEnv": "/Users/mininet/.chat/mamba/envs/devchat-ask/bin/python",
+  "devchat.defaultModel": "gpt-3.5-turbo-16k",
+  "pieces.cloudCapabilities": "Blended",
+  "pieces.telemetry": true
+}
