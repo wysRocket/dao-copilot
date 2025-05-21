@@ -26,4 +26,7 @@
   "include": [".eslintrc.js", "src"],
   "exclude": ["node_modules", "build", "public"],
   
+  "files": [],
+  "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }],
+  
 }

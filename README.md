@@ -1,143 +1,216 @@
-# Claude ft. Aleph1
+# shadcn-electron-app
 
-Claude ft. Aleph1 is an open-source user interface for [Anthropic's Claude AI](https://www.anthropic.com/). We developed this enhanced UI to offer features that are currently not available or problematic in the existing UI, such as model selection, chat saving, and improved chat editing functionality. Our goal is to provide an intuitive, bug-free experience while interacting with Claude to its fullest capability.
+## Installation
 
-![Claude_ft_Aleph1_1280x800](https://github.com/ezetech/anthropic-gui/assets/134277023/d0d36dc5-d03f-46b2-8699-3a0a99ec7cb0)
+### 1. Create project
 
-
-## Demo Highlight 🎥
-
-<details>
-<summary>Watch the demo here</summary>
-  
-### Claude ft. Aleph1 Demo
-  
-https://github.com/ezetech/anthropic-gui/assets/40824065/7eb0f1f1-34b3-4371-b410-77ff1ba5ed22
-
-</details>
-
-
-## Key Features 🎯
-
-- **API Key Input** 🔑 Securely authenticate and connect to the Anthropic API.
-- **Saved Chats and Drag & Drop Functionality** 📁 With our UI, you can not only save your chats for future reference, but also neatly organize them with ease using folders and drag & drop.
-- **Prompt Interface** 💬 Enter your message in a user-friendly prompt interface and view Claude's responses in real-time.
-- **Code Editor View** 💻 Get, write, and edit a prompt with code as in a code editor.
-- **Model Selection** 🤖 Our UI allows you to choose from various available models. You can select the most suitable model, including token size, to interact with Anthropic. **We also support Claude-2 model**.
-- **Prompt Parameters Configuration** ⚙️ Customize Claude's responses according to your needs. Our tool provides options to configure prompt parameters, offering you more control over your interactions with Claude.
-- **Stream API** 📡 Get live responses from Claude with our Stream API integration. This ensures you're receiving up-to-the-minute responses.
-- **Dark Mode** 🌙 For those who prefer a darker theme, we've included a Dark Mode experience.
-
-## Installation 💽
-
-1. Clone the repo.
-
-```
-git clone https://github.com/ezetech/anthropic-gui.git
+```bash
+$ pnpm create @quick-start/electron
 ```
 
-2. Install dependencies.
+### 2. Install dependencies
 
-```
-npm install
-```
-
-or
-
-```
-yarn
+```bash
+$ pnpm add tailwindcss-animate class-variance-authority clsx tailwind-merge lucide-react
 ```
 
-3. Run the app.
+### 3. Install Tailwind CSS
 
-**In development mode:**
+```bash
+$ pnpm add -D tailwindcss postcss autoprefixer
 
-```
-yarn start:dev
-```
-
-**In production mode:**
-
-```
-yarn start:prod
+$ pnpm dlx tailwindcss init -p
 ```
 
-4. Enter your API key to use the app.
+### 4. Update `tailwind.config.js`
 
-## Build 🛠️
-
-To build the app run:
-
-
+```js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ['./src/renderer/src/**/*.{js,ts,jsx,tsx}'],
+  theme: {
+    container: {
+      center: true,
+      padding: '2rem',
+      screens: {
+        '2xl': '1400px',
+      },
+    },
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+      },
+      borderRadius: {
+        lg: `var(--radius)`,
+        md: `calc(var(--radius) - 2px)`,
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      keyframes: {
+        'accordion-down': {
+          from: {height: '0'},
+          to: {height: 'var(--radix-accordion-content-height)'},
+        },
+        'accordion-up': {
+          from: {height: 'var(--radix-accordion-content-height)'},
+          to: {height: '0'},
+        },
+      },
+      animation: {
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out',
+      },
+    },
+  },
+  plugins: [require('tailwindcss-animate')],
+};
 ```
-npm run build
-```
-or
-```
-yarn build
-```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 5. Update `tsconfig.json`
 
-
-## Packaging 📦
-
-To create a distribution kit for Mac, Windows or Linux OS use these commands:
-
-```
-npm run package
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/renderer/src/*"]
+    }
+  }
+}
 ```
 
-or
+### 6. Update `tsconfig.web.json`
 
+```json
+{
+  "compilerOptions": {
+    "composite": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/renderer/src/*"],
+      "@renderer/*": ["src/renderer/src/*"]
+    }
+  }
+}
 ```
-yarn package
+
+### 7. Create `components.json`
+
+```json
+{
+  "style": "new-york",
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "src/renderer/src/assets/base.css",
+    "baseColor": "zinc",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "rsc": false,
+  "aliases": {
+    "utils": "@/lib/utils",
+    "components": "@/components",
+    "lib": "@/lib",
+    "hooks": "@/lib/hooks",
+    "ui": "@/components/ui"
+  },
+  "iconLibrary": "lucide"
+}
 ```
 
-This will generate executable files for your OS in the `dist` folder.
+### 8. Update `src/renderer/src/assets/base.css`
 
-Download distribution kits for Windows or Linux [here](https://github.com/ezetech/anthropic-gui/releases/tag/release-v1.0.1)
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-## Hotkeys 🔥
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 100% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 215 20.2% 65.1%;
+    --radius: 0.5rem;
+  }
 
-Press Enter on the keyboard if you want to write a text or code from the new row.
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 215 20.2% 65.1%;
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 1.2%;
+    --secondary: 222.2 47.4% 11.2%;
+    --secondary-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 216 34% 17%;
+    --radius: 0.5rem;
+  }
+}
 
-It also adds new list item if you edit a list.
-
-Press Shift + Enter if you want to move the focus below the code area.
-
-It also allows to finish list and start writing a regular text.
-
-## Few features with back quote ⛓️
-
-To start writing code as in a code editor write:
-
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
 ```
-```code_extension
-
-For example:
-
-```javascript
-```
-and then press 'Enter'
-
-To highlight text write:
-
-```
-`your text`
-```
-and then press 'Enter'
-
-
-
-## Contributing 🤝
-
-The app was built by [Aleph One](https://aleph1.io/). We welcome all contributions from the community. If you'd like to contribute, here's how you can help:
-
-- **Reporting Bugs:** If you encounter any bugs, please file an issue in our GitHub repository. Make sure to include as many details as possible to help us reproduce the bug, such as your operating system, browser version, steps to reproduce, and any error messages.
-- **Suggesting Enhancements:** If you have ideas for new features or improvements, feel free to open an issue. Describe your idea in as much detail as possible.
-- **Code Contributions:** If you'd like to write code to fix bugs or implement new features, you're more than welcome! Simply fork our repository, make your changes, and submit a pull request. Please make sure your code follows our style guide and include tests where possible.
-
-## License 🗒️
-
-This project is licensed under the MIT License.
