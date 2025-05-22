@@ -6,5 +6,6 @@
   "DevChat.PythonVirtualEnv": "/Users/mininet/.chat/mamba/envs/devchat-ask/bin/python",
   "devchat.defaultModel": "gpt-3.5-turbo-16k",
   "pieces.cloudCapabilities": "Blended",
-  "pieces.telemetry": true
+  "pieces.telemetry": true,
+  "postman.settings.dotenv-detection-notification-visibility": false
 }
