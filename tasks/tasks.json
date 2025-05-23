@@ -9,7 +9,67 @@
       "priority": "high",
       "details": "Frontend: Set up Tauri with React/TypeScript using `npm create tauri-app@latest`. Backend: Create a new Rust project with `cargo new meeting-copilot-backend`, add Axum, sqlx, and google-cloud-rust dependencies. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase using sqlx migrations. Cloud: Set up GCP project, IAM roles, Cloud Storage bucket, Cloud SQL instance for PostgreSQL. CI/CD: Basic Cloud Build pipeline for build and test, with deployment to Cloud Run.",
       "testStrategy": "Unit tests for basic server setup using Rust's testing framework. Verify successful build and containerization of both Tauri frontend and Rust backend. Confirm database connectivity with sqlx to Cloud SQL. Test Cloud Storage access permissions.",
-      "subtasks": []
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Frontend Setup with Tauri and React/TypeScript",
+          "description": "Initialize and configure the frontend application using Tauri with React and TypeScript",
+          "dependencies": [],
+          "details": "Implementation Steps:\n1. Install Rust and Node.js prerequisites\n2. Initialize a new Tauri project with React and TypeScript template\n3. Configure project structure (components, pages, services)\n4. Set up state management solution\n5. Implement basic UI components and layouts\n6. Configure TypeScript strict mode and linting\n7. Set up testing framework (Jest/React Testing Library)\n\nAcceptance Criteria:\n- Project builds successfully with `npm run tauri build`\n- Hot reload works for development\n- TypeScript compilation succeeds with no errors\n- Basic UI renders correctly across platforms (Windows/macOS/Linux)\n- Unit tests pass for core components\n\nEstimated Effort: 3 days",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Backend Setup with Rust and Axum",
+          "description": "Create and configure the backend API service using Rust and the Axum framework",
+          "dependencies": [],
+          "details": "Implementation Steps:\n1. Initialize a new Rust project with Cargo\n2. Add Axum and other necessary dependencies\n3. Set up project structure (handlers, models, services)\n4. Implement basic routing and middleware\n5. Create health check endpoint\n6. Configure logging and error handling\n7. Set up configuration management for different environments\n\nAcceptance Criteria:\n- Server starts and responds to requests\n- Health check endpoint returns 200 OK\n- Proper error handling for invalid routes\n- Logging captures request/response information\n- Configuration loads correctly from environment variables\n- Unit tests pass for core functionality\n\nEstimated Effort: 3 days",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Database Setup with PostgreSQL and Migrations",
+          "description": "Set up PostgreSQL database with initial schema and migration system",
+          "dependencies": [
+            2
+          ],
+          "details": "Implementation Steps:\n1. Install and configure PostgreSQL\n2. Design initial database schema\n3. Set up SQLx or Diesel ORM in the Rust backend\n4. Create migration system for schema versioning\n5. Implement initial migrations for core tables\n6. Create database connection pool\n7. Set up test database for automated testing\n\nAcceptance Criteria:\n- PostgreSQL instance is accessible from backend\n- Initial schema is created via migrations\n- Connection pooling works correctly\n- Migrations can be applied and rolled back\n- Database queries execute successfully\n- Test database can be reset between test runs\n\nEstimated Effort: 2 days",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Cloud Infrastructure Setup (S3, IAM)",
+          "description": "Configure AWS S3 buckets and IAM roles/policies for application storage needs",
+          "dependencies": [],
+          "details": "Implementation Steps:\n1. Create AWS account or use existing one\n2. Set up S3 buckets for application assets and user uploads\n3. Configure bucket policies and CORS settings\n4. Create IAM roles with least privilege access\n5. Generate and secure access keys\n6. Implement S3 client in backend code\n7. Set up local development mocks for S3\n\nAcceptance Criteria:\n- S3 buckets are created with proper access controls\n- IAM roles follow least privilege principle\n- Backend can upload/download files to/from S3\n- CORS is properly configured for frontend access\n- Local development works without AWS credentials\n- Documentation for AWS resources is complete\n\nEstimated Effort: 2 days",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "Docker Containerization for Frontend and Backend",
+          "description": "Create Docker containers for both frontend and backend services",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "Implementation Steps:\n1. Create Dockerfile for Tauri frontend build\n2. Create Dockerfile for Rust backend\n3. Set up Docker Compose for local development\n4. Configure volume mounts for development\n5. Optimize container sizes with multi-stage builds\n6. Set up container networking\n7. Create scripts for container management\n\nAcceptance Criteria:\n- Frontend and backend build successfully as containers\n- Docker Compose brings up the entire stack\n- Containers communicate with each other\n- Development experience works with hot reloading\n- Production containers are optimized for size\n- Database persistence works across container restarts\n\nEstimated Effort: 2 days",
+          "status": "pending"
+        },
+        {
+          "id": 6,
+          "title": "CI/CD Pipeline Configuration",
+          "description": "Set up continuous integration and deployment pipeline for automated testing and deployment",
+          "dependencies": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "details": "Implementation Steps:\n1. Choose CI/CD platform (GitHub Actions, GitLab CI, etc.)\n2. Create workflow for building and testing frontend\n3. Create workflow for building and testing backend\n4. Set up database migrations in CI pipeline\n5. Configure deployment to staging/production environments\n6. Implement automated versioning\n7. Set up notifications for build failures\n\nAcceptance Criteria:\n- CI pipeline runs on each pull request\n- All tests execute in the pipeline\n- Failed tests prevent merging\n- Successful merges to main trigger deployment\n- Database migrations run automatically\n- Build artifacts are versioned correctly\n- Pipeline execution time is reasonable (<15 minutes)\n\nEstimated Effort: 3 days",
+          "status": "pending"
+        }
+      ]
     },
     {
       "id": 2,
