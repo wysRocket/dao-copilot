@@ -5,7 +5,7 @@
 # Priority: medium
 # Description: Implement AI-assisted private note-taking functionality visible only to the individual user during calls. Notes should be end-to-end encrypted (E2EE). Provide functionality for easy export of notes (e.g., TXT, MD).
 # Details:
-Frontend: Develop a dedicated notes panel in the meeting interface. Implement client-side encryption/decryption using a robust library (e.g., libsodium.js or Web Crypto API) with user-derived keys. Backend: Store encrypted note blobs. API endpoints for saving/retrieving encrypted notes. Implement export functionality. AI assistance could be simple suggestions based on transcript keywords or context, initially. Define Note data model (encrypted content).
+Frontend: Develop a dedicated notes panel in React within the meeting interface. Implement client-side encryption/decryption using Tauri's native crypto capabilities or WebCrypto API with user-derived keys. Backend: Store encrypted note blobs using sqlx. API endpoints in Axum for saving/retrieving encrypted notes. Implement export functionality using Tauri's file system capabilities. AI assistance could be simple suggestions based on transcript keywords or context, initially. Define Note data model (encrypted content).
 
 # Test Strategy:
-Unit tests for encryption/decryption logic. Test note creation, editing, saving, and retrieval. Verify E2EE by inspecting stored data. Test export functionality for various formats. Security audit of the E2EE implementation.
+Unit tests for encryption/decryption logic in Rust and JavaScript. Test note creation, editing, saving, and retrieval. Verify E2EE by inspecting stored data. Test export functionality for various formats. Security audit of the E2EE implementation.

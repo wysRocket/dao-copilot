@@ -5,7 +5,7 @@
 # Priority: low
 # Description: Implement basic communication analytics (speaking pace, filler words, talk-time distribution) in a private 'practice mode'. Audio analysis should be performed locally on the client-side for privacy.
 # Details:
-Frontend (Electron): Utilize Web Audio API for local audio capture in practice mode. Implement client-side JavaScript libraries for audio analysis (e.g., for pitch, energy to detect speech; custom logic for filler words based on STT snippets if available locally, or simpler heuristics). Display analytics feedback to the user in real-time or post-session. No audio data should leave the user's device for this feature.
+Frontend (Tauri): Utilize Tauri's native audio capabilities for local audio capture in practice mode. Implement audio analysis using Rust plugins for Tauri for better performance (e.g., for pitch, energy to detect speech; custom logic for filler words based on STT snippets if available locally, or simpler heuristics). Display analytics feedback to the user in React in real-time or post-session. No audio data should leave the user's device for this feature.
 
 # Test Strategy:
 Test accuracy of analytics (speaking pace, filler word detection, talk-time) against known samples. Verify that no audio data is transmitted for this feature. Usability testing for clarity and usefulness of feedback.
