@@ -1,16 +1,29 @@
 {
-  "name": "shadcn-electron-app",
+  "name": "dao-copilot",
   "version": "1.0.0",
   "private": true,
   "main": "public/electron.js",
   "license": "MIT",
-  "author": {
-    "name": "",
-    "url": "",
-    "email": ""
+  "description": "A powerful DAO management and governance copilot built with Electron, React, and TypeScript",
+  "author": "wysRocket",
+  "homepage": "https://github.com/wysRocket/dao-copilot#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wysRocket/dao-copilot.git"
   },
-  "homepage": "./",
-  "description": "This app allows you to communicate with Anthropic's Claude through an intuitive UI. You can save conversations, configure models and parameters, and get generated responses from the models.",
+  "bugs": {
+    "url": "https://github.com/wysRocket/dao-copilot/issues"
+  },
+  "keywords": [
+    "dao",
+    "governance",
+    "copilot",
+    "electron",
+    "react",
+    "typescript",
+    "blockchain",
+    "web3"
+  ],
   "scripts": {
     "build": "react-app-rewired build",
     "start": "react-app-rewired start",
@@ -28,8 +41,8 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux"
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.0.8",
