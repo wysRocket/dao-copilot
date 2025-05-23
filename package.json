@@ -1,10 +1,28 @@
 {
-  "name": "shadcn-electron-app",
+  "name": "dao-copilot",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "A powerful DAO management and governance copilot built with Electron, React, and TypeScript",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "wysRocket",
+  "license": "MIT",
+  "homepage": "https://github.com/wysRocket/dao-copilot#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wysRocket/dao-copilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wysRocket/dao-copilot/issues"
+  },
+  "keywords": [
+    "dao",
+    "governance",
+    "copilot",
+    "electron",
+    "react",
+    "typescript",
+    "blockchain",
+    "web3"
+  ],
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
@@ -17,8 +35,8 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux"
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
