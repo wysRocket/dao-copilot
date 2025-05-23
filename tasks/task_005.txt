@@ -1,11 +1,11 @@
 # Task ID: 5
-# Title: User Document Upload & Secure Storage (Knowledge Base Foundation)
+# Title: User Document Upload & Secure Storage with Google Cloud Storage
 # Status: pending
 # Dependencies: 1, 2
 # Priority: medium
-# Description: Implement functionality for users to upload documents (e.g., PDF, DOCX, TXT) to create a personal/team knowledge base. Securely store these documents in S3. Define Document and KnowledgeBase data models and implement basic permission management.
+# Description: Implement functionality for users to upload documents (e.g., PDF, DOCX, TXT) to create a personal/team knowledge base. Securely store these documents in Google Cloud Storage. Define Document and KnowledgeBase data models and implement basic permission management.
 # Details:
-Backend: Create API endpoints in Axum for document upload (`/documents/upload`), listing, and deletion. Use multipart form handling in Axum for file uploads. Store metadata in PostgreSQL using sqlx (Document model: `id`, `userId`, `fileName`, `s3Key`, `uploadDate`, `knowledgeBaseId`). Store files in S3 with aws-sdk-rust with appropriate access controls (private by default). Frontend: UI for uploading, viewing, and managing documents within a knowledge base concept using React and Tauri's file system access.
+Backend: Create API endpoints in Axum for document upload (`/documents/upload`), listing, and deletion. Use multipart form handling in Axum for file uploads. Store metadata in Cloud SQL PostgreSQL using sqlx (Document model: `id`, `userId`, `fileName`, `gcsObjectName`, `uploadDate`, `knowledgeBaseId`). Store files in Google Cloud Storage with google-cloud-storage-rust with appropriate access controls (private by default). Frontend: UI for uploading, viewing, and managing documents within a knowledge base concept using React and Tauri's file system access.
 
 # Test Strategy:
-Unit tests for file upload handling and S3 interaction in Rust. Integration tests for the complete upload flow. Security testing for access control on S3 objects and API endpoints. Test various file types and sizes.
+Unit tests for file upload handling and Google Cloud Storage interaction in Rust. Integration tests for the complete upload flow. Security testing for access control on GCS objects and API endpoints. Test various file types and sizes.

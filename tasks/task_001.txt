@@ -1,11 +1,11 @@
 # Task ID: 1
-# Title: Project Setup & Core Infrastructure with Tauri and Rust
+# Title: Project Setup & Core Infrastructure with Tauri and Rust on Google Cloud Platform
 # Status: pending
 # Dependencies: None
 # Priority: high
-# Description: Initialize frontend (Tauri with React/TypeScript) and backend (Rust with Axum). Set up Docker for containerization, PostgreSQL for structured data, S3 for file storage, and select a cloud provider (e.g., AWS). Establish basic CI/CD pipeline.
+# Description: Initialize frontend (Tauri with React/TypeScript) and backend (Rust with Axum). Set up Docker for containerization, Cloud SQL for PostgreSQL, Cloud Storage for file storage on Google Cloud Platform. Establish basic CI/CD pipeline with Cloud Build.
 # Details:
-Frontend: Set up Tauri with React/TypeScript using `npm create tauri-app@latest`. Backend: Create a new Rust project with `cargo new meeting-copilot-backend`, add Axum, sqlx, and aws-sdk-rust dependencies. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase using sqlx migrations. Cloud: Set up basic IAM roles, S3 bucket, RDS instance for PostgreSQL. CI/CD: Basic GitHub Actions or Jenkins pipeline for build and test.
+Frontend: Set up Tauri with React/TypeScript using `npm create tauri-app@latest`. Backend: Create a new Rust project with `cargo new meeting-copilot-backend`, add Axum, sqlx, and google-cloud-rust dependencies. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase using sqlx migrations. Cloud: Set up GCP project, IAM roles, Cloud Storage bucket, Cloud SQL instance for PostgreSQL. CI/CD: Basic Cloud Build pipeline for build and test, with deployment to Cloud Run.
 
 # Test Strategy:
-Unit tests for basic server setup using Rust's testing framework. Verify successful build and containerization of both Tauri frontend and Rust backend. Confirm database connectivity with sqlx.
+Unit tests for basic server setup using Rust's testing framework. Verify successful build and containerization of both Tauri frontend and Rust backend. Confirm database connectivity with sqlx to Cloud SQL. Test Cloud Storage access permissions.
