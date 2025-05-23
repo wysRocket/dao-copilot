@@ -79,14 +79,14 @@
     "unified": "^10.1.2",
     "uuid": "^9.0.0",
     "@electron-toolkit/preload": "^3.0.1",
-    "@electron-toolkit/utils": "^3.0.0",
+    "@electron-toolkit/utils": "^4.0.0",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-slot": "^1.1.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "electron-updater": "^6.1.7",
     "lucide-react": "^0.511.0",
-    "tailwind-merge": "^2.5.4",
+    "tailwind-merge": "^3.0.0",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
@@ -106,72 +106,25 @@
     "sass-resources-loader": "^2.2.5",
     "tsconfig-paths-webpack-plugin": "^4.0.1",
     "wait-on": "^7.0.1",
-    "vite": "^5.4.19",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
-    "@types/node": "^20.17.6",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
-    "electron": "^31.0.2",
-    "electron-builder": "^24.13.3",
-    "electron-vite": "^2.3.0",
-    "eslint": "^8.57.0",
+    "electron": "^36.0.0",
+    "electron-builder": "^26.0.0",
+    "electron-vite": "^3.0.0",
+    "eslint": "^9.0.0",
     "eslint-plugin-react": "^7.34.3",
     "postcss": "^8.4.49",
     "prettier": "^3.3.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "tailwindcss": "^3.4.14",
-    "typescript": "^5.5.2"
-  },
-  "build": {
-    "directories": {
-      "buildResources": "build"
-    },
-    "files": [
-      "build/**/*",
-      "public/**/*"
-    ],
-    "dmg": {
-      "sign": false
-    },
-    "mac": {
-      "icon": "build/icons/icon.icns"
-    },
-    "appId": "anthropic.app",
-    "productName": "Claude ft. Aleph1",
-    "artifactName": "claude-aleph1.${ext}",
-    "linux": {
-      "target": [
-        "deb",
-        "rpm",
-        "snap"
-      ],
-      "category": "Utility",
-      "icon": "build/icons/icon.icns"
-    },
-    "win": {
-      "target": [
-        "nsis",
-        "zip"
-      ],
-      "artifactName": "${productName}-${os}.${ext}",
-      "icon": "build/icons/icon.ico"
-    }
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.5.2",
+    "vite": "^6.0.0"
   }
 }
