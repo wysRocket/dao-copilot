@@ -44,7 +44,7 @@
     "electron": "^36.0.0",
     "electron-builder": "^26.0.0",
     "electron-vite": "^3.0.0",
-    "eslint": "^8.57.0",
+    "eslint": "^9.0.0",
     "eslint-plugin-react": "^7.34.3",
     "postcss": "^8.4.49",
     "prettier": "^3.3.2",
