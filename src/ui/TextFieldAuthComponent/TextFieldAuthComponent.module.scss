@@ -1,0 +1,19 @@
+.wrapper.textField {
+  min-width: 264px;
+  height: 45px;
+  margin-bottom: 5px;
+
+  input {
+    border: 0;
+    color: #000000;
+    padding-top: 11px;
+    padding-bottom: 11px;
+
+    &::placeholder {
+      color: #AEAEAE;
+      font-family: var(--font-family-main);
+      font-weight: 500;
+      font-size: 16px;
+    }
+  }
+}
