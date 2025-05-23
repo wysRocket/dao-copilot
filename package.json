@@ -73,7 +73,7 @@
     "remark-slate": "^1.8.6",
     "remark-slate-transformer": "^0.7.5",
     "slate": "^0.94.1",
-    "slate-history": "^0.93.0",
+    "slate-history": "^0.113.0",
     "slate-react": "^0.97.1",
     "typescript": "^5.0.4",
     "unified": "^10.1.2",
