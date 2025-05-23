@@ -1,0 +1,61 @@
+.wrapper {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+
+  .backgroundWrapper {
+    background: linear-gradient(188.69deg, rgba(97, 41, 255, 0.6) 0.56%, rgba(255, 255, 255, 0.135065) 41.89%);
+    transform: matrix(1, 0, 0, -1, 0, 0);
+    height: 100vh;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+  }
+
+  .contentWrapper {
+    position: relative;
+    z-index: 1;
+  }
+
+  .logoWrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 30vh;
+
+    .logoAuth {
+      margin-right: 14px;
+    }
+  }
+
+  .formWrapper {
+    margin-top: 7vh;
+
+    .errorContainer {
+      min-height: 20px;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+
+      .textApiKey {
+        font-family: var(--font-family-main);
+        font-style: normal;
+        font-weight: 500;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        color: #000000;
+      }
+
+      .textInvalidKey {
+        font-family: var(--font-family-main);
+        font-style: normal;
+        font-weight: 500;
+        font-size: 14px;
+        color: #eb4040;
+        margin-left: 5px;
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# Task ID: 2
+# Title: User Authentication & Management with OAuth 2.0
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Implement user registration, login (email/password), session management using JWTs, and profile management. Integrate OAuth 2.0 for at least one meeting platform (e.g., Zoom) for user authentication and authorization.
+# Details:
+Backend: Implement REST APIs for `/auth/register`, `/auth/login`, `/auth/refresh-token`, `/auth/oauth/zoom` using Axum. Use argon2 for password hashing in Rust. Store user data in PostgreSQL using sqlx. Frontend: Create registration, login, and profile pages in React. Handle JWT storage (securely in Tauri's secure storage). Implement OAuth 2.0 client flow for Zoom using oauth2 crate in Rust.
+
+# Test Strategy:
+Unit tests for auth logic (registration, login, token generation/validation) using Rust's testing framework. Integration tests for OAuth flow with Zoom. Manual testing of user lifecycle: registration, login, logout, profile update.
