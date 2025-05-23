@@ -29,7 +29,7 @@
     "clsx": "^2.1.1",
     "electron-updater": "^6.1.7",
     "lucide-react": "^0.511.0",
-    "tailwind-merge": "^2.5.4",
+    "tailwind-merge": "^3.0.0",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
