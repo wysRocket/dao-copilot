@@ -98,7 +98,7 @@
     "@types/uuid": "^9.0.2",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
-    "concurrently": "^8.0.1",
+    "concurrently": "^9.0.0",
     "customize-cra": "^1.0.0",
     "electron-devtools-installer": "^3.2.0",
     "react-app-rewired": "^2.2.1",
