@@ -1,0 +1,43 @@
+[package]
+name = "dao-copilot"
+version = "1.0.0"
+description = "A powerful DAO management and governance copilot"
+authors = ["wysRocket"]
+license = "MIT"
+repository = "https://github.com/wysRocket/dao-copilot"
+default-run = "dao-copilot"
+edition = "2021"
+rust-version = "1.60"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "1.8", features = [
+    "api-all",
+    "window-all",
+    "shell-open",
+    "notification-all",
+    "global-shortcut-all",
+    "clipboard-all",
+    "dialog-all",
+    "fs-all",
+    "http-all",
+    "os-all",
+    "path-all",
+    "process-all",
+    "protocol-all",
+    "system-tray",
+    "updater"
+] }
+tokio = { version = "1.0", features = ["full"] }
+
+[target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
+tauri-plugin-global-shortcut = "1.0"
+tauri-plugin-spotlight = "1.0"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
