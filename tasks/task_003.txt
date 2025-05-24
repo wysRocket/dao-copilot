@@ -1,11 +1,11 @@
 # Task ID: 3
-# Title: Core Meeting Platform Integrations (Zoom, Teams, Google Meet)
+# Title: Core Meeting Platform Integrations (Zoom, Teams, Google Meet) with GCP
 # Status: pending
 # Dependencies: 2
 # Priority: high
-# Description: Integrate with Zoom, Microsoft Teams, and Google Meet using their official APIs and OAuth 2.0 for authentication. Implement functionality to detect active meetings and capture audio streams securely.
+# Description: Integrate with Zoom, Microsoft Teams, and Google Meet using their official APIs and OAuth 2.0 for authentication. Implement functionality to detect active meetings and capture audio streams securely. Store integration tokens securely in GCP Secret Manager.
 # Details:
-Backend: Develop service modules for each platform (Zoom, Teams, Google Meet) in Rust. Use official APIs with reqwest crate. Implement OAuth 2.0 token management for each service using oauth2 crate. Frontend: UI for connecting/disconnecting integrations in React. Logic to select active meeting and initiate audio capture using Tauri's system access capabilities. For audio capture, use Tauri's native capabilities to access system audio. Ensure clear user consent for audio access.
+Backend: Develop service modules for each platform (Zoom, Teams, Google Meet) in Rust. Use official APIs with reqwest crate. Implement OAuth 2.0 token management for each service using oauth2 crate. Store sensitive tokens in GCP Secret Manager. Frontend: UI for connecting/disconnecting integrations in React. Logic to select active meeting and initiate audio capture using Tauri's system access capabilities. For audio capture, use Tauri's native capabilities to access system audio. Ensure clear user consent for audio access.
 
 # Test Strategy:
-Integration tests for connecting to each platform, listing meetings, and initiating audio stream capture. Test token refresh mechanisms. Verify UI indicators for active integrations.
+Integration tests for connecting to each platform, listing meetings, and initiating audio stream capture. Test token refresh mechanisms. Verify UI indicators for active integrations. Test Secret Manager access and token retrieval in GCP environment.

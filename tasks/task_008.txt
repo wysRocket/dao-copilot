@@ -1,11 +1,11 @@
 # Task ID: 8
-# Title: Smart Meeting Summarization (LLM-based)
+# Title: Smart Meeting Summarization with Google Vertex AI
 # Status: pending
 # Dependencies: 4
 # Priority: medium
-# Description: Create a service that uses an LLM (e.g., GPT-3.5/4 via API, or an open-source model) to generate automated, concise meeting summaries post-meeting. Summaries should highlight key decisions and action items and be editable by the user.
+# Description: Create a service that uses Google Vertex AI LLMs to generate automated, concise meeting summaries post-meeting. Summaries should highlight key decisions and action items and be editable by the user.
 # Details:
-Backend: Develop a Rust service that takes a meeting transcript as input. Send transcript (or relevant parts) to an LLM API with a carefully crafted prompt for summarization, focusing on decisions and action items. Store summaries linked to meetings using sqlx. Provide API for retrieving and updating summaries. Frontend: Display generated summaries post-meeting in React. Allow users to edit and save changes.
+Backend: Develop a Rust service that takes a meeting transcript as input. Send transcript (or relevant parts) to Google Vertex AI API with a carefully crafted prompt for summarization, focusing on decisions and action items. Store summaries linked to meetings in Cloud SQL using sqlx. Provide API for retrieving and updating summaries. Frontend: Display generated summaries post-meeting in React. Allow users to edit and save changes.
 
 # Test Strategy:
-Unit tests for LLM API interaction and prompt engineering in Rust. Evaluate summary quality (conciseness, accuracy, coverage of key points) on diverse transcripts. Test user editing and saving functionality.
+Unit tests for Google Vertex AI API interaction and prompt engineering in Rust. Evaluate summary quality (conciseness, accuracy, coverage of key points) on diverse transcripts. Test user editing and saving functionality.

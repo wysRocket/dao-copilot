@@ -2,79 +2,139 @@
   "tasks": [
     {
       "id": 1,
-      "title": "Project Setup & Core Infrastructure with Tauri and Rust",
-      "description": "Initialize frontend (Tauri with React/TypeScript) and backend (Rust with Axum). Set up Docker for containerization, PostgreSQL for structured data, S3 for file storage, and select a cloud provider (e.g., AWS). Establish basic CI/CD pipeline.",
+      "title": "Project Setup & Core Infrastructure with Tauri and Rust on Google Cloud Platform",
+      "description": "Initialize frontend (Tauri with React/TypeScript) and backend (Rust with Axum). Set up Docker for containerization, Cloud SQL for PostgreSQL, Cloud Storage for file storage on Google Cloud Platform. Establish basic CI/CD pipeline with Cloud Build.",
       "status": "pending",
       "dependencies": [],
       "priority": "high",
-      "details": "Frontend: Set up Tauri with React/TypeScript using `npm create tauri-app@latest`. Backend: Create a new Rust project with `cargo new meeting-copilot-backend`, add Axum, sqlx, and aws-sdk-rust dependencies. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase using sqlx migrations. Cloud: Set up basic IAM roles, S3 bucket, RDS instance for PostgreSQL. CI/CD: Basic GitHub Actions or Jenkins pipeline for build and test.",
-      "testStrategy": "Unit tests for basic server setup using Rust's testing framework. Verify successful build and containerization of both Tauri frontend and Rust backend. Confirm database connectivity with sqlx.",
-      "subtasks": []
+      "details": "Frontend: Set up Tauri with React/TypeScript using `npm create tauri-app@latest`. Backend: Create a new Rust project with `cargo new meeting-copilot-backend`, add Axum, sqlx, and google-cloud-rust dependencies. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase using sqlx migrations. Cloud: Set up GCP project, IAM roles, Cloud Storage bucket, Cloud SQL instance for PostgreSQL. CI/CD: Basic Cloud Build pipeline for build and test, with deployment to Cloud Run.",
+      "testStrategy": "Unit tests for basic server setup using Rust's testing framework. Verify successful build and containerization of both Tauri frontend and Rust backend. Confirm database connectivity with sqlx to Cloud SQL. Test Cloud Storage access permissions.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Frontend Setup with Tauri and React/TypeScript",
+          "description": "Initialize and configure the frontend application using Tauri with React and TypeScript",
+          "dependencies": [],
+          "details": "Implementation Steps:\n1. Install Rust and Node.js prerequisites\n2. Initialize a new Tauri project with React and TypeScript template\n3. Configure project structure (components, pages, services)\n4. Set up state management solution\n5. Implement basic UI components and layouts\n6. Configure TypeScript strict mode and linting\n7. Set up testing framework (Jest/React Testing Library)\n\nAcceptance Criteria:\n- Project builds successfully with `npm run tauri build`\n- Hot reload works for development\n- TypeScript compilation succeeds with no errors\n- Basic UI renders correctly across platforms (Windows/macOS/Linux)\n- Unit tests pass for core components\n\nEstimated Effort: 3 days",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Backend Setup with Rust and Axum",
+          "description": "Create and configure the backend API service using Rust and the Axum framework",
+          "dependencies": [],
+          "details": "Implementation Steps:\n1. Initialize a new Rust project with Cargo\n2. Add Axum and other necessary dependencies\n3. Set up project structure (handlers, models, services)\n4. Implement basic routing and middleware\n5. Create health check endpoint\n6. Configure logging and error handling\n7. Set up configuration management for different environments\n\nAcceptance Criteria:\n- Server starts and responds to requests\n- Health check endpoint returns 200 OK\n- Proper error handling for invalid routes\n- Logging captures request/response information\n- Configuration loads correctly from environment variables\n- Unit tests pass for core functionality\n\nEstimated Effort: 3 days",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Database Setup with PostgreSQL and Migrations",
+          "description": "Set up PostgreSQL database with initial schema and migration system",
+          "dependencies": [
+            2
+          ],
+          "details": "Implementation Steps:\n1. Install and configure PostgreSQL\n2. Design initial database schema\n3. Set up SQLx or Diesel ORM in the Rust backend\n4. Create migration system for schema versioning\n5. Implement initial migrations for core tables\n6. Create database connection pool\n7. Set up test database for automated testing\n\nAcceptance Criteria:\n- PostgreSQL instance is accessible from backend\n- Initial schema is created via migrations\n- Connection pooling works correctly\n- Migrations can be applied and rolled back\n- Database queries execute successfully\n- Test database can be reset between test runs\n\nEstimated Effort: 2 days",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Cloud Infrastructure Setup (S3, IAM)",
+          "description": "Configure AWS S3 buckets and IAM roles/policies for application storage needs",
+          "dependencies": [],
+          "details": "Implementation Steps:\n1. Create AWS account or use existing one\n2. Set up S3 buckets for application assets and user uploads\n3. Configure bucket policies and CORS settings\n4. Create IAM roles with least privilege access\n5. Generate and secure access keys\n6. Implement S3 client in backend code\n7. Set up local development mocks for S3\n\nAcceptance Criteria:\n- S3 buckets are created with proper access controls\n- IAM roles follow least privilege principle\n- Backend can upload/download files to/from S3\n- CORS is properly configured for frontend access\n- Local development works without AWS credentials\n- Documentation for AWS resources is complete\n\nEstimated Effort: 2 days",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "Docker Containerization for Frontend and Backend",
+          "description": "Create Docker containers for both frontend and backend services",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "Implementation Steps:\n1. Create Dockerfile for Tauri frontend build\n2. Create Dockerfile for Rust backend\n3. Set up Docker Compose for local development\n4. Configure volume mounts for development\n5. Optimize container sizes with multi-stage builds\n6. Set up container networking\n7. Create scripts for container management\n\nAcceptance Criteria:\n- Frontend and backend build successfully as containers\n- Docker Compose brings up the entire stack\n- Containers communicate with each other\n- Development experience works with hot reloading\n- Production containers are optimized for size\n- Database persistence works across container restarts\n\nEstimated Effort: 2 days",
+          "status": "pending"
+        },
+        {
+          "id": 6,
+          "title": "CI/CD Pipeline Configuration",
+          "description": "Set up continuous integration and deployment pipeline for automated testing and deployment",
+          "dependencies": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "details": "Implementation Steps:\n1. Choose CI/CD platform (GitHub Actions, GitLab CI, etc.)\n2. Create workflow for building and testing frontend\n3. Create workflow for building and testing backend\n4. Set up database migrations in CI pipeline\n5. Configure deployment to staging/production environments\n6. Implement automated versioning\n7. Set up notifications for build failures\n\nAcceptance Criteria:\n- CI pipeline runs on each pull request\n- All tests execute in the pipeline\n- Failed tests prevent merging\n- Successful merges to main trigger deployment\n- Database migrations run automatically\n- Build artifacts are versioned correctly\n- Pipeline execution time is reasonable (<15 minutes)\n\nEstimated Effort: 3 days",
+          "status": "pending"
+        }
+      ]
     },
     {
       "id": 2,
-      "title": "User Authentication & Management with OAuth 2.0",
-      "description": "Implement user registration, login (email/password), session management using JWTs, and profile management. Integrate OAuth 2.0 for at least one meeting platform (e.g., Zoom) for user authentication and authorization.",
+      "title": "User Authentication & Management with OAuth 2.0 on GCP",
+      "description": "Implement user registration, login (email/password), session management using JWTs, and profile management. Integrate OAuth 2.0 for at least one meeting platform (e.g., Zoom) for user authentication and authorization. Consider using Firebase Auth or Cloud Identity Platform.",
       "status": "pending",
       "dependencies": [
         1
       ],
       "priority": "high",
-      "details": "Backend: Implement REST APIs for `/auth/register`, `/auth/login`, `/auth/refresh-token`, `/auth/oauth/zoom` using Axum. Use argon2 for password hashing in Rust. Store user data in PostgreSQL using sqlx. Frontend: Create registration, login, and profile pages in React. Handle JWT storage (securely in Tauri's secure storage). Implement OAuth 2.0 client flow for Zoom using oauth2 crate in Rust.",
-      "testStrategy": "Unit tests for auth logic (registration, login, token generation/validation) using Rust's testing framework. Integration tests for OAuth flow with Zoom. Manual testing of user lifecycle: registration, login, logout, profile update.",
+      "details": "Backend: Implement REST APIs for `/auth/register`, `/auth/login`, `/auth/refresh-token`, `/auth/oauth/zoom` using Axum. Use argon2 for password hashing in Rust. Store user data in Cloud SQL PostgreSQL using sqlx. Consider Firebase Auth or Cloud Identity Platform integration for simplified auth management. Frontend: Create registration, login, and profile pages in React. Handle JWT storage (securely in Tauri's secure storage). Implement OAuth 2.0 client flow for Zoom using oauth2 crate in Rust.",
+      "testStrategy": "Unit tests for auth logic (registration, login, token generation/validation) using Rust's testing framework. Integration tests for OAuth flow with Zoom. Manual testing of user lifecycle: registration, login, logout, profile update. Test GCP-specific auth integrations if using Firebase Auth or Cloud Identity Platform.",
       "subtasks": []
     },
     {
       "id": 3,
-      "title": "Core Meeting Platform Integrations (Zoom, Teams, Google Meet)",
-      "description": "Integrate with Zoom, Microsoft Teams, and Google Meet using their official APIs and OAuth 2.0 for authentication. Implement functionality to detect active meetings and capture audio streams securely.",
+      "title": "Core Meeting Platform Integrations (Zoom, Teams, Google Meet) with GCP",
+      "description": "Integrate with Zoom, Microsoft Teams, and Google Meet using their official APIs and OAuth 2.0 for authentication. Implement functionality to detect active meetings and capture audio streams securely. Store integration tokens securely in GCP Secret Manager.",
       "status": "pending",
       "dependencies": [
         2
       ],
       "priority": "high",
-      "details": "Backend: Develop service modules for each platform (Zoom, Teams, Google Meet) in Rust. Use official APIs with reqwest crate. Implement OAuth 2.0 token management for each service using oauth2 crate. Frontend: UI for connecting/disconnecting integrations in React. Logic to select active meeting and initiate audio capture using Tauri's system access capabilities. For audio capture, use Tauri's native capabilities to access system audio. Ensure clear user consent for audio access.",
-      "testStrategy": "Integration tests for connecting to each platform, listing meetings, and initiating audio stream capture. Test token refresh mechanisms. Verify UI indicators for active integrations.",
+      "details": "Backend: Develop service modules for each platform (Zoom, Teams, Google Meet) in Rust. Use official APIs with reqwest crate. Implement OAuth 2.0 token management for each service using oauth2 crate. Store sensitive tokens in GCP Secret Manager. Frontend: UI for connecting/disconnecting integrations in React. Logic to select active meeting and initiate audio capture using Tauri's system access capabilities. For audio capture, use Tauri's native capabilities to access system audio. Ensure clear user consent for audio access.",
+      "testStrategy": "Integration tests for connecting to each platform, listing meetings, and initiating audio stream capture. Test token refresh mechanisms. Verify UI indicators for active integrations. Test Secret Manager access and token retrieval in GCP environment.",
       "subtasks": []
     },
     {
       "id": 4,
-      "title": "Real-time Audio Transcription Service with Speaker Attribution",
-      "description": "Develop a service to process audio streams from meetings in real-time. Integrate a leading Speech-to-Text (STT) API (e.g., Google Cloud Speech-to-Text, AssemblyAI) or prepare for an on-device model. Implement speaker diarization and attribution. Display transcription with clear visual indicators in the frontend.",
+      "title": "Real-time Audio Transcription Service with Speaker Attribution using Google Speech-to-Text",
+      "description": "Develop a service to process audio streams from meetings in real-time. Integrate Google Cloud Speech-to-Text API for transcription. Implement speaker diarization and attribution. Display transcription with clear visual indicators in the frontend.",
       "status": "pending",
       "dependencies": [
         3
       ],
       "priority": "high",
-      "details": "Backend: Create a transcription service in Rust that receives audio chunks. Use tokio-tungstenite for WebSocket communication with the STT API and frontend. Implement logic for speaker diarization (if not provided by STT API, consider libraries with Rust bindings or FFI). Store transcripts linked to meetings and users using sqlx. Frontend: Display real-time transcriptions in React, clearly attributing speakers. Implement visual cues for active transcription.",
-      "testStrategy": "Unit tests for audio chunk processing and STT API interaction in Rust. Integration tests with live audio stream. Accuracy testing with diverse accents and noisy environments. Verify speaker attribution accuracy. Test visual indicators in UI.",
+      "details": "Backend: Create a transcription service in Rust that receives audio chunks. Use tokio-tungstenite for WebSocket communication with the Google Cloud Speech-to-Text API and frontend. Leverage Google's speaker diarization capabilities. Store transcripts linked to meetings and users in Cloud SQL using sqlx. Frontend: Display real-time transcriptions in React, clearly attributing speakers. Implement visual cues for active transcription.",
+      "testStrategy": "Unit tests for audio chunk processing and Google Cloud Speech-to-Text API interaction in Rust. Integration tests with live audio stream. Accuracy testing with diverse accents and noisy environments. Verify speaker attribution accuracy. Test visual indicators in UI.",
       "subtasks": []
     },
     {
       "id": 5,
-      "title": "User Document Upload & Secure Storage (Knowledge Base Foundation)",
-      "description": "Implement functionality for users to upload documents (e.g., PDF, DOCX, TXT) to create a personal/team knowledge base. Securely store these documents in S3. Define Document and KnowledgeBase data models and implement basic permission management.",
+      "title": "User Document Upload & Secure Storage with Google Cloud Storage",
+      "description": "Implement functionality for users to upload documents (e.g., PDF, DOCX, TXT) to create a personal/team knowledge base. Securely store these documents in Google Cloud Storage. Define Document and KnowledgeBase data models and implement basic permission management.",
       "status": "pending",
       "dependencies": [
         1,
         2
       ],
       "priority": "medium",
-      "details": "Backend: Create API endpoints in Axum for document upload (`/documents/upload`), listing, and deletion. Use multipart form handling in Axum for file uploads. Store metadata in PostgreSQL using sqlx (Document model: `id`, `userId`, `fileName`, `s3Key`, `uploadDate`, `knowledgeBaseId`). Store files in S3 with aws-sdk-rust with appropriate access controls (private by default). Frontend: UI for uploading, viewing, and managing documents within a knowledge base concept using React and Tauri's file system access.",
-      "testStrategy": "Unit tests for file upload handling and S3 interaction in Rust. Integration tests for the complete upload flow. Security testing for access control on S3 objects and API endpoints. Test various file types and sizes.",
+      "details": "Backend: Create API endpoints in Axum for document upload (`/documents/upload`), listing, and deletion. Use multipart form handling in Axum for file uploads. Store metadata in Cloud SQL PostgreSQL using sqlx (Document model: `id`, `userId`, `fileName`, `gcsObjectName`, `uploadDate`, `knowledgeBaseId`). Store files in Google Cloud Storage with google-cloud-storage-rust with appropriate access controls (private by default). Frontend: UI for uploading, viewing, and managing documents within a knowledge base concept using React and Tauri's file system access.",
+      "testStrategy": "Unit tests for file upload handling and Google Cloud Storage interaction in Rust. Integration tests for the complete upload flow. Security testing for access control on GCS objects and API endpoints. Test various file types and sizes.",
       "subtasks": []
     },
     {
       "id": 6,
-      "title": "Contextual Information Retrieval from User Documents (Semantic Search)",
-      "description": "Develop a service for contextual information retrieval. This includes ingesting uploaded documents (parsing text, generating embeddings using models like Sentence Transformers or OpenAI Embeddings), storing embeddings in a vector database (e.g., Pinecone, Weaviate, or pgvector extension for PostgreSQL), and providing an API for semantic search based on user queries during meetings. Retrieval must be explicit and only from user-authorized documents.",
+      "title": "Contextual Information Retrieval from User Documents using Google Vertex AI",
+      "description": "Develop a service for contextual information retrieval. This includes ingesting uploaded documents (parsing text, generating embeddings using Google Vertex AI or other embedding models), storing embeddings in a vector database (e.g., using pgvector extension for Cloud SQL PostgreSQL), and providing an API for semantic search based on user queries during meetings. Retrieval must be explicit and only from user-authorized documents.",
       "status": "pending",
       "dependencies": [
         5
       ],
       "priority": "medium",
-      "details": "Backend: Implement document processing pipeline in Rust (e.g., using rust-tika for parsing, rust-bert or OpenAI API for embeddings). Set up and integrate a vector database with Rust bindings. Create API endpoint in Axum (`/search/contextual`) that takes a user query and returns relevant snippets from their documents. Ensure search respects document permissions. Frontend: UI element in React for users to type queries during meetings and view search results.",
-      "testStrategy": "Unit tests for document parsing, embedding generation, and vector DB interaction in Rust. Integration tests for the end-to-end search flow. Relevance testing of search results. Performance testing for query latency.",
+      "details": "Backend: Implement document processing pipeline in Rust (e.g., using rust-tika for parsing, Google Vertex AI API for embeddings). Set up and integrate pgvector extension with Cloud SQL PostgreSQL. Create API endpoint in Axum (`/search/contextual`) that takes a user query and returns relevant snippets from their documents. Ensure search respects document permissions. Frontend: UI element in React for users to type queries during meetings and view search results.",
+      "testStrategy": "Unit tests for document parsing, embedding generation using Vertex AI, and vector DB interaction in Rust. Integration tests for the end-to-end search flow. Relevance testing of search results. Performance testing for query latency.",
       "subtasks": []
     },
     {
@@ -87,21 +147,21 @@
         4
       ],
       "priority": "medium",
-      "details": "Frontend: Develop a dedicated notes panel in React within the meeting interface. Implement client-side encryption/decryption using Tauri's native crypto capabilities or WebCrypto API with user-derived keys. Backend: Store encrypted note blobs using sqlx. API endpoints in Axum for saving/retrieving encrypted notes. Implement export functionality using Tauri's file system capabilities. AI assistance could be simple suggestions based on transcript keywords or context, initially. Define Note data model (encrypted content).",
+      "details": "Frontend: Develop a dedicated notes panel in React within the meeting interface. Implement client-side encryption/decryption using Tauri's native crypto capabilities or WebCrypto API with user-derived keys. Backend: Store encrypted note blobs in Cloud SQL using sqlx. API endpoints in Axum for saving/retrieving encrypted notes. Implement export functionality using Tauri's file system capabilities. AI assistance could leverage Google Vertex AI for simple suggestions based on transcript keywords or context. Define Note data model (encrypted content).",
       "testStrategy": "Unit tests for encryption/decryption logic in Rust and JavaScript. Test note creation, editing, saving, and retrieval. Verify E2EE by inspecting stored data. Test export functionality for various formats. Security audit of the E2EE implementation.",
       "subtasks": []
     },
     {
       "id": 8,
-      "title": "Smart Meeting Summarization (LLM-based)",
-      "description": "Create a service that uses an LLM (e.g., GPT-3.5/4 via API, or an open-source model) to generate automated, concise meeting summaries post-meeting. Summaries should highlight key decisions and action items and be editable by the user.",
+      "title": "Smart Meeting Summarization with Google Vertex AI",
+      "description": "Create a service that uses Google Vertex AI LLMs to generate automated, concise meeting summaries post-meeting. Summaries should highlight key decisions and action items and be editable by the user.",
       "status": "pending",
       "dependencies": [
         4
       ],
       "priority": "medium",
-      "details": "Backend: Develop a Rust service that takes a meeting transcript as input. Send transcript (or relevant parts) to an LLM API with a carefully crafted prompt for summarization, focusing on decisions and action items. Store summaries linked to meetings using sqlx. Provide API for retrieving and updating summaries. Frontend: Display generated summaries post-meeting in React. Allow users to edit and save changes.",
-      "testStrategy": "Unit tests for LLM API interaction and prompt engineering in Rust. Evaluate summary quality (conciseness, accuracy, coverage of key points) on diverse transcripts. Test user editing and saving functionality.",
+      "details": "Backend: Develop a Rust service that takes a meeting transcript as input. Send transcript (or relevant parts) to Google Vertex AI API with a carefully crafted prompt for summarization, focusing on decisions and action items. Store summaries linked to meetings in Cloud SQL using sqlx. Provide API for retrieving and updating summaries. Frontend: Display generated summaries post-meeting in React. Allow users to edit and save changes.",
+      "testStrategy": "Unit tests for Google Vertex AI API interaction and prompt engineering in Rust. Evaluate summary quality (conciseness, accuracy, coverage of key points) on diverse transcripts. Test user editing and saving functionality.",
       "subtasks": []
     },
     {
@@ -113,14 +173,14 @@
         3
       ],
       "priority": "low",
-      "details": "Frontend (Tauri): Utilize Tauri's native audio capabilities for local audio capture in practice mode. Implement audio analysis using Rust plugins for Tauri for better performance (e.g., for pitch, energy to detect speech; custom logic for filler words based on STT snippets if available locally, or simpler heuristics). Display analytics feedback to the user in React in real-time or post-session. No audio data should leave the user's device for this feature.",
+      "details": "Frontend (Tauri): Utilize Tauri's native audio capabilities for local audio capture in practice mode. Implement audio analysis using Rust plugins for Tauri for better performance (e.g., for pitch, energy to detect speech; custom logic for filler words based on STT snippets if available locally, or simpler heuristics). Display analytics feedback to the user in React in real-time or post-session. No audio data should leave the user's device for this feature. Optionally, allow users to save anonymized analytics to Cloud SQL for personal progress tracking.",
       "testStrategy": "Test accuracy of analytics (speaking pace, filler word detection, talk-time) against known samples. Verify that no audio data is transmitted for this feature. Usability testing for clarity and usefulness of feedback.",
       "subtasks": []
     },
     {
       "id": 10,
-      "title": "Transparent Operation, User Controls & Accessibility (WCAG)",
-      "description": "Implement persistent, non-intrusive visual indicators for all AI activities (transcription, contextual retrieval). Develop a comprehensive settings UI for granular user control over each feature, privacy settings, and integrations. Ensure WCAG compliance for accessibility. Implement basic audit logs for critical actions.",
+      "title": "Transparent Operation, User Controls & Accessibility (WCAG) with GCP Logging",
+      "description": "Implement persistent, non-intrusive visual indicators for all AI activities (transcription, contextual retrieval). Develop a comprehensive settings UI for granular user control over each feature, privacy settings, and integrations. Ensure WCAG compliance for accessibility. Implement audit logs for critical actions using Google Cloud Logging.",
       "status": "pending",
       "dependencies": [
         4,
@@ -130,8 +190,8 @@
         9
       ],
       "priority": "medium",
-      "details": "Frontend: Design and implement UI elements in React for AI activity indicators (e.g., subtle icons, status messages). Create a settings section with toggles for each AI feature, data sharing preferences, and integration management. Ensure all UI components meet WCAG AA standards (keyboard navigation, ARIA attributes, color contrast). Backend: Support for feature flags based on user settings in Rust. Implement logging for critical user actions (e.g., changing permissions, deleting data) for audit purposes using a structured logging crate like tracing.",
-      "testStrategy": "UI/UX review for clarity and non-intrusiveness of indicators. Test all user controls and settings, verifying they correctly enable/disable features. Automated accessibility checks (e.g., Axe DevTools) and manual testing for WCAG compliance. Review audit logs for completeness and accuracy.",
+      "details": "Frontend: Design and implement UI elements in React for AI activity indicators (e.g., subtle icons, status messages). Create a settings section with toggles for each AI feature, data sharing preferences, and integration management. Ensure all UI components meet WCAG AA standards (keyboard navigation, ARIA attributes, color contrast). Backend: Support for feature flags based on user settings in Rust. Implement logging for critical user actions (e.g., changing permissions, deleting data) for audit purposes using Google Cloud Logging. Set up appropriate log retention policies and access controls in GCP.",
+      "testStrategy": "UI/UX review for clarity and non-intrusiveness of indicators. Test all user controls and settings, verifying they correctly enable/disable features. Automated accessibility checks (e.g., Axe DevTools) and manual testing for WCAG compliance. Review audit logs in Google Cloud Logging for completeness and accuracy.",
       "subtasks": []
     }
   ]

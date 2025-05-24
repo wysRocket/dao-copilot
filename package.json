@@ -50,7 +50,7 @@
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@mui/material": "^5.13.5",
-    "@reduxjs/toolkit": "^1.9.5",
+    "@reduxjs/toolkit": "^2.8.2",
     "classnames": "^2.3.2",
     "cors": "^2.8.5",
     "cross-env": "^7.0.3",

@@ -1,11 +1,11 @@
 # Task ID: 4
-# Title: Real-time Audio Transcription Service with Speaker Attribution
+# Title: Real-time Audio Transcription Service with Speaker Attribution using Google Speech-to-Text
 # Status: pending
 # Dependencies: 3
 # Priority: high
-# Description: Develop a service to process audio streams from meetings in real-time. Integrate a leading Speech-to-Text (STT) API (e.g., Google Cloud Speech-to-Text, AssemblyAI) or prepare for an on-device model. Implement speaker diarization and attribution. Display transcription with clear visual indicators in the frontend.
+# Description: Develop a service to process audio streams from meetings in real-time. Integrate Google Cloud Speech-to-Text API for transcription. Implement speaker diarization and attribution. Display transcription with clear visual indicators in the frontend.
 # Details:
-Backend: Create a transcription service in Rust that receives audio chunks. Use tokio-tungstenite for WebSocket communication with the STT API and frontend. Implement logic for speaker diarization (if not provided by STT API, consider libraries with Rust bindings or FFI). Store transcripts linked to meetings and users using sqlx. Frontend: Display real-time transcriptions in React, clearly attributing speakers. Implement visual cues for active transcription.
+Backend: Create a transcription service in Rust that receives audio chunks. Use tokio-tungstenite for WebSocket communication with the Google Cloud Speech-to-Text API and frontend. Leverage Google's speaker diarization capabilities. Store transcripts linked to meetings and users in Cloud SQL using sqlx. Frontend: Display real-time transcriptions in React, clearly attributing speakers. Implement visual cues for active transcription.
 
 # Test Strategy:
-Unit tests for audio chunk processing and STT API interaction in Rust. Integration tests with live audio stream. Accuracy testing with diverse accents and noisy environments. Verify speaker attribution accuracy. Test visual indicators in UI.
+Unit tests for audio chunk processing and Google Cloud Speech-to-Text API interaction in Rust. Integration tests with live audio stream. Accuracy testing with diverse accents and noisy environments. Verify speaker attribution accuracy. Test visual indicators in UI.

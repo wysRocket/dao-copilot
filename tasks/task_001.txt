@@ -1,11 +1,151 @@
 # Task ID: 1
-# Title: Project Setup & Core Infrastructure with Tauri and Rust
+# Title: Project Setup & Core Infrastructure with Tauri and Rust on Google Cloud Platform
 # Status: pending
 # Dependencies: None
 # Priority: high
-# Description: Initialize frontend (Tauri with React/TypeScript) and backend (Rust with Axum). Set up Docker for containerization, PostgreSQL for structured data, S3 for file storage, and select a cloud provider (e.g., AWS). Establish basic CI/CD pipeline.
+# Description: Initialize frontend (Tauri with React/TypeScript) and backend (Rust with Axum). Set up Docker for containerization, Cloud SQL for PostgreSQL, Cloud Storage for file storage on Google Cloud Platform. Establish basic CI/CD pipeline with Cloud Build.
 # Details:
-Frontend: Set up Tauri with React/TypeScript using `npm create tauri-app@latest`. Backend: Create a new Rust project with `cargo new meeting-copilot-backend`, add Axum, sqlx, and aws-sdk-rust dependencies. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase using sqlx migrations. Cloud: Set up basic IAM roles, S3 bucket, RDS instance for PostgreSQL. CI/CD: Basic GitHub Actions or Jenkins pipeline for build and test.
+Frontend: Set up Tauri with React/TypeScript using `npm create tauri-app@latest`. Backend: Create a new Rust project with `cargo new meeting-copilot-backend`, add Axum, sqlx, and google-cloud-rust dependencies. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase using sqlx migrations. Cloud: Set up GCP project, IAM roles, Cloud Storage bucket, Cloud SQL instance for PostgreSQL. CI/CD: Basic Cloud Build pipeline for build and test, with deployment to Cloud Run.
 
 # Test Strategy:
-Unit tests for basic server setup using Rust's testing framework. Verify successful build and containerization of both Tauri frontend and Rust backend. Confirm database connectivity with sqlx.
+Unit tests for basic server setup using Rust's testing framework. Verify successful build and containerization of both Tauri frontend and Rust backend. Confirm database connectivity with sqlx to Cloud SQL. Test Cloud Storage access permissions.
+
+# Subtasks:
+## 1. Frontend Setup with Tauri and React/TypeScript [pending]
+### Dependencies: None
+### Description: Initialize and configure the frontend application using Tauri with React and TypeScript
+### Details:
+Implementation Steps:
+1. Install Rust and Node.js prerequisites
+2. Initialize a new Tauri project with React and TypeScript template
+3. Configure project structure (components, pages, services)
+4. Set up state management solution
+5. Implement basic UI components and layouts
+6. Configure TypeScript strict mode and linting
+7. Set up testing framework (Jest/React Testing Library)
+
+Acceptance Criteria:
+- Project builds successfully with `npm run tauri build`
+- Hot reload works for development
+- TypeScript compilation succeeds with no errors
+- Basic UI renders correctly across platforms (Windows/macOS/Linux)
+- Unit tests pass for core components
+
+Estimated Effort: 3 days
+
+## 2. Backend Setup with Rust and Axum [pending]
+### Dependencies: None
+### Description: Create and configure the backend API service using Rust and the Axum framework
+### Details:
+Implementation Steps:
+1. Initialize a new Rust project with Cargo
+2. Add Axum and other necessary dependencies
+3. Set up project structure (handlers, models, services)
+4. Implement basic routing and middleware
+5. Create health check endpoint
+6. Configure logging and error handling
+7. Set up configuration management for different environments
+
+Acceptance Criteria:
+- Server starts and responds to requests
+- Health check endpoint returns 200 OK
+- Proper error handling for invalid routes
+- Logging captures request/response information
+- Configuration loads correctly from environment variables
+- Unit tests pass for core functionality
+
+Estimated Effort: 3 days
+
+## 3. Database Setup with PostgreSQL and Migrations [pending]
+### Dependencies: 1.2
+### Description: Set up PostgreSQL database with initial schema and migration system
+### Details:
+Implementation Steps:
+1. Install and configure PostgreSQL
+2. Design initial database schema
+3. Set up SQLx or Diesel ORM in the Rust backend
+4. Create migration system for schema versioning
+5. Implement initial migrations for core tables
+6. Create database connection pool
+7. Set up test database for automated testing
+
+Acceptance Criteria:
+- PostgreSQL instance is accessible from backend
+- Initial schema is created via migrations
+- Connection pooling works correctly
+- Migrations can be applied and rolled back
+- Database queries execute successfully
+- Test database can be reset between test runs
+
+Estimated Effort: 2 days
+
+## 4. Cloud Infrastructure Setup (S3, IAM) [pending]
+### Dependencies: None
+### Description: Configure AWS S3 buckets and IAM roles/policies for application storage needs
+### Details:
+Implementation Steps:
+1. Create AWS account or use existing one
+2. Set up S3 buckets for application assets and user uploads
+3. Configure bucket policies and CORS settings
+4. Create IAM roles with least privilege access
+5. Generate and secure access keys
+6. Implement S3 client in backend code
+7. Set up local development mocks for S3
+
+Acceptance Criteria:
+- S3 buckets are created with proper access controls
+- IAM roles follow least privilege principle
+- Backend can upload/download files to/from S3
+- CORS is properly configured for frontend access
+- Local development works without AWS credentials
+- Documentation for AWS resources is complete
+
+Estimated Effort: 2 days
+
+## 5. Docker Containerization for Frontend and Backend [pending]
+### Dependencies: 1.1, 1.2, 1.3
+### Description: Create Docker containers for both frontend and backend services
+### Details:
+Implementation Steps:
+1. Create Dockerfile for Tauri frontend build
+2. Create Dockerfile for Rust backend
+3. Set up Docker Compose for local development
+4. Configure volume mounts for development
+5. Optimize container sizes with multi-stage builds
+6. Set up container networking
+7. Create scripts for container management
+
+Acceptance Criteria:
+- Frontend and backend build successfully as containers
+- Docker Compose brings up the entire stack
+- Containers communicate with each other
+- Development experience works with hot reloading
+- Production containers are optimized for size
+- Database persistence works across container restarts
+
+Estimated Effort: 2 days
+
+## 6. CI/CD Pipeline Configuration [pending]
+### Dependencies: 1.1, 1.2, 1.3, 1.5
+### Description: Set up continuous integration and deployment pipeline for automated testing and deployment
+### Details:
+Implementation Steps:
+1. Choose CI/CD platform (GitHub Actions, GitLab CI, etc.)
+2. Create workflow for building and testing frontend
+3. Create workflow for building and testing backend
+4. Set up database migrations in CI pipeline
+5. Configure deployment to staging/production environments
+6. Implement automated versioning
+7. Set up notifications for build failures
+
+Acceptance Criteria:
+- CI pipeline runs on each pull request
+- All tests execute in the pipeline
+- Failed tests prevent merging
+- Successful merges to main trigger deployment
+- Database migrations run automatically
+- Build artifacts are versioned correctly
+- Pipeline execution time is reasonable (<15 minutes)
+
+Estimated Effort: 3 days
+
