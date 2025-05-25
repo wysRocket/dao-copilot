@@ -1,0 +1,138 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Project Setup & Core Infrastructure",
+      "description": "Initialize frontend (Electron with React/TypeScript) and backend (Node.js/Express) projects. Set up Docker for containerization, PostgreSQL for structured data, S3 for file storage, and select a cloud provider (e.g., AWS). Establish basic CI/CD pipeline.",
+      "details": "Frontend: `npx create-electron-app meeting-copilot --template=typescript-webpack`, integrate React. Backend: `npm init -y`, install Express, pg, aws-sdk. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase. Cloud: Set up basic IAM roles, S3 bucket, RDS instance for PostgreSQL. CI/CD: Basic GitHub Actions or Jenkins pipeline for build and test.",
+      "testStrategy": "Unit tests for basic server setup. Verify successful build and containerization of both frontend and backend. Confirm database connectivity.",
+      "priority": "high",
+      "dependencies": [],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 2,
+      "title": "User Authentication & Management with OAuth 2.0",
+      "description": "Implement user registration, login (email/password), session management using JWTs, and profile management. Integrate OAuth 2.0 for at least one meeting platform (e.g., Zoom) for user authentication and authorization.",
+      "details": "Backend: Implement REST APIs for `/auth/register`, `/auth/login`, `/auth/refresh-token`, `/auth/oauth/zoom`. Use bcrypt for password hashing. Store user data in PostgreSQL. Frontend: Create registration, login, and profile pages. Handle JWT storage (securely, e.g., HttpOnly cookies or secure storage for Electron). Implement OAuth 2.0 client flow for Zoom.",
+      "testStrategy": "Unit tests for auth logic (registration, login, token generation/validation). Integration tests for OAuth flow with Zoom. Manual testing of user lifecycle: registration, login, logout, profile update.",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 3,
+      "title": "Core Meeting Platform Integrations (Zoom, Teams, Google Meet)",
+      "description": "Integrate with Zoom, Microsoft Teams, and Google Meet using their official APIs and OAuth 2.0 for authentication. Implement functionality to detect active meetings and capture audio streams securely.",
+      "details": "Backend: Develop service modules for each platform (Zoom, Teams, Google Meet). Use official SDKs/APIs. Implement OAuth 2.0 token management for each service. Frontend: UI for connecting/disconnecting integrations. Logic to select active meeting and initiate audio capture. For audio capture, investigate platform-specific methods (e.g., Zoom SDK, system audio capture for desktop app). Ensure clear user consent for audio access.",
+      "testStrategy": "Integration tests for connecting to each platform, listing meetings, and initiating audio stream capture. Test token refresh mechanisms. Verify UI indicators for active integrations.",
+      "priority": "high",
+      "dependencies": [
+        2
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 4,
+      "title": "Real-time Audio Transcription Service with Speaker Attribution",
+      "description": "Develop a service to process audio streams from meetings in real-time. Integrate a leading Speech-to-Text (STT) API (e.g., Google Cloud Speech-to-Text, AssemblyAI) or prepare for an on-device model. Implement speaker diarization and attribution. Display transcription with clear visual indicators in the frontend.",
+      "details": "Backend: Create a transcription service that receives audio chunks. Use WebSocket for real-time communication with the STT API and frontend. Implement logic for speaker diarization (if not provided by STT API, consider libraries like `pyannote.audio` or cloud provider options). Store transcripts linked to meetings and users. Frontend: Display real-time transcriptions, clearly attributing speakers. Implement visual cues for active transcription.",
+      "testStrategy": "Unit tests for audio chunk processing and STT API interaction. Integration tests with live audio stream. Accuracy testing with diverse accents and noisy environments. Verify speaker attribution accuracy. Test visual indicators in UI.",
+      "priority": "high",
+      "dependencies": [
+        3
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 5,
+      "title": "User Document Upload & Secure Storage (Knowledge Base Foundation)",
+      "description": "Implement functionality for users to upload documents (e.g., PDF, DOCX, TXT) to create a personal/team knowledge base. Securely store these documents in S3. Define Document and KnowledgeBase data models and implement basic permission management.",
+      "details": "Backend: Create API endpoints for document upload (`/documents/upload`), listing, and deletion. Use `multer` or similar for handling file uploads. Store metadata in PostgreSQL (Document model: `id`, `userId`, `fileName`, `s3Key`, `uploadDate`, `knowledgeBaseId`). Store files in S3 with appropriate access controls (private by default). Frontend: UI for uploading, viewing, and managing documents within a knowledge base concept.",
+      "testStrategy": "Unit tests for file upload handling and S3 interaction. Integration tests for the complete upload flow. Security testing for access control on S3 objects and API endpoints. Test various file types and sizes.",
+      "priority": "medium",
+      "dependencies": [
+        1,
+        2
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 6,
+      "title": "Contextual Information Retrieval from User Documents (Semantic Search)",
+      "description": "Develop a service for contextual information retrieval. This includes ingesting uploaded documents (parsing text, generating embeddings using models like Sentence Transformers or OpenAI Embeddings), storing embeddings in a vector database (e.g., Pinecone, Weaviate, or pgvector extension for PostgreSQL), and providing an API for semantic search based on user queries during meetings. Retrieval must be explicit and only from user-authorized documents.",
+      "details": "Backend: Implement document processing pipeline (e.g., using Tika for parsing, Langchain for chunking/embedding). Set up and integrate a vector database. Create API endpoint (`/search/contextual`) that takes a user query and returns relevant snippets from their documents. Ensure search respects document permissions. Frontend: UI element for users to type queries during meetings and view search results.",
+      "testStrategy": "Unit tests for document parsing, embedding generation, and vector DB interaction. Integration tests for the end-to-end search flow. Relevance testing of search results. Performance testing for query latency.",
+      "priority": "medium",
+      "dependencies": [
+        5
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 7,
+      "title": "Private Note-Taking Assistance with E2EE and Export",
+      "description": "Implement AI-assisted private note-taking functionality visible only to the individual user during calls. Notes should be end-to-end encrypted (E2EE). Provide functionality for easy export of notes (e.g., TXT, MD).",
+      "details": "Frontend: Develop a dedicated notes panel in the meeting interface. Implement client-side encryption/decryption using a robust library (e.g., libsodium.js or Web Crypto API) with user-derived keys. Backend: Store encrypted note blobs. API endpoints for saving/retrieving encrypted notes. Implement export functionality. AI assistance could be simple suggestions based on transcript keywords or context, initially. Define Note data model (encrypted content).",
+      "testStrategy": "Unit tests for encryption/decryption logic. Test note creation, editing, saving, and retrieval. Verify E2EE by inspecting stored data. Test export functionality for various formats. Security audit of the E2EE implementation.",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        4
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 8,
+      "title": "Smart Meeting Summarization (LLM-based)",
+      "description": "Create a service that uses an LLM (e.g., GPT-3.5/4 via API, or an open-source model) to generate automated, concise meeting summaries post-meeting. Summaries should highlight key decisions and action items and be editable by the user.",
+      "details": "Backend: Develop a service that takes a meeting transcript as input. Send transcript (or relevant parts) to an LLM API with a carefully crafted prompt for summarization, focusing on decisions and action items. Store summaries linked to meetings. Provide API for retrieving and updating summaries. Frontend: Display generated summaries post-meeting. Allow users to edit and save changes.",
+      "testStrategy": "Unit tests for LLM API interaction and prompt engineering. Evaluate summary quality (conciseness, accuracy, coverage of key points) on diverse transcripts. Test user editing and saving functionality.",
+      "priority": "medium",
+      "dependencies": [
+        4
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 9,
+      "title": "Basic Communication Analytics (Practice Mode - Local Processing)",
+      "description": "Implement basic communication analytics (speaking pace, filler words, talk-time distribution) in a private 'practice mode'. Audio analysis should be performed locally on the client-side for privacy.",
+      "details": "Frontend (Electron): Utilize Web Audio API for local audio capture in practice mode. Implement client-side JavaScript libraries for audio analysis (e.g., for pitch, energy to detect speech; custom logic for filler words based on STT snippets if available locally, or simpler heuristics). Display analytics feedback to the user in real-time or post-session. No audio data should leave the user's device for this feature.",
+      "testStrategy": "Test accuracy of analytics (speaking pace, filler word detection, talk-time) against known samples. Verify that no audio data is transmitted for this feature. Usability testing for clarity and usefulness of feedback.",
+      "priority": "low",
+      "dependencies": [
+        3
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 10,
+      "title": "Transparent Operation, User Controls & Accessibility (WCAG)",
+      "description": "Implement persistent, non-intrusive visual indicators for all AI activities (transcription, contextual retrieval). Develop a comprehensive settings UI for granular user control over each feature, privacy settings, and integrations. Ensure WCAG compliance for accessibility. Implement basic audit logs for critical actions.",
+      "details": "Frontend: Design and implement UI elements for AI activity indicators (e.g., subtle icons, status messages). Create a settings section with toggles for each AI feature, data sharing preferences, and integration management. Ensure all UI components meet WCAG AA standards (keyboard navigation, ARIA attributes, color contrast). Backend: Support for feature flags based on user settings. Implement logging for critical user actions (e.g., changing permissions, deleting data) for audit purposes.",
+      "testStrategy": "UI/UX review for clarity and non-intrusiveness of indicators. Test all user controls and settings, verifying they correctly enable/disable features. Automated accessibility checks (e.g., Axe DevTools) and manual testing for WCAG compliance. Review audit logs for completeness and accuracy.",
+      "priority": "medium",
+      "dependencies": [
+        4,
+        6,
+        7,
+        8,
+        9
+      ],
+      "status": "pending",
+      "subtasks": []
+    }
+  ]
+}
