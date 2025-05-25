@@ -10,7 +10,7 @@ interface ThemeModeContext {
   dark: () => Promise<void>;
   light: () => Promise<void>;
   system: () => Promise<boolean>;
-  current: () => Promise<"dark" | "light" | "system">;
+  current: () => Promise<'dark' | 'light' | 'system'>;
 }
 interface ElectronWindow {
   minimize: () => Promise<void>;
@@ -18,7 +18,16 @@ interface ElectronWindow {
   close: () => Promise<void>;
 }
 
+// Audio and file operation APIs following electron-audio-capture-with-stt pattern
+interface NodeAPI {
+  bufferAlloc: (size: number) => Buffer;
+  writeFile: (path: string, data: Uint8Array | Buffer) => Promise<void>;
+  readFile: (path: string) => Promise<Buffer>;
+  requestAudioPermissions: () => Promise<boolean>;
+}
+
 declare interface Window {
   themeMode: ThemeModeContext;
   electronWindow: ElectronWindow;
+  nodeAPI: NodeAPI;
 }
