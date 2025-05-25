@@ -3,9 +3,9 @@
 # Status: pending
 # Dependencies: 4, 6, 7, 8, 9
 # Priority: medium
-# Description: Implement persistent, non-intrusive visual indicators for all AI activities (transcription, contextual retrieval). Develop a comprehensive settings UI for granular user control over each feature, privacy settings, and integrations. Ensure WCAG compliance for accessibility. Implement basic audit logs for critical actions.
+# Description: Implement persistent, non-intrusive visual indicators for all AI activities (transcription, contextual retrieval). Develop a comprehensive settings UI for granular user control over each feature, privacy settings, and integrations. Ensure WCAG compliance for accessibility. Implement basic audit logs for critical actions using Google Cloud Logging.
 # Details:
-Frontend: Design and implement UI elements for AI activity indicators (e.g., subtle icons, status messages). Create a settings section with toggles for each AI feature, data sharing preferences, and integration management. Ensure all UI components meet WCAG AA standards (keyboard navigation, ARIA attributes, color contrast). Backend: Support for feature flags based on user settings. Implement logging for critical user actions (e.g., changing permissions, deleting data) for audit purposes.
+Frontend: Design and implement UI elements for AI activity indicators (e.g., subtle icons, status messages). Create a settings section with toggles for each AI feature, data sharing preferences, and integration management. Ensure all UI components meet WCAG AA standards (keyboard navigation, ARIA attributes, color contrast). Backend: Support for feature flags based on user settings. Implement logging for critical user actions (e.g., changing permissions, deleting data) using Google Cloud Logging for audit purposes.
 
 # Test Strategy:
-UI/UX review for clarity and non-intrusiveness of indicators. Test all user controls and settings, verifying they correctly enable/disable features. Automated accessibility checks (e.g., Axe DevTools) and manual testing for WCAG compliance. Review audit logs for completeness and accuracy.
+UI/UX review for clarity and non-intrusiveness of indicators. Test all user controls and settings, verifying they correctly enable/disable features. Automated accessibility checks (e.g., Axe DevTools) and manual testing for WCAG compliance. Review audit logs in Google Cloud Logging for completeness and accuracy.

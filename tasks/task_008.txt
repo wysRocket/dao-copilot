@@ -3,9 +3,9 @@
 # Status: pending
 # Dependencies: 4
 # Priority: medium
-# Description: Create a service that uses an LLM (e.g., GPT-3.5/4 via API, or an open-source model) to generate automated, concise meeting summaries post-meeting. Summaries should highlight key decisions and action items and be editable by the user.
+# Description: Create a service that uses Google Cloud Vertex AI PaLM API or an LLM (e.g., GPT-3.5/4 via API, or an open-source model) to generate automated, concise meeting summaries post-meeting. Summaries should highlight key decisions and action items and be editable by the user.
 # Details:
-Backend: Develop a service that takes a meeting transcript as input. Send transcript (or relevant parts) to an LLM API with a carefully crafted prompt for summarization, focusing on decisions and action items. Store summaries linked to meetings. Provide API for retrieving and updating summaries. Frontend: Display generated summaries post-meeting. Allow users to edit and save changes.
+Backend: Develop a service that takes a meeting transcript as input. Send transcript (or relevant parts) to Google Cloud Vertex AI PaLM API or alternative LLM API with a carefully crafted prompt for summarization, focusing on decisions and action items. Store summaries linked to meetings in Cloud SQL. Provide API for retrieving and updating summaries. Frontend: Display generated summaries post-meeting. Allow users to edit and save changes.
 
 # Test Strategy:
-Unit tests for LLM API interaction and prompt engineering. Evaluate summary quality (conciseness, accuracy, coverage of key points) on diverse transcripts. Test user editing and saving functionality.
+Unit tests for Vertex AI PaLM API interaction and prompt engineering. Evaluate summary quality (conciseness, accuracy, coverage of key points) on diverse transcripts. Test user editing and saving functionality.
