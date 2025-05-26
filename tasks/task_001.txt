@@ -35,11 +35,11 @@ Set up PostgreSQL instance, design initial database schema, create migration scr
 ### Details:
 Create Dockerfiles for frontend and backend applications, set up multi-stage builds for optimization, configure docker-compose for local development, implement environment-specific configurations, set up volume management for data persistence, and establish container networking
 
-## 5. S3 Storage Configuration [pending]
+## 5. Google Cloud Storage Configuration [pending]
 ### Dependencies: 1.2
-### Description: Set up AWS S3 storage service with proper bucket configuration, access policies, and integration with the backend API
+### Description: Set up Google Cloud Storage service with proper bucket configuration, access policies, and integration with the backend API
 ### Details:
-Create S3 buckets with appropriate naming and region selection, configure IAM roles and policies for secure access, implement file upload/download APIs in backend, set up CORS policies for frontend access, configure lifecycle policies for cost optimization, and establish backup strategies
+Create Cloud Storage buckets with appropriate naming and region selection, configure IAM roles and policies for secure access, implement file upload/download APIs in backend, set up CORS policies for frontend access, configure lifecycle policies for cost optimization, and establish backup strategies
 
 ## 6. CI/CD Pipeline Establishment [pending]
 ### Dependencies: 1.1, 1.2, 1.3, 1.4, 1.5
