@@ -3,9 +3,47 @@
 # Status: pending
 # Dependencies: None
 # Priority: high
-# Description: Initialize frontend (Electron with React/TypeScript) and backend (Node.js/Express) projects. Set up Docker for containerization, PostgreSQL for structured data, S3 for file storage, and select a cloud provider (e.g., AWS). Establish basic CI/CD pipeline.
+# Description: Initialize frontend (Electron with React/TypeScript) and backend (Node.js/Express) projects. Set up Docker for containerization, PostgreSQL for structured data, Google Cloud Storage for file storage, and establish Google Cloud Platform as the cloud provider. Establish basic CI/CD pipeline.
 # Details:
-Frontend: `npx create-electron-app meeting-copilot --template=typescript-webpack`, integrate React. Backend: `npm init -y`, install Express, pg, aws-sdk. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase. Cloud: Set up basic IAM roles, S3 bucket, RDS instance for PostgreSQL. CI/CD: Basic GitHub Actions or Jenkins pipeline for build and test.
+Frontend: `npx create-electron-app meeting-copilot --template=typescript-webpack`, integrate React. Backend: `npm init -y`, install Express, pg, @google-cloud/storage. Docker: Create Dockerfiles for frontend and backend. Database: Define initial schemas for User, Meeting, Transcript, Note, Document, KnowledgeBase. Google Cloud: Set up basic IAM roles, Cloud Storage bucket, Cloud SQL instance for PostgreSQL. CI/CD: Basic Google Cloud Build or GitHub Actions pipeline for build and test.
 
 # Test Strategy:
-Unit tests for basic server setup. Verify successful build and containerization of both frontend and backend. Confirm database connectivity.
+Unit tests for basic server setup. Verify successful build and containerization of both frontend and backend. Confirm database connectivity to Cloud SQL.
+
+# Subtasks:
+## 1. Frontend Initialization with Electron/React/TypeScript [pending]
+### Dependencies: None
+### Description: Set up the frontend application using Electron framework with React and TypeScript, including project structure, build configuration, and basic UI components
+### Details:
+Initialize Electron app with React/TypeScript boilerplate, configure webpack/build tools, set up ESLint/Prettier, create basic window management, implement hot reload for development, and establish component architecture with routing
+
+## 2. Backend Setup with Node.js/Express [pending]
+### Dependencies: None
+### Description: Create the backend API server using Node.js and Express framework with TypeScript support and basic middleware configuration
+### Details:
+Initialize Node.js project with Express and TypeScript, set up project structure with controllers/routes/middleware, configure CORS, body parsing, error handling, implement health check endpoints, and establish API versioning strategy
+
+## 3. PostgreSQL Database Setup with Initial Schemas [pending]
+### Dependencies: None
+### Description: Configure PostgreSQL database with initial schema design, migrations, and connection management
+### Details:
+Set up PostgreSQL instance, design initial database schema, create migration scripts, configure connection pooling, implement database seeding for development, set up backup strategies, and establish indexing for performance
+
+## 4. Docker Containerization [pending]
+### Dependencies: 1.1, 1.2, 1.3
+### Description: Create Docker containers for all application components with multi-stage builds and orchestration setup
+### Details:
+Create Dockerfiles for frontend and backend applications, set up multi-stage builds for optimization, configure docker-compose for local development, implement environment-specific configurations, set up volume management for data persistence, and establish container networking
+
+## 5. Google Cloud Storage Configuration [pending]
+### Dependencies: 1.2
+### Description: Set up Google Cloud Storage service with proper bucket configuration, access policies, and integration with the backend API
+### Details:
+Create Cloud Storage buckets with appropriate naming and region selection, configure IAM roles and policies for secure access, implement file upload/download APIs in backend, set up CORS policies for frontend access, configure lifecycle policies for cost optimization, and establish backup strategies
+
+## 6. CI/CD Pipeline Establishment [pending]
+### Dependencies: 1.1, 1.2, 1.3, 1.4, 1.5
+### Description: Create automated CI/CD pipeline for building, testing, and deploying all application components
+### Details:
+Set up GitHub Actions or similar CI/CD platform, create build pipelines for frontend and backend, implement automated testing stages, configure deployment to staging and production environments, set up environment variable management, implement rollback strategies, and establish monitoring and notification systems
+
