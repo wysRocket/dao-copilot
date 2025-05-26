@@ -14,7 +14,7 @@
       "taskTitle": "Project Setup & Core Infrastructure",
       "complexityScore": 8,
       "recommendedSubtasks": 6,
-      "expansionPrompt": "Break down this infrastructure setup into discrete components: frontend initialization with Electron/React/TypeScript, backend setup with Node.js/Express, Docker containerization, PostgreSQL database setup with initial schemas, S3 storage configuration, and CI/CD pipeline establishment. Each component should be independently testable and deployable.",
+      "expansionPrompt": "Break down this infrastructure setup into discrete components: frontend initialization with Electron/React/TypeScript, backend setup with Node.js/Express, Docker containerization, PostgreSQL database setup with initial schemas, Google Cloud Storage configuration, and CI/CD pipeline establishment. Each component should be independently testable and deployable.",
       "reasoning": "High complexity due to multiple technology stacks, infrastructure components, and foundational dependencies. Requires expertise in frontend, backend, DevOps, and cloud services. Critical foundation that affects all subsequent tasks."
     },
     {
@@ -46,7 +46,7 @@
       "taskTitle": "User Document Upload & Secure Storage (Knowledge Base Foundation)",
       "complexityScore": 6,
       "recommendedSubtasks": 4,
-      "expansionPrompt": "Separate this into distinct components: file upload API with validation and security checks, S3 storage integration with proper access controls, database schema and models for documents and knowledge bases, and frontend UI for document management. Include comprehensive permission and security testing for each component.",
+      "expansionPrompt": "Separate this into distinct components: file upload API with validation and security checks, Google Cloud Storage integration with proper access controls, database schema and models for documents and knowledge bases, and frontend UI for document management. Include comprehensive permission and security testing for each component.",
       "reasoning": "Moderate complexity involving file handling, cloud storage, security considerations, and data modeling. Straightforward implementation but requires careful attention to security and permissions."
     },
     {
