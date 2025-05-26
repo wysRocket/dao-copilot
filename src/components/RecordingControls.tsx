@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useRef} from 'react';
 import {buffer, firstValueFrom, fromEvent, map, ObservableInput} from 'rxjs';
 import {Button} from './ui/button';
 import {createAudioStream} from '../services/audio-capture';
@@ -14,6 +14,7 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState<string>('Ready to record');
+  const stopButtonRef = useRef<HTMLButtonElement>(null);
 
   const record_wav = async (
     stop_event: ObservableInput<unknown>,
@@ -84,9 +85,8 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
     setStatus('Recording... Click Stop to finish');
 
     // Create stop button reference for the observable
-    const stopButton = document.getElementById('stopRecordingButton');
-    if (stopButton) {
-      const stopEvent = fromEvent(stopButton, 'click');
+    if (stopButtonRef.current) {
+      const stopEvent = fromEvent(stopButtonRef.current, 'click');
       record_wav(stopEvent).finally(() => {
         setIsRecording(false);
       });
@@ -114,7 +114,7 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
         </Button>
 
         <Button
-          id="stopRecordingButton"
+          ref={stopButtonRef}
           onClick={handleStopRecording}
           disabled={!isRecording}
           variant="destructive"
