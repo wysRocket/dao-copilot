@@ -120,7 +120,9 @@ export class AudioCapturer {
       );
 
       // Load and create AudioWorklet
-      await this.audio_context.audioWorklet.addModule('./wave-loopback.js');
+      // Import worklet as a URL for proper Vite bundling
+      const workletModule = await import('./wave-loopback.ts?url');
+      await this.audio_context.audioWorklet.addModule(workletModule.default);
 
       this.workletNode = new AudioWorkletNode(
         this.audio_context,

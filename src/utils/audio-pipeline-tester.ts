@@ -1,7 +1,7 @@
 import {createAudioStream} from '../services/audio-capture';
 import {renderWavFile} from '../utils/wav-processor';
 import {sttService} from '../services/stt-service';
-import {take, toArray} from 'rxjs';
+import {take, toArray, firstValueFrom} from 'rxjs';
 
 /**
  * Test script for validating the audio recording pipeline
@@ -19,7 +19,7 @@ export class AudioPipelineTester {
       const stream = createAudioStream();
 
       // Take a few samples to verify the stream works
-      const samples = await stream.pipe(take(5), toArray()).toPromise();
+      const samples = await firstValueFrom(stream.pipe(take(5), toArray()));
 
       console.log(
         `✅ Audio stream test passed. Received ${samples?.length || 0} audio chunks`,
@@ -75,7 +75,9 @@ export class AudioPipelineTester {
       const testFilename = 'test-audio.wav';
 
       // Test mock transcription
-      const result = await sttService.transcribeFile(testFilename).toPromise();
+      const result = await firstValueFrom(
+        sttService.transcribeFile(testFilename),
+      );
 
       if (result && result.text) {
         console.log(
