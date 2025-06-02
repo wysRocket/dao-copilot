@@ -10,6 +10,16 @@ import {join} from 'path';
 import {electronApp, optimizer} from '@electron-toolkit/utils';
 import icon from '../resources/icon.png?asset';
 import {promises as fs} from 'fs';
+import registerListeners from './helpers/ipc/listeners-register';
+import {createProxyServer, stopProxyServer} from './helpers/proxy-server';
+import {
+  loadEnvironmentConfig,
+  validateEnvironmentConfig,
+} from './helpers/environment-config';
+
+// Declare Electron Forge Vite globals
+declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
+declare const MAIN_WINDOW_VITE_NAME: string;
 
 ipcMain.handle('writeFile', (_event, path, data): Promise<void> => {
   console.log('writing file to ' + path);
@@ -27,8 +37,13 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   });
+
+  // Register all IPC listeners
+  registerListeners(mainWindow);
 
   session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
     desktopCapturer
@@ -54,7 +69,7 @@ function createWindow(): void {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
     mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+      join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
     );
   }
 }
@@ -62,7 +77,18 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Load environment configuration first
+  await loadEnvironmentConfig();
+
+  // Validate that required environment variables are present
+  const isConfigValid = validateEnvironmentConfig();
+  if (!isConfigValid) {
+    console.warn(
+      '⚠️ Environment configuration issues detected. Transcription may not work properly.',
+    );
+  }
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron');
 
@@ -72,6 +98,15 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
+
+  // Start proxy server (optional, for other API calls if needed)
+  try {
+    await createProxyServer();
+    console.log('Proxy server started successfully');
+  } catch (error) {
+    console.error('Failed to start proxy server:', error);
+    // Don't fail the app if proxy server fails
+  }
 
   createWindow();
 
@@ -85,9 +120,26 @@ app.whenReady().then(() => {
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
+  // Stop proxy server when app is closing
+  try {
+    await stopProxyServer();
+    console.log('Proxy server stopped');
+  } catch (error) {
+    console.error('Error stopping proxy server:', error);
+  }
+
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+// Handle app quit event
+app.on('before-quit', async () => {
+  try {
+    await stopProxyServer();
+  } catch (error) {
+    console.error('Error stopping proxy server on quit:', error);
   }
 });
 

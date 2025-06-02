@@ -2,9 +2,6 @@ import {GoogleGenAI} from '@google/genai';
 
 // User-specified model name
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20';
-// Note: If 'gemini-2.5-flash-preview-04-17' is a Vertex AI specific model,
-// using it with @google/generative-ai might not work as expected.
-// This SDK is typically for models like 'gemini-1.5-flash-latest'.
 
 /**
  * Configuration options for the transcription service using Google Gemini
@@ -41,18 +38,17 @@ function bufferToGenerativePart(buffer: Buffer, mimeType: string) {
  * @returns Promise resolving to the transcription result
  */
 export async function transcribeAudio(
-  audioData: Buffer, // Changed from Buffer | Uint8Array to Buffer for simplicity with base64 conversion
-  options: TranscriptionOptions = {}, // Initialize options if not provided
+  audioData: Buffer,
+  options: TranscriptionOptions = {},
 ): Promise<TranscriptionResult> {
   const startTime = Date.now();
 
-  // Access environment variable using Vite's import.meta.env
-  // Ensure your .env file has VITE_GOOGLE_API_KEY=yourkey
-  const apiKey = options.apiKey || import.meta.env.VITE_GOOGLE_API_KEY;
+  // Use process.env for main process instead of import.meta.env
+  const apiKey = options.apiKey || process.env.GOOGLE_API_KEY;
 
   if (!apiKey) {
     console.error(
-      'Transcription failed: Google API Key is required. Provide it in TranscriptionOptions or set VITE_GOOGLE_API_KEY in your .env file.',
+      'Transcription failed: Google API Key is required. Provide it in TranscriptionOptions or set GOOGLE_API_KEY in your environment.',
     );
     throw new Error('Google API Key is required for transcription.');
   }
