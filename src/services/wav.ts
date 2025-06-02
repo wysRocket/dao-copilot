@@ -73,7 +73,7 @@ export function renderWavFile(
     audioData = pcmData;
   }
 
-  //  const type = options.isFloat ? Float32Array : Int16Array;
+  const type = options.isFloat ? Float32Array : Int16Array;
   const numFrames = audioData.length;
 
   const headerBytes = getWavHeader(options, numFrames);

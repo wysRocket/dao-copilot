@@ -1,20 +1,10 @@
+import {BrowserWindow} from 'electron';
 import {addThemeEventListeners} from './theme/theme-listeners';
 import {addWindowEventListeners} from './window/window-listeners';
 import {addAudioEventListeners} from './audio/audio-listeners';
-import {addTranscriptionEventListeners} from './transcription/transcription-listeners';
 
-let listenersRegistered = false;
-
-export default function registerListeners() {
-  // Only register listeners once globally
-  if (listenersRegistered) {
-    return;
-  }
-
-  addWindowEventListeners();
+export default function registerListeners(mainWindow: BrowserWindow) {
+  addWindowEventListeners(mainWindow);
   addThemeEventListeners();
   addAudioEventListeners();
-  addTranscriptionEventListeners();
-
-  listenersRegistered = true;
 }

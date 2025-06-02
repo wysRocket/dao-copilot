@@ -1,15 +1,15 @@
-import React from 'react'
-import WindowLayout from '@/layouts/WindowLayout'
-import {Outlet, createRootRoute} from '@tanstack/react-router'
+import React from 'react';
+import BaseLayout from '@/layouts/BaseLayout';
+import {Outlet, createRootRoute} from '@tanstack/react-router';
 
 export const RootRoute = createRootRoute({
-  component: Root
-})
+  component: Root,
+});
 
 function Root() {
   return (
-    <WindowLayout>
+    <BaseLayout>
       <Outlet />
-    </WindowLayout>
-  )
+    </BaseLayout>
+  );
 }

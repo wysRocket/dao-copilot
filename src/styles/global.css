@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @plugin 'tailwindcss-animate';
 
@@ -74,44 +74,45 @@
 
 @layer base {
   @font-face {
-    font-family: 'Geist';
+    font-family: "Geist";
 
-    src: url('../assets/fonts/geist/geist.ttf') format('truetype');
+    src: url("../assets/fonts/geist/geist.ttf") format("truetype");
   }
   @font-face {
-    font-family: 'Geist Mono';
+    font-family: "Geist Mono";
     font-display: swap;
 
-    src: url('../assets/fonts/geist-mono/geist-mono.ttf') format('truetype');
+    src: url("../assets/fonts/geist-mono/geist-mono.ttf") format("truetype");
   }
 
   @font-face {
-    font-family: 'Tomorrow';
+    font-family: "Tomorrow";
     font-weight: 400;
     font-style: normal;
 
-    src: url('../assets/fonts/tomorrow/tomorrow-regular.ttf') format('truetype');
+    src: url("../assets/fonts/tomorrow/tomorrow-regular.ttf") format("truetype");
   }
   @font-face {
-    font-family: 'Tomorrow';
+    font-family: "Tomorrow";
     font-weight: 400;
     font-style: italic;
 
-    src: url('../assets/fonts/tomorrow/tomorrow-italic.ttf') format('truetype');
+    src: url("../assets/fonts/tomorrow/tomorrow-italic.ttf") format("truetype");
   }
   @font-face {
-    font-family: 'Tomorrow';
+    font-family: "Tomorrow";
     font-weight: 700;
     font-style: normal;
 
-    src: url('../assets/fonts/tomorrow/tomorrow-bold.ttf') format('truetype');
+    src: url("../assets/fonts/tomorrow/tomorrow-bold.ttf") format("truetype");
   }
   @font-face {
-    font-family: 'Tomorrow';
+    font-family: "Tomorrow";
     font-weight: 700;
     font-style: italic;
 
-    src: url('../assets/fonts/tomorrow/tomorrow-bold-italic.ttf') format('truetype');
+    src: url("../assets/fonts/tomorrow/tomorrow-bold-italic.ttf")
+      format("truetype");
   }
 }
 
@@ -186,13 +187,6 @@
   .draglayer {
     @apply bg-background;
     -webkit-app-region: drag;
-  }
-  .app-region-drag {
-    -webkit-app-region: drag;
-    user-select: none;
-  }
-  .app-region-no-drag {
-    -webkit-app-region: no-drag;
   }
   button {
     @apply cursor-pointer;
