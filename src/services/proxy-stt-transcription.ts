@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import {getProxyAuthToken} from '../helpers/proxy-server';
 
 /**
  * Configuration options for the proxy-based transcription service
@@ -76,6 +77,7 @@ export async function transcribeAudioViaProxy(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-proxy-auth': getProxyAuthToken(), // Add authentication token
         },
         body: JSON.stringify(requestBody),
       },
