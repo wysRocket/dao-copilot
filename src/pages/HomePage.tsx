@@ -2,7 +2,7 @@ import React, {useState} from 'react';
 import ToggleTheme from '../components/ToggleTheme';
 import RecordingControls from '../components/RecordingControls';
 import TranscriptDisplay from '../components/TranscriptDisplay';
-import {TranscriptionResult} from '../services/stt-transcription';
+import {TranscriptionResult} from '../services/main-stt-transcription';
 
 import InitialIcons from '../components/template/InitialIcons';
 
