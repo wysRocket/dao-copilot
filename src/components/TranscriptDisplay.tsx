@@ -1,5 +1,5 @@
 import React from 'react';
-import {TranscriptionResult} from '../services/stt-transcription';
+import {TranscriptionResult} from '../services/main-stt-transcription';
 
 interface TranscriptDisplayProps {
   transcripts: TranscriptionResult[];
