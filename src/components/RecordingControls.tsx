@@ -3,7 +3,7 @@ import {Button} from './ui/button';
 import {audio_stream} from '../services/audio_capture';
 import {buffer, interval, Subject, Subscription, takeUntil} from 'rxjs';
 import {renderWavFile} from '../services/wav';
-import {TranscriptionResult} from '../services/stt-transcription';
+import {TranscriptionResult} from '../services/main-stt-transcription';
 
 interface RecordingControlsProps {
   onTranscription: (transcript: TranscriptionResult) => void;
@@ -105,14 +105,14 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
       // Save the WAV file (for debugging/reference)
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const filename = `chunk-${timestamp}.wav`;
-      await window.nodeAPI.writeFile(filename, wavData);
+      await window.audioAPI.writeFile(filename, wavData);
 
       console.log(
         `Saved audio chunk to ${filename}, sending for transcription...`,
       );
 
       // Send for transcription
-      const result = await window.nodeAPI.transcribeAudio(wavData);
+      const result = await window.transcriptionAPI.transcribeAudio(wavData);
       console.log('Transcription result:', result);
 
       // Update UI with transcription result via callback
