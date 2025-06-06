@@ -1,32 +1,35 @@
-import React from 'react'
-import {useWindowState} from '../contexts/WindowStateProvider'
-
-import CustomTitleBar from '../components/CustomTitleBar'
-import {FocusManager} from '../components/FocusManager'
-
-import {ShortcutsHelp} from '../components/ShortcutsHelp'
-import {useKeyboardShortcuts, useWindowShortcuts} from '../hooks/useKeyboardShortcuts'
+import React from 'react';
+import {useWindowState} from '../contexts/WindowStateProvider';
+import DragWindowRegion from '../components/DragWindowRegion';
+import CustomTitleBar from '../components/CustomTitleBar';
+import {FocusManager} from '../components/FocusManager';
+import {WindowControls} from '../components/WindowControls';
+import {ShortcutsHelp} from '../components/ShortcutsHelp';
+import {
+  useKeyboardShortcuts,
+  useWindowShortcuts,
+} from '../hooks/useKeyboardShortcuts';
 
 interface WindowLayoutProps {
-  children: React.ReactNode
-  showTitleBar?: boolean
-  showDragRegion?: boolean
-  padding?: string
-  className?: string
+  children: React.ReactNode;
+  showTitleBar?: boolean;
+  showDragRegion?: boolean;
+  padding?: string;
+  className?: string;
 }
 
 export default function WindowLayout({
   children,
   showTitleBar = true,
-
+  showDragRegion = true,
   padding = 'p-2 pb-20',
-  className = ''
+  className = '',
 }: WindowLayoutProps) {
-  const {windowState} = useWindowState()
+  const {windowState} = useWindowState();
 
   // Setup keyboard shortcuts for this window
-  useWindowShortcuts(windowState.windowType)
-  useKeyboardShortcuts()
+  useWindowShortcuts(windowState.windowType);
+  useKeyboardShortcuts();
 
   // Determine layout based on window type
   const getLayoutConfig = () => {
@@ -36,60 +39,67 @@ export default function WindowLayout({
           showTitleBar: true,
           showDragRegion: true,
           padding: 'p-2 pb-20',
-          containerClass: 'h-screen'
-        }
+          containerClass: 'h-screen',
+        };
 
       case 'assistant':
         return {
           showTitleBar: true,
           showDragRegion: true,
           padding: 'p-0',
-          containerClass: 'h-screen flex flex-col'
-        }
+          containerClass: 'h-screen flex flex-col',
+        };
 
       case 'settings':
         return {
           showTitleBar: true,
           showDragRegion: true,
           padding: 'p-0',
-          containerClass: 'h-screen flex flex-col'
-        }
+          containerClass: 'h-screen flex flex-col',
+        };
 
       case 'overlay':
         return {
           showTitleBar: false,
           showDragRegion: false,
           padding: 'p-0',
-          containerClass: 'h-full w-full'
-        }
+          containerClass: 'h-full w-full',
+        };
 
       default:
         return {
           showTitleBar: true,
           showDragRegion: true,
           padding: 'p-2 pb-20',
-          containerClass: 'h-screen'
-        }
+          containerClass: 'h-screen',
+        };
     }
-  }
+  };
 
-  const layoutConfig = getLayoutConfig()
+  const layoutConfig = getLayoutConfig();
 
   // Override with props
-  const finalShowTitleBar = showTitleBar && layoutConfig.showTitleBar
-
-  const finalPadding = padding || layoutConfig.padding
+  const finalShowTitleBar = showTitleBar && layoutConfig.showTitleBar;
+  const finalShowDragRegion = showDragRegion && layoutConfig.showDragRegion;
+  const finalPadding = padding || layoutConfig.padding;
 
   return (
     <FocusManager
       autoFocus={windowState.windowType !== 'main'}
       trapFocus={windowState.windowType === 'overlay'}
-      focusBoth={false} // Disable aggressive dual focus - only use manual triggers
     >
       <div className={`${layoutConfig.containerClass} ${className}`}>
+        {finalShowDragRegion && (
+          <DragWindowRegion title="Drag to move the window" />
+        )}
+
         {finalShowTitleBar && (
           <div className="flex items-center justify-between">
             <CustomTitleBar />
+            <WindowControls
+              variant={windowState.windowType as any}
+              showMaximize={windowState.windowType === 'main'}
+            />
           </div>
         )}
 
@@ -99,5 +109,5 @@ export default function WindowLayout({
         <ShortcutsHelp />
       </div>
     </FocusManager>
-  )
+  );
 }
