@@ -10,8 +10,14 @@ import {
   CLOSE_TRANSCRIPT_WINDOW_CHANNEL,
   SHOW_AI_ASSISTANT_CHANNEL,
   TOGGLE_AI_ASSISTANT_CHANNEL,
+  CREATE_PORTAL_WINDOW_CHANNEL,
+  CLOSE_PORTAL_WINDOW_CHANNEL,
+  SHOW_PORTAL_WINDOW_CHANNEL,
+  HIDE_PORTAL_WINDOW_CHANNEL,
+  FOCUS_PORTAL_WINDOW_CHANNEL,
 } from './window-channels';
 import {TranscriptionResult} from '../../../services/main-stt-transcription';
+import WindowManager from '../../../services/window-manager';
 
 // Declare Electron Forge Vite globals
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -82,6 +88,8 @@ export function addMultiWindowEventListeners(mainWindow: BrowserWindow) {
       mainWindow.webContents.send('toggle-ai-assistant');
     }
   });
+
+  // Legacy portal window management removed - now handled by addPortalWindowEventListeners
 }
 
 function createTranscriptWindow() {
@@ -133,4 +141,73 @@ function createTranscriptWindow() {
 
 export function getTranscriptWindow() {
   return transcriptWindow;
+}
+
+// New Portal Window Management IPC Handlers
+let portalWindowListenersRegistered = false;
+
+export function addPortalWindowEventListeners() {
+  // Prevent duplicate registration
+  if (portalWindowListenersRegistered) {
+    return;
+  }
+  portalWindowListenersRegistered = true;
+
+  const windowManager = WindowManager.getInstance();
+
+  // Create a portal window
+  ipcMain.handle(CREATE_PORTAL_WINDOW_CHANNEL, (_event, windowId: string) => {
+    const configs = WindowManager.getConfigs();
+    const config = configs[windowId as keyof typeof configs];
+
+    if (!config) {
+      throw new Error(`Unknown window ID: ${windowId}`);
+    }
+
+    windowManager.createPortalWindow(config);
+    return {success: true, windowId};
+  });
+
+  // Close a portal window
+  ipcMain.handle(CLOSE_PORTAL_WINDOW_CHANNEL, (_event, windowId: string) => {
+    windowManager.closeWindow(windowId);
+    return {success: true};
+  });
+
+  // Show/focus a portal window (creates if doesn't exist)
+  ipcMain.handle(SHOW_PORTAL_WINDOW_CHANNEL, (_event, windowId: string) => {
+    const configs = WindowManager.getConfigs();
+    const config = configs[windowId as keyof typeof configs];
+
+    if (!config) {
+      throw new Error(`Unknown window ID: ${windowId}`);
+    }
+
+    let window = windowManager.getWindow(windowId);
+    if (!window || window.isDestroyed()) {
+      window = windowManager.createPortalWindow(config);
+    }
+
+    window.show();
+    window.focus();
+    return {success: true};
+  });
+
+  // Hide a portal window
+  ipcMain.handle(HIDE_PORTAL_WINDOW_CHANNEL, (_event, windowId: string) => {
+    const window = windowManager.getWindow(windowId);
+    if (window && !window.isDestroyed()) {
+      window.hide();
+    }
+    return {success: true};
+  });
+
+  // Focus a portal window
+  ipcMain.handle(FOCUS_PORTAL_WINDOW_CHANNEL, (_event, windowId: string) => {
+    const window = windowManager.getWindow(windowId);
+    if (window && !window.isDestroyed()) {
+      window.focus();
+    }
+    return {success: true};
+  });
 }

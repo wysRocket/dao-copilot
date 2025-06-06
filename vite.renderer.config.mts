@@ -28,6 +28,7 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         titlebar: path.resolve(__dirname, 'titlebar.html'),
         transcript: path.resolve(__dirname, 'transcript.html'),
+        'ai-assistant': path.resolve(__dirname, 'ai-assistant.html'),
       },
     },
   },

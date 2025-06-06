@@ -5,7 +5,6 @@ import {
   ipcMain,
   session,
   desktopCapturer,
-  screen,
 } from 'electron';
 import {join} from 'path';
 import {electronApp, optimizer} from '@electron-toolkit/utils';
@@ -17,7 +16,7 @@ import {
   loadEnvironmentConfig,
   validateEnvironmentConfig,
 } from './helpers/environment-config';
-import {getTranscriptWindow} from './helpers/ipc/window/window-listeners';
+import WindowManager from './services/window-manager';
 
 // Declare Electron Forge Vite globals
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -25,7 +24,7 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 
 // Global window references
 let mainWindow: BrowserWindow | null = null;
-let titleBarWindow: BrowserWindow | null = null;
+const windowManager = WindowManager.getInstance();
 
 ipcMain.handle('writeFile', (_event, path, data): Promise<void> => {
   console.log('writing file to ' + path);
@@ -49,8 +48,12 @@ function createWindow(): void {
     },
   });
 
-  // Create the title bar window
-  createTitleBarWindow();
+  // Initialize WindowManager with main window
+  windowManager.setMainWindow(mainWindow);
+
+  // Create title bar portal window immediately
+  const titleBarConfig = WindowManager.getConfigs().titlebar;
+  windowManager.createPortalWindow(titleBarConfig);
 
   // Register all IPC listeners
   registerListeners(mainWindow);
@@ -68,6 +71,8 @@ function createWindow(): void {
     if (mainWindow) {
       mainWindow.show();
     }
+    // Title bar window is now managed by WindowManager
+    const titleBarWindow = windowManager.getWindow('titlebar');
     if (titleBarWindow && !titleBarWindow.isDestroyed()) {
       titleBarWindow.show();
     }
@@ -87,47 +92,6 @@ function createWindow(): void {
       join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
     );
   }
-}
-
-function createTitleBarWindow(): void {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const {width} = primaryDisplay.workAreaSize;
-
-  titleBarWindow = new BrowserWindow({
-    width: width,
-    height: 50,
-    x: 0,
-    y: 0,
-    frame: false,
-    alwaysOnTop: true,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    closable: false,
-    skipTaskbar: true,
-    webPreferences: {
-      preload: join(__dirname, 'preload.js'),
-      sandbox: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
-
-  titleBarWindow.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
-
-  // Load the title bar content
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    titleBarWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}/titlebar.html`);
-  } else {
-    titleBarWindow.loadFile(join(__dirname, '../titlebar.html'));
-  }
-
-  titleBarWindow.on('closed', () => {
-    titleBarWindow = null;
-  });
 }
 
 // This method will be called when Electron has finished
@@ -185,14 +149,8 @@ app.on('window-all-closed', async () => {
     console.error('Error stopping proxy server:', error);
   }
 
-  // Close all windows
-  if (titleBarWindow && !titleBarWindow.isDestroyed()) {
-    titleBarWindow.close();
-  }
-  const transcriptWin = getTranscriptWindow();
-  if (transcriptWin && !transcriptWin.isDestroyed()) {
-    transcriptWin.close();
-  }
+  // Close all portal windows managed by WindowManager
+  windowManager.closeAllPortalWindows();
 
   if (process.platform !== 'darwin') {
     app.quit();
@@ -207,14 +165,8 @@ app.on('before-quit', async () => {
     console.error('Error stopping proxy server on quit:', error);
   }
 
-  // Close all custom windows
-  if (titleBarWindow && !titleBarWindow.isDestroyed()) {
-    titleBarWindow.destroy();
-  }
-  const transcriptWin = getTranscriptWindow();
-  if (transcriptWin && !transcriptWin.isDestroyed()) {
-    transcriptWin.destroy();
-  }
+  // Close all portal windows managed by WindowManager
+  windowManager.closeAllPortalWindows();
 });
 
 // In this file you can include the rest of your app"s specific main process

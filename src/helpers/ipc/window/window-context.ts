@@ -9,6 +9,11 @@ import {
   CLOSE_TRANSCRIPT_WINDOW_CHANNEL,
   SHOW_AI_ASSISTANT_CHANNEL,
   TOGGLE_AI_ASSISTANT_CHANNEL,
+  CREATE_PORTAL_WINDOW_CHANNEL,
+  CLOSE_PORTAL_WINDOW_CHANNEL,
+  SHOW_PORTAL_WINDOW_CHANNEL,
+  HIDE_PORTAL_WINDOW_CHANNEL,
+  FOCUS_PORTAL_WINDOW_CHANNEL,
 } from './window-channels';
 import {TranscriptionResult} from '../../../services/main-stt-transcription';
 
@@ -38,6 +43,18 @@ export function exposeWindowContext() {
         showAIAssistant: () => ipcRenderer.invoke(SHOW_AI_ASSISTANT_CHANNEL),
         toggleAIAssistant: () =>
           ipcRenderer.invoke(TOGGLE_AI_ASSISTANT_CHANNEL),
+
+        // New portal window methods
+        createPortalWindow: (windowId: string) =>
+          ipcRenderer.invoke(CREATE_PORTAL_WINDOW_CHANNEL, windowId),
+        closePortalWindow: (windowId: string) =>
+          ipcRenderer.invoke(CLOSE_PORTAL_WINDOW_CHANNEL, windowId),
+        showPortalWindow: (windowId: string) =>
+          ipcRenderer.invoke(SHOW_PORTAL_WINDOW_CHANNEL, windowId),
+        hidePortalWindow: (windowId: string) =>
+          ipcRenderer.invoke(HIDE_PORTAL_WINDOW_CHANNEL, windowId),
+        focusPortalWindow: (windowId: string) =>
+          ipcRenderer.invoke(FOCUS_PORTAL_WINDOW_CHANNEL, windowId),
       });
     }
   } catch (error) {
