@@ -22,4 +22,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        titlebar: path.resolve(__dirname, 'titlebar.html'),
+        transcript: path.resolve(__dirname, 'transcript.html'),
+      },
+    },
+  },
 });
