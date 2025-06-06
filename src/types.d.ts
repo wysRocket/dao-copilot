@@ -26,5 +26,19 @@ declare global {
       maximize: () => void;
       unmaximize: () => void;
     };
+    electronWindow: {
+      minimize: () => Promise<void>;
+      maximize: () => Promise<void>;
+      close: () => Promise<void>;
+      showTranscriptWindow: () => Promise<void>;
+      hideTranscriptWindow: () => Promise<void>;
+      updateTranscriptWindow: (
+        transcripts: TranscriptionResult[],
+        isProcessing: boolean,
+      ) => Promise<void>;
+      closeTranscriptWindow: () => Promise<void>;
+      showAIAssistant: () => Promise<void>;
+      toggleAIAssistant: () => Promise<void>;
+    };
   }
 }

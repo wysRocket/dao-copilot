@@ -193,6 +193,85 @@
   }
 }
 
+/* AI Assistant specific styles */
+.ai-assistant-overlay {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Enhanced desktop-style scrollbar for AI Assistant */
+.ai-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ai-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.ai-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+  border: 1px solid hsl(var(--background));
+}
+
+.ai-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.6);
+}
+
+/* Modern button hover effects */
+.smooth-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.smooth-transition:hover {
+  transform: translateY(-1px);
+}
+
+/* Focus styles for better accessibility */
+.focus-ring:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Animation for AI assistant appearance with improved easing */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.slide-down {
+  animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Improved glass effect for modern desktop UI */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass-effect {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Window drag region styles */
+.app-region-drag {
+  -webkit-app-region: drag;
+}
+
+.app-region-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -8,7 +8,7 @@ import {
 } from 'electron';
 import {join} from 'path';
 import {electronApp, optimizer} from '@electron-toolkit/utils';
-import icon from '../resources/icon.png?asset';
+import icon from '../resources/icon.png';
 import {promises as fs} from 'fs';
 import registerListeners from './helpers/ipc/listeners-register';
 import {createProxyServer, stopProxyServer} from './helpers/proxy-server';
@@ -16,10 +16,15 @@ import {
   loadEnvironmentConfig,
   validateEnvironmentConfig,
 } from './helpers/environment-config';
+import WindowManager from './services/window-manager';
 
 // Declare Electron Forge Vite globals
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
+
+// Global window references
+let mainWindow: BrowserWindow | null = null;
+const windowManager = WindowManager.getInstance();
 
 ipcMain.handle('writeFile', (_event, path, data): Promise<void> => {
   console.log('writing file to ' + path);
@@ -27,12 +32,13 @@ ipcMain.handle('writeFile', (_event, path, data): Promise<void> => {
 });
 
 function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  // Create the main content window
+  mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
     show: false,
     autoHideMenuBar: true,
+    titleBarStyle: 'hiddenInset', // Use native title bar for main window
     ...(process.platform === 'linux' ? {icon} : {}),
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
@@ -41,6 +47,13 @@ function createWindow(): void {
       nodeIntegration: false,
     },
   });
+
+  // Initialize WindowManager with main window
+  windowManager.setMainWindow(mainWindow);
+
+  // Create title bar portal window immediately
+  const titleBarConfig = WindowManager.getConfigs().titlebar;
+  windowManager.createPortalWindow(titleBarConfig);
 
   // Register all IPC listeners
   registerListeners(mainWindow);
@@ -55,7 +68,14 @@ function createWindow(): void {
   });
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show();
+    if (mainWindow) {
+      mainWindow.show();
+    }
+    // Title bar window is now managed by WindowManager
+    const titleBarWindow = windowManager.getWindow('titlebar');
+    if (titleBarWindow && !titleBarWindow.isDestroyed()) {
+      titleBarWindow.show();
+    }
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -129,6 +149,9 @@ app.on('window-all-closed', async () => {
     console.error('Error stopping proxy server:', error);
   }
 
+  // Close all portal windows managed by WindowManager
+  windowManager.closeAllPortalWindows();
+
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -141,6 +164,9 @@ app.on('before-quit', async () => {
   } catch (error) {
     console.error('Error stopping proxy server on quit:', error);
   }
+
+  // Close all portal windows managed by WindowManager
+  windowManager.closeAllPortalWindows();
 });
 
 // In this file you can include the rest of your app"s specific main process
