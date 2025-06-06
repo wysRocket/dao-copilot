@@ -8,7 +8,6 @@ import {
 } from 'electron';
 import {join} from 'path';
 import {electronApp, optimizer} from '@electron-toolkit/utils';
-import icon from '../resources/icon.png?asset';
 import {promises as fs} from 'fs';
 import registerListeners from './helpers/ipc/listeners-register';
 import {createProxyServer, stopProxyServer} from './helpers/proxy-server';
@@ -16,6 +15,11 @@ import {
   loadEnvironmentConfig,
   validateEnvironmentConfig,
 } from './helpers/environment-config';
+import {
+  WindowType,
+  createWindow,
+  registerWindowManagerIPC,
+} from './helpers/window-manager';
 
 // Declare Electron Forge Vite globals
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -26,21 +30,9 @@ ipcMain.handle('writeFile', (_event, path, data): Promise<void> => {
   return fs.writeFile(path, data);
 });
 
-function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
-    show: false,
-    autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? {icon} : {}),
-    webPreferences: {
-      preload: join(__dirname, 'preload.js'),
-      sandbox: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
+function createMainWindow(): void {
+  // Create the main window using our window manager
+  const mainWindow = createWindow(WindowType.MAIN);
 
   // Register all IPC listeners
   registerListeners(mainWindow);
@@ -54,24 +46,10 @@ function createWindow(): void {
       });
   });
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show();
-  });
-
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);
     return {action: 'deny'};
   });
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(
-      join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
-  }
 }
 
 // This method will be called when Electron has finished
@@ -99,6 +77,9 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window);
   });
 
+  // Register window manager IPC handlers
+  registerWindowManagerIPC();
+
   // Start proxy server (optional, for other API calls if needed)
   try {
     await createProxyServer();
@@ -108,12 +89,12 @@ app.whenReady().then(async () => {
     // Don't fail the app if proxy server fails
   }
 
-  createWindow();
+  createMainWindow();
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
 });
 
