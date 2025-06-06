@@ -3,6 +3,7 @@ import ToggleTheme from '../components/ToggleTheme';
 import RecordingControls from '../components/RecordingControls';
 import TranscriptDisplay from '../components/TranscriptDisplay';
 import {TranscriptionResult} from '../services/main-stt-transcription';
+import AIAssistantToggle from '../components/ai-assistant/AIAssistantToggle';
 
 import InitialIcons from '../components/template/InitialIcons';
 
@@ -50,6 +51,9 @@ export default function HomePage() {
 
         <ToggleTheme />
       </div>
+      
+      {/* AI Assistant Toggle Button */}
+      <AIAssistantToggle />
     </div>
   );
 }
