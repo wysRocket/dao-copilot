@@ -1,23 +1,62 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {useWindowState} from '../contexts/WindowStateProvider';
 import {
   useTranscriptionState,
   useWindowCommunication,
 } from '../hooks/useSharedState';
-import WindowLayout from './WindowLayout';
+import {
+  AssistantNavigationProvider,
+  useAssistantNavigation,
+} from '../contexts/AssistantNavigationContext';
 import {WindowButton} from '../components/ui/window-button';
 import {WindowStatus} from '../components/ui/window-status';
 
+// Import page components
+import ChatPage from '../pages/assistant/ChatPage';
+import TranscriptsPage from '../pages/assistant/TranscriptsPage';
+import AnalysisPage from '../pages/assistant/AnalysisPage';
+import SettingsPage from '../pages/assistant/SettingsPage';
+
 interface AssistantWindowLayoutProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  initialTab?: 'chat' | 'transcripts' | 'analysis' | 'settings';
 }
 
-export default function AssistantWindowLayout({
-  children,
-}: AssistantWindowLayoutProps) {
+function AssistantContent() {
+  const {currentTab, navigateToTab} = useAssistantNavigation();
   const {windowState, updateLocalState} = useWindowState();
-  const {transcripts, isRecording} = useTranscriptionState();
-  const {sendToWindow} = useWindowCommunication();
+  const {transcripts} = useTranscriptionState();
+  const {sendToWindow, onMessage} = useWindowCommunication();
+
+  // Listen for navigation messages from other windows
+  useEffect(() => {
+    const unsubscribe = onMessage((channel, ...args) => {
+      if (channel === 'set-assistant-view' && args[0]) {
+        navigateToTab(args[0]);
+      }
+      if (channel === 'navigate-assistant-tab' && args[0]) {
+        navigateToTab(args[0]);
+      }
+    });
+
+    return unsubscribe;
+  }, [onMessage, navigateToTab]);
+
+  // Render current page based on tab
+  const renderCurrentPage = () => {
+    switch (currentTab) {
+      case 'chat':
+        return <ChatPage />;
+      case 'transcripts':
+        return <TranscriptsPage />;
+      case 'analysis':
+        return <AnalysisPage />;
+      case 'settings':
+        return <SettingsPage />;
+      default:
+        return <ChatPage />;
+    }
+  };
 
   // Assistant-specific header with transcription status
   const AssistantHeader = () => (
@@ -90,7 +129,7 @@ export default function AssistantWindowLayout({
     </div>
   );
 
-  // Assistant-specific footer with quick actions
+  // Assistant-specific footer with tab navigation
   const AssistantFooter = () => (
     <div className="bg-card flex items-center justify-between border-t px-4 py-2">
       <WindowStatus
@@ -103,42 +142,39 @@ export default function AssistantWindowLayout({
 
       <div className="flex space-x-1">
         <WindowButton
-          variant={
-            windowState.localState.currentView === 'chat' ? 'default' : 'ghost'
-          }
+          variant={currentTab === 'chat' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => updateLocalState('currentView', 'chat')}
+          onClick={() => navigateToTab('chat')}
         >
           💬 Chat
         </WindowButton>
         <WindowButton
-          variant={
-            windowState.localState.currentView === 'transcripts'
-              ? 'default'
-              : 'ghost'
-          }
+          variant={currentTab === 'transcripts' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => updateLocalState('currentView', 'transcripts')}
+          onClick={() => navigateToTab('transcripts')}
         >
           📝 Transcripts
         </WindowButton>
         <WindowButton
-          variant={
-            windowState.localState.currentView === 'analysis'
-              ? 'default'
-              : 'ghost'
-          }
+          variant={currentTab === 'analysis' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => updateLocalState('currentView', 'analysis')}
+          onClick={() => navigateToTab('analysis')}
         >
           📊 Analysis
+        </WindowButton>
+        <WindowButton
+          variant={currentTab === 'settings' ? 'default' : 'ghost'}
+          size="compact"
+          onClick={() => navigateToTab('settings')}
+        >
+          ⚙️ Settings
         </WindowButton>
       </div>
     </div>
   );
 
   return (
-    <WindowLayout padding="p-0" className="flex flex-col">
+    <>
       <AssistantHeader />
 
       <div className="flex flex-1 overflow-hidden">
@@ -150,7 +186,7 @@ export default function AssistantWindowLayout({
                 Recent Topics
               </div>
               <div className="space-y-1">
-                {transcripts.slice(-5).map((transcript, index) => (
+                {transcripts.slice(-5).map((transcript) => (
                   <div
                     key={transcript.id}
                     className="hover:bg-accent cursor-pointer rounded p-2 text-xs"
@@ -167,10 +203,20 @@ export default function AssistantWindowLayout({
         )}
 
         {/* Main content area */}
-        <div className="flex-1 overflow-auto">{children}</div>
+        <div className="flex-1 overflow-auto">{renderCurrentPage()}</div>
       </div>
 
       <AssistantFooter />
-    </WindowLayout>
+    </>
+  );
+}
+
+export default function AssistantWindowLayout({
+  initialTab = 'transcripts',
+}: AssistantWindowLayoutProps) {
+  return (
+    <AssistantNavigationProvider initialTab={initialTab}>
+      <AssistantContent />
+    </AssistantNavigationProvider>
   );
 }

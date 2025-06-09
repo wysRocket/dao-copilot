@@ -1,6 +1,5 @@
 import React from 'react';
 import {useWindowState} from '../contexts/WindowStateProvider';
-import DragWindowRegion from '../components/DragWindowRegion';
 import CustomTitleBar from '../components/CustomTitleBar';
 import {FocusManager} from '../components/FocusManager';
 import {WindowControls} from '../components/WindowControls';
@@ -21,7 +20,7 @@ interface WindowLayoutProps {
 export default function WindowLayout({
   children,
   showTitleBar = true,
-  showDragRegion = true,
+
   padding = 'p-2 pb-20',
   className = '',
 }: WindowLayoutProps) {
@@ -80,7 +79,7 @@ export default function WindowLayout({
 
   // Override with props
   const finalShowTitleBar = showTitleBar && layoutConfig.showTitleBar;
-  const finalShowDragRegion = showDragRegion && layoutConfig.showDragRegion;
+
   const finalPadding = padding || layoutConfig.padding;
 
   return (
@@ -89,10 +88,6 @@ export default function WindowLayout({
       trapFocus={windowState.windowType === 'overlay'}
     >
       <div className={`${layoutConfig.containerClass} ${className}`}>
-        {finalShowDragRegion && (
-          <DragWindowRegion title="Drag to move the window" />
-        )}
-
         {finalShowTitleBar && (
           <div className="flex items-center justify-between">
             <CustomTitleBar />

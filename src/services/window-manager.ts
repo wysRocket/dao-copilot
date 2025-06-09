@@ -1,9 +1,8 @@
 import {BrowserWindow, app, shell} from 'electron';
 import {join} from 'path';
 import icon from '../../resources/icon.png';
-import registerListeners from '../helpers/ipc/listeners-register';
 
-export type WindowType = 'main' | 'assistant' | 'settings' | 'overlay';
+export type WindowType = 'main' | 'assistant';
 
 export interface WindowConfig {
   width: number;
@@ -51,9 +50,10 @@ export class WindowManager {
       minimizable: true,
       maximizable: true,
       closable: true,
+      frame: false,
     },
     assistant: {
-      width: 400,
+      width: 900,
       height: 600,
       minWidth: 300,
       minHeight: 400,
@@ -63,30 +63,7 @@ export class WindowManager {
       maximizable: false,
       closable: true,
       alwaysOnTop: false,
-    },
-    settings: {
-      width: 500,
-      height: 400,
-      minWidth: 400,
-      minHeight: 300,
-      show: false,
-      resizable: true,
-      minimizable: true,
-      maximizable: false,
-      closable: true,
-    },
-    overlay: {
-      width: 300,
-      height: 200,
-      show: false,
       frame: false,
-      transparent: true,
-      alwaysOnTop: true,
-      resizable: false,
-      minimizable: false,
-      maximizable: false,
-      closable: true,
-      skipTaskbar: true,
     },
   };
 
@@ -138,9 +115,6 @@ export class WindowManager {
         ],
       },
     });
-
-    // Register IPC listeners for this window
-    registerListeners(browserWindow);
 
     // Handle window events
     this.setupWindowEvents(browserWindow, windowId, type);
@@ -213,7 +187,7 @@ export class WindowManager {
     );
   }
 
-  public broadcastToAllWindows(channel: string, ...args: any[]): void {
+  public broadcastToAllWindows(channel: string, ...args: unknown[]): void {
     this.getAllWindows().forEach((state) => {
       if (!state.window.isDestroyed()) {
         state.window.webContents.send(channel, ...args);
@@ -221,7 +195,11 @@ export class WindowManager {
     });
   }
 
-  public sendToWindow(windowId: string, channel: string, ...args: any[]): void {
+  public sendToWindow(
+    windowId: string,
+    channel: string,
+    ...args: unknown[]
+  ): void {
     const windowState = this.windows.get(windowId);
     if (windowState && !windowState.window.isDestroyed()) {
       windowState.window.webContents.send(channel, ...args);
