@@ -251,16 +251,6 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
           </div>
         )}
       </div>
-
-      <div className="text-muted-foreground max-w-md text-center text-xs">
-        <p>
-          Records system audio and microphone with real-time transcription using
-          AWS SageMaker. WAV files are also saved locally for backup.
-        </p>
-        <p className="mt-1 text-yellow-600">
-          Note: Requires AWS credentials configured for SageMaker access
-        </p>
-      </div>
     </div>
   );
 };
