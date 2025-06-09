@@ -211,7 +211,7 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center space-y-4 rounded-lg border bg-card p-6">
+    <div className="bg-card flex flex-col items-center space-y-4 rounded-lg border p-6">
       <h3 className="text-lg font-semibold">
         Real-time Speech-to-Text Recording
       </h3>
@@ -236,7 +236,7 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
         </Button>
       </div>
 
-      <div className="text-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground text-center text-sm">
         <p>{status}</p>
         {isRecording && (
           <div className="flex flex-col items-center space-y-1">
@@ -250,16 +250,6 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
             )}
           </div>
         )}
-      </div>
-
-      <div className="max-w-md text-center text-xs text-muted-foreground">
-        <p>
-          Records system audio and microphone with real-time transcription using
-          AWS SageMaker. WAV files are also saved locally for backup.
-        </p>
-        <p className="mt-1 text-yellow-600">
-          Note: Requires AWS credentials configured for SageMaker access
-        </p>
       </div>
     </div>
   );
