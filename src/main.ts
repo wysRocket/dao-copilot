@@ -1,26 +1,16 @@
-import {
-  app,
-  shell,
-  BrowserWindow,
-  ipcMain,
-  session,
-  desktopCapturer,
-} from 'electron';
-import {join} from 'path';
+import {app, ipcMain, session, desktopCapturer} from 'electron';
+
 import {electronApp, optimizer} from '@electron-toolkit/utils';
-import icon from '../resources/icon.png?asset';
+
 import {promises as fs} from 'fs';
-import registerListeners from './helpers/ipc/listeners-register';
+
 import {createProxyServer, stopProxyServer} from './helpers/proxy-server';
 import {
   loadEnvironmentConfig,
   validateEnvironmentConfig,
 } from './helpers/environment-config';
 import WindowManager from './services/window-manager';
-
-// Declare Electron Forge Vite globals
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
-declare const MAIN_WINDOW_VITE_NAME: string;
+import registerListeners from './helpers/ipc/listeners-register';
 
 ipcMain.handle('writeFile', (_event, path, data): Promise<void> => {
   console.log('writing file to ' + path);
@@ -29,10 +19,10 @@ ipcMain.handle('writeFile', (_event, path, data): Promise<void> => {
 
 function createWindow(): string {
   const windowManager = WindowManager.getInstance();
-  
+
   // Create the main window using WindowManager
-  const mainWindowId = windowManager.createWindow('main', { show: true });
-  
+  const mainWindowId = windowManager.createWindow('main', {show: true});
+
   // Set up display media request handler
   session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
     desktopCapturer
@@ -63,6 +53,9 @@ app.whenReady().then(async () => {
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron');
+
+  // Register global IPC listeners once
+  registerListeners();
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

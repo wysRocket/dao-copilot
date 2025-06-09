@@ -12,9 +12,12 @@ import {
   INTER_WINDOW_MESSAGE_CHANNEL,
   WINDOW_BROADCAST_CHANNEL,
 } from './window-channels';
-import WindowManager, {WindowType} from '../../../services/window-manager';
+import WindowManager, {
+  WindowType,
+  WindowConfig,
+} from '../../../services/window-manager';
 
-export function addWindowEventListeners(_mainWindow: BrowserWindow) {
+export function addWindowEventListeners() {
   const windowManager = WindowManager.getInstance();
 
   // Existing window controls - operate on the current window
@@ -46,7 +49,7 @@ export function addWindowEventListeners(_mainWindow: BrowserWindow) {
   // Multi-window management
   ipcMain.handle(
     WINDOW_CREATE_CHANNEL,
-    (_event, type: WindowType, config?: any) => {
+    (_event, type: WindowType, config?: Partial<WindowConfig>) => {
       return windowManager.createWindow(type, config);
     },
   );
@@ -64,7 +67,7 @@ export function addWindowEventListeners(_mainWindow: BrowserWindow) {
   });
 
   ipcMain.handle(WINDOW_GET_ALL_CHANNEL, () => {
-    return windowManager.getAllWindows().map((state: any) => ({
+    return windowManager.getAllWindows().map((state) => ({
       windowId: state.id,
       type: state.type,
       isVisible: state.isVisible,
@@ -78,7 +81,7 @@ export function addWindowEventListeners(_mainWindow: BrowserWindow) {
       if (window) {
         const state = windowManager
           .getAllWindows()
-          .find((s: any) => s.id === windowId);
+          .find((s) => s.id === windowId);
         return state
           ? {
               windowId: state.id,
@@ -94,7 +97,7 @@ export function addWindowEventListeners(_mainWindow: BrowserWindow) {
       if (currentWindow) {
         const state = windowManager
           .getAllWindows()
-          .find((s: any) => s.window === currentWindow);
+          .find((s) => s.window === currentWindow);
         return state
           ? {
               windowId: state.id,
@@ -111,7 +114,7 @@ export function addWindowEventListeners(_mainWindow: BrowserWindow) {
   // Inter-window communication
   ipcMain.handle(
     INTER_WINDOW_MESSAGE_CHANNEL,
-    (_event, targetWindowId: string, channel: string, ...args: any[]) => {
+    (_event, targetWindowId: string, channel: string, ...args: unknown[]) => {
       windowManager.sendToWindow(
         targetWindowId,
         'inter-window-message',
@@ -123,7 +126,7 @@ export function addWindowEventListeners(_mainWindow: BrowserWindow) {
 
   ipcMain.handle(
     WINDOW_BROADCAST_CHANNEL,
-    (_event, channel: string, ...args: any[]) => {
+    (_event, channel: string, ...args: unknown[]) => {
       windowManager.broadcastToAllWindows(
         'inter-window-message',
         channel,
