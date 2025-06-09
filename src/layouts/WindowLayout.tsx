@@ -1,11 +1,14 @@
 import React from 'react';
-import { useWindowState } from '../contexts/WindowStateProvider';
-import DragWindowRegion from '../components/DragWindowRegion';
+import {useWindowState} from '../contexts/WindowStateProvider';
+
 import CustomTitleBar from '../components/CustomTitleBar';
-import { FocusManager } from '../components/FocusManager';
-import { WindowControls } from '../components/WindowControls';
-import { ShortcutsHelp } from '../components/ShortcutsHelp';
-import { useKeyboardShortcuts, useWindowShortcuts } from '../hooks/useKeyboardShortcuts';
+import {FocusManager} from '../components/FocusManager';
+import {WindowControls} from '../components/WindowControls';
+import {ShortcutsHelp} from '../components/ShortcutsHelp';
+import {
+  useKeyboardShortcuts,
+  useWindowShortcuts,
+} from '../hooks/useKeyboardShortcuts';
 
 interface WindowLayoutProps {
   children: React.ReactNode;
@@ -18,12 +21,12 @@ interface WindowLayoutProps {
 export default function WindowLayout({
   children,
   showTitleBar = true,
-  showDragRegion = true,
+
   padding = 'p-2 pb-20',
   className = '',
 }: WindowLayoutProps) {
-  const { windowState } = useWindowState();
-  
+  const {windowState} = useWindowState();
+
   // Setup keyboard shortcuts for this window
   useWindowShortcuts(windowState.windowType);
   useKeyboardShortcuts();
@@ -38,7 +41,7 @@ export default function WindowLayout({
           padding: 'p-2 pb-20',
           containerClass: 'h-screen',
         };
-      
+
       case 'assistant':
         return {
           showTitleBar: true,
@@ -46,7 +49,7 @@ export default function WindowLayout({
           padding: 'p-0',
           containerClass: 'h-screen flex flex-col',
         };
-      
+
       case 'settings':
         return {
           showTitleBar: true,
@@ -54,7 +57,7 @@ export default function WindowLayout({
           padding: 'p-0',
           containerClass: 'h-screen flex flex-col',
         };
-      
+
       case 'overlay':
         return {
           showTitleBar: false,
@@ -62,7 +65,7 @@ export default function WindowLayout({
           padding: 'p-0',
           containerClass: 'h-full w-full',
         };
-      
+
       default:
         return {
           showTitleBar: true,
@@ -74,36 +77,30 @@ export default function WindowLayout({
   };
 
   const layoutConfig = getLayoutConfig();
-  
+
   // Override with props
   const finalShowTitleBar = showTitleBar && layoutConfig.showTitleBar;
-  const finalShowDragRegion = showDragRegion && layoutConfig.showDragRegion;
+
   const finalPadding = padding || layoutConfig.padding;
 
   return (
-    <FocusManager 
+    <FocusManager
       autoFocus={windowState.windowType !== 'main'}
       trapFocus={windowState.windowType === 'overlay'}
     >
       <div className={`${layoutConfig.containerClass} ${className}`}>
-        {finalShowDragRegion && (
-          <DragWindowRegion title="Drag to move the window" />
-        )}
-        
         {finalShowTitleBar && (
           <div className="flex items-center justify-between">
             <CustomTitleBar />
-            <WindowControls 
+            <WindowControls
               variant={windowState.windowType as any}
               showMaximize={windowState.windowType === 'main'}
             />
           </div>
         )}
-        
-        <main className={finalPadding}>
-          {children}
-        </main>
-        
+
+        <main className={finalPadding}>{children}</main>
+
         {/* Global shortcuts help overlay */}
         <ShortcutsHelp />
       </div>
