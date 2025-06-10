@@ -1,65 +1,62 @@
-import React, {useState} from 'react';
-import {cn} from '@/utils/tailwind';
-import {usePerformance} from '../hooks/usePerformance';
-import {WindowButton} from './ui/window-button';
-import {WindowStatus} from './ui/window-status';
+import React, {useState} from 'react'
+import {cn} from '@/utils/tailwind'
+import {usePerformance} from '../hooks/usePerformance'
+import {WindowButton} from './ui/window-button'
+import {WindowStatus} from './ui/window-status'
 
 export interface PerformanceDashboardProps {
-  className?: string;
-  compact?: boolean;
-  autoRefresh?: boolean;
+  className?: string
+  compact?: boolean
+  autoRefresh?: boolean
 }
 
 export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
   className,
-  compact = false,
-  autoRefresh = true,
+  compact = false
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false)
   const {
     metrics,
     averageMetrics,
     getMemoryUsage,
     runCleanup,
     getOptimizationSuggestions,
-    generateReport,
-  } = usePerformance();
+    generateReport
+  } = usePerformance()
 
-  const memoryUsage = getMemoryUsage();
-  const suggestions = getOptimizationSuggestions();
+  const memoryUsage = getMemoryUsage()
+  const suggestions = getOptimizationSuggestions()
 
   const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
 
   const formatTime = (ms: number) => {
-    if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`;
-    if (ms < 1000) return `${ms.toFixed(1)}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
-  };
+    if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`
+    if (ms < 1000) return `${ms.toFixed(1)}ms`
+    return `${(ms / 1000).toFixed(1)}s`
+  }
 
   const getPerformanceColor = (value: number, thresholds: [number, number]) => {
-    if (value < thresholds[0]) return 'text-green-500';
-    if (value < thresholds[1]) return 'text-yellow-500';
-    return 'text-red-500';
-  };
+    if (value < thresholds[0]) return 'text-green-500'
+    if (value < thresholds[1]) return 'text-yellow-500'
+    return 'text-red-500'
+  }
 
   const downloadReport = () => {
-    const report = generateReport();
-    const blob = new Blob([JSON.stringify(report, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `performance-report-${new Date().toISOString()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+    const report = generateReport()
+    const blob = new Blob([JSON.stringify(report, null, 2)], {type: 'application/json'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `performance-report-${new Date().toISOString()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   if (compact) {
     return (
@@ -70,7 +67,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
               'h-2 w-2 rounded-full',
               metrics?.renderTime
                 ? getPerformanceColor(metrics.renderTime, [16, 33])
-                : 'bg-gray-400',
+                : 'bg-gray-400'
             )}
           ></div>
           <span>Perf</span>
@@ -93,7 +90,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
           </div>
         )}
       </div>
-    );
+    )
   }
 
   return (
@@ -132,24 +129,14 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
 
             <div className="flex justify-between">
               <span>Render Time:</span>
-              <span
-                className={cn(
-                  'font-mono',
-                  getPerformanceColor(metrics.renderTime, [16, 33]),
-                )}
-              >
+              <span className={cn('font-mono', getPerformanceColor(metrics.renderTime, [16, 33]))}>
                 {formatTime(metrics.renderTime)}
               </span>
             </div>
 
             <div className="flex justify-between">
               <span>IPC Latency:</span>
-              <span
-                className={cn(
-                  'font-mono',
-                  getPerformanceColor(metrics.ipcLatency, [50, 100]),
-                )}
-              >
+              <span className={cn('font-mono', getPerformanceColor(metrics.ipcLatency, [50, 100]))}>
                 {formatTime(metrics.ipcLatency)}
               </span>
             </div>
@@ -160,24 +147,18 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
               <>
                 <div className="flex justify-between">
                   <span>Memory Used:</span>
-                  <span className="font-mono">
-                    {formatBytes(memoryUsage.used)}
-                  </span>
+                  <span className="font-mono">{formatBytes(memoryUsage.used)}</span>
                 </div>
 
                 <div className="flex justify-between">
                   <span>Memory Total:</span>
-                  <span className="font-mono">
-                    {formatBytes(memoryUsage.total)}
-                  </span>
+                  <span className="font-mono">{formatBytes(memoryUsage.total)}</span>
                 </div>
 
                 <div className="h-1.5 w-full rounded-full bg-gray-200">
                   <div
                     className="h-1.5 rounded-full bg-blue-500"
-                    style={{
-                      width: `${(memoryUsage.used / memoryUsage.total) * 100}%`,
-                    }}
+                    style={{width: `${(memoryUsage.used / memoryUsage.total) * 100}%`}}
                   ></div>
                 </div>
               </>
@@ -194,24 +175,18 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
       {/* Averages */}
       {Object.keys(averageMetrics).length > 0 && (
         <div className="border-t pt-3">
-          <div className="text-muted-foreground mb-2 text-xs">
-            1-minute averages:
-          </div>
+          <div className="text-muted-foreground mb-2 text-xs">1-minute averages:</div>
           <div className="grid grid-cols-2 gap-2 text-xs">
             {averageMetrics.renderTime && (
               <div className="flex justify-between">
                 <span>Avg Render:</span>
-                <span className="font-mono">
-                  {formatTime(averageMetrics.renderTime)}
-                </span>
+                <span className="font-mono">{formatTime(averageMetrics.renderTime)}</span>
               </div>
             )}
             {averageMetrics.ipcLatency && (
               <div className="flex justify-between">
                 <span>Avg IPC:</span>
-                <span className="font-mono">
-                  {formatTime(averageMetrics.ipcLatency)}
-                </span>
+                <span className="font-mono">{formatTime(averageMetrics.ipcLatency)}</span>
               </div>
             )}
           </div>
@@ -224,10 +199,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
           <div className="text-muted-foreground mb-2 text-xs">Suggestions:</div>
           <div className="space-y-1">
             {suggestions.map((suggestion, index) => (
-              <div
-                key={index}
-                className="flex items-start text-xs text-yellow-600"
-              >
+              <div key={index} className="flex items-start text-xs text-yellow-600">
                 <span className="mr-1">⚠️</span>
                 <span>{suggestion}</span>
               </div>
@@ -238,13 +210,8 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
 
       {/* Window Status */}
       <div className="border-t pt-3">
-        <WindowStatus
-          showWindowInfo
-          showRecordingStatus
-          showTranscriptCount
-          compact
-        />
+        <WindowStatus showWindowInfo showRecordingStatus showTranscriptCount compact />
       </div>
     </div>
-  );
-};
+  )
+}

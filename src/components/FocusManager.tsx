@@ -39,9 +39,9 @@ export const FocusManager: React.FC<FocusManagerProps> = ({
 
   // Listen for focus commands from other windows
   useEffect(() => {
-    const removeListener = onMessage((channel: string, ...args: any[]) => {
+    const removeListener = onMessage((channel: string, ...args: unknown[]) => {
       if (channel === 'focus-element' && args[0] === windowState.windowId) {
-        const selector = args[1];
+        const selector = args[1] as string;
         const element = document.querySelector(selector) as HTMLElement;
         if (element) {
           element.focus();
