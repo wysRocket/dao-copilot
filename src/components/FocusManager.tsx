@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { useWindowState } from '../contexts/WindowStateProvider';
-import { useSharedState } from '../hooks/useSharedState';
+import React, {useEffect, useRef} from 'react';
+import {useWindowState} from '../contexts/WindowStateProvider';
+import {useSharedState} from '../hooks/useSharedState';
 
 interface FocusManagerProps {
   children: React.ReactNode;
@@ -17,8 +17,8 @@ export const FocusManager: React.FC<FocusManagerProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<Element | null>(null);
-  const { windowState } = useWindowState();
-  const { onMessage } = useSharedState();
+  const {windowState} = useWindowState();
+  const {onMessage} = useSharedState();
 
   // Store the previously focused element when component mounts
   useEffect(() => {
@@ -39,16 +39,21 @@ export const FocusManager: React.FC<FocusManagerProps> = ({
 
   // Listen for focus commands from other windows
   useEffect(() => {
-    const removeListener = onMessage((channel: string, ...args: any[]) => {
+    const removeListener = onMessage((channel: string, ...args: unknown[]) => {
       if (channel === 'focus-element' && args[0] === windowState.windowId) {
-        const selector = args[1];
+        const selector = args[1] as string;
         const element = document.querySelector(selector) as HTMLElement;
         if (element) {
           element.focus();
         }
-      } else if (channel === 'focus-first-element' && args[0] === windowState.windowId) {
+      } else if (
+        channel === 'focus-first-element' &&
+        args[0] === windowState.windowId
+      ) {
         if (containerRef.current) {
-          const focusableElement = getFocusableElements(containerRef.current)[0];
+          const focusableElement = getFocusableElements(
+            containerRef.current,
+          )[0];
           if (focusableElement) {
             (focusableElement as HTMLElement).focus();
           }
@@ -68,7 +73,9 @@ export const FocusManager: React.FC<FocusManagerProps> = ({
 
       const focusableElements = getFocusableElements(containerRef.current!);
       const firstElement = focusableElements[0] as HTMLElement;
-      const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+      const lastElement = focusableElements[
+        focusableElements.length - 1
+      ] as HTMLElement;
 
       if (event.shiftKey) {
         // Shift + Tab
@@ -114,7 +121,7 @@ function getFocusableElements(container: HTMLElement): Element[] {
     'select:not([disabled])',
     'textarea:not([disabled])',
     '[tabindex]:not([tabindex="-1"])',
-    '[contenteditable="true"]'
+    '[contenteditable="true"]',
   ].join(', ');
 
   return Array.from(container.querySelectorAll(selector)).filter((element) => {
