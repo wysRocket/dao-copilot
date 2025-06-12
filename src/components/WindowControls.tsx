@@ -1,15 +1,15 @@
-import React from 'react';
-import {cn} from '@/utils/tailwind';
-import {useWindowState} from '../contexts/WindowStateProvider';
-import {WindowButton} from './ui/window-button';
+import React from 'react'
+import {cn} from '@/utils/tailwind'
+import {useWindowState} from '../contexts/WindowStateProvider'
+import {WindowButton} from './ui/window-button'
 
 export interface WindowControlsProps {
-  className?: string;
-  showMinimize?: boolean;
-  showMaximize?: boolean;
-  showClose?: boolean;
-  variant?: 'default' | 'overlay' | 'assistant' | 'settings';
-  position?: 'left' | 'right';
+  className?: string
+  showMinimize?: boolean
+  showMaximize?: boolean
+  showClose?: boolean
+  variant?: 'default' | 'overlay' | 'assistant' | 'settings'
+  position?: 'left' | 'right'
 }
 
 export const WindowControls: React.FC<WindowControlsProps> = ({
@@ -18,62 +18,66 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
   showMaximize = true,
   showClose = true,
   variant = 'default',
-  position = 'right',
+  position = 'right'
 }) => {
-  const {windowState, hideWindow} = useWindowState();
+  const {windowState, hideWindow} = useWindowState()
 
   const handleMinimize = () => {
-    window.electronWindow?.minimize();
-  };
+    window.electronWindow?.minimize()
+  }
 
   const handleMaximize = () => {
-    window.electronWindow?.maximize();
-  };
+    window.electronWindow?.maximize()
+  }
 
   const handleClose = () => {
     if (windowState.windowType === 'main') {
       // For main window, use electron close
-      window.electronWindow?.close();
+      window.electronWindow?.close()
     } else {
       // For other windows, hide them instead of closing
-      hideWindow();
+      hideWindow()
     }
-  };
+  }
 
   // Get platform-specific styling
   const getPlatformStyles = () => {
-    const platform = process.platform;
-    if (platform === 'darwin') {
+    // Use browser-based platform detection instead of Node.js process.platform
+    const isMac =
+      navigator.platform.toUpperCase().includes('MAC') ||
+      navigator.userAgent.toUpperCase().includes('MAC')
+
+    if (isMac) {
       // macOS style - left aligned traffic lights
-      return position === 'left' ? 'flex-row' : 'flex-row-reverse';
+      return position === 'left' ? 'flex-row' : 'flex-row-reverse'
     } else {
       // Windows/Linux style - right aligned
-      return position === 'right' ? 'flex-row' : 'flex-row-reverse';
+      return position === 'right' ? 'flex-row' : 'flex-row-reverse'
     }
-  };
+  }
 
   // Get variant-specific button styles
   const getButtonProps = (action: 'minimize' | 'maximize' | 'close') => {
     const baseProps = {
       size: 'icon-sm' as const,
-      className: 'h-6 w-6',
-    };
+      className: 'h-6 w-6'
+    }
 
     switch (variant) {
       case 'overlay':
         return {
           ...baseProps,
           variant: 'ghost' as const,
-          className: cn(baseProps.className, 'hover:bg-accent/50'),
-        };
+          className: cn(baseProps.className, 'hover:bg-accent/50')
+        }
 
       case 'assistant':
       case 'settings':
         return {
           ...baseProps,
           variant: 'ghost' as const,
-          className: cn(baseProps.className, 'hover:bg-accent'),
-        };
+          className: cn(baseProps.className, 'hover:bg-accent')
+        }
 
       default:
         if (action === 'close') {
@@ -82,54 +86,59 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
             variant: 'ghost' as const,
             className: cn(
               baseProps.className,
-              'hover:bg-destructive hover:text-destructive-foreground',
-            ),
-          };
+              'hover:bg-destructive hover:text-destructive-foreground'
+            )
+          }
         }
         return {
           ...baseProps,
-          variant: 'ghost' as const,
-        };
+          variant: 'ghost' as const
+        }
     }
-  };
+  }
 
   // Platform-specific button content
   const getButtonContent = (action: 'minimize' | 'maximize' | 'close') => {
-    if (process.platform === 'darwin') {
+    // Use browser-based platform detection instead of Node.js process.platform
+    const isMac =
+      navigator.platform.toUpperCase().includes('MAC') ||
+      navigator.userAgent.toUpperCase().includes('MAC')
+
+    if (isMac) {
       // macOS style dots
       switch (action) {
         case 'minimize':
-          return '○';
+          return '○'
         case 'maximize':
-          return '○';
+          return '○'
         case 'close':
-          return '○';
+          return '○'
       }
     } else {
       // Windows/Linux style symbols
       switch (action) {
         case 'minimize':
-          return '−';
+          return '−'
         case 'maximize':
-          return '□';
+          return '□'
         case 'close':
-          return '✕';
+          return '✕'
       }
     }
-  };
+  }
 
   const getAriaLabel = (action: 'minimize' | 'maximize' | 'close') => {
     switch (action) {
       case 'minimize':
-        return 'Minimize window';
+        return 'Minimize window'
       case 'maximize':
-        return 'Maximize window';
+        return 'Maximize window'
       case 'close':
         return windowState.windowType === 'main'
           ? 'Close application'
-          : `Close ${windowState.windowType} window`;
+          : `Close ${windowState.windowType} window`
     }
-  };
+  }
 
   return (
     <div
@@ -173,5 +182,5 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
         </WindowButton>
       )}
     </div>
-  );
-};
+  )
+}
