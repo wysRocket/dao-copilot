@@ -1,56 +1,61 @@
-import React, {useEffect, useState} from 'react';
-import {usePortalManager} from './PortalManager';
+import React, {useEffect, useState} from 'react'
+import {usePortalManager} from './PortalManager'
 
 // Import window-specific components and layouts
-import HomePage from '../../pages/HomePage';
-import AssistantWindowLayout from '../../layouts/AssistantWindowLayout';
-import WindowLayout from '../../layouts/WindowLayout';
+import HomePage from '../../pages/HomePage'
+import AssistantWindowLayout from '../../layouts/AssistantWindowLayout'
+import WindowLayout from '../../layouts/WindowLayout'
 
 interface WindowRendererProps {
   // Optional override for window type
-  windowType?: string;
+  windowType?: string
 }
 
 export const WindowRenderer: React.FC<WindowRendererProps> = ({windowType}) => {
-  const portalManager = usePortalManager();
-  const [currentWindowType, setCurrentWindowType] = useState<string>('main');
+  const portalManager = usePortalManager()
+  const [currentWindowType, setCurrentWindowType] = useState<string>('main')
 
   useEffect(() => {
     // Get window type from URL parameters or current window info
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlWindowType = urlParams.get('windowType');
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlWindowType = urlParams.get('windowType')
 
     if (windowType) {
-      setCurrentWindowType(windowType);
+      setCurrentWindowType(windowType)
     } else if (urlWindowType) {
-      setCurrentWindowType(urlWindowType);
+      setCurrentWindowType(urlWindowType)
     } else if (portalManager.currentWindow) {
-      setCurrentWindowType(portalManager.currentWindow.type);
+      setCurrentWindowType(portalManager.currentWindow.type)
     }
-  }, [windowType, portalManager.currentWindow]);
+  }, [windowType, portalManager.currentWindow])
 
   // Listen for window info updates
   useEffect(() => {
     const removeListener = portalManager.onInterWindowMessage(
-      (channel: string, ...args: any[]) => {
-        if (channel === 'window-info' && args[0]?.windowId) {
-          const windowInfo = args[0];
-          setCurrentWindowType(windowInfo.type);
+      (channel: string, ...args: unknown[]) => {
+        if (
+          channel === 'window-info' &&
+          args[0] &&
+          typeof args[0] === 'object' &&
+          'windowId' in args[0]
+        ) {
+          const windowInfo = args[0] as {windowId: string; type: string}
+          setCurrentWindowType(windowInfo.type)
         }
-      },
-    );
+      }
+    )
 
-    return removeListener;
-  }, [portalManager]);
+    return removeListener
+  }, [portalManager])
 
   // Render appropriate component based on window type
   const renderWindowContent = () => {
     switch (currentWindowType) {
       case 'main':
-        return <HomePage />;
+        return <HomePage />
 
       case 'assistant':
-        return <AssistantWindowLayout />;
+        return <AssistantWindowLayout />
 
       default:
         return (
@@ -64,9 +69,9 @@ export const WindowRenderer: React.FC<WindowRendererProps> = ({windowType}) => {
               </div>
             </div>
           </WindowLayout>
-        );
+        )
     }
-  };
+  }
 
-  return <div className="h-full w-full">{renderWindowContent()}</div>;
-};
+  return <div className="h-full w-full">{renderWindowContent()}</div>
+}
