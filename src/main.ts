@@ -1,50 +1,29 @@
-import {
-  app,
-  shell,
-  BrowserWindow,
-  ipcMain,
-  session,
-  desktopCapturer,
-} from 'electron';
-import {join} from 'path';
+import {app, ipcMain, session, desktopCapturer} from 'electron';
+
 import {electronApp, optimizer} from '@electron-toolkit/utils';
-import icon from '../resources/icon.png?asset';
+
 import {promises as fs} from 'fs';
-import registerListeners from './helpers/ipc/listeners-register';
+
 import {createProxyServer, stopProxyServer} from './helpers/proxy-server';
 import {
   loadEnvironmentConfig,
   validateEnvironmentConfig,
 } from './helpers/environment-config';
-
-// Declare Electron Forge Vite globals
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
-declare const MAIN_WINDOW_VITE_NAME: string;
+import WindowManager from './services/window-manager';
+import registerListeners from './helpers/ipc/listeners-register';
 
 ipcMain.handle('writeFile', (_event, path, data): Promise<void> => {
   console.log('writing file to ' + path);
   return fs.writeFile(path, data);
 });
 
-function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
-    show: false,
-    autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? {icon} : {}),
-    webPreferences: {
-      preload: join(__dirname, 'preload.js'),
-      sandbox: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
+function createWindow(): string {
+  const windowManager = WindowManager.getInstance();
 
-  // Register all IPC listeners
-  registerListeners(mainWindow);
+  // Create the main window using WindowManager
+  const mainWindowId = windowManager.createWindow('main', {show: true});
 
+  // Set up display media request handler
   session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
     desktopCapturer
       .getSources({types: ['window', 'screen']})
@@ -54,24 +33,7 @@ function createWindow(): void {
       });
   });
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show();
-  });
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
-    return {action: 'deny'};
-  });
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(
-      join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
-  }
+  return mainWindowId;
 }
 
 // This method will be called when Electron has finished
@@ -91,6 +53,9 @@ app.whenReady().then(async () => {
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron');
+
+  // Register global IPC listeners once
+  registerListeners();
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -113,7 +78,10 @@ app.whenReady().then(async () => {
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    const windowManager = WindowManager.getInstance();
+    if (windowManager.getWindowsByType('main').length === 0) {
+      createWindow();
+    }
   });
 });
 
@@ -138,6 +106,7 @@ app.on('window-all-closed', async () => {
 app.on('before-quit', async () => {
   try {
     await stopProxyServer();
+    WindowManager.getInstance().cleanup();
   } catch (error) {
     console.error('Error stopping proxy server on quit:', error);
   }

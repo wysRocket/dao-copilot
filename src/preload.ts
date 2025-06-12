@@ -23,6 +23,5 @@ if (process.contextIsolated) {
     console.error('Error in preload script:', error);
   }
 } else {
-  // @ts-expect-error (define in dts)
   window.electron = electronAPI;
 }

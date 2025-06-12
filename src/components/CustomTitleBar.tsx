@@ -1,39 +1,86 @@
-import React from 'react';
+import React, {useEffect} from 'react'
+import {useWindowPortal} from '../hooks/useWindowPortal'
+import {useWindowCommunication, useTranscriptionState} from '../hooks/useSharedState'
+import {getAudioRecordingService, TranscriptionResult} from '../services/audio-recording'
+import RecordingControls from './RecordingControls'
+import ToggleTheme from '../components/ToggleTheme'
+import {PerformanceDashboard} from './PerformanceDashboard'
 
 // Note: You may need to add the following to your global CSS:
 // .app-region-drag { -webkit-app-region: drag; }
 // .app-region-no-drag { -webkit-app-region: no-drag; }
 
 const CustomTitleBar: React.FC = () => {
+  const assistantWindow = useWindowPortal({type: 'assistant'})
+  const {broadcast} = useWindowCommunication()
+  const {setProcessingState} = useTranscriptionState()
+
+  // Use the audio recording service
+  const audioService = getAudioRecordingService()
+
+  // Subscribe to recording state changes
+  useEffect(() => {
+    const unsubscribe = audioService.onStateChange(newState => {
+      setProcessingState(newState.isTranscribing)
+    })
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribe()
+      audioService.destroy()
+    }
+  }, [audioService, setProcessingState])
+
+  const handleTranscription = (result: TranscriptionResult) => {
+    // Broadcast transcription result to all windows
+    broadcast('transcription-result', result)
+  }
+
+  const handleShowHide = () => {
+    if (window.electronWindow?.hideWindow) {
+      // Get current window ID and hide it
+      window.electronWindow.getWindowInfo().then(windowInfo => {
+        if (windowInfo?.windowId) {
+          window.electronWindow.hideWindow(windowInfo.windowId)
+        }
+      })
+    }
+  }
+
+  const handleSettings = () => {
+    assistantWindow.openWindow()
+    // Send message to set AssistantWindow to Settings tab
+    setTimeout(() => {
+      broadcast('set-assistant-view', 'settings')
+    }, 100)
+  }
+
   return (
     <div className="app-region-drag flex h-10 items-center gap-3 rounded-t-lg bg-[#f6faff] px-4 shadow-sm select-none">
-      <button className="record-btn app-region-no-drag mr-2 border-none bg-none p-0">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <circle cx="8" cy="8" r="8" fill="#2563eb" />
-          <rect x="6" y="4" width="4" height="8" rx="2" fill="white" />
-        </svg>
-      </button>
-      <span className="mr-4 text-base text-slate-700">00:00</span>
-      <div className="flex-1" />
-      <button className="app-region-no-drag flex items-center border-none bg-none px-2 py-1 text-slate-700">
+      <RecordingControls onTranscription={handleTranscription} />
+
+      <ToggleTheme />
+      <PerformanceDashboard compact />
+      <div className="flex-1"></div>
+      <button
+        onClick={assistantWindow.openWindow}
+        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
+      >
         Ask AI
       </button>
-      <span className="shortcut app-region-no-drag mx-1 text-xs text-slate-400">
-        ⌘↵
-      </span>
-      <button className="app-region-no-drag flex items-center border-none bg-none px-2 py-1 text-slate-700">
+      <span className="shortcut app-region-no-drag mx-1 text-xs text-slate-400">⌘↵</span>
+      <button
+        onClick={handleShowHide}
+        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
+      >
         Show/Hide
       </button>
-      <span className="shortcut app-region-no-drag mx-1 text-xs text-slate-400">
-        ⌘\
-      </span>
-      <button className="settings-btn app-region-no-drag ml-2 border-none bg-none">
+      <span className="shortcut app-region-no-drag mx-1 text-xs text-slate-400">⌘\</span>
+      <button
+        onClick={handleSettings}
+        className="settings-btn app-region-no-drag ml-2 rounded border-none bg-none p-1 hover:bg-slate-100"
+        title="Settings"
+      >
         <svg
           width="18"
           height="18"
@@ -46,7 +93,7 @@ const CustomTitleBar: React.FC = () => {
         </svg>
       </button>
     </div>
-  );
-};
+  )
+}
 
-export default CustomTitleBar;
+export default CustomTitleBar

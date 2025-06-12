@@ -1,10 +1,13 @@
 type WavOptions = {
-  isFloat: boolean
-  numChannels?: number
-  sampleRate?: number
-}
+  isFloat: boolean;
+  numChannels?: number;
+  sampleRate?: number;
+};
 
-export function renderWavFile(buffer: Float32Array, options: WavOptions): Uint8Array {
+export function renderWavFile(
+  buffer: Float32Array,
+  options: WavOptions,
+): Uint8Array {
   // adapted from https://gist.github.com/also/900023
   // returns Uint8Array of WAV header bytes
   function getWavHeader(options: WavOptions, numFrames: number): Uint8Array {
@@ -65,12 +68,12 @@ export function renderWavFile(buffer: Float32Array, options: WavOptions): Uint8A
     for (let i = 0; i < buffer.length; i++) {
       // Scale to int16 range and clamp
       const s = Math.max(-1, Math.min(1, buffer[i]));
-      pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
     audioData = pcmData;
   }
 
-  const type = options.isFloat ? Float32Array : Int16Array;
+  //  const type = options.isFloat ? Float32Array : Int16Array;
   const numFrames = audioData.length;
 
   const headerBytes = getWavHeader(options, numFrames);

@@ -1,54 +1,22 @@
-import React, {useState} from 'react';
-import ToggleTheme from '../components/ToggleTheme';
-import RecordingControls from '../components/RecordingControls';
-import TranscriptDisplay from '../components/TranscriptDisplay';
-import {TranscriptionResult} from '../services/main-stt-transcription';
-
-import InitialIcons from '../components/template/InitialIcons';
+import React from 'react';
 
 export default function HomePage() {
-  const [transcripts, setTranscripts] = useState<TranscriptionResult[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleTranscription = (transcript: TranscriptionResult) => {
-    setTranscripts((prev) => [...prev, transcript]);
-    setIsProcessing(false);
-  };
-
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center gap-2">
-        <InitialIcons />
-        <span>
-          <h1 className="font-mono text-4xl font-bold">{'appName'}</h1>
-          <p
-            className="text-muted-foreground text-end text-sm uppercase"
-            data-testid="pageTitle"
-          >
-            titleHomePage
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <div className="space-y-4 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">DAO Copilot</h1>
+          <p className="max-w-md text-gray-600">
+            Use the title bar controls to start recording, open the AI
+            assistant, or access settings.
           </p>
-        </span>
-        <div className="mt-8 w-full max-w-md">
-          <RecordingControls onTranscription={handleTranscription} />
-        </div>
-        <TranscriptDisplay
-          transcripts={transcripts}
-          isProcessing={isProcessing}
-        />
-
-        {/* Development Testing Button */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4">
-            <button
-              onClick={() => AudioPipelineTester.runAllTests()}
-              className="rounded bg-blue-100 px-4 py-2 text-xs text-blue-800 hover:bg-blue-200"
-            >
-              🧪 Run Audio Tests
-            </button>
+          <div className="space-y-1 text-sm text-gray-500">
+            <p>🎤 Recording Button - Start/Stop recording</p>
+            <p>🤖 Ask AI - Open AI Assistant window</p>
+            <p>👁️ Show/Hide - Toggle main window visibility</p>
+            <p>⚙️ Settings - Open Assistant settings</p>
           </div>
-        )}
-
-        <ToggleTheme />
+        </div>
       </div>
     </div>
   );
