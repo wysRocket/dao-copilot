@@ -39,12 +39,14 @@ declare const MAIN_WINDOW_VITE_NAME: string
 export class WindowManager {
   private static instance: WindowManager
   private windows: Map<string, WindowState> = new Map()
+  private isShuttingDown: boolean = false
+  private readonly ASSISTANT_WINDOW_OFFSET = 80 // Distance in pixels below main window
   private windowConfigs: Record<WindowType, WindowConfig> = {
     main: {
       width: 900,
-      height: 100,
+      height: 60,
       minWidth: 400,
-      minHeight: 100,
+      minHeight: 60,
       show: false,
       resizable: true,
       minimizable: true,
@@ -80,6 +82,17 @@ export class WindowManager {
   public createWindow(type: WindowType, customConfig?: Partial<WindowConfig>): string {
     const config = {...this.windowConfigs[type], ...customConfig}
     const windowId = `${type}-${Date.now()}`
+
+    // Calculate position for assistant window based on main window
+    if (type === 'assistant') {
+      const mainWindows = this.getWindowsByType('main')
+      if (mainWindows.length > 0) {
+        const mainWindow = mainWindows[0].window
+        const [mainX, mainY] = mainWindow.getPosition()
+        config.x = mainX
+        config.y = mainY + this.ASSISTANT_WINDOW_OFFSET
+      }
+    }
 
     const browserWindow = new BrowserWindow({
       width: config.width,
@@ -143,6 +156,10 @@ export class WindowManager {
   public showWindow(windowId: string): void {
     const windowState = this.windows.get(windowId)
     if (windowState && !windowState.window.isDestroyed()) {
+      // Update assistant window position before showing
+      if (windowState.type === 'assistant') {
+        this.updateAssistantWindowPosition()
+      }
       windowState.window.show()
       windowState.window.focus()
       windowState.isVisible = true
@@ -152,6 +169,10 @@ export class WindowManager {
   public showWindowWithoutFocus(windowId: string): void {
     const windowState = this.windows.get(windowId)
     if (windowState && !windowState.window.isDestroyed()) {
+      // Update assistant window position before showing
+      if (windowState.type === 'assistant') {
+        this.updateAssistantWindowPosition()
+      }
       // Try to use showInactive if available, otherwise use show and immediately blur
       if (typeof windowState.window.showInactive === 'function') {
         windowState.window.showInactive()
@@ -174,7 +195,7 @@ export class WindowManager {
       }
     } else {
       // Create new assistant window without focusing
-      const windowId = this.createWindow('assistant', { show: true })
+      const windowId = this.createWindow('assistant', {show: true})
       // The window will show but we won't focus it since showWindowWithoutFocus wasn't called
       this.hideWindow(windowId) // Hide first
       this.showWindowWithoutFocus(windowId) // Then show without focus
@@ -184,7 +205,7 @@ export class WindowManager {
   public toggleAssistantWithDualFocus(): void {
     const assistantWindows = this.getWindowsByType('assistant')
     const mainWindows = this.getWindowsByType('main')
-    
+
     if (assistantWindows.length > 0) {
       const assistantWindow = assistantWindows[0]
       if (assistantWindow.window.isVisible()) {
@@ -201,7 +222,7 @@ export class WindowManager {
       }
     } else {
       // Create new assistant window and focus both
-      this.createWindow('assistant', { show: true })
+      this.createWindow('assistant', {show: true})
       if (mainWindows.length > 0) {
         setTimeout(() => {
           this.focusWindow(mainWindows[0].id)
@@ -228,26 +249,31 @@ export class WindowManager {
   public focusWindow(windowId: string): void {
     const windowState = this.windows.get(windowId)
     if (windowState && !windowState.window.isDestroyed()) {
-      console.log(
+      this.safeLog(
         `Focusing window ${windowId}, isMinimized: ${windowState.window.isMinimized()}, isVisible: ${windowState.window.isVisible()}`
       )
 
+      // Update assistant window position before focusing
+      if (windowState.type === 'assistant') {
+        this.updateAssistantWindowPosition()
+      }
+
       if (windowState.window.isMinimized()) {
-        console.log('Restoring minimized window')
+        this.safeLog('Restoring minimized window')
         windowState.window.restore()
       }
 
       if (!windowState.window.isVisible()) {
-        console.log('Showing hidden window')
+        this.safeLog('Showing hidden window')
         windowState.window.show()
       }
 
       windowState.window.focus()
       windowState.isVisible = true
 
-      console.log(`Window ${windowId} should now be focused`)
+      this.safeLog(`Window ${windowId} should now be focused`)
     } else {
-      console.log(`Cannot focus window ${windowId}: ${windowState ? 'destroyed' : 'not found'}`)
+      this.safeLog(`Cannot focus window ${windowId}: ${windowState ? 'destroyed' : 'not found'}`)
     }
   }
 
@@ -275,6 +301,20 @@ export class WindowManager {
     return mainWindows.length > 0 ? mainWindows[0].window : null
   }
 
+  public setShuttingDown(): void {
+    this.isShuttingDown = true
+  }
+
+  private safeLog(message: string): void {
+    if (!this.isShuttingDown) {
+      try {
+        console.log(message)
+      } catch {
+        // Silently ignore logging errors during shutdown
+      }
+    }
+  }
+
   private setupWindowEvents(
     browserWindow: BrowserWindow,
     windowId: string,
@@ -283,6 +323,10 @@ export class WindowManager {
     browserWindow.on('ready-to-show', () => {
       const windowState = this.windows.get(windowId)
       if (windowState?.config.show) {
+        // Update assistant window position before showing
+        if (type === 'assistant') {
+          this.updateAssistantWindowPosition()
+        }
         browserWindow.show()
         windowState.isVisible = true
       }
@@ -319,7 +363,7 @@ export class WindowManager {
       if (windowState) {
         windowState.isVisible = false
       }
-      console.log(`Window ${windowId} minimized`)
+      this.safeLog(`Window ${windowId} minimized`)
     })
 
     browserWindow.on('restore', () => {
@@ -327,15 +371,29 @@ export class WindowManager {
       if (windowState) {
         windowState.isVisible = true
       }
-      console.log(`Window ${windowId} restored`)
+      this.safeLog(`Window ${windowId} restored`)
+
+      // Update assistant window position when main window is restored
+      if (type === 'main') {
+        this.updateAssistantWindowPosition()
+      }
     })
 
     // Prevent main window from closing, minimize instead
     if (type === 'main') {
       browserWindow.on('close', event => {
+        // Allow closing during shutdown
+        if (this.isShuttingDown) {
+          return
+        }
         event.preventDefault()
         browserWindow.minimize()
-        console.log('Main window close prevented, minimizing instead')
+        this.safeLog('Main window close prevented, minimizing instead')
+      })
+
+      // Update assistant window position when main window moves
+      browserWindow.on('moved', () => {
+        this.updateAssistantWindowPosition()
       })
     }
 
@@ -368,13 +426,69 @@ export class WindowManager {
     }
   }
 
+  private updateAssistantWindowPosition(): void {
+    const mainWindows = this.getWindowsByType('main')
+    const assistantWindows = this.getWindowsByType('assistant')
+
+    if (mainWindows.length > 0 && assistantWindows.length > 0) {
+      const mainWindow = mainWindows[0].window
+      const assistantWindow = assistantWindows[0].window
+
+      if (!mainWindow.isDestroyed() && !assistantWindow.isDestroyed()) {
+        const [mainX, mainY] = mainWindow.getPosition()
+        assistantWindow.setPosition(mainX, mainY + this.ASSISTANT_WINDOW_OFFSET)
+      }
+    }
+  }
+
+  public positionAssistantRelativeToMain(): void {
+    this.updateAssistantWindowPosition()
+  }
+
   public cleanup(): void {
-    this.getAllWindows().forEach(state => {
+    this.isShuttingDown = true
+
+    // Get all window states before cleanup
+    const allWindows = Array.from(this.windows.values())
+
+    // Clean up each window
+    allWindows.forEach(state => {
       if (!state.window.isDestroyed()) {
-        state.window.close()
+        try {
+          // Remove all event listeners to prevent interference
+          state.window.removeAllListeners()
+
+          // Force destroy the window
+          state.window.destroy()
+        } catch (error) {
+          // If destroy fails, ignore error as we're shutting down
+          this.safeLog(`Error destroying window ${state.id}: ${error}`)
+        }
       }
     })
+
+    // Clear the windows map
     this.windows.clear()
+
+    this.safeLog('WindowManager cleanup completed')
+  }
+
+  public forceQuit(): void {
+    this.setShuttingDown()
+    this.cleanup()
+
+    // Use a timeout to force quit if graceful shutdown fails
+    setTimeout(() => {
+      try {
+        console.log('Force quitting application after timeout')
+      } catch {
+        // Ignore logging errors
+      }
+      process.exit(0)
+    }, 2000)
+
+    // Try graceful quit first
+    app.quit()
   }
 }
 

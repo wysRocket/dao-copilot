@@ -20,9 +20,67 @@ import registerListeners from './helpers/ipc/listeners-register'
 
 // Add tray variable
 let tray: Tray | null = null
+let isShuttingDown = false
+
+function safeLog(message: string): void {
+  if (!isShuttingDown) {
+    try {
+      console.log(message)
+    } catch {
+      // Ignore logging errors during shutdown
+    }
+  }
+}
+
+async function performCleanup(): Promise<void> {
+  if (isShuttingDown) return
+  isShuttingDown = true
+
+  // Set a timeout to force quit if cleanup takes too long
+  const forceQuitTimer = setTimeout(() => {
+    try {
+      console.log('Cleanup timeout - force quitting')
+    } catch {
+      // Ignore logging errors
+    }
+    process.exit(1)
+  }, 5000)
+
+  try {
+    // Set shutdown state in WindowManager
+    WindowManager.getInstance().setShuttingDown()
+
+    // Stop proxy server
+    await stopProxyServer()
+    safeLog('Proxy server stopped')
+
+    // Clean up WindowManager
+    WindowManager.getInstance().cleanup()
+
+    // Clean up global shortcuts
+    globalShortcut.unregisterAll()
+
+    // Clean up tray
+    if (tray) {
+      tray.destroy()
+      tray = null
+    }
+
+    // Clear the force quit timer since cleanup completed
+    clearTimeout(forceQuitTimer)
+  } catch (error) {
+    // Clear the force quit timer
+    clearTimeout(forceQuitTimer)
+    try {
+      console.error('Error during cleanup:', error)
+    } catch {
+      // Ignore logging errors during shutdown
+    }
+  }
+}
 
 ipcMain.handle('writeFile', (_event, path, data): Promise<void> => {
-  console.log('writing file to ' + path)
+  safeLog('writing file to ' + path)
   return fs.writeFile(path, data)
 })
 
@@ -47,7 +105,7 @@ function createTray(windowManager: WindowManager) {
     {
       label: 'Quit',
       click: () => {
-        app.quit()
+        WindowManager.getInstance().forceQuit()
       }
     }
   ])
@@ -117,6 +175,7 @@ app.whenReady().then(async () => {
 
   // Register global shortcut to restore main window
   globalShortcut.register('CommandOrControl+Shift+D', () => {
+    safeLog('Global shortcut CommandOrControl+Shift+D triggered - focusing main window')
     const windowManager = WindowManager.getInstance()
     const mainWindows = windowManager.getWindowsByType('main')
     if (mainWindows.length > 0) {
@@ -129,7 +188,7 @@ app.whenReady().then(async () => {
   // Register global shortcut for toggle assistant window visibility (⌘\ or Ctrl+\)
   // Focus stays on main window
   globalShortcut.register('CommandOrControl+\\', () => {
-    console.log('Global shortcut CommandOrControl+\\ triggered - toggling assistant')
+    safeLog('Global shortcut CommandOrControl+\\ triggered - toggling assistant')
     const windowManager = WindowManager.getInstance()
     windowManager.toggleAssistantWindow()
   })
@@ -137,7 +196,7 @@ app.whenReady().then(async () => {
   // Register global shortcut for AI assistant with dual focus (⌘Enter or Ctrl+Enter)
   // Toggles assistant window and coordinates focus with main window
   globalShortcut.register('CommandOrControl+Return', () => {
-    console.log('Global shortcut CommandOrControl+Return triggered - dual focus toggle')
+    safeLog('Global shortcut CommandOrControl+Return triggered - dual focus toggle')
     const windowManager = WindowManager.getInstance()
     windowManager.toggleAssistantWithDualFocus()
   })
@@ -152,9 +211,13 @@ app.whenReady().then(async () => {
   // Start proxy server (optional, for other API calls if needed)
   try {
     await createProxyServer()
-    console.log('Proxy server started successfully')
+    safeLog('Proxy server started successfully')
   } catch (error) {
-    console.error('Failed to start proxy server:', error)
+    try {
+      console.error('Failed to start proxy server:', error)
+    } catch {
+      // Ignore logging errors
+    }
     // Don't fail the app if proxy server fails
   }
 
@@ -174,14 +237,7 @@ app.whenReady().then(async () => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', async () => {
-  // Stop proxy server when app is closing
-  try {
-    await stopProxyServer()
-    console.log('Proxy server stopped')
-  } catch (error) {
-    console.error('Error stopping proxy server:', error)
-  }
-
+  await performCleanup()
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -189,21 +245,39 @@ app.on('window-all-closed', async () => {
 
 // Handle app quit event
 app.on('before-quit', async () => {
+  await performCleanup()
+})
+
+// Handle unexpected process termination
+process.on('SIGINT', async () => {
+  await performCleanup()
+  process.exit(0)
+})
+
+process.on('SIGTERM', async () => {
+  await performCleanup()
+  process.exit(0)
+})
+
+// Handle uncaught exceptions
+process.on('uncaughtException', async error => {
   try {
-    await stopProxyServer()
-    WindowManager.getInstance().cleanup()
-
-    // Clean up global shortcuts
-    globalShortcut.unregisterAll()
-
-    // Clean up tray
-    if (tray) {
-      tray.destroy()
-      tray = null
-    }
-  } catch (error) {
-    console.error('Error stopping proxy server on quit:', error)
+    console.error('Uncaught exception:', error)
+  } catch {
+    // Ignore logging errors
   }
+  await performCleanup()
+  process.exit(1)
+})
+
+process.on('unhandledRejection', async (reason, promise) => {
+  try {
+    console.error('Unhandled rejection at:', promise, 'reason:', reason)
+  } catch {
+    // Ignore logging errors
+  }
+  await performCleanup()
+  process.exit(1)
 })
 
 // In this file you can include the rest of your app"s specific main process
