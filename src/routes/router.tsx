@@ -1,25 +1,20 @@
-import {createMemoryHistory, createRouter, createRoute} from '@tanstack/react-router'
-import {RootRoute} from './__root'
-import HomePage from '../pages/HomePage'
+import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { HomePage } from "../pages/HomePage"
+import { AboutPage } from "../pages/AboutPage"
+import { ContactPage } from "../pages/ContactPage"
+import { NotFoundPage } from "../pages/NotFoundPage"
+import { EnhancedHomePage } from "../pages/EnhancedHomePage"
 
-declare module '@tanstack/react-router' {
-  interface Register {
-    router: typeof router
-  }
-}
+const AppRouter = () => (
+  <BrowserRouter>
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/enhanced" element={<EnhancedHomePage />} />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  </BrowserRouter>
+)
 
-// Define routes
-const HomeRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: '/',
-  component: HomePage
-})
-
-// Create route tree
-const rootTree = RootRoute.addChildren([HomeRoute])
-
-// Create router
-const history = createMemoryHistory({
-  initialEntries: ['/']
-})
-export const router = createRouter({routeTree: rootTree, history: history})
+export default AppRouter
