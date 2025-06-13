@@ -32,7 +32,7 @@ alwaysApply: true
     - Implementation details have changed
 
 - **Example Pattern Recognition:**
-  ```typescript
+  \`\`\`typescript
   // If you see repeated patterns like:
   const data = await prisma.user.findMany({
     select: { id: true, email: true },
@@ -43,7 +43,7 @@ alwaysApply: true
   // - Standard select fields
   // - Common where conditions
   // - Performance optimization patterns
-  ```
+  \`\`\`
 
 - **Rule Quality Checks:**
   - Rules should be actionable and specific

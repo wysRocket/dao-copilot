@@ -62,7 +62,6 @@ const WindowButton = React.forwardRef<HTMLButtonElement, WindowButtonProps>(
       size,
       windowType,
       asChild = false,
-
       targetWindow,
       closeOnClick = false,
       onClick,

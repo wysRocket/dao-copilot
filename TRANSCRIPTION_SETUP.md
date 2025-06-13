@@ -18,33 +18,33 @@ You can set the API key in several ways:
 
 Create a `.env` file in the project root and add:
 
-```bash
+\`\`\`bash
 GOOGLE_API_KEY=your-api-key-here
-```
+\`\`\`
 
 #### Option 2: System Environment Variable
 
 ##### macOS/Linux:
 
-```bash
+\`\`\`bash
 export GOOGLE_API_KEY="your-api-key-here"
-```
+\`\`\`
 
 Add this to your `~/.zshrc` or `~/.bashrc` to make it permanent.
 
 ##### Windows:
 
-```cmd
+\`\`\`cmd
 set GOOGLE_API_KEY=your-api-key-here
-```
+\`\`\`
 
 ### Step 3: Verify Setup
 
 After setting the environment variable, run the app and check the console logs. You should see:
 
-```
+\`\`\`
 ✅ Google API Key found and loaded
-```
+\`\`\`
 
 If you see API key validation errors, the transcription feature won't work.
 
@@ -66,7 +66,7 @@ The app includes a fallback proxy server that can be used if direct API calls fa
 
 ## Architecture
 
-```
+\`\`\`
 ┌─────────────────┐    IPC     ┌─────────────────┐    HTTPS    ┌─────────────────┐
 │                 │  -------->  │                 │  --------> │                 │
 │ Renderer Process│             │  Main Process   │            │  Gemini API     │
@@ -80,6 +80,6 @@ The app includes a fallback proxy server that can be used if direct API calls fa
                                 │  Proxy Server   │            │  Gemini API     │
                                 │  (localhost)    │  <-------- │                 │
                                 └─────────────────┘            └─────────────────┘
-```
+\`\`\`
 
 This architecture eliminates CORS issues because the API calls are made from Node.js (main process or proxy) rather than the browser (renderer process).
