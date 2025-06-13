@@ -94,7 +94,10 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
   }
 
   return (
-    <div className={cn('space-y-4', className)}>
+    <div
+      className={cn('app-region-no-drag space-y-4', className)}
+      style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">Performance Monitor</h3>

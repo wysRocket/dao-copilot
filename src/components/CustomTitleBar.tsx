@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react'
+import React, {useEffect, useRef} from 'react'
 import {useWindowPortal} from '../hooks/useWindowPortal'
 import {useWindowCommunication, useTranscriptionState} from '../hooks/useSharedState'
 import {useWindowState} from '../contexts/WindowStateProvider'
@@ -12,6 +12,7 @@ import {PerformanceDashboard} from './PerformanceDashboard'
 // .app-region-no-drag { -webkit-app-region: no-drag; }
 
 const CustomTitleBar: React.FC = () => {
+  const titleBarRef = useRef<HTMLDivElement>(null)
   const assistantWindow = useWindowPortal({type: 'assistant'})
   const {broadcast} = useWindowCommunication()
   const {setProcessingState} = useTranscriptionState()
@@ -114,8 +115,40 @@ const CustomTitleBar: React.FC = () => {
     }, 100)
   }
 
+  // Ensure dragging works properly even after focus events
+  useEffect(() => {
+    const titleBar = titleBarRef.current
+    if (!titleBar) return
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      // Only enable dragging if we're not clicking on interactive elements
+      if (!target.closest('.app-region-no-drag')) {
+        // Ensure the drag region is active
+        ;(titleBar.style as unknown as {webkitAppRegion: string}).webkitAppRegion = 'drag'
+      }
+    }
+
+    const handleFocus = () => {
+      // Re-enable dragging when window gets focus
+      ;(titleBar.style as unknown as {webkitAppRegion: string}).webkitAppRegion = 'drag'
+    }
+
+    titleBar.addEventListener('mousedown', handleMouseDown)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      titleBar.removeEventListener('mousedown', handleMouseDown)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [])
+
   return (
-    <div className="app-region-drag flex h-10 items-center gap-3 rounded-t-lg bg-[#f6faff] px-4 shadow-sm select-none">
+    <div
+      ref={titleBarRef}
+      className="app-region-drag flex h-10 items-center gap-3 rounded-t-lg bg-[#f6faff] px-4 shadow-sm select-none"
+      style={{WebkitAppRegion: 'drag'} as React.CSSProperties}
+    >
       <RecordingControls onTranscription={handleTranscription} />
 
       <ToggleTheme />
@@ -124,26 +157,35 @@ const CustomTitleBar: React.FC = () => {
       <button
         onClick={handleToggleAssistant}
         className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
         title="Toggle Assistant Visibility (focus stays on main)"
       >
         {assistantWindow.isWindowVisible ? 'Hide AI' : 'Ask AI'}
       </button>
-      <span className="shortcut app-region-no-drag mx-1 text-xs text-slate-400">
+      <span
+        className="shortcut app-region-no-drag mx-1 text-xs text-slate-400"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+      >
         {navigator.platform.toUpperCase().includes('MAC') ? '⌘↵' : 'Ctrl+↵'}
       </span>
       <button
         onClick={handleToggleBothWindows}
         className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
         title="Toggle Both Windows Together"
       >
         {windowState.isVisible ? 'Hide' : 'Show'}
       </button>
-      <span className="shortcut app-region-no-drag mx-1 text-xs text-slate-400">
+      <span
+        className="shortcut app-region-no-drag mx-1 text-xs text-slate-400"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+      >
         {navigator.platform.toUpperCase().includes('MAC') ? '⌘\\' : 'Ctrl+\\'}
       </span>
       <button
         onClick={handleSettings}
         className="settings-btn app-region-no-drag ml-2 rounded border-none bg-none p-1 hover:bg-slate-100"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
         title="Settings"
       >
         <svg
