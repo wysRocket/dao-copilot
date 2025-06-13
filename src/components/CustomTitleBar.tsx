@@ -1,6 +1,7 @@
-import React, {useEffect} from 'react'
+import React, {useEffect, useRef} from 'react'
 import {useWindowPortal} from '../hooks/useWindowPortal'
 import {useWindowCommunication, useTranscriptionState} from '../hooks/useSharedState'
+import {useWindowState} from '../contexts/WindowStateProvider'
 import {getAudioRecordingService, TranscriptionResult} from '../services/audio-recording'
 import RecordingControls from './RecordingControls'
 import ToggleTheme from '../components/ToggleTheme'
@@ -11,9 +12,11 @@ import {PerformanceDashboard} from './PerformanceDashboard'
 // .app-region-no-drag { -webkit-app-region: no-drag; }
 
 const CustomTitleBar: React.FC = () => {
+  const titleBarRef = useRef<HTMLDivElement>(null)
   const assistantWindow = useWindowPortal({type: 'assistant'})
   const {broadcast} = useWindowCommunication()
   const {setProcessingState} = useTranscriptionState()
+  const {windowState} = useWindowState()
 
   // Use the audio recording service
   const audioService = getAudioRecordingService()
@@ -36,14 +39,71 @@ const CustomTitleBar: React.FC = () => {
     broadcast('transcription-result', result)
   }
 
-  const handleShowHide = () => {
-    if (window.electronWindow?.hideWindow) {
-      // Get current window ID and hide it
-      window.electronWindow.getWindowInfo().then(windowInfo => {
-        if (windowInfo?.windowId) {
-          window.electronWindow.hideWindow(windowInfo.windowId)
+  const handleToggleAssistant = async () => {
+    console.log('Ask AI button clicked - toggling assistant window, keeping focus on main')
+
+    if (assistantWindow.isWindowOpen && assistantWindow.isWindowVisible) {
+      console.log('Assistant window is visible, hiding it')
+      assistantWindow.hideWindow()
+    } else if (assistantWindow.isWindowOpen) {
+      console.log('Assistant window exists but hidden, showing it without focus')
+      assistantWindow.showWindow()
+
+      // Keep focus on main window after showing assistant
+      setTimeout(() => {
+        console.log('Refocusing main window after showing assistant')
+        if (windowState.windowId && window.electronWindow?.focusWindow) {
+          window.electronWindow.focusWindow(windowState.windowId)
         }
-      })
+      }, 100)
+    } else {
+      console.log('Assistant window does not exist, creating it without focus')
+      await assistantWindow.openWindow()
+
+      // Keep focus on main window after creating assistant
+      setTimeout(() => {
+        console.log('Refocusing main window after creating assistant')
+        if (windowState.windowId && window.electronWindow?.focusWindow) {
+          window.electronWindow.focusWindow(windowState.windowId)
+        }
+      }, 200)
+    }
+  }
+
+  const handleToggleBothWindows = async () => {
+    console.log('Show/Hide button clicked - toggling both windows together')
+
+    // Check if main window is currently visible
+    const isMainVisible = windowState.isVisible
+
+    if (isMainVisible) {
+      console.log('Main window is visible, hiding both windows')
+      // Hide assistant window first
+      if (assistantWindow.isWindowOpen && assistantWindow.isWindowVisible) {
+        assistantWindow.hideWindow()
+      }
+      // Then minimize main window
+      if (window.electronWindow?.minimize) {
+        window.electronWindow.minimize()
+      }
+    } else {
+      console.log('Main window is hidden, showing both windows')
+      // Restore main window first
+      if (windowState.windowId && window.electronWindow?.showWindow) {
+        window.electronWindow.showWindow(windowState.windowId)
+      }
+      // Then show assistant window if it exists
+      if (assistantWindow.isWindowOpen) {
+        setTimeout(() => {
+          assistantWindow.showWindow()
+          // Keep focus on main window
+          setTimeout(() => {
+            if (windowState.windowId && window.electronWindow?.focusWindow) {
+              window.electronWindow.focusWindow(windowState.windowId)
+            }
+          }, 100)
+        }, 100)
+      }
     }
   }
 
@@ -55,30 +115,77 @@ const CustomTitleBar: React.FC = () => {
     }, 100)
   }
 
+  // Ensure dragging works properly even after focus events
+  useEffect(() => {
+    const titleBar = titleBarRef.current
+    if (!titleBar) return
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      // Only enable dragging if we're not clicking on interactive elements
+      if (!target.closest('.app-region-no-drag')) {
+        // Ensure the drag region is active
+        ;(titleBar.style as unknown as {webkitAppRegion: string}).webkitAppRegion = 'drag'
+      }
+    }
+
+    const handleFocus = () => {
+      // Re-enable dragging when window gets focus
+      ;(titleBar.style as unknown as {webkitAppRegion: string}).webkitAppRegion = 'drag'
+    }
+
+    titleBar.addEventListener('mousedown', handleMouseDown)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      titleBar.removeEventListener('mousedown', handleMouseDown)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [])
+
   return (
-    <div className="app-region-drag flex h-10 items-center gap-3 rounded-t-lg bg-[#f6faff] px-4 shadow-sm select-none">
+    <div
+      ref={titleBarRef}
+      className="app-region-drag flex h-10 items-center gap-3 rounded-t-lg bg-[#f6faff] px-4 shadow-sm select-none"
+      style={{WebkitAppRegion: 'drag'} as React.CSSProperties}
+    >
       <RecordingControls onTranscription={handleTranscription} />
 
       <ToggleTheme />
       <PerformanceDashboard compact />
       <div className="flex-1"></div>
       <button
-        onClick={assistantWindow.openWindow}
+        onClick={handleToggleAssistant}
         className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+        title="Toggle Assistant Visibility (focus stays on main)"
       >
-        Ask AI
+        {assistantWindow.isWindowVisible ? 'Hide AI' : 'Ask AI'}
       </button>
-      <span className="shortcut app-region-no-drag mx-1 text-xs text-slate-400">⌘↵</span>
+      <span
+        className="shortcut app-region-no-drag mx-1 text-xs text-slate-400"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+      >
+        {navigator.platform.toUpperCase().includes('MAC') ? '⌘↵' : 'Ctrl+↵'}
+      </span>
       <button
-        onClick={handleShowHide}
+        onClick={handleToggleBothWindows}
         className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+        title="Toggle Both Windows Together"
       >
-        Show/Hide
+        {windowState.isVisible ? 'Hide' : 'Show'}
       </button>
-      <span className="shortcut app-region-no-drag mx-1 text-xs text-slate-400">⌘\</span>
+      <span
+        className="shortcut app-region-no-drag mx-1 text-xs text-slate-400"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+      >
+        {navigator.platform.toUpperCase().includes('MAC') ? '⌘\\' : 'Ctrl+\\'}
+      </span>
       <button
         onClick={handleSettings}
         className="settings-btn app-region-no-drag ml-2 rounded border-none bg-none p-1 hover:bg-slate-100"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
         title="Settings"
       >
         <svg

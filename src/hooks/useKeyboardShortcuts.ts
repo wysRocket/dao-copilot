@@ -20,10 +20,18 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcut[] = []) => {
 
   // Default global shortcuts
   const defaultShortcuts: KeyboardShortcut[] = [
+    // Note: Main window toggle (⌘\ / Ctrl+\) and assistant window creation (⌘Enter / Ctrl+Enter)
+    // are handled by global shortcuts in main.ts to work across all windows
+    // These renderer shortcuts handle focus coordination and other window-specific actions
     {
       key: '1',
       modifiers: ['ctrl', 'shift'],
-      action: () => portalManager.focusWindow('main'),
+      action: () => {
+        const mainWindows = portalManager.allWindows.filter(w => w.type === 'main')
+        if (mainWindows.length > 0) {
+          portalManager.focusWindow(mainWindows[0].windowId)
+        }
+      },
       description: 'Focus main window',
       global: true
     },
@@ -55,6 +63,16 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcut[] = []) => {
         }
       },
       description: 'Focus or create assistant window (Settings tab)',
+      global: true
+    },
+    {
+      key: 'f',
+      modifiers: ['ctrl', 'shift'],
+      action: () => {
+        // Trigger dual focus behavior
+        broadcast('focus-both-windows')
+      },
+      description: 'Focus both main and assistant windows',
       global: true
     },
     {
@@ -121,18 +139,32 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcut[] = []) => {
     (event: KeyboardEvent) => {
       const {key, ctrlKey, altKey, shiftKey, metaKey} = event
 
+      // Debug logging
+      console.log('Keydown event:', {
+        key: key,
+        ctrlKey,
+        altKey,
+        shiftKey,
+        metaKey,
+        target: event.target
+      })
+
       for (const shortcut of allShortcuts) {
         // Check if the key matches
         if (key.toLowerCase() !== shortcut.key.toLowerCase()) continue
 
         // Check modifiers
         const modifiers = shortcut.modifiers || []
-        const hasCtrl = modifiers.includes('ctrl') === ctrlKey
-        const hasAlt = modifiers.includes('alt') === altKey
-        const hasShift = modifiers.includes('shift') === shiftKey
-        const hasMeta = modifiers.includes('meta') === metaKey
+        const requiredCtrl = modifiers.includes('ctrl')
+        const requiredAlt = modifiers.includes('alt')
+        const requiredShift = modifiers.includes('shift')
+        const requiredMeta = modifiers.includes('meta')
 
-        if (!hasCtrl || !hasAlt || !hasShift || !hasMeta) continue
+        // Check if all required modifiers are present and no extra ones
+        if (requiredCtrl !== ctrlKey) continue
+        if (requiredAlt !== altKey) continue
+        if (requiredShift !== shiftKey) continue
+        if (requiredMeta !== metaKey) continue
 
         // Check window type restrictions
         if (shortcut.windowTypes && !shortcut.windowTypes.includes(windowState.windowType)) {
@@ -140,6 +172,7 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcut[] = []) => {
         }
 
         // Execute the shortcut
+        console.log('Executing shortcut:', shortcut.description)
         event.preventDefault()
         event.stopPropagation()
 
