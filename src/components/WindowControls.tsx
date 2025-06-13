@@ -32,8 +32,8 @@ export const WindowControls: React.FC<WindowControlsProps> = ({
 
   const handleClose = () => {
     if (windowState.windowType === 'main') {
-      // For main window, use electron close
-      window.electronWindow?.close()
+      // For main window, minimize to system tray instead of closing
+      window.electronWindow?.minimize()
     } else {
       // For other windows, hide them instead of closing
       hideWindow()
