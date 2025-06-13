@@ -41,6 +41,7 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
       <button
         onClick={() => audioService.toggleRecording(onTranscription)}
         className="record-btn app-region-no-drag mr-2 border-none bg-none p-0 transition-opacity hover:opacity-80"
+        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
         title={recordingState.isRecording ? 'Stop Recording' : 'Start Recording'}
       >
         <svg
