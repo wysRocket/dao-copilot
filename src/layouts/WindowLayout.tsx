@@ -84,6 +84,7 @@ export default function WindowLayout({
     <FocusManager
       autoFocus={windowState.windowType !== 'main'}
       trapFocus={windowState.windowType === 'overlay'}
+      focusBoth={false} // Disable aggressive dual focus - only use manual triggers
     >
       <div className={`${layoutConfig.containerClass} ${className}`}>
         {finalShowTitleBar && (
