@@ -93,11 +93,11 @@ export const ShortcutsHelp: React.FC = () => {
                             </React.Fragment>
                           ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              ),
-            )}
+              </div>
+            ))}
 
             {/* Additional tips */}
             <div className="border-t pt-4">
