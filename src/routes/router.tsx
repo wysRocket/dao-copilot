@@ -1,20 +1,32 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
-import { HomePage } from "../pages/HomePage"
-import { AboutPage } from "../pages/AboutPage"
-import { ContactPage } from "../pages/ContactPage"
-import { NotFoundPage } from "../pages/NotFoundPage"
-import { EnhancedHomePage } from "../pages/EnhancedHomePage"
+import {createMemoryHistory, createRouter, createRoute} from '@tanstack/react-router'
+import {RootRoute} from './__root'
+import HomePage from '../pages/HomePage'
+import ComponentReplacementShowcase from '../pages/ComponentReplacementShowcase'
 
-const AppRouter = () => (
-  <BrowserRouter>
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/about" element={<AboutPage />} />
-      <Route path="/contact" element={<ContactPage />} />
-      <Route path="/enhanced" element={<EnhancedHomePage />} />
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
-  </BrowserRouter>
-)
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
 
-export default AppRouter
+// Define routes
+const HomeRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: '/',
+  component: HomePage
+})
+
+const ComponentShowcaseRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: '/component-showcase',
+  component: ComponentReplacementShowcase
+})
+
+// Create route tree
+const rootTree = RootRoute.addChildren([HomeRoute, ComponentShowcaseRoute])
+
+// Create router
+const history = createMemoryHistory({
+  initialEntries: ['/']
+})
+export const router = createRouter({routeTree: rootTree, history: history})

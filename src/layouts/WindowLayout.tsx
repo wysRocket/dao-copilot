@@ -1,7 +1,7 @@
 import React from 'react'
 import {useWindowState} from '../contexts/WindowStateProvider'
 
-import CustomTitleBar from '../components/CustomTitleBar'
+import LiquidGlassTitleBar from '../components/LiquidGlassTitleBar'
 import {FocusManager} from '../components/FocusManager'
 
 import {ShortcutsHelp} from '../components/ShortcutsHelp'
@@ -36,7 +36,7 @@ export default function WindowLayout({
           showTitleBar: true,
           showDragRegion: true,
           padding: 'p-2 pb-20',
-          containerClass: 'h-screen'
+          containerClass: 'h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900'
         }
 
       case 'assistant':
@@ -44,7 +44,8 @@ export default function WindowLayout({
           showTitleBar: true,
           showDragRegion: true,
           padding: 'p-0',
-          containerClass: 'h-screen flex flex-col'
+          containerClass:
+            'h-screen flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900'
         }
 
       case 'settings':
@@ -52,7 +53,8 @@ export default function WindowLayout({
           showTitleBar: true,
           showDragRegion: true,
           padding: 'p-0',
-          containerClass: 'h-screen flex flex-col'
+          containerClass:
+            'h-screen flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900'
         }
 
       case 'overlay':
@@ -68,7 +70,7 @@ export default function WindowLayout({
           showTitleBar: true,
           showDragRegion: true,
           padding: 'p-2 pb-20',
-          containerClass: 'h-screen'
+          containerClass: 'h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900'
         }
     }
   }
@@ -89,7 +91,7 @@ export default function WindowLayout({
       <div className={`${layoutConfig.containerClass} ${className}`}>
         {finalShowTitleBar && (
           <div className="flex items-center justify-between">
-            <CustomTitleBar />
+            <LiquidGlassTitleBar />
           </div>
         )}
 

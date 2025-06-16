@@ -1,5 +1,5 @@
 import React from 'react'
-import WindowLayout from '@/layouts/WindowLayout'
+import {GlassWindowLayout} from '@/layouts/GlassWindowLayout'
 import {Outlet, createRootRoute} from '@tanstack/react-router'
 
 export const RootRoute = createRootRoute({
@@ -8,8 +8,8 @@ export const RootRoute = createRootRoute({
 
 function Root() {
   return (
-    <WindowLayout>
+    <GlassWindowLayout>
       <Outlet />
-    </WindowLayout>
+    </GlassWindowLayout>
   )
 }
