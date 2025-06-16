@@ -8,9 +8,9 @@ This document outlines the integration of `liquid-glass-react` library into the 
 
 The `liquid-glass-react` library has been installed and configured for use across the application:
 
-```bash
+\`\`\`bash
 npm install liquid-glass-react
-```
+\`\`\`
 
 ## Component Integration Strategy
 
@@ -61,7 +61,7 @@ npm install liquid-glass-react
 
 Each component supports customizable glass parameters:
 
-```typescript
+\`\`\`typescript
 interface GlassProps {
   blurAmount: number // 0.025 - 0.15 (blur intensity)
   displacementScale: number // 30 - 100 (liquid effect strength)
@@ -70,7 +70,7 @@ interface GlassProps {
   saturation: number // 105 - 155 (color saturation)
   cornerRadius: number // 8 - 24 (border radius)
 }
-```
+\`\`\`
 
 ### Variant Configurations
 
@@ -92,11 +92,11 @@ interface GlassProps {
 
 The glass components integrate with the existing Tailwind color scheme:
 
-```css
+\`\`\`css
 /* Glass component base colors */
 --glass-background: rgba(255, 255, 255, 0.05-0.25) --glass-border: rgba(255, 255, 255, 0.1-0.4)
   --glass-text: rgba(255, 255, 255, 0.8-1);
-```
+\`\`\`
 
 ## Performance Optimization
 
@@ -157,21 +157,21 @@ The glass components integrate with the existing Tailwind color scheme:
 
 ### Basic Glass Card:
 
-```tsx
+\`\`\`tsx
 <GlassCard variant="default" padding="p-4">
   <p>Content with glass background</p>
 </GlassCard>
-```
+\`\`\`
 
 ### Enhanced Title Bar:
 
-```tsx
+\`\`\`tsx
 <LiquidGlassTitleBar variant="assistant" className="custom-styling" />
-```
+\`\`\`
 
 ### Glass Modal:
 
-```tsx
+\`\`\`tsx
 <GlassModal
   isOpen={modalOpen}
   onClose={() => setModalOpen(false)}
@@ -181,7 +181,7 @@ The glass components integrate with the existing Tailwind color scheme:
 >
   <p>Modal content with enhanced glass effects</p>
 </GlassModal>
-```
+\`\`\`
 
 ## Testing & Quality Assurance
 
@@ -249,9 +249,9 @@ The glass components integrate with the existing Tailwind color scheme:
 
 Enable component debugging with environment variable:
 
-```bash
+\`\`\`bash
 DEBUG_GLASS_COMPONENTS=true npm start
-```
+\`\`\`
 
 ## Future Enhancements
 
