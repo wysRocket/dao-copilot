@@ -66,7 +66,14 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
         </svg>
       </button>
       <span
-        className={`mr-4 text-base ${recordingState.isRecording ? 'font-semibold text-red-600' : 'text-slate-700'}`}
+        className={`mr-4 text-base transition-colors duration-200 ${
+          recordingState.isRecording ? 'font-semibold' : ''
+        }`}
+        style={{
+          color: recordingState.isRecording 
+            ? 'var(--interactive-danger)' 
+            : 'var(--text-primary)'
+        }}
       >
         {recordingState.isRecording || recordingState.recordingTime > 0
           ? `${Math.floor(recordingState.recordingTime / 60)
@@ -74,7 +81,12 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
               .padStart(2, '0')}:${(recordingState.recordingTime % 60).toString().padStart(2, '0')}`
           : '00:00'}
         {recordingState.isTranscribing && (
-          <span className="ml-2 animate-pulse text-xs text-blue-600">Processing...</span>
+          <span 
+            className="ml-2 animate-pulse text-xs"
+            style={{ color: 'var(--interactive-primary)' }}
+          >
+            Processing...
+          </span>
         )}
       </span>
     </>

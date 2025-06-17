@@ -1,5 +1,6 @@
 import React from 'react';
 import LiquidGlass from 'liquid-glass-react';
+import { useTheme, useThemeClasses } from '../contexts/ThemeProvider';
 
 interface TestGlassComponentProps {
   title?: string;
@@ -10,21 +11,31 @@ export const TestGlassComponent: React.FC<TestGlassComponentProps> = ({
   title = "Test Glass Component", 
   children 
 }) => {
+  const { isDark } = useTheme();
+  const { themeClass, glassClass } = useThemeClasses();
+
   return (
-    <div className="p-8 bg-gradient-to-br from-purple-900 to-blue-900 min-h-screen">
+    <div className={`p-8 min-h-screen transition-colors duration-300 ${themeClass}`}
+         style={{ 
+           background: `linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%)`,
+         }}>
       <LiquidGlass
-        className="p-6 rounded-lg"
+        className="p-6 rounded-lg shadow-lg"
         blurAmount={20}
         saturation={1.2}
         cornerRadius={12}
         mode="standard"
-        overLight={false}
+        overLight={!isDark}
       >
-        <div className="backdrop-blur-sm bg-white/10 rounded-lg p-6">
-          <h2 className="text-white text-xl font-semibold mb-4">{title}</h2>
-          <p className="text-white/90 text-sm mb-4">
-            This is a test component using liquid-glass-react library.
-            The glassmorphism effect should be visible with blur and transparency.
+        <div className={`${glassClass} rounded-lg p-6`}>
+          <h2 className="text-xl font-semibold mb-4" 
+              style={{ color: 'var(--text-primary)' }}>
+            {title}
+          </h2>
+          <p className="text-sm mb-4" 
+             style={{ color: 'var(--text-secondary)' }}>
+            This is a test component using liquid-glass-react library with the new theme system.
+            The glassmorphism effect adapts to the current theme mode.
           </p>
           
           <LiquidGlass
@@ -33,13 +44,22 @@ export const TestGlassComponent: React.FC<TestGlassComponentProps> = ({
             saturation={1.1}
             cornerRadius={8}
             mode="standard"
+            overLight={!isDark}
           >
-            <div className="backdrop-blur-sm bg-white/5 rounded-lg p-4">
-              <p className="text-white/80 text-sm">
-                Nested glass effect component for enhanced visual depth.
+            <div className="rounded-lg p-4"
+                 style={{ 
+                   backgroundColor: 'var(--glass-light)',
+                   border: '1px solid var(--glass-border)'
+                 }}>
+              <p className="text-sm" 
+                 style={{ color: 'var(--text-tertiary)' }}>
+                Nested glass effect component with theme-aware styling.
+                Current theme: <span style={{ color: 'var(--text-accent)' }}>
+                  {isDark ? 'Dark' : 'Light'}
+                </span>
               </p>
               {children && (
-                <div className="mt-4 text-white/70">
+                <div className="mt-4" style={{ color: 'var(--text-muted)' }}>
                   {children}
                 </div>
               )}

@@ -79,7 +79,7 @@
         "dependencies": [
           1
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -87,7 +87,7 @@
             "description": "Create a new theme.ts file and define a set of color variables using CSS custom properties for the dark theme.",
             "dependencies": [],
             "details": "Include variables for background (black/dark gray), text, and accent colors based on Fumadocs dark theme aesthetics.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify that all required color variables are defined and match the Fumadocs dark theme."
           },
           {
@@ -98,7 +98,7 @@
               1
             ],
             "details": "Use the color variables defined in theme.ts and create a context to hold the current theme state.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test that the ThemeProvider correctly provides theme values to child components."
           },
           {
@@ -109,7 +109,7 @@
               2
             ],
             "details": "Modify the top-level component to include the ThemeProvider as a wrapper.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify that the ThemeProvider is correctly placed in the component hierarchy."
           },
           {
@@ -121,7 +121,7 @@
               3
             ],
             "details": "Replace hardcoded color values with references to the theme variables in global CSS or styled-components.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Check that global styles are using theme variables instead of hardcoded values."
           },
           {
@@ -131,8 +131,8 @@
             "dependencies": [
               4
             ],
-            "details": "Systematically go through each component and replace color references with theme variables.",
-            "status": "pending",
+            "details": "Systematically go through each component and replace color references with theme variables.\n<info added on 2025-06-17T08:54:15.232Z>\nUpdated CustomTitleBar component by replacing hard-coded colors with theme variables. Next components to update include:\n- RecordingControls\n- Window components (WindowHeader, WindowContent, WindowFooter)\n- Assistant pages (AssistantView, ChatInterface)\n\nWill continue systematically replacing direct color references with theme variables across these UI elements to ensure consistent dark theme implementation.\n</info added on 2025-06-17T08:54:15.232Z>\n<info added on 2025-06-17T09:05:18.954Z>\nUpdated multiple key components to use theme variables:\n\n1. **PerformanceDashboard**: Replaced hard-coded colors (green-500, yellow-500, red-500, gray-400, blue-500) with theme-aware versions that adapt to dark/light themes\n2. **ChatPage**: Updated user message bubbles to use bg-primary/text-primary-foreground, input fields to use proper border/background colors, and send button styling\n3. **ToggleTheme**: Enhanced to show current theme state (sun/moon icons) and use theme context properly with mode detection\n4. **ShortcutDebugger**: Replaced hard-coded gray colors with theme-aware card background and muted text colors\n5. **AnalysisPage**: Updated confidence score colors to use theme-aware green variants\n6. **SettingsPage**: Updated save button to use primary theme colors instead of hard-coded blue\n\nAll updated components now properly respond to dark/light theme switching and use the theme variables defined in the global CSS. The theme system is now consistently applied across the major UI components.\n</info added on 2025-06-17T09:05:18.954Z>",
+            "status": "in-progress",
             "testStrategy": "Conduct a visual inspection of each component to ensure proper theme application."
           },
           {
@@ -464,7 +464,7 @@
     ],
     "metadata": {
       "created": "2025-06-16T20:45:07.251Z",
-      "updated": "2025-06-17T08:24:24.172Z",
+      "updated": "2025-06-17T08:33:18.523Z",
       "description": "Tasks for master context"
     }
   }

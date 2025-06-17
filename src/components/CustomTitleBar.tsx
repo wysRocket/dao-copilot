@@ -146,8 +146,12 @@ const CustomTitleBar: React.FC = () => {
   return (
     <div
       ref={titleBarRef}
-      className="app-region-drag flex h-10 items-center gap-3 rounded-t-lg bg-[#f6faff] px-4 shadow-sm select-none"
-      style={{WebkitAppRegion: 'drag'} as React.CSSProperties}
+      className="app-region-drag flex h-10 items-center gap-3 rounded-t-lg px-4 shadow-sm select-none transition-colors duration-300"
+      style={{
+        WebkitAppRegion: 'drag',
+        backgroundColor: 'var(--bg-card)',
+        borderBottom: '1px solid var(--border-primary)',
+      } as React.CSSProperties}
     >
       <RecordingControls onTranscription={handleTranscription} />
 
@@ -156,36 +160,80 @@ const CustomTitleBar: React.FC = () => {
       <div className="flex-1"></div>
       <button
         onClick={handleToggleAssistant}
-        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 transition-colors duration-200"
+        style={{
+          WebkitAppRegion: 'no-drag',
+          color: 'var(--text-primary)',
+          backgroundColor: 'var(--bg-secondary)',
+          border: '1px solid var(--border-primary)',
+        } as React.CSSProperties}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+          e.currentTarget.style.borderColor = 'var(--border-focus)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+          e.currentTarget.style.borderColor = 'var(--border-primary)';
+        }}
         title="Toggle Assistant Visibility (focus stays on main)"
       >
         {assistantWindow.isWindowVisible ? 'Hide AI' : 'Ask AI'}
       </button>
       <span
-        className="shortcut app-region-no-drag mx-1 text-xs text-slate-400"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+        className="shortcut app-region-no-drag mx-1 text-xs"
+        style={{ 
+          color: 'var(--text-muted)',
+          WebkitAppRegion: 'no-drag' 
+        } as React.CSSProperties}
       >
         {navigator.platform.toUpperCase().includes('MAC') ? '⌘↵' : 'Ctrl+↵'}
       </span>
       <button
         onClick={handleToggleBothWindows}
-        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 transition-colors duration-200"
+        style={{
+          WebkitAppRegion: 'no-drag',
+          color: 'var(--text-primary)',
+          backgroundColor: 'var(--bg-secondary)',
+          border: '1px solid var(--border-primary)',
+        } as React.CSSProperties}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+          e.currentTarget.style.borderColor = 'var(--border-focus)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+          e.currentTarget.style.borderColor = 'var(--border-primary)';
+        }}
         title="Toggle Both Windows Together"
       >
         {windowState.isVisible ? 'Hide' : 'Show'}
       </button>
       <span
-        className="shortcut app-region-no-drag mx-1 text-xs text-slate-400"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+        className="shortcut app-region-no-drag mx-1 text-xs"
+        style={{
+          color: 'var(--text-muted)',
+          WebkitAppRegion: 'no-drag'
+        } as React.CSSProperties}
       >
         {navigator.platform.toUpperCase().includes('MAC') ? '⌘\\' : 'Ctrl+\\'}
       </span>
       <button
         onClick={handleSettings}
-        className="settings-btn app-region-no-drag ml-2 rounded border-none bg-none p-1 hover:bg-slate-100"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+        className="settings-btn app-region-no-drag ml-2 rounded border-none bg-none p-1 transition-colors duration-200"
+        style={{
+          WebkitAppRegion: 'no-drag',
+          backgroundColor: 'var(--bg-secondary)',
+          border: '1px solid var(--border-primary)',
+        } as React.CSSProperties}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+          e.currentTarget.style.borderColor = 'var(--border-focus)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+          e.currentTarget.style.borderColor = 'var(--border-primary)';
+        }}
         title="Settings"
       >
         <svg
@@ -195,8 +243,8 @@ const CustomTitleBar: React.FC = () => {
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <circle cx="9" cy="9" r="8" stroke="#cbd5e1" strokeWidth="2" />
-          <circle cx="9" cy="9" r="2" fill="#cbd5e1" />
+          <circle cx="9" cy="9" r="8" stroke="var(--text-tertiary)" strokeWidth="2" />
+          <circle cx="9" cy="9" r="2" fill="var(--text-tertiary)" />
         </svg>
       </button>
     </div>

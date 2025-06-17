@@ -76,7 +76,7 @@ export default function AnalysisPage() {
                       {transcript.text.split(' ').length} words
                     </p>
                     {transcript.confidence && (
-                      <p className="text-xs text-green-600">
+                      <p className="text-xs text-green-600 dark:text-green-400">
                         {Math.round(transcript.confidence * 100)}%
                       </p>
                     )}

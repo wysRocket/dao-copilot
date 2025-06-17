@@ -24,9 +24,9 @@ export const WindowStatus: React.FC<WindowStatusProps> = ({
   const { isRecording, transcripts, isProcessing } = useSharedState();
 
   const getRecordingStatusColor = () => {
-    if (isRecording) return "bg-red-500";
-    if (isProcessing) return "bg-yellow-500";
-    return "bg-gray-400";
+    if (isRecording) return "bg-destructive";
+    if (isProcessing) return "bg-yellow-600 dark:bg-yellow-400";
+    return "bg-muted-foreground/50";
   };
 
   const getRecordingStatusText = () => {
@@ -99,7 +99,7 @@ export const WindowStatus: React.FC<WindowStatusProps> = ({
       {showConnectionStatus && (
         <div className="flex items-center space-x-2">
           <div className={cn("w-2 h-2 rounded-full", 
-            windowState.isFocused ? "bg-green-500" : "bg-gray-400"
+            windowState.isFocused ? "bg-green-600 dark:bg-green-400" : "bg-muted-foreground/50"
           )}></div>
           <span>{windowState.isFocused ? 'Focused' : 'Background'}</span>
         </div>

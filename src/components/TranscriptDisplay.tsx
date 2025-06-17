@@ -12,8 +12,16 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
 }) => {
   return (
     <div className="mt-4 w-full max-w-2xl">
-      <h3 className="mb-2 text-lg font-semibold">Transcript</h3>
-      <div className="bg-background max-h-[400px] min-h-[200px] overflow-y-auto rounded-lg border p-4">
+      <h3 className="mb-2 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+        Transcript
+      </h3>
+      <div 
+        className="max-h-[400px] min-h-[200px] overflow-y-auto rounded-lg border p-4"
+        style={{ 
+          backgroundColor: 'var(--bg-card)', 
+          borderColor: 'var(--border-primary)' 
+        }}
+      >
         {transcripts.length === 0 && !isProcessing ? (
           <p className="text-muted-foreground italic">
             No transcriptions yet. Start recording to see results.

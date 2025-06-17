@@ -8,6 +8,7 @@ import {PortalManagerProvider} from './components/portals/PortalManager';
 import {WindowRenderer} from './components/portals/WindowRenderer';
 import {MultiWindowProvider} from './contexts/MultiWindowContext';
 import {WindowStateProvider} from './contexts/WindowStateProvider';
+import {ThemeProvider} from './contexts/ThemeProvider';
 
 export default function App() {
   const [isMultiWindow, setIsMultiWindow] = useState(false);
@@ -26,17 +27,19 @@ export default function App() {
   }, []);
 
   return (
-    <MultiWindowProvider>
-      <WindowStateProvider>
-        <PortalManagerProvider>
-          {isMultiWindow ? (
-            <WindowRenderer />
-          ) : (
-            <RouterProvider router={router} />
-          )}
-        </PortalManagerProvider>
-      </WindowStateProvider>
-    </MultiWindowProvider>
+    <ThemeProvider defaultMode="dark">
+      <MultiWindowProvider>
+        <WindowStateProvider>
+          <PortalManagerProvider>
+            {isMultiWindow ? (
+              <WindowRenderer />
+            ) : (
+              <RouterProvider router={router} />
+            )}
+          </PortalManagerProvider>
+        </WindowStateProvider>
+      </MultiWindowProvider>
+    </ThemeProvider>
   );
 }
 

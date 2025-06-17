@@ -64,7 +64,7 @@ export default function ChatPage() {
                 <div
                   className={`max-w-[80%] rounded-lg p-3 ${
                     msg.type === 'user'
-                      ? 'bg-blue-500 text-white'
+                      ? 'bg-primary text-primary-foreground'
                       : 'bg-card border'
                   }`}
                 >
@@ -72,7 +72,7 @@ export default function ChatPage() {
                   <p
                     className={`mt-1 text-xs ${
                       msg.type === 'user'
-                        ? 'text-blue-100'
+                        ? 'text-primary-foreground/70'
                         : 'text-muted-foreground'
                     }`}
                   >
@@ -92,12 +92,12 @@ export default function ChatPage() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 rounded-md border px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-foreground focus:ring-2 focus:ring-ring focus:outline-none"
           />
           <button
             type="submit"
             disabled={!message.trim()}
-            className="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Send
           </button>

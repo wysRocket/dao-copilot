@@ -42,7 +42,7 @@ export default function TranscriptsPage() {
           <div className="bg-background max-h-full min-h-[200px] overflow-y-auto rounded-lg border p-4">
             {transcripts.length === 0 && !isProcessing ? (
               <div className="flex h-full flex-col items-center justify-center space-y-4 py-12 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
                   <svg
                     width="24"
                     height="24"
@@ -50,7 +50,7 @@ export default function TranscriptsPage() {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
-                    className="text-gray-400"
+                    className="text-muted-foreground"
                   >
                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                     <path d="M19 10v2a7 7 0 0 1-14 0v-2" />

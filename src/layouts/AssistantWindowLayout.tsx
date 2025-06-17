@@ -59,7 +59,7 @@ function AssistantContent() {
   const AssistantHeader = () => (
     <div className="bg-card flex items-center justify-between border-b px-4 py-2">
       <div className="flex items-center space-x-2">
-        <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+        <div className="h-2 w-2 rounded-full bg-primary"></div>
         <span className="text-sm font-medium">AI Assistant</span>
       </div>
 
