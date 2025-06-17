@@ -132,7 +132,7 @@
               4
             ],
             "details": "Systematically go through each component and replace color references with theme variables.\n<info added on 2025-06-17T08:54:15.232Z>\nUpdated CustomTitleBar component by replacing hard-coded colors with theme variables. Next components to update include:\n- RecordingControls\n- Window components (WindowHeader, WindowContent, WindowFooter)\n- Assistant pages (AssistantView, ChatInterface)\n\nWill continue systematically replacing direct color references with theme variables across these UI elements to ensure consistent dark theme implementation.\n</info added on 2025-06-17T08:54:15.232Z>\n<info added on 2025-06-17T09:05:18.954Z>\nUpdated multiple key components to use theme variables:\n\n1. **PerformanceDashboard**: Replaced hard-coded colors (green-500, yellow-500, red-500, gray-400, blue-500) with theme-aware versions that adapt to dark/light themes\n2. **ChatPage**: Updated user message bubbles to use bg-primary/text-primary-foreground, input fields to use proper border/background colors, and send button styling\n3. **ToggleTheme**: Enhanced to show current theme state (sun/moon icons) and use theme context properly with mode detection\n4. **ShortcutDebugger**: Replaced hard-coded gray colors with theme-aware card background and muted text colors\n5. **AnalysisPage**: Updated confidence score colors to use theme-aware green variants\n6. **SettingsPage**: Updated save button to use primary theme colors instead of hard-coded blue\n\nAll updated components now properly respond to dark/light theme switching and use the theme variables defined in the global CSS. The theme system is now consistently applied across the major UI components.\n</info added on 2025-06-17T09:05:18.954Z>",
-            "status": "in-progress",
+            "status": "done",
             "testStrategy": "Conduct a visual inspection of each component to ensure proper theme application."
           },
           {
@@ -143,8 +143,8 @@
               2,
               5
             ],
-            "details": "Add a toggle button or switch that updates the theme context and triggers a re-render with the new theme.",
-            "status": "pending",
+            "details": "Add a toggle button or switch that updates the theme context and triggers a re-render with the new theme.\n<info added on 2025-06-17T09:10:24.217Z>\nThe toggle button has been successfully implemented with the following enhancements:\n\n- **ToggleTheme Component**: Fully functional with sun/moon icons that change based on current theme mode, integrated into CustomTitleBar\n- **Keyboard Shortcut**: Added Ctrl+Shift+T shortcut for theme switching that works globally across all windows\n- **ThemeStatus Component**: Created a new component to display current theme mode with icons and text for user awareness\n- **Theme Persistence**: ThemeProvider handles localStorage persistence and system theme detection\n- **TestGlassComponent**: Updated to showcase theme integration with glassmorphism effects that adapt to light/dark themes\n\nThe theme toggle system is complete with visual toggle button in the title bar, keyboard shortcut support, automatic system theme detection, persistent theme preference storage, glass effects that adapt to theme mode, and all UI components responding correctly to theme changes. Theme switching is smooth and immediate across all components.\n</info added on 2025-06-17T09:10:24.217Z>",
+            "status": "done",
             "testStrategy": "Test the toggle functionality to ensure smooth transition between themes without errors."
           }
         ]
@@ -464,7 +464,7 @@
     ],
     "metadata": {
       "created": "2025-06-16T20:45:07.251Z",
-      "updated": "2025-06-17T08:33:18.523Z",
+      "updated": "2025-06-17T09:10:34.230Z",
       "description": "Tasks for master context"
     }
   }

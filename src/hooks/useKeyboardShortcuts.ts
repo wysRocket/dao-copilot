@@ -2,6 +2,7 @@ import {useEffect, useCallback, useState} from 'react'
 import {usePortalManager} from '../components/portals/PortalManager'
 import {useWindowState} from '../contexts/WindowStateProvider'
 import {useSharedState} from './useSharedState'
+import {useTheme} from '../contexts/ThemeProvider'
 
 export interface KeyboardShortcut {
   key: string
@@ -16,6 +17,7 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcut[] = []) => {
   const portalManager = usePortalManager()
   const {windowState} = useWindowState()
   const {broadcast} = useSharedState()
+  const {toggleTheme} = useTheme()
   const [dynamicShortcuts, setDynamicShortcuts] = useState<KeyboardShortcut[]>([])
 
   // Default global shortcuts
@@ -131,6 +133,15 @@ export const useKeyboardShortcuts = (shortcuts: KeyboardShortcut[] = []) => {
       },
       description: 'Hide assistant window',
       windowTypes: ['assistant']
+    },
+    {
+      key: 'T',
+      modifiers: ['ctrl', 'shift'],
+      action: () => {
+        toggleTheme()
+      },
+      description: 'Toggle light/dark theme',
+      global: true
     }
   ]
   const allShortcuts = [...defaultShortcuts, ...shortcuts, ...dynamicShortcuts]
