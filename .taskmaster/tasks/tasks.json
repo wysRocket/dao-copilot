@@ -79,7 +79,7 @@
         "dependencies": [
           1
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -174,7 +174,7 @@
           1,
           2
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -182,7 +182,7 @@
             "description": "Update the main container of TranscriptDisplay.tsx to utilize the GlassBox component for a glassmorphism effect.",
             "dependencies": [],
             "details": "Import GlassBox component, replace the current container with GlassBox, and adjust props as necessary.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify visual appearance and ensure all existing functionality remains intact."
           },
           {
@@ -193,7 +193,7 @@
               1
             ],
             "details": "Use CSS to create a scrollable div inside GlassBox, apply backdrop-filter for glass effect, ensure smooth scrolling behavior.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test scrolling behavior with various content lengths and screen sizes."
           },
           {
@@ -204,7 +204,7 @@
               2
             ],
             "details": "Create a new component for message bubbles with glassmorphism styling, ensure differentiation between user and AI messages.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify visual consistency across different message types and lengths."
           },
           {
@@ -215,7 +215,7 @@
               3
             ],
             "details": "Adjust text colors, background opacity, and potentially add subtle text shadows for improved legibility.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Conduct accessibility tests for color contrast ratios."
           },
           {
@@ -227,7 +227,7 @@
               3
             ],
             "details": "Implement virtualization for long lists, use React.memo for message components, and optimize CSS animations.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Perform performance profiling with large datasets and measure render times."
           },
           {
@@ -239,7 +239,7 @@
               5
             ],
             "details": "Use Intersection Observer API for smooth scrolling, add a floating button for quick scroll to bottom.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test scrolling behavior with various user interactions and auto-scrolling scenarios."
           },
           {
@@ -251,7 +251,7 @@
               5
             ],
             "details": "Create CSS animations for message entry, ensure animations are performant and don't interfere with scrolling.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify animation smoothness and test with rapid message additions."
           }
         ]
@@ -464,7 +464,7 @@
     ],
     "metadata": {
       "created": "2025-06-16T20:45:07.251Z",
-      "updated": "2025-06-17T09:10:34.230Z",
+      "updated": "2025-06-17T09:17:57.486Z",
       "description": "Tasks for master context"
     }
   }

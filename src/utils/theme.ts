@@ -91,11 +91,11 @@ export const darkTheme: ThemeColors = {
   },
   
   glass: {
-    light: 'rgba(255, 255, 255, 0.05)',   // Light glass overlay
-    medium: 'rgba(255, 255, 255, 0.08)',  // Medium glass overlay
-    heavy: 'rgba(255, 255, 255, 0.12)',   // Heavy glass overlay
-    border: 'rgba(255, 255, 255, 0.1)',   // Glass borders
-    shadow: 'rgba(0, 0, 0, 0.25)',        // Glass shadows
+    light: 'rgba(255, 255, 255, 0.08)',   // Slightly more opaque for better readability
+    medium: 'rgba(255, 255, 255, 0.12)',  // Medium glass overlay
+    heavy: 'rgba(255, 255, 255, 0.16)',   // Heavy glass overlay
+    border: 'rgba(255, 255, 255, 0.15)',   // More visible glass borders
+    shadow: 'rgba(0, 0, 0, 0.3)',        // Stronger shadows for depth
   },
 };
 
@@ -138,11 +138,11 @@ export const lightTheme: ThemeColors = {
   },
   
   glass: {
-    light: 'rgba(0, 0, 0, 0.05)',
-    medium: 'rgba(0, 0, 0, 0.08)',
-    heavy: 'rgba(0, 0, 0, 0.12)',
-    border: 'rgba(0, 0, 0, 0.1)',
-    shadow: 'rgba(0, 0, 0, 0.15)',
+    light: 'rgba(0, 0, 0, 0.08)',
+    medium: 'rgba(0, 0, 0, 0.12)',
+    heavy: 'rgba(0, 0, 0, 0.16)',
+    border: 'rgba(0, 0, 0, 0.15)',
+    shadow: 'rgba(0, 0, 0, 0.2)',
   },
 };
 
