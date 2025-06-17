@@ -1,15 +1,15 @@
-import * as React from "react";
-import { cn } from "@/utils/tailwind";
-import { useWindowState } from "../../contexts/WindowStateProvider";
-import { useSharedState } from "../../hooks/useSharedState";
+import * as React from 'react'
+import {cn} from '@/utils/tailwind'
+import {useWindowState} from '../../contexts/WindowStateProvider'
+import {useSharedState} from '../../hooks/useSharedState'
 
 export interface WindowStatusProps {
-  className?: string;
-  showWindowInfo?: boolean;
-  showConnectionStatus?: boolean;
-  showRecordingStatus?: boolean;
-  showTranscriptCount?: boolean;
-  compact?: boolean;
+  className?: string
+  showWindowInfo?: boolean
+  showConnectionStatus?: boolean
+  showRecordingStatus?: boolean
+  showTranscriptCount?: boolean
+  compact?: boolean
 }
 
 export const WindowStatus: React.FC<WindowStatusProps> = ({
@@ -18,58 +18,61 @@ export const WindowStatus: React.FC<WindowStatusProps> = ({
   showConnectionStatus = false,
   showRecordingStatus = true,
   showTranscriptCount = false,
-  compact = false,
+  compact = false
 }) => {
-  const { windowState } = useWindowState();
-  const { isRecording, transcripts, isProcessing } = useSharedState();
+  const {windowState} = useWindowState()
+  const {isRecording, transcripts, isProcessing} = useSharedState()
 
   const getRecordingStatusColor = () => {
-    if (isRecording) return "bg-destructive";
-    if (isProcessing) return "bg-yellow-600 dark:bg-yellow-400";
-    return "bg-muted-foreground/50";
-  };
+    if (isRecording) return 'bg-destructive'
+    if (isProcessing) return 'bg-yellow-600 dark:bg-yellow-400'
+    return 'bg-muted-foreground/50'
+  }
 
   const getRecordingStatusText = () => {
-    if (isRecording) return "Recording";
-    if (isProcessing) return "Processing";
-    return "Ready";
-  };
+    if (isRecording) return 'Recording'
+    if (isProcessing) return 'Processing'
+    return 'Ready'
+  }
 
   const getWindowTypeIcon = () => {
     switch (windowState.windowType) {
-      case 'main': return '🏠';
-      case 'assistant': return '🤖';
-      case 'settings': return '⚙️';
-      case 'overlay': return '📌';
-      default: return '🪟';
+      case 'main':
+        return '🏠'
+      case 'assistant':
+        return '🤖'
+      case 'settings':
+        return '⚙️'
+      case 'overlay':
+        return '📌'
+      default:
+        return '🪟'
     }
-  };
+  }
 
   if (compact) {
     return (
-      <div className={cn("flex items-center space-x-2 text-xs text-muted-foreground", className)}>
+      <div className={cn('text-muted-foreground flex items-center space-x-2 text-xs', className)}>
         {showRecordingStatus && (
           <div className="flex items-center space-x-1">
-            <div className={cn("w-1.5 h-1.5 rounded-full", getRecordingStatusColor(), {
-              "animate-pulse": isRecording
-            })}></div>
+            <div
+              className={cn('h-1.5 w-1.5 rounded-full', getRecordingStatusColor(), {
+                'animate-pulse': isRecording
+              })}
+            ></div>
             <span className="sr-only">{getRecordingStatusText()}</span>
           </div>
         )}
-        
-        {showTranscriptCount && (
-          <span>{transcripts.length}</span>
-        )}
-        
-        {showWindowInfo && (
-          <span>{getWindowTypeIcon()}</span>
-        )}
+
+        {showTranscriptCount && <span>{transcripts.length}</span>}
+
+        {showWindowInfo && <span>{getWindowTypeIcon()}</span>}
       </div>
-    );
+    )
   }
 
   return (
-    <div className={cn("flex items-center space-x-4 text-xs text-muted-foreground", className)}>
+    <div className={cn('text-muted-foreground flex items-center space-x-4 text-xs', className)}>
       {showWindowInfo && (
         <div className="flex items-center space-x-2">
           <span>{getWindowTypeIcon()}</span>
@@ -82,9 +85,11 @@ export const WindowStatus: React.FC<WindowStatusProps> = ({
 
       {showRecordingStatus && (
         <div className="flex items-center space-x-2">
-          <div className={cn("w-2 h-2 rounded-full", getRecordingStatusColor(), {
-            "animate-pulse": isRecording
-          })}></div>
+          <div
+            className={cn('h-2 w-2 rounded-full', getRecordingStatusColor(), {
+              'animate-pulse': isRecording
+            })}
+          ></div>
           <span>{getRecordingStatusText()}</span>
         </div>
       )}
@@ -98,12 +103,15 @@ export const WindowStatus: React.FC<WindowStatusProps> = ({
 
       {showConnectionStatus && (
         <div className="flex items-center space-x-2">
-          <div className={cn("w-2 h-2 rounded-full", 
-            windowState.isFocused ? "bg-green-600 dark:bg-green-400" : "bg-muted-foreground/50"
-          )}></div>
+          <div
+            className={cn(
+              'h-2 w-2 rounded-full',
+              windowState.isFocused ? 'bg-green-600 dark:bg-green-400' : 'bg-muted-foreground/50'
+            )}
+          ></div>
           <span>{windowState.isFocused ? 'Focused' : 'Background'}</span>
         </div>
       )}
     </div>
-  );
-};
+  )
+}

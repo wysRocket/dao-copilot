@@ -146,19 +146,19 @@
     --bg-card: #ffffff;
     --bg-elevated: #ffffff;
     --bg-glass: rgba(0, 0, 0, 0.02);
-    
+
     --text-primary: #0f172a;
     --text-secondary: #334155;
     --text-tertiary: #64748b;
     --text-accent: #3b82f6;
     --text-muted: #94a3b8;
     --text-inverted: #ffffff;
-    
+
     --border-primary: #e2e8f0;
     --border-secondary: #cbd5e1;
     --border-focus: #3b82f6;
-    --border-glass: rgba(0, 0, 0, 0.1);
-    
+    --border-glass: rgba(0, 0, 0, 0.12);
+
     --interactive-primary: #3b82f6;
     --interactive-primary-hover: #2563eb;
     --interactive-secondary: #e2e8f0;
@@ -167,12 +167,12 @@
     --interactive-danger-hover: #dc2626;
     --interactive-success: #10b981;
     --interactive-warning: #f59e0b;
-    
-    --glass-light: rgba(0, 0, 0, 0.05);
-    --glass-medium: rgba(0, 0, 0, 0.08);
-    --glass-heavy: rgba(0, 0, 0, 0.12);
-    --glass-border: rgba(0, 0, 0, 0.1);
-    --glass-shadow: rgba(0, 0, 0, 0.15);
+
+    --glass-light: rgba(255, 255, 255, 0.65);
+    --glass-medium: rgba(255, 255, 255, 0.75);
+    --glass-heavy: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(0, 0, 0, 0.12);
+    --glass-shadow: rgba(0, 0, 0, 0.1);
   }
 
   .dark {
@@ -204,19 +204,19 @@
     --bg-card: #1f1f1f;
     --bg-elevated: #262626;
     --bg-glass: rgba(255, 255, 255, 0.02);
-    
+
     --text-primary: #ffffff;
     --text-secondary: #e5e5e5;
     --text-tertiary: #a3a3a3;
     --text-accent: #60a5fa;
     --text-muted: #737373;
     --text-inverted: #0a0a0a;
-    
+
     --border-primary: #262626;
     --border-secondary: #404040;
     --border-focus: #60a5fa;
-    --border-glass: rgba(255, 255, 255, 0.1);
-    
+    --border-glass: rgba(255, 255, 255, 0.15);
+
     --interactive-primary: #60a5fa;
     --interactive-primary-hover: #3b82f6;
     --interactive-secondary: #374151;
@@ -225,12 +225,12 @@
     --interactive-danger-hover: #dc2626;
     --interactive-success: #10b981;
     --interactive-warning: #f59e0b;
-    
-    --glass-light: rgba(255, 255, 255, 0.05);
-    --glass-medium: rgba(255, 255, 255, 0.08);
-    --glass-heavy: rgba(255, 255, 255, 0.12);
-    --glass-border: rgba(255, 255, 255, 0.1);
-    --glass-shadow: rgba(0, 0, 0, 0.25);
+
+    --glass-light: rgba(255, 255, 255, 0.12);
+    --glass-medium: rgba(255, 255, 255, 0.18);
+    --glass-heavy: rgba(255, 255, 255, 0.25);
+    --glass-border: rgba(255, 255, 255, 0.18);
+    --glass-shadow: rgba(0, 0, 0, 0.4);
   }
 }
 
@@ -239,7 +239,19 @@
     @apply overflow-hidden;
     background-color: var(--bg-primary);
     color: var(--text-primary);
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
   }
+
+  #app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
   .draglayer {
     @apply bg-background;
     background-color: var(--bg-primary);
@@ -254,6 +266,22 @@
   }
   button {
     @apply cursor-pointer;
+  }
+
+  /* Glass input placeholder styling */
+  input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+  }
+
+  input:focus::placeholder {
+    opacity: 0.5;
+  }
+
+  /* Enhanced glass input focus states */
+  .focus-within\:placeholder-opacity-50:focus-within input::placeholder {
+    opacity: 0.5;
   }
 }
 
@@ -332,7 +360,7 @@
   .glass-message-appear {
     animation: none;
   }
-  
+
   .transcript-scroll {
     scroll-behavior: auto;
   }

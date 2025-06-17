@@ -1,7 +1,6 @@
 import React from 'react'
-import LiquidGlass from 'liquid-glass-react'
-import { useTheme } from '../contexts/ThemeProvider'
-import { cn } from '../utils/tailwind'
+import {useTheme} from '../contexts/ThemeProvider'
+import {cn} from '../utils/tailwind'
 
 export interface GlassBoxProps {
   children: React.ReactNode
@@ -14,50 +13,50 @@ export interface GlassBoxProps {
   variant?: 'light' | 'medium' | 'heavy'
 }
 
-export const GlassBox: React.FC<GlassBoxProps> = ({
-  children,
-  className = '',
-  blurAmount,
-  saturation = 1.1,
-  cornerRadius = 12,
-  mode = 'standard',
-  style = {},
-  variant = 'medium'
-}) => {
-  const { isDark } = useTheme()
+export const GlassBox: React.FC<GlassBoxProps> = React.memo(
+  ({
+    children,
+    className = '',
+    blurAmount,
+    saturation = 1.1,
+    cornerRadius = 12,
+    mode = 'standard',
+    style = {},
+    variant = 'medium'
+  }) => {
+    const {isDark} = useTheme()
 
-  // Set default blur amount based on variant
-  const defaultBlurAmount = {
-    light: 10,
-    medium: 20,
-    heavy: 30
-  }[variant]
+    // Set default blur amount based on variant
+    const defaultBlurAmount = {
+      light: 10,
+      medium: 20,
+      heavy: 30
+    }[variant]
 
-  const effectiveBlurAmount = blurAmount ?? defaultBlurAmount
+    const effectiveBlurAmount = blurAmount ?? defaultBlurAmount
 
-  return (
-    <LiquidGlass
-      className={cn('transition-all duration-300', className)}
-      blurAmount={effectiveBlurAmount}
-      saturation={saturation}
-      cornerRadius={cornerRadius}
-      mode={mode}
-      overLight={!isDark}
-      style={style}
-    >
-      <div 
-        className="rounded-lg"
+    return (
+      <div
+        className={cn('glass-container transition-all duration-300', className)}
         style={{
           backgroundColor: `var(--glass-${variant})`,
           border: '1px solid var(--glass-border)',
+          borderRadius: `${cornerRadius}px`,
+          backdropFilter: `blur(${effectiveBlurAmount}px) saturate(${saturation})`,
+          WebkitBackdropFilter: `blur(${effectiveBlurAmount}px) saturate(${saturation})`,
           boxShadow: `0 8px 32px var(--glass-shadow)`,
+          contain: 'layout style paint',
+          willChange: 'transform',
+          transform: 'translateZ(0)',
           ...style
         }}
       >
         {children}
       </div>
-    </LiquidGlass>
-  )
-}
+    )
+  }
+)
+
+GlassBox.displayName = 'GlassBox'
 
 export default GlassBox

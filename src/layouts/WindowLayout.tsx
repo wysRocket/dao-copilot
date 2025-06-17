@@ -1,8 +1,10 @@
 import React from 'react'
 import {useWindowState} from '../contexts/WindowStateProvider'
+import {useGlassEffects} from '../contexts/GlassEffectsProvider'
 
 import CustomTitleBar from '../components/CustomTitleBar'
 import {FocusManager} from '../components/FocusManager'
+import {BackgroundEffect} from '../components/ui/BackgroundEffect'
 
 import {ShortcutsHelp} from '../components/ShortcutsHelp'
 import {useKeyboardShortcuts, useWindowShortcuts} from '../hooks/useKeyboardShortcuts'
@@ -23,6 +25,7 @@ export default function WindowLayout({
   className = ''
 }: WindowLayoutProps) {
   const {windowState} = useWindowState()
+  const {config: glassConfig} = useGlassEffects()
 
   // Setup keyboard shortcuts for this window
   useWindowShortcuts(windowState.windowType)
@@ -86,14 +89,26 @@ export default function WindowLayout({
       trapFocus={windowState.windowType === 'overlay'}
       focusBoth={false} // Disable aggressive dual focus - only use manual triggers
     >
-      <div className={`${layoutConfig.containerClass} ${className}`}>
-        {finalShowTitleBar && (
-          <div className="flex items-center justify-between">
-            <CustomTitleBar />
-          </div>
+      <div className={`relative ${layoutConfig.containerClass} ${className}`}>
+        {/* Background Effects */}
+        {glassConfig.enabled && glassConfig.backgroundEffects && (
+          <BackgroundEffect
+            type="mesh"
+            intensity={
+              glassConfig.intensity === 'light'
+                ? 'subtle'
+                : glassConfig.intensity === 'medium'
+                  ? 'medium'
+                  : 'vibrant'
+            }
+            animated={glassConfig.animations}
+            className="absolute inset-0"
+          />
         )}
 
-        <main className={finalPadding}>{children}</main>
+        {finalShowTitleBar && <CustomTitleBar />}
+
+        <main className={`relative z-10 ${finalPadding}`}>{children}</main>
 
         {/* Global shortcuts help overlay */}
         <ShortcutsHelp />

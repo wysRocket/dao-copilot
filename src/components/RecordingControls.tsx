@@ -70,9 +70,7 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
           recordingState.isRecording ? 'font-semibold' : ''
         }`}
         style={{
-          color: recordingState.isRecording 
-            ? 'var(--interactive-danger)' 
-            : 'var(--text-primary)'
+          color: recordingState.isRecording ? 'var(--interactive-danger)' : 'var(--text-primary)'
         }}
       >
         {recordingState.isRecording || recordingState.recordingTime > 0
@@ -81,9 +79,9 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
               .padStart(2, '0')}:${(recordingState.recordingTime % 60).toString().padStart(2, '0')}`
           : '00:00'}
         {recordingState.isTranscribing && (
-          <span 
+          <span
             className="ml-2 animate-pulse text-xs"
-            style={{ color: 'var(--interactive-primary)' }}
+            style={{color: 'var(--interactive-primary)'}}
           >
             Processing...
           </span>

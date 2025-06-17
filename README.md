@@ -44,9 +44,11 @@ npm run start
 ## Dependencies
 
 ### Glass UI Library
+
 - **liquid-glass-react** (v1.1.1): Provides glassmorphism effects and components
 
 ### Core Technologies
+
 - **Electron**: Cross-platform desktop app framework
 - **React**: UI library with TypeScript
 - **Vite**: Build tool and development server
@@ -55,16 +57,19 @@ npm run start
 ## Development
 
 ### Running the Application
+
 ```bash
 npm run start
 ```
 
 ### Building for Production
+
 ```bash
 npm run make
 ```
 
 ### Testing
+
 ```bash
 npm run test
 ```
@@ -72,26 +77,21 @@ npm run test
 ## Glass UI Usage
 
 ### Basic Glass Component
+
 ```tsx
-import LiquidGlass from 'liquid-glass-react';
+import LiquidGlass from 'liquid-glass-react'
 
 function MyGlassComponent() {
   return (
-    <LiquidGlass
-      blurAmount={20}
-      saturation={1.2}
-      cornerRadius={12}
-      mode="standard"
-    >
-      <div className="backdrop-blur-sm bg-white/10 p-6">
-        Your content here
-      </div>
+    <LiquidGlass blurAmount={20} saturation={1.2} cornerRadius={12} mode="standard">
+      <div className="bg-white/10 p-6 backdrop-blur-sm">Your content here</div>
     </LiquidGlass>
-  );
+  )
 }
 ```
 
 ### Available Glass Props
+
 - `blurAmount`: Controls the blur intensity (default: 20)
 - `saturation`: Color saturation level (default: 1.2)
 - `cornerRadius`: Border radius in pixels (default: 12)
@@ -101,6 +101,7 @@ function MyGlassComponent() {
 ## Configuration
 
 ### Build Configuration
+
 The Vite configuration has been updated to include liquid-glass-react in optimized dependencies:
 
 ```typescript
@@ -111,11 +112,13 @@ optimizeDeps: {
 ```
 
 ### Theme Configuration
+
 The application uses a dark theme with glass overlays. Glass components automatically adapt to the dark theme.
 
 ## Architecture
 
 The application follows a multi-window Electron architecture with:
+
 - Main process for system-level operations
 - Renderer processes for UI with React
 - IPC communication between processes
@@ -124,11 +127,13 @@ The application follows a multi-window Electron architecture with:
 ## Troubleshooting
 
 ### Glass Effects Not Showing
+
 - Ensure `liquid-glass-react` is properly installed
 - Check that components are wrapped with appropriate glass containers
 - Verify CSS backdrop-filter support in your environment
 
 ### Build Issues
+
 - Run `npm install` to ensure all dependencies are installed
 - Check that Vite configuration includes liquid-glass-react optimization
 - Clear node_modules and reinstall if issues persist

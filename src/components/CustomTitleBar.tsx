@@ -39,7 +39,9 @@ const CustomTitleBar: React.FC = () => {
     broadcast('transcription-result', result)
   }
 
-  const handleToggleAssistant = async () => {
+  const handleToggleAssistant = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     console.log('Ask AI button clicked - toggling assistant window, keeping focus on main')
 
     if (assistantWindow.isWindowOpen && assistantWindow.isWindowVisible) {
@@ -70,7 +72,9 @@ const CustomTitleBar: React.FC = () => {
     }
   }
 
-  const handleToggleBothWindows = async () => {
+  const handleToggleBothWindows = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     console.log('Show/Hide button clicked - toggling both windows together')
 
     // Check if main window is currently visible
@@ -107,7 +111,10 @@ const CustomTitleBar: React.FC = () => {
     }
   }
 
-  const handleSettings = () => {
+  const handleSettings = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    console.log('Settings button clicked')
     assistantWindow.openWindow()
     // Send message to set AssistantWindow to Settings tab
     setTimeout(() => {
@@ -126,6 +133,9 @@ const CustomTitleBar: React.FC = () => {
       if (!target.closest('.app-region-no-drag')) {
         // Ensure the drag region is active
         ;(titleBar.style as unknown as {webkitAppRegion: string}).webkitAppRegion = 'drag'
+      } else {
+        // Prevent dragging on interactive elements
+        e.stopPropagation()
       }
     }
 
@@ -146,107 +156,143 @@ const CustomTitleBar: React.FC = () => {
   return (
     <div
       ref={titleBarRef}
-      className="app-region-drag flex h-10 items-center gap-3 rounded-t-lg px-4 shadow-sm select-none transition-colors duration-300"
-      style={{
-        WebkitAppRegion: 'drag',
-        backgroundColor: 'var(--bg-card)',
-        borderBottom: '1px solid var(--border-primary)',
-      } as React.CSSProperties}
+      className="app-region-drag flex w-full items-center overflow-hidden px-4 select-none"
+      style={
+        {
+          WebkitAppRegion: 'drag',
+          background: 'var(--glass-medium)',
+          border: '1px solid var(--glass-border)',
+          boxShadow: '0 2px 8px var(--glass-shadow)',
+          borderRadius: '8px',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          height: '60px',
+          minHeight: '60px',
+          maxHeight: '60px',
+          position: 'relative',
+          zIndex: 1
+        } as React.CSSProperties
+      }
     >
-      <RecordingControls onTranscription={handleTranscription} />
+      {/* Left side - Recording controls */}
+      <div
+        className="app-region-no-drag flex h-full items-center"
+        style={
+          {WebkitAppRegion: 'no-drag', zIndex: 20, position: 'relative'} as React.CSSProperties
+        }
+      >
+        <RecordingControls onTranscription={handleTranscription} />
+      </div>
 
-      <ToggleTheme />
-      <PerformanceDashboard compact />
+      {/* Spacer */}
       <div className="flex-1"></div>
-      <button
-        onClick={handleToggleAssistant}
-        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 transition-colors duration-200"
-        style={{
-          WebkitAppRegion: 'no-drag',
-          color: 'var(--text-primary)',
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border-primary)',
-        } as React.CSSProperties}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-          e.currentTarget.style.borderColor = 'var(--border-focus)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-          e.currentTarget.style.borderColor = 'var(--border-primary)';
-        }}
-        title="Toggle Assistant Visibility (focus stays on main)"
+
+      {/* Right side - Controls */}
+      <div
+        className="app-region-no-drag flex h-full items-center gap-2"
+        style={
+          {WebkitAppRegion: 'no-drag', zIndex: 20, position: 'relative'} as React.CSSProperties
+        }
       >
-        {assistantWindow.isWindowVisible ? 'Hide AI' : 'Ask AI'}
-      </button>
-      <span
-        className="shortcut app-region-no-drag mx-1 text-xs"
-        style={{ 
-          color: 'var(--text-muted)',
-          WebkitAppRegion: 'no-drag' 
-        } as React.CSSProperties}
-      >
-        {navigator.platform.toUpperCase().includes('MAC') ? '⌘↵' : 'Ctrl+↵'}
-      </span>
-      <button
-        onClick={handleToggleBothWindows}
-        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 transition-colors duration-200"
-        style={{
-          WebkitAppRegion: 'no-drag',
-          color: 'var(--text-primary)',
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border-primary)',
-        } as React.CSSProperties}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-          e.currentTarget.style.borderColor = 'var(--border-focus)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-          e.currentTarget.style.borderColor = 'var(--border-primary)';
-        }}
-        title="Toggle Both Windows Together"
-      >
-        {windowState.isVisible ? 'Hide' : 'Show'}
-      </button>
-      <span
-        className="shortcut app-region-no-drag mx-1 text-xs"
-        style={{
-          color: 'var(--text-muted)',
-          WebkitAppRegion: 'no-drag'
-        } as React.CSSProperties}
-      >
-        {navigator.platform.toUpperCase().includes('MAC') ? '⌘\\' : 'Ctrl+\\'}
-      </span>
-      <button
-        onClick={handleSettings}
-        className="settings-btn app-region-no-drag ml-2 rounded border-none bg-none p-1 transition-colors duration-200"
-        style={{
-          WebkitAppRegion: 'no-drag',
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border-primary)',
-        } as React.CSSProperties}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-          e.currentTarget.style.borderColor = 'var(--border-focus)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-          e.currentTarget.style.borderColor = 'var(--border-primary)';
-        }}
-        title="Settings"
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 18 18"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
+        <ToggleTheme />
+        <PerformanceDashboard compact />
+
+        <button
+          onClick={handleToggleAssistant}
+          title="Ask AI"
+          className="app-region-no-drag h-10 rounded-lg px-4 text-sm transition-all duration-200 hover:scale-105 active:scale-95"
+          style={
+            {
+              WebkitAppRegion: 'no-drag',
+              background: 'var(--glass-light)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              zIndex: 10,
+              cursor: 'pointer',
+              pointerEvents: 'auto'
+            } as React.CSSProperties
+          }
         >
-          <circle cx="9" cy="9" r="8" stroke="var(--text-tertiary)" strokeWidth="2" />
-          <circle cx="9" cy="9" r="2" fill="var(--text-tertiary)" />
-        </svg>
-      </button>
+          Ask AI
+        </button>
+
+        <span
+          className="mx-1 text-xs opacity-60"
+          style={
+            {
+              color: 'var(--text-muted)',
+              WebkitAppRegion: 'no-drag'
+            } as React.CSSProperties
+          }
+        >
+          {navigator.platform.toUpperCase().includes('MAC') ? '⌘↵' : 'Ctrl+↵'}
+        </span>
+
+        <button
+          onClick={handleToggleBothWindows}
+          title="Show/Hide"
+          className="app-region-no-drag h-10 rounded-lg px-4 text-sm transition-all duration-200 hover:scale-105 active:scale-95"
+          style={
+            {
+              WebkitAppRegion: 'no-drag',
+              background: 'var(--glass-light)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              zIndex: 10,
+              cursor: 'pointer',
+              pointerEvents: 'auto'
+            } as React.CSSProperties
+          }
+        >
+          {windowState.isVisible ? 'Hide' : 'Show'}
+        </button>
+
+        <span
+          className="mx-1 text-xs opacity-60"
+          style={
+            {
+              color: 'var(--text-muted)',
+              WebkitAppRegion: 'no-drag'
+            } as React.CSSProperties
+          }
+        >
+          {navigator.platform.toUpperCase().includes('MAC') ? '⌘\\' : 'Ctrl+\\'}
+        </span>
+
+        <button
+          onClick={handleSettings}
+          title="Settings"
+          className="app-region-no-drag flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+          style={
+            {
+              WebkitAppRegion: 'no-drag',
+              background: 'var(--glass-light)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              zIndex: 10,
+              cursor: 'pointer',
+              pointerEvents: 'auto'
+            } as React.CSSProperties
+          }
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 18 18"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <circle cx="9" cy="9" r="8" stroke="currentColor" strokeWidth="2" />
+            <circle cx="9" cy="9" r="2" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }

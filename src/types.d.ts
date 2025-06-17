@@ -42,6 +42,7 @@ declare global {
       
       // Inter-window communication
       sendToWindow: (targetWindowId: string, channel: string, ...args: any[]) => void;
+      sendInterWindowMessage: (channel: string, ...args: any[]) => void;
       broadcast: (channel: string, ...args: any[]) => void;
       
       // Event listeners

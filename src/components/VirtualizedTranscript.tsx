@@ -1,5 +1,5 @@
-import React, { memo } from 'react'
-import { TranscriptionResult } from '../services/main-stt-transcription'
+import React, {memo} from 'react'
+import {TranscriptionResult} from '../services/main-stt-transcription'
 import GlassMessage from './GlassMessage'
 
 interface VirtualizedTranscriptProps {
@@ -17,36 +17,34 @@ const MemoizedGlassMessage = memo(GlassMessage, (prevProps, nextProps) => {
   )
 })
 
-export const VirtualizedTranscript: React.FC<VirtualizedTranscriptProps> = memo(({
-  transcripts,
-  newMessageIndices,
-  maxVisibleMessages = 100
-}) => {
-  // Only render the most recent messages for performance
-  const visibleTranscripts = React.useMemo(() => {
-    if (transcripts.length <= maxVisibleMessages) {
-      return transcripts
-    }
-    return transcripts.slice(-maxVisibleMessages)
-  }, [transcripts, maxVisibleMessages])
+export const VirtualizedTranscript: React.FC<VirtualizedTranscriptProps> = memo(
+  ({transcripts, newMessageIndices, maxVisibleMessages = 100}) => {
+    // Only render the most recent messages for performance
+    const visibleTranscripts = React.useMemo(() => {
+      if (transcripts.length <= maxVisibleMessages) {
+        return transcripts
+      }
+      return transcripts.slice(-maxVisibleMessages)
+    }, [transcripts, maxVisibleMessages])
 
-  const startIndex = transcripts.length - visibleTranscripts.length
+    const startIndex = transcripts.length - visibleTranscripts.length
 
-  return (
-    <>
-      {visibleTranscripts.map((transcript, index) => {
-        const actualIndex = startIndex + index
-        return (
-          <MemoizedGlassMessage
-            key={`transcript-${actualIndex}-${transcript.text.slice(0, 10)}`}
-            transcript={transcript}
-            isNew={newMessageIndices.has(actualIndex)}
-          />
-        )
-      })}
-    </>
-  )
-})
+    return (
+      <>
+        {visibleTranscripts.map((transcript, index) => {
+          const actualIndex = startIndex + index
+          return (
+            <MemoizedGlassMessage
+              key={`transcript-${actualIndex}-${transcript.text.slice(0, 10)}`}
+              transcript={transcript}
+              isNew={newMessageIndices.has(actualIndex)}
+            />
+          )
+        })}
+      </>
+    )
+  }
+)
 
 VirtualizedTranscript.displayName = 'VirtualizedTranscript'
 
