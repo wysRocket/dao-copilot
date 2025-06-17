@@ -13,7 +13,7 @@ export default defineConfig({
     }),
   ],
   optimizeDeps: {
-    include: ['@google-cloud/speech', '@google/genai'],
+    include: ['@google-cloud/speech', '@google/genai', 'liquid-glass-react'],
   },
   define: {},
   resolve: {
