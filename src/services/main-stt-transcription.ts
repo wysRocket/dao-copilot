@@ -1,23 +1,31 @@
 import {GoogleGenAI} from '@google/genai'
+import {GeminiLiveIntegrationService, TranscriptionMode} from './gemini-live-integration'
+import {GeminiLiveIntegrationFactory} from './gemini-live-integration-factory'
+import type {TranscriptionResult as IntegrationTranscriptionResult} from './audio-recording'
 
 // User-specified model name
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
 
 /**
- * Configuration options for the transcription service using Google Gemini
+ * Configuration options for the transcription service
  */
 export interface TranscriptionOptions {
   apiKey?: string // Your Google API Key for Gemini
   modelName?: string // Optional: override the default Gemini model name
+  mode?: TranscriptionMode // Transcription mode: 'websocket', 'batch', or 'hybrid'
+  enableWebSocket?: boolean // Feature flag to enable WebSocket functionality
+  fallbackToBatch?: boolean // Whether to fallback to batch mode on WebSocket failure
+  realTimeThreshold?: number // Minimum audio length for real-time processing (ms)
 }
 
 /**
- * Transcription result interface
+ * Transcription result interface (backward compatible)
  */
 export interface TranscriptionResult {
   text: string
   duration: number // Duration of the API call in milliseconds
-  // Confidence is not directly provided by Gemini in a simple score format.
+  confidence?: number // Confidence score (when available)
+  source?: string // Source of transcription ('websocket', 'batch', 'proxy')
   [key: string]: unknown
 }
 
@@ -44,8 +52,88 @@ export async function transcribeAudio(
 ): Promise<TranscriptionResult> {
   const startTime = Date.now()
 
-  // In the main process, we can access environment variables directly
-  // Try multiple possible environment variable names
+  // Check if WebSocket mode should be used
+  if (shouldUseWebSocket(options)) {
+    try {
+      // Use integration service for WebSocket or hybrid mode
+      const service = getIntegrationService(options)
+      
+      // Convert Buffer to Float32Array for integration service
+      const audioArray = new Float32Array(audioData.length / 4)
+      for (let i = 0; i < audioArray.length; i++) {
+        audioArray[i] = audioData.readFloatLE(i * 4)
+      }
+      
+      // Use the integration service to process audio
+      return new Promise((resolve, reject) => {
+        let resolved = false
+        
+        const handleTranscription = (result: IntegrationTranscriptionResult, source: string) => {
+          if (!resolved) {
+            resolved = true
+            const duration = Date.now() - startTime
+            resolve(convertToLegacyResult(result, duration, source))
+          }
+        }
+        
+        const handleError = (error: Error) => {
+          if (!resolved) {
+            resolved = true
+            reject(error)
+          }
+        }
+        
+        service.once('transcription', handleTranscription)
+        service.once('error', handleError)
+        
+        // Start transcription - the service will handle mode selection
+        service.startTranscription().catch(handleError)
+        
+        // Cleanup after timeout
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true
+            service.off('transcription', handleTranscription)
+            service.off('error', handleError)
+            reject(new Error('Transcription timeout'))
+          }
+        }, 30000) // 30 second timeout
+      })
+    } catch (error) {
+      console.warn('WebSocket transcription failed, falling back to batch mode:', error)
+      // Fall through to batch mode
+    }
+  }
+
+  // Fallback to original batch mode
+  return transcribeAudioBatch(audioData, options)
+}
+
+// Global integration service instance
+let integrationService: GeminiLiveIntegrationService | null = null
+
+/**
+ * Initialize or get the integration service
+ */
+function getIntegrationService(options: TranscriptionOptions): GeminiLiveIntegrationService {
+  if (!integrationService) {
+    const apiKey = getApiKey(options)
+
+    integrationService = GeminiLiveIntegrationFactory.createProduction(apiKey, {
+      mode: options.mode || TranscriptionMode.HYBRID,
+      fallbackToBatch: options.fallbackToBatch !== false,
+      realTimeThreshold: options.realTimeThreshold || 1000,
+      model: options.modelName || DEFAULT_GEMINI_MODEL
+    })
+  }
+
+  return integrationService
+}
+
+/**
+ * Get API key from options or environment variables
+ */
+function getApiKey(options: TranscriptionOptions): string {
   const apiKey =
     options.apiKey ||
     process.env.GOOGLE_API_KEY ||
@@ -67,12 +155,60 @@ export async function transcribeAudio(
     )
   }
 
+  return apiKey
+}
+
+/**
+ * Check if WebSocket mode should be used based on feature flags and options
+ */
+function shouldUseWebSocket(options: TranscriptionOptions): boolean {
+  // Check feature flag
+  const webSocketEnabled = process.env.GEMINI_WEBSOCKET_ENABLED !== 'false'
+
+  // Check explicit option
+  if (options.enableWebSocket !== undefined) {
+    return options.enableWebSocket && webSocketEnabled
+  }
+
+  // Use mode to determine WebSocket usage
+  const mode = options.mode || TranscriptionMode.HYBRID
+  return webSocketEnabled && (mode === TranscriptionMode.WEBSOCKET || mode === TranscriptionMode.HYBRID)
+}
+
+/**
+ * Convert integration result to legacy format
+ */
+function convertToLegacyResult(
+  result: IntegrationTranscriptionResult,
+  duration: number,
+  source: string
+): TranscriptionResult {
+  return {
+    text: result.text,
+    duration,
+    confidence: result.confidence,
+    source,
+    timestamp: result.timestamp
+  }
+}
+
+/**
+ * Original batch transcription function (HTTP-based)
+ * Used as fallback when WebSocket mode is not available or fails
+ */
+async function transcribeAudioBatch(
+  audioData: Buffer,
+  options: TranscriptionOptions = {}
+): Promise<TranscriptionResult> {
+  const startTime = Date.now()
+
+  const apiKey = getApiKey(options)
   console.log('Using API key from environment (first 8 chars):', apiKey.substring(0, 8) + '...')
 
   const genAI = new GoogleGenAI({apiKey: apiKey as string})
   const modelName = options.modelName || DEFAULT_GEMINI_MODEL
 
-  console.log(`Initializing transcription with Gemini model: ${modelName}`)
+  console.log(`Initializing batch transcription with Gemini model: ${modelName}`)
 
   // Assuming audioData is a WAV file buffer.
   // Ensure the mimeType matches your audio format.
@@ -83,7 +219,7 @@ export async function transcribeAudio(
 
   try {
     console.log(
-      `Sending transcription request to Gemini at: ${new Date(startTime).toISOString()}`,
+      `Sending batch transcription request to Gemini at: ${new Date(startTime).toISOString()}`,
       `Audio buffer size: ${audioData.length} bytes`,
       `Model: ${modelName}`
     )
@@ -95,7 +231,7 @@ export async function transcribeAudio(
 
     const endTime = Date.now()
     const duration = endTime - startTime
-    console.log(`Transcription request completed in ${duration} ms`)
+    console.log(`Batch transcription request completed in ${duration} ms`)
 
     const transcribedText = response.text
 
@@ -118,13 +254,13 @@ export async function transcribeAudio(
 
     return {
       text: transcribedText.trim(),
-      duration
-      // You can add other details from 'response' if needed
+      duration,
+      source: 'batch'
     }
   } catch (error: unknown) {
     const endTime = Date.now()
     const duration = endTime - startTime
-    console.error(`Transcription failed after ${duration} ms with model ${modelName}:`)
+    console.error(`Batch transcription failed after ${duration} ms with model ${modelName}:`)
 
     // Enhanced error logging for different types of errors
     if (error && typeof error === 'object') {
