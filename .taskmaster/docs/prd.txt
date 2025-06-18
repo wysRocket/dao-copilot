@@ -1,0 +1,68 @@
+# Product Requirements Document: @rdev/liquid-glass-react Integration
+
+## Project Overview
+Integrate @rdev/liquid-glass-react library to enhance the DAO Copilot AI assistant interface with modern glassmorphism effects and Fumadocs dark theme aesthetics.
+
+## Background
+The current DAO Copilot application has a functional UI but needs visual enhancement to provide a more modern, professional desktop application aesthetic. The integration should maintain all existing functionality while applying glassmorphism effects and dark theme styling.
+
+## Objectives
+1. Recreate the AI assistant interface using glassmorphism design patterns
+2. Apply Fumadocs dark theme (black/dark gray color scheme)
+3. Enhance visual appeal without impacting performance
+4. Maintain accessibility and keyboard navigation
+5. Ensure seamless integration with existing multi-window Electron architecture
+
+## Target Components for Refactoring
+
+### Phase 1: Core Interface Components
+- **TranscriptDisplay.tsx**: Chat/conversation display with liquid-glass overlays
+- **PerformanceDashboard.tsx**: Feature summary component with glass accents
+- **CustomTitleBar.tsx**: Dark glass title bar with Ask AI button and controls
+
+### Phase 2: UI Component Mapping
+- **CustomTitleBar.tsx** → Dark glass navigation bar
+- **TranscriptDisplay.tsx** → Chat panel with glass effect
+- **PerformanceDashboard.tsx** → Features/info block with glass styling
+- **window-button.tsx, button.tsx** → Action buttons and toolbar
+- **window-status.tsx** → Session/timer/status indicators
+- **window-input.tsx** → AI chat input with glass effects
+
+### Phase 3: Technical Implementation
+- Install and configure @rdev/liquid-glass-react
+- Set up dark theme color variables
+- Apply glass overlays, blur, and opacity effects
+- Ensure Fumadocs-style typography consistency
+
+### Phase 4: Integration & Testing
+- Test in Electron multi-window context
+- Maintain IPC and window focus communication
+- Optimize glass rendering performance
+- Validate accessibility features
+
+## Success Criteria
+1. Interface functionality recreated with glassmorphism effects
+2. Dark theme applied consistently across all components
+3. Performance maintained or improved
+4. All existing IPC communication preserved
+5. Accessibility and keyboard navigation retained
+6. Professional desktop application aesthetic achieved
+
+## Technical Requirements
+- Maintain existing React/TypeScript architecture
+- Preserve Electron multi-window functionality
+- Keep existing state management and IPC patterns
+- Ensure compatibility with current build system (Vite)
+- No breaking changes to existing API contracts
+
+## Non-Functional Requirements
+- Performance: Glass effects should not impact rendering performance
+- Accessibility: All UI elements remain keyboard navigable
+- Compatibility: Works across all supported platforms
+- Maintainability: Code remains clean and well-documented
+
+## Out of Scope
+- Changes to core application logic
+- Modifications to transcription functionality
+- Alterations to window management system
+- Performance monitoring system changes

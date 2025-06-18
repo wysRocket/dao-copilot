@@ -1,0 +1,761 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Project Setup and @rdev/liquid-glass-react Integration",
+      "description": "Set up the project repository and integrate the @rdev/liquid-glass-react library into the existing DAO Copilot project.",
+      "details": "1. Clone the existing DAO Copilot repository\n2. Install @rdev/liquid-glass-react using npm or yarn: `npm install @rdev/liquid-glass-react@latest`\n3. Update the project's package.json and ensure all dependencies are compatible\n4. Set up a new branch for the UI enhancement work\n5. Create a basic test component to verify @rdev/liquid-glass-react is working correctly\n6. Update the build configuration (Vite) to include the new library\n7. Document the integration process in the project README",
+      "testStrategy": "1. Verify successful installation of @rdev/liquid-glass-react\n2. Create a simple test component using a basic glass effect\n3. Ensure the test component renders without errors\n4. Check that the build process completes successfully with the new library",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Clone and Set Up Project Repository",
+          "description": "Clone the existing DAO Copilot repository and set up a new branch for UI enhancement work.",
+          "dependencies": [],
+          "details": "1. Clone the DAO Copilot repository\n2. Create a new branch named 'ui-enhancement-liquid-glass'\n3. Ensure all existing dependencies are up to date",
+          "status": "done",
+          "testStrategy": "Verify successful clone and branch creation using git commands"
+        },
+        {
+          "id": 2,
+          "title": "Install and Configure @rdev/liquid-glass-react",
+          "description": "Install the @rdev/liquid-glass-react library and update project configuration.",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Run 'npm install @rdev/liquid-glass-react@latest'\n2. Update package.json with the new dependency\n3. Modify Vite configuration to include the new library",
+          "status": "done",
+          "testStrategy": "Check package.json and vite.config.js for correct entries"
+        },
+        {
+          "id": 3,
+          "title": "Create Test Component",
+          "description": "Develop a basic test component to verify @rdev/liquid-glass-react integration.",
+          "dependencies": [
+            2
+          ],
+          "details": "1. Create a new React component file\n2. Import necessary elements from @rdev/liquid-glass-react\n3. Implement a simple UI element using the library",
+          "status": "done",
+          "testStrategy": "Render the component and visually inspect for correct @rdev/liquid-glass-react styling"
+        },
+        {
+          "id": 4,
+          "title": "Update Build Configuration",
+          "description": "Modify the Vite build configuration to properly include and bundle @rdev/liquid-glass-react.",
+          "dependencies": [
+            2
+          ],
+          "details": "1. Open vite.config.js\n2. Add any necessary plugins or configurations for @rdev/liquid-glass-react\n3. Adjust build options if required",
+          "status": "done",
+          "testStrategy": "Run a test build and check for any errors related to @rdev/liquid-glass-react"
+        },
+        {
+          "id": 5,
+          "title": "Document Integration Process",
+          "description": "Update the project README with information about @rdev/liquid-glass-react integration.",
+          "dependencies": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "details": "1. Add a new section in README.md for UI enhancements\n2. Document the installation process of @rdev/liquid-glass-react\n3. Provide basic usage instructions and any configuration details\n4. Include any known issues or limitations",
+          "status": "done",
+          "testStrategy": "Review the README for completeness and clarity of instructions"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Implement Dark Theme Color Scheme",
+      "description": "Create and apply a dark theme color scheme based on the Fumadocs dark theme aesthetics.",
+      "details": "1. Define a set of color variables in a new `theme.ts` file, using CSS custom properties\n2. Colors should include: background (black/dark gray), text, accent colors\n3. Implement a ThemeProvider component using React Context\n4. Wrap the main application component with the ThemeProvider\n5. Update global styles to use the new theme variables\n6. Ensure all existing components use the new color scheme\n7. Implement a theme toggle functionality (optional)",
+      "testStrategy": "1. Verify that all components use the new color variables\n2. Test the application in both light and dark modes (if toggle is implemented)\n3. Ensure color contrast meets WCAG 2.1 AA standards for accessibility\n4. Conduct a visual inspection to confirm the Fumadocs-inspired dark theme is applied correctly",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Define color variables in theme.ts",
+          "description": "Create a new theme.ts file and define a set of color variables using CSS custom properties for the dark theme.",
+          "dependencies": [],
+          "details": "Include variables for background (black/dark gray), text, and accent colors based on Fumadocs dark theme aesthetics.",
+          "status": "done",
+          "testStrategy": "Verify that all required color variables are defined and match the Fumadocs dark theme."
+        },
+        {
+          "id": 2,
+          "title": "Implement ThemeProvider component",
+          "description": "Create a ThemeProvider component using React Context to manage and provide the theme throughout the application.",
+          "dependencies": [
+            1
+          ],
+          "details": "Use the color variables defined in theme.ts and create a context to hold the current theme state.",
+          "status": "done",
+          "testStrategy": "Test that the ThemeProvider correctly provides theme values to child components."
+        },
+        {
+          "id": 3,
+          "title": "Wrap main application with ThemeProvider",
+          "description": "Integrate the ThemeProvider by wrapping the main application component to ensure theme availability throughout the app.",
+          "dependencies": [
+            2
+          ],
+          "details": "Modify the top-level component to include the ThemeProvider as a wrapper.",
+          "status": "done",
+          "testStrategy": "Verify that the ThemeProvider is correctly placed in the component hierarchy."
+        },
+        {
+          "id": 4,
+          "title": "Update global styles",
+          "description": "Modify global styles to use the new theme variables, ensuring consistent application of the dark theme.",
+          "dependencies": [
+            1,
+            3
+          ],
+          "details": "Replace hardcoded color values with references to the theme variables in global CSS or styled-components.",
+          "status": "done",
+          "testStrategy": "Check that global styles are using theme variables instead of hardcoded values."
+        },
+        {
+          "id": 5,
+          "title": "Apply theme to existing components",
+          "description": "Update all existing components to use the new color scheme from the theme.",
+          "dependencies": [
+            4
+          ],
+          "details": "Systematically go through each component and replace color references with theme variables.\n<info added on 2025-06-17T08:54:15.232Z>\nUpdated CustomTitleBar component by replacing hard-coded colors with theme variables. Next components to update include:\n- RecordingControls\n- Window components (WindowHeader, WindowContent, WindowFooter)\n- Assistant pages (AssistantView, ChatInterface)\n\nWill continue systematically replacing direct color references with theme variables across these UI elements to ensure consistent dark theme implementation.\n</info added on 2025-06-17T08:54:15.232Z>\n<info added on 2025-06-17T09:05:18.954Z>\nUpdated multiple key components to use theme variables:\n\n1. **PerformanceDashboard**: Replaced hard-coded colors (green-500, yellow-500, red-500, gray-400, blue-500) with theme-aware versions that adapt to dark/light themes\n2. **ChatPage**: Updated user message bubbles to use bg-primary/text-primary-foreground, input fields to use proper border/background colors, and send button styling\n3. **ToggleTheme**: Enhanced to show current theme state (sun/moon icons) and use theme context properly with mode detection\n4. **ShortcutDebugger**: Replaced hard-coded gray colors with theme-aware card background and muted text colors\n5. **AnalysisPage**: Updated confidence score colors to use theme-aware green variants\n6. **SettingsPage**: Updated save button to use primary theme colors instead of hard-coded blue\n\nAll updated components now properly respond to dark/light theme switching and use the theme variables defined in the global CSS. The theme system is now consistently applied across the major UI components.\n</info added on 2025-06-17T09:05:18.954Z>",
+          "status": "done",
+          "testStrategy": "Conduct a visual inspection of each component to ensure proper theme application."
+        },
+        {
+          "id": 6,
+          "title": "Implement theme toggle functionality",
+          "description": "Create a mechanism to switch between light and dark themes dynamically.",
+          "dependencies": [
+            2,
+            5
+          ],
+          "details": "Add a toggle button or switch that updates the theme context and triggers a re-render with the new theme.\n<info added on 2025-06-17T09:10:24.217Z>\nThe toggle button has been successfully implemented with the following enhancements:\n\n- **ToggleTheme Component**: Fully functional with sun/moon icons that change based on current theme mode, integrated into CustomTitleBar\n- **Keyboard Shortcut**: Added Ctrl+Shift+T shortcut for theme switching that works globally across all windows\n- **ThemeStatus Component**: Created a new component to display current theme mode with icons and text for user awareness\n- **Theme Persistence**: ThemeProvider handles localStorage persistence and system theme detection\n- **TestGlassComponent**: Updated to showcase theme integration with glassmorphism effects that adapt to light/dark themes\n\nThe theme toggle system is complete with visual toggle button in the title bar, keyboard shortcut support, automatic system theme detection, persistent theme preference storage, glass effects that adapt to theme mode, and all UI components responding correctly to theme changes. Theme switching is smooth and immediate across all components.\n</info added on 2025-06-17T09:10:24.217Z>",
+          "status": "done",
+          "testStrategy": "Test the toggle functionality to ensure smooth transition between themes without errors."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Refactor CustomTitleBar Component",
+      "description": "Redesign the CustomTitleBar component using glassmorphism effects and the new dark theme.",
+      "details": "1. Import necessary components from @rdev/liquid-glass-react\n2. Refactor CustomTitleBar.tsx to use GlassBox component for the main container\n3. Apply appropriate blur and opacity settings\n4. Implement glass effect for the Ask AI button\n5. Ensure window controls (minimize, maximize, close) are styled correctly\n6. Maintain existing functionality for dragging the window\n7. Implement subtle hover effects for interactive elements",
+      "testStrategy": "1. Verify that the title bar renders correctly with glass effects\n2. Test window dragging functionality\n3. Ensure all buttons (Ask AI, window controls) work as expected\n4. Check that the title bar is responsive and adapts to different window sizes\n5. Validate that the component maintains its appearance and functionality across different operating systems",
+      "priority": "medium",
+      "dependencies": [
+        1,
+        2
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Fix ChatPage input area visibility",
+          "description": "Fix the chat input area that was not visible due to layout issues",
+          "details": "1. Remove sticky positioning from input area\\n2. Use flex-none layout for proper container flow\\n3. Update parent container to remove overflow-hidden\\n4. Use GlassBox for input wrapper consistency\\n5. Ensure input is always visible and functional\n<info added on 2025-06-17T11:25:22.729Z>\n6. Fixed AssistantWindowLayout to use proper flex container with full height\n7. Added min-h-0 to main content area to prevent flex issues\n8. Added extra bottom padding (pb-6) to input area to prevent cut-off\n9. Enhanced input styling with proper glassmorphism effects\n10. Added send icon and improved button states\n11. Fixed container height issues that were causing input to be clipped\n</info added on 2025-06-17T11:25:22.729Z>\n<info added on 2025-06-17T11:29:58.312Z>\n12. Added proper background styling to AssistantWindowLayout\n13. Enhanced input area glass effects with gradient background and better shadows\n14. Improved GlassBox variant for input (medium instead of light)\n15. Enhanced glass CSS variables for more prominent effects\n16. Added better shadow and border styling\n17. Fixed additional container height issues to ensure chat input is fully visible\n</info added on 2025-06-17T11:29:58.312Z>\n<info added on 2025-06-17T11:32:34.920Z>\n18. Simplified ChatPage input styling to fix rendering issues:\n   - Removed complex GlassBox wrapper that was causing styling conflicts\n   - Used direct inline styling with CSS variables for reliable glass effect\n   - Simplified the input container structure\n   - Fixed input area being cut off at bottom\n   - Ensured proper backdrop blur and border styling\n   - Maintained clean, functional glassmorphism design\n</info added on 2025-06-17T11:32:34.920Z>\n<info added on 2025-06-17T11:35:03.878Z>\n19. Fixed message styling issues:\n   - Replaced GlassBox component with direct CSS glassmorphism for messages\n   - Enhanced backdrop blur effects (16px for better visibility)\n   - Added different shadow intensities for user vs assistant messages\n   - Added subtle border highlights with rgba for glass effect\n   - Improved hover effects with scale and shadow transitions\n   - User messages now have more prominent glass effect than assistant messages\n   - Messages now display proper glassmorphism with clear visual distinction between user and assistant messages\n</info added on 2025-06-17T11:35:03.878Z>",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 3
+        },
+        {
+          "id": 2,
+          "title": "Fix Chat Input Glassmorphism and Layout",
+          "description": "Resolve chat input visibility and styling issues to ensure proper glassmorphism effects and user interaction.",
+          "details": "Enhanced chat input area with improved glassmorphism effects:\n\n- Fixed input area visibility and positioning issues\n- Enhanced glass effects with proper blur amounts (20px for heavy sections)\n- Added focus ring animation with blue glow effect\n- Improved button styling with dynamic colors based on input state\n- Added send icon to the submit button for better UX\n- Increased input height to 48px (h-12) for better usability\n- Added shadow effects for proper depth perception\n- Enhanced placeholder opacity transitions\n- Made button responsive to input state (colored when text is present)\n- Fixed layout container issues that were causing input clipping\n\nThe chat input is now fully functional with proper glassmorphism styling and seamless user interaction.",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 3
+        },
+        {
+          "id": 3,
+          "title": "Synchronize theme toggle across all windows",
+          "description": "Fix ThemeToggle to affect both MainWindow and Assistant window simultaneously",
+          "details": "1. Add window communication to ThemeToggle component\\n2. Broadcast theme changes to all windows when toggle is clicked\\n3. Add listener in ThemeProvider to handle theme changes from other windows\\n4. Ensure theme state is synchronized across all windows",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 3
+        },
+        {
+          "id": 4,
+          "title": "Synchronize theme toggle across windows",
+          "description": "Fix theme synchronization between MainWindow and Assistant window",
+          "details": "1. Update ThemeProvider to use useWindowCommunication hook\\n2. Add proper message listener for theme-changed events\\n3. Ensure theme toggle affects both windows simultaneously\\n4. Add enhanced logging for debugging",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 3
+        },
+        {
+          "id": 5,
+          "title": "Fix theme sync with correct IPC method",
+          "description": "Fix inter-window communication for theme synchronization",
+          "details": "1. Update ThemeProvider to use onInterWindowMessage instead of onMessage\\n2. Ensure theme messages are properly received across windows\\n3. Add enhanced logging for debugging theme sync issues\\n4. Test theme toggle functionality across main and assistant windows",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 3
+        },
+        {
+          "id": 6,
+          "title": "Enhance Assistant window glassmorphism",
+          "description": "Improve glassmorphism and color scheme in Assistant window",
+          "details": "1. Update AssistantWindowLayout header and footer with glass effects\\n2. Apply glassmorphism to sidebar with proper backdrop blur\\n3. Enhance TranscriptsPage with glass styling\\n4. Replace Tailwind color classes with theme CSS variables\\n5. Add consistent glass borders and shadows throughout\\n6. Improve visual hierarchy with better glassmorphism",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 3
+        },
+        {
+          "id": 7,
+          "title": "Style Analysis and Settings pages with glassmorphism",
+          "description": "Enhance Analysis and Settings pages with glassmorphism design",
+          "details": "1. Update AnalysisPage with glass card designs for statistics\\n2. Apply glassmorphism to recent activity items\\n3. Refactor SettingsPage with glass section containers\\n4. Style form inputs with glass backgrounds and proper theming\\n5. Replace all Tailwind color classes with CSS theme variables\\n6. Add consistent glass borders, shadows, and backdrop blur effects\\n7. Improve checkbox and button styling with theme colors\\n8. Fix TypeScript errors for better type safety",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 3
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Enhance TranscriptDisplay Component",
+      "description": "Apply glassmorphism effects to the TranscriptDisplay component while maintaining readability and performance.",
+      "details": "1. Refactor TranscriptDisplay.tsx to use GlassBox for the main container\n2. Implement a scrollable glass effect for the transcript content\n3. Style individual message bubbles with subtle glass effects\n4. Ensure proper contrast between text and background for readability\n5. Optimize rendering performance for large transcripts\n6. Implement smooth scrolling and scroll-to-bottom functionality\n7. Add subtle animations for new messages",
+      "testStrategy": "1. Test rendering performance with large transcripts (1000+ messages)\n2. Verify readability of text against the glass background\n3. Check smooth scrolling and scroll-to-bottom functionality\n4. Ensure new message animations work correctly\n5. Validate that the component is responsive and adapts to different screen sizes",
+      "priority": "high",
+      "dependencies": [
+        1,
+        2
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Refactor TranscriptDisplay.tsx to use GlassBox",
+          "description": "Update the main container of TranscriptDisplay.tsx to utilize the GlassBox component for a glassmorphism effect.",
+          "dependencies": [],
+          "details": "Import GlassBox component, replace the current container with GlassBox, and adjust props as necessary.",
+          "status": "done",
+          "testStrategy": "Verify visual appearance and ensure all existing functionality remains intact."
+        },
+        {
+          "id": 2,
+          "title": "Implement scrollable glass effect",
+          "description": "Create a scrollable container within the GlassBox that maintains the glass effect while allowing content to scroll.",
+          "dependencies": [
+            1
+          ],
+          "details": "Use CSS to create a scrollable div inside GlassBox, apply backdrop-filter for glass effect, ensure smooth scrolling behavior.",
+          "status": "done",
+          "testStrategy": "Test scrolling behavior with various content lengths and screen sizes."
+        },
+        {
+          "id": 3,
+          "title": "Style message bubbles with glass effects",
+          "description": "Apply subtle glass effects to individual message bubbles within the transcript.",
+          "dependencies": [
+            2
+          ],
+          "details": "Create a new component for message bubbles with glassmorphism styling, ensure differentiation between user and AI messages.",
+          "status": "done",
+          "testStrategy": "Verify visual consistency across different message types and lengths."
+        },
+        {
+          "id": 4,
+          "title": "Optimize contrast for readability",
+          "description": "Ensure proper contrast between text and background for optimal readability with glassmorphism effects.",
+          "dependencies": [
+            3
+          ],
+          "details": "Adjust text colors, background opacity, and potentially add subtle text shadows for improved legibility.",
+          "status": "done",
+          "testStrategy": "Conduct accessibility tests for color contrast ratios."
+        },
+        {
+          "id": 5,
+          "title": "Implement performance optimizations",
+          "description": "Optimize rendering performance for large transcripts with glassmorphism effects.",
+          "dependencies": [
+            2,
+            3
+          ],
+          "details": "Implement virtualization for long lists, use React.memo for message components, and optimize CSS animations.",
+          "status": "done",
+          "testStrategy": "Perform performance profiling with large datasets and measure render times."
+        },
+        {
+          "id": 6,
+          "title": "Add smooth scrolling and scroll-to-bottom",
+          "description": "Implement smooth scrolling behavior and a scroll-to-bottom functionality for the transcript.",
+          "dependencies": [
+            2,
+            5
+          ],
+          "details": "Use Intersection Observer API for smooth scrolling, add a floating button for quick scroll to bottom.",
+          "status": "done",
+          "testStrategy": "Test scrolling behavior with various user interactions and auto-scrolling scenarios."
+        },
+        {
+          "id": 7,
+          "title": "Implement subtle animations for new messages",
+          "description": "Add subtle animation effects when new messages appear in the transcript.",
+          "dependencies": [
+            3,
+            5
+          ],
+          "details": "Create CSS animations for message entry, ensure animations are performant and don't interfere with scrolling.",
+          "status": "done",
+          "testStrategy": "Verify animation smoothness and test with rapid message additions."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Redesign PerformanceDashboard Component",
+      "description": "Apply glassmorphism effects to the PerformanceDashboard component, enhancing the display of feature summaries.",
+      "details": "1. Refactor PerformanceDashboard.tsx to use GlassBox for the main container\n2. Implement glass card effects for individual feature summaries\n3. Use GlassBox for progress bars or charts\n4. Ensure proper spacing and layout for optimal readability\n5. Implement subtle hover effects for interactive elements\n6. Optimize rendering performance for real-time updates\n7. Ensure consistency with the overall dark theme",
+      "testStrategy": "1. Verify that all feature summaries are displayed correctly\n2. Test interactive elements and hover effects\n3. Check rendering performance with frequent data updates\n4. Ensure the component is responsive and adapts to different screen sizes\n5. Validate that all information is easily readable against the glass background",
+      "priority": "medium",
+      "dependencies": [
+        1,
+        2
+      ],
+      "status": "done",
+      "subtasks": []
+    },
+    {
+      "id": 6,
+      "title": "Refactor Button Components",
+      "description": "Update window-button.tsx and button.tsx components with glassmorphism effects and consistent styling.",
+      "details": "1. Import GlassButton component from @rdev/liquid-glass-react\n2. Refactor window-button.tsx and button.tsx to use GlassButton\n3. Implement consistent hover and active states\n4. Ensure proper contrast for button text\n5. Maintain existing button functionality (e.g., onClick handlers)\n6. Implement loading state with glass effect (if applicable)\n7. Ensure buttons are keyboard accessible",
+      "testStrategy": "1. Verify that all buttons render correctly with glass effects\n2. Test hover, active, and focus states\n3. Ensure buttons are clickable and trigger the correct actions\n4. Check that buttons are keyboard accessible\n5. Validate that buttons maintain their appearance across different operating systems",
+      "priority": "medium",
+      "dependencies": [
+        1,
+        2
+      ],
+      "status": "done",
+      "subtasks": []
+    },
+    {
+      "id": 7,
+      "title": "Enhance window-status.tsx Component",
+      "description": "Apply glassmorphism effects to the window-status.tsx component for session, timer, and status indicators.",
+      "details": "1. Refactor window-status.tsx to use GlassBox for the container\n2. Implement glass effects for individual status indicators\n3. Ensure proper contrast for status text and icons\n4. Implement subtle animations for status changes\n5. Optimize rendering performance for frequent updates\n6. Ensure consistency with the overall dark theme\n7. Maintain existing functionality for status updates",
+      "testStrategy": "1. Verify that all status indicators are displayed correctly\n2. Test status change animations\n3. Check rendering performance with frequent status updates\n4. Ensure the component is responsive and adapts to different screen sizes\n5. Validate that all information is easily readable against the glass background",
+      "priority": "low",
+      "dependencies": [
+        1,
+        2
+      ],
+      "status": "done",
+      "subtasks": []
+    },
+    {
+      "id": 8,
+      "title": "Redesign window-input.tsx Component",
+      "description": "Apply glassmorphism effects to the window-input.tsx component for the AI chat input.",
+      "status": "done",
+      "dependencies": [
+        1,
+        2
+      ],
+      "priority": "medium",
+      "details": "1. Refactor window-input.tsx to use GlassBox for the input container\n2. Implement a glass effect for the input field\n3. Style the send button with a glass effect\n4. Ensure proper contrast for input text\n5. Implement focus and hover states with subtle animations\n6. Maintain existing functionality (e.g., submit on enter, character limit)\n7. Ensure the input is keyboard accessible",
+      "testStrategy": "1. Verify that the input field renders correctly with glass effects\n2. Test focus, hover, and active states\n3. Ensure the input field and send button function correctly\n4. Check that the input is keyboard accessible\n5. Validate that the component maintains its appearance and functionality across different operating systems",
+      "subtasks": [
+        {
+          "id": 8.1,
+          "title": "Create GlassInput component",
+          "description": "Created a new reusable GlassInput component with glassmorphism effects using liquid-glass-react",
+          "status": "completed"
+        },
+        {
+          "id": 8.2,
+          "title": "Refactor WindowInput component",
+          "description": "Refactored WindowInput component to use GlassBox for the input container",
+          "status": "completed"
+        },
+        {
+          "id": 8.3,
+          "title": "Apply glass effects to input field",
+          "description": "Applied glass effects to the input field with proper transparency and blur",
+          "status": "completed"
+        },
+        {
+          "id": 8.4,
+          "title": "Update ChatPage.tsx",
+          "description": "Updated ChatPage.tsx to use the new glass components for AI chat input",
+          "status": "completed"
+        },
+        {
+          "id": 8.5,
+          "title": "Style input and send button",
+          "description": "Styled both the input field and send button with glass effects",
+          "status": "completed"
+        },
+        {
+          "id": 8.6,
+          "title": "Ensure proper text contrast",
+          "description": "Ensured proper contrast for input text using CSS custom properties",
+          "status": "completed"
+        },
+        {
+          "id": 8.7,
+          "title": "Implement focus states",
+          "description": "Implemented focus states with glass effects through GlassBox",
+          "status": "completed"
+        },
+        {
+          "id": 8.8,
+          "title": "Maintain functionality",
+          "description": "Maintained existing functionality including form submission and keyboard accessibility",
+          "status": "completed"
+        },
+        {
+          "id": 8.9,
+          "title": "Use theme variables",
+          "description": "Used theme variables for consistent styling across the application",
+          "status": "completed"
+        },
+        {
+          "id": 8.1,
+          "title": "Implement configurable variants",
+          "description": "Created configurable variants (light, medium, heavy) for the GlassInput component",
+          "status": "completed"
+        },
+        {
+          "id": 8.11,
+          "title": "Add glassmorphism to message bubbles",
+          "description": "Enhanced ChatPage with glassmorphism message bubbles to complement the input area",
+          "status": "completed"
+        },
+        {
+          "id": 9.9,
+          "title": "Fix input visibility issues",
+          "description": "Fixed chat page input visibility issues by updating layout and positioning",
+          "details": "1. Updated ChatPage layout to use sticky bottom positioning for the input form\n2. Added proper backdrop blur and glass effects to the input container\n3. Fixed flex layout in AssistantWindowLayout to prevent content overflow\n4. Added padding bottom to chat area to ensure messages don't get hidden behind input\n5. Made input form always visible with z-index stacking and proper positioning",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 8
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Implement Glass Overlay Effects",
+      "description": "Create and apply glass overlay effects to enhance the overall UI aesthetics.",
+      "details": "1. Create a new GlassOverlay component using @rdev/liquid-glass-react\n2. Implement subtle background patterns or gradients\n3. Apply the overlay to the main application container\n4. Ensure the overlay doesn't interfere with user interactions\n5. Optimize the overlay for performance\n6. Implement a toggle for enabling/disabling the overlay (optional)\n7. Ensure the overlay is consistent across all windows in the Electron app",
+      "testStrategy": "1. Verify that the glass overlay renders correctly\n2. Test that the overlay doesn't impact user interactions\n3. Check performance impact of the overlay\n4. Ensure the overlay is consistent across different screen sizes and resolutions\n5. Validate that the overlay maintains its appearance across different operating systems",
+      "priority": "low",
+      "dependencies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "status": "done",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create Base GlassOverlay Component",
+          "description": "Develop a reusable GlassOverlay component using @rdev/liquid-glass-react that will serve as the foundation for all glass effects in the application.",
+          "dependencies": [],
+          "details": "1. Install @rdev/liquid-glass-react package\n2. Create a new component in src/components/ui/GlassOverlay.tsx\n3. Implement configurable props for blur intensity, opacity, and border radius\n4. Add support for custom background patterns/gradients as props\n5. Ensure the component properly handles children elements\n6. Create basic documentation for the component usage",
+          "status": "done",
+          "testStrategy": "Create unit tests to verify the component renders correctly with different prop configurations and that it properly passes children elements."
+        },
+        {
+          "id": 2,
+          "title": "Implement Background Effects and Patterns",
+          "description": "Create subtle background patterns and gradient effects that will enhance the glass overlay aesthetics and provide visual depth.",
+          "dependencies": [],
+          "details": "1. Design 3-5 subtle background patterns (dots, lines, or noise textures)\n2. Create a gradient generator utility that produces dynamic gradients based on the application theme\n3. Implement a BackgroundEffect component that can be composed with the GlassOverlay\n4. Add animation options for subtle movement in the background patterns\n5. Ensure all effects are optimized for performance",
+          "status": "done",
+          "testStrategy": "Test the performance impact of different patterns and animations. Verify that gradients properly adapt to theme changes."
+        },
+        {
+          "id": 3,
+          "title": "Create Depth Layers System for Visual Hierarchy",
+          "description": "Implement a system of depth layers that uses the glass overlay with varying levels of transparency and blur to create visual hierarchy in the UI.",
+          "dependencies": [],
+          "details": "1. Define 3-4 standard depth layers (foreground, mid-ground, background)\n2. Create a DepthLayer component that extends GlassOverlay with preset configurations for each layer\n3. Implement z-index management for proper stacking\n4. Add subtle shadow effects to enhance depth perception\n5. Create helper hooks or context for managing depth layers consistently across the application",
+          "status": "done",
+          "testStrategy": "Test the visual rendering of multiple overlapping depth layers. Verify that z-index management works correctly in complex UI scenarios."
+        },
+        {
+          "id": 4,
+          "title": "Integrate Glass Effects with Existing UI and Add Toggle Control",
+          "description": "Apply the glass overlay components to the main application container and ensure proper integration with existing glassmorphism components. Implement a toggle control for enabling/disabling effects.",
+          "dependencies": [],
+          "details": "1. Identify all application areas where glass effects should be applied\n2. Refactor existing glassmorphism components to use the new GlassOverlay\n3. Implement a global settings toggle for enabling/disabling glass effects\n4. Add an effects intensity slider in the settings\n5. Create a performance monitoring utility to ensure glass effects don't impact application responsiveness\n6. Ensure consistent appearance across all windows in the Electron app\n7. Add fallback styles for when glass effects are disabled",
+          "status": "done",
+          "testStrategy": "Conduct end-to-end testing across different parts of the application to ensure consistent glass effects. Test the toggle functionality and verify that performance remains stable with effects enabled."
+        },
+        {
+          "id": 5,
+          "title": "Debug Assistant Window Glass Effects",
+          "description": "Investigate and fix why glass effects are not appearing in the Assistant window",
+          "details": "1. Add debugging to AssistantWindowLayout to check glass config state\n2. Increase opacity of background effects for better visibility\n3. Add fallback gradient background when glass effects are enabled\n4. Add visual indicator showing glass effects status\n5. Test glass effects settings synchronization between windows",
+          "status": "in-progress",
+          "dependencies": [],
+          "parentTaskId": 9
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Optimize Glass Rendering Performance",
+      "description": "Ensure that the glassmorphism effects do not negatively impact the application's performance.",
+      "status": "pending",
+      "dependencies": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "priority": "high",
+      "details": "1. Implement React.memo for glass components to prevent unnecessary re-renders\n2. Use CSS containment properties to optimize rendering\n3. Implement virtualization for long lists (e.g., in TranscriptDisplay)\n4. Optimize blur effects using CSS backdrop-filter where possible\n5. Use requestAnimationFrame for smooth animations\n6. Implement lazy loading for off-screen components\n7. Profile and optimize JavaScript execution\n8. Ensure consistent performance across all pages with glassmorphism (SettingsPage, ChatPage, TranscriptsPage, AnalysisPage)",
+      "testStrategy": "1. Conduct performance profiling using Chrome DevTools\n2. Measure and compare FPS before and after optimization\n3. Test scrolling performance in long lists\n4. Verify smooth animations across the application\n5. Conduct performance tests on lower-end devices to ensure acceptable performance\n6. Test performance across all pages with glassmorphism styling",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Component Memoization and Virtualization",
+          "description": "Apply React.memo to glass components and implement virtualization for long lists to prevent unnecessary re-renders and optimize rendering of large data sets.",
+          "dependencies": [],
+          "details": "1. Identify all glass UI components that could benefit from memoization\n2. Apply React.memo with custom comparison functions where needed\n3. Implement react-window or react-virtualized for the TranscriptDisplay component\n4. Create a custom hook for virtualization that works with glass components\n5. Test rendering performance before and after implementation",
+          "status": "done",
+          "testStrategy": "Use React DevTools Profiler to measure render counts and performance. Compare render times before and after optimization with large datasets."
+        },
+        {
+          "id": 2,
+          "title": "Optimize CSS for Glass Effects",
+          "description": "Implement CSS containment properties and optimize blur effects using backdrop-filter to improve rendering performance of glass components.",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Add 'contain: content' or 'contain: layout' to glass components where appropriate\n2. Replace JavaScript-based blur effects with CSS backdrop-filter\n3. Use will-change property judiciously for glass elements that animate\n4. Implement hardware acceleration via transform: translateZ(0) for glass panels\n5. Create a performance-optimized CSS class system for glass effects",
+          "status": "done",
+          "testStrategy": "Measure paint and composite times in Chrome DevTools Performance tab. Compare FPS with and without optimizations."
+        },
+        {
+          "id": 3,
+          "title": "Implement Animation Optimizations",
+          "description": "Use requestAnimationFrame for smooth animations and optimize transitions for glass components to reduce jank and improve perceived performance.",
+          "dependencies": [
+            2
+          ],
+          "details": "1. Replace setTimeout/setInterval with requestAnimationFrame for all animations\n2. Create a utility function for optimized animations on glass components\n3. Implement FLIP (First, Last, Invert, Play) technique for layout animations\n4. Use CSS transforms instead of position/size properties for animations\n5. Batch animation updates to minimize layout thrashing\n6. Focus on optimizing animations across all pages with glassmorphism (SettingsPage, ChatPage, TranscriptsPage, AnalysisPage)",
+          "status": "pending",
+          "testStrategy": "Record and analyze animation performance using Chrome DevTools Performance panel. Test on both high and low-end devices."
+        },
+        {
+          "id": 4,
+          "title": "Implement Memory Management for Glass Components",
+          "description": "Optimize memory usage by implementing lazy loading for off-screen components and proper cleanup of resources to prevent memory leaks.",
+          "dependencies": [
+            3
+          ],
+          "details": "1. Implement React.lazy and Suspense for code-splitting glass components\n2. Create an IntersectionObserver utility to lazy load off-screen glass elements\n3. Implement proper cleanup in useEffect hooks for all glass components\n4. Add a memory management system to dispose of unused resources\n5. Optimize image assets used in glass components with proper sizing and formats\n6. Ensure ThemeToggle component efficiently handles theme synchronization across windows without memory leaks",
+          "status": "pending",
+          "testStrategy": "Monitor memory usage in Chrome DevTools Memory panel. Create automated tests that simulate scrolling and navigation to verify lazy loading works correctly."
+        },
+        {
+          "id": 5,
+          "title": "Implement Performance Monitoring System",
+          "description": "Create a performance monitoring system to track and analyze the performance of glass components in production.",
+          "dependencies": [
+            4
+          ],
+          "details": "1. Implement custom performance marks and measures using the Performance API\n2. Create a dashboard to visualize performance metrics for glass components\n3. Set up automated performance regression testing\n4. Implement user-centric performance metrics (FCP, LCP, CLS) for glass UI\n5. Create a feedback mechanism to collect performance data from production\n6. Include specific metrics for each page type (SettingsPage, ChatPage, TranscriptsPage, AnalysisPage)",
+          "status": "pending",
+          "testStrategy": "Set up Lighthouse CI for automated performance testing. Create a test suite that specifically measures glass component performance metrics."
+        },
+        {
+          "id": 6,
+          "title": "Optimize Page-Specific Glass Effects",
+          "description": "Optimize the glassmorphism effects on each specific page to ensure consistent performance across the application.",
+          "dependencies": [
+            2
+          ],
+          "details": "1. Profile and optimize SettingsPage glassmorphism backgrounds for all settings sections\n2. Optimize ChatPage glassmorphism container while preserving existing styling\n3. Optimize TranscriptsPage glassmorphism background with focus on list rendering performance\n4. Optimize AnalysisPage glassmorphism background with focus on data visualization performance\n5. Implement shared optimization techniques across all pages to maintain consistency",
+          "status": "pending",
+          "testStrategy": "Create page-specific performance benchmarks. Compare rendering times and FPS across all pages. Ensure consistent performance regardless of content complexity."
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Ensure Accessibility Compliance",
+      "description": "Verify and enhance accessibility features to maintain WCAG 2.1 AA compliance with the new glass UI.",
+      "details": "1. Ensure proper color contrast ratios for all text elements\n2. Verify that all interactive elements are keyboard accessible\n3. Implement proper ARIA labels and roles for glass components\n4. Test and adjust focus management for glass overlays\n5. Ensure screen reader compatibility with the new UI\n6. Implement skip-to-content functionality\n7. Verify that the glass effects don't impair text readability",
+      "testStrategy": "1. Use accessibility audit tools (e.g., axe-core, WAVE)\n2. Conduct manual keyboard navigation testing\n3. Test with screen readers (e.g., NVDA, VoiceOver)\n4. Verify color contrast using tools like WebAIM's Contrast Checker\n5. Conduct user testing with individuals who have various disabilities",
+      "priority": "high",
+      "dependencies": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 12,
+      "title": "Integration Testing and Final Adjustments",
+      "description": "Conduct comprehensive integration testing and make final adjustments to ensure seamless functionality across the entire application, building on the critical fixes that have restored application functionality.",
+      "status": "pending",
+      "dependencies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "priority": "high",
+      "details": "1. Test the entire application flow with the restored glass UI implementation\n2. Verify that all IPC communication is preserved and functioning correctly, especially for theme synchronization\n3. Test multi-window functionality in the Electron environment with both Main and Assistant windows\n4. Ensure consistent styling and behavior across all components with the fixed CSS implementation\n5. Verify that all existing features work as expected with the restored UI components\n6. Conduct cross-platform testing (Windows, macOS, Linux)\n7. Make final adjustments to glass effects, animations, and layout as needed\n8. Verify proper functioning of BackgroundEffect and DepthLayer components",
+      "testStrategy": "1. Create and execute a comprehensive test plan covering all application features\n2. Conduct end-to-end testing of critical user flows\n3. Test on multiple platforms and screen sizes\n4. Perform regression testing to ensure no existing functionality is broken\n5. Conduct user acceptance testing with a group of beta testers\n6. Specifically test theme switching and synchronization between windows",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Comprehensive Application Flow Testing",
+          "description": "Test the entire application flow with the restored glass UI, ensuring all features work as expected.",
+          "dependencies": [],
+          "details": "Systematically test each feature and user flow in the application, paying special attention to the integration with the restored glass UI components. Verify both Main and Assistant windows are functioning properly. Document any inconsistencies or issues encountered.",
+          "status": "pending",
+          "testStrategy": "Create a test plan covering all major user flows and execute it manually and with automated tests where possible."
+        },
+        {
+          "id": 2,
+          "title": "IPC Communication Verification",
+          "description": "Verify that all IPC communication is preserved and functioning correctly in the updated application, especially for theme synchronization.",
+          "dependencies": [
+            1
+          ],
+          "details": "Review and test all instances of IPC communication between the main process and renderer processes. Ensure that data is being passed correctly and that all expected interactions are working. Pay special attention to theme switching and synchronization between windows.",
+          "status": "pending",
+          "testStrategy": "Develop and run unit tests for IPC methods, and perform manual testing of IPC-dependent features."
+        },
+        {
+          "id": 3,
+          "title": "Multi-window Functionality Testing",
+          "description": "Test multi-window functionality in the Electron environment with the restored UI implementation.",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Test scenarios involving both Main window (window-id=main-1750171619047) and Assistant window (window-id=assistant-1750171638308). Verify proper window creation, communication between windows, and state management across windows.",
+          "status": "pending",
+          "testStrategy": "Develop automated tests for multi-window scenarios and conduct manual testing to verify user experience."
+        },
+        {
+          "id": 4,
+          "title": "Cross-platform Compatibility Testing",
+          "description": "Conduct thorough testing on Windows, macOS, and Linux to ensure consistent functionality and appearance.",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "Set up testing environments for each supported platform. Run through the full test suite on each platform, noting any platform-specific issues or inconsistencies. Verify that the CSS-based glass effects render properly across all platforms.",
+          "status": "pending",
+          "testStrategy": "Use virtual machines or dedicated hardware for each platform to run the full test suite and perform manual verification."
+        },
+        {
+          "id": 5,
+          "title": "UI Polish and Final Adjustments",
+          "description": "Make final adjustments to glass effects, animations, layout, and overall styling to ensure a polished user interface.",
+          "dependencies": [
+            4
+          ],
+          "details": "Review the application on all platforms, making necessary adjustments to ensure consistent styling, smooth animations, and proper implementation of glass effects. Verify that BackgroundEffect.tsx and DepthLayer.tsx components are working as expected. Test all glass variants (light, medium, heavy) to ensure proper styling.",
+          "status": "pending",
+          "testStrategy": "Conduct a series of design reviews and user testing sessions to gather feedback on the UI polish."
+        },
+        {
+          "id": 6,
+          "title": "Performance Optimization and Final Validation",
+          "description": "Optimize application performance and conduct a final round of validation testing.",
+          "dependencies": [
+            5
+          ],
+          "details": "Profile the application to identify and address any performance bottlenecks. Conduct a final round of testing to ensure all adjustments have not introduced new issues and that the application meets all requirements. Verify that the CSS-based glassmorphism implementation performs well across different devices.",
+          "status": "pending",
+          "testStrategy": "Use performance profiling tools, conduct stress tests, and perform a final full regression test suite."
+        },
+        {
+          "id": 7,
+          "title": "Theme System Verification",
+          "description": "Verify that the theme system is working correctly across the application.",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Test theme switching functionality and verify that CSS variables are properly applied for both light and dark themes. Ensure that theme changes are properly synchronized between Main and Assistant windows through IPC communication.",
+          "status": "pending",
+          "testStrategy": "Create test cases for theme switching and synchronization. Perform visual inspection of UI elements in both themes."
+        },
+        {
+          "id": 8,
+          "title": "Glass Components Verification",
+          "description": "Verify that all glass components are displaying correctly with the CSS-based implementation.",
+          "dependencies": [
+            1
+          ],
+          "details": "Test GlassBox components with all variants (light, medium, heavy) to ensure proper styling. Verify that BackgroundEffect and DepthLayer components are working as expected for proper z-index layering and glassmorphism effects.",
+          "status": "done",
+          "testStrategy": "Create a visual test suite for glass components and perform manual verification across different screen sizes and platforms."
+        },
+        {
+          "id": 9,
+          "title": "Optimize Assistant Window Color Palette and Gradients",
+          "description": "Improve color palette, gradients, and glass effect opacity in the Assistant window for better glassmorphism appearance and readability.",
+          "details": "- Enhanced background gradients with better contrast and depth\n- Increased glass effect opacity from 0.08/0.12/0.16 to 0.12/0.18/0.25\n- Improved glass border opacity from 0.1 to 0.15/0.18\n- Added gradient overlays with blue, purple, and green accent colors\n- Enhanced header and footer styling with better shadows and inset highlights\n- Improved message bubbles and input styling in ChatPage\n- Enhanced transcript cards in TranscriptsPage with better spacing and typography\n- Removed debug overlays and status indicators\n- Updated sidebar styling with better spacing and hover effects",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 12
+        },
+        {
+          "id": 10,
+          "title": "Fix Light Theme Colors in Assistant Window",
+          "description": "Fix light theme styling and color palette for the Assistant window to ensure proper glassmorphism appearance in both light and dark modes.",
+          "details": "- Updated light theme glass variables to use white overlays instead of black (0.65, 0.75, 0.85 opacity)\n- Made Assistant window background gradients theme-aware with separate light and dark styles\n- Created theme-aware overlay gradients with appropriate colors for each mode\n- Updated glass border and shadow variables for better light theme contrast\n- Added theme detection using useTheme hook in AssistantWindowLayout\n- Implemented conditional styling based on theme mode (isDark variable)\n- Light theme now uses proper light gradients with slate/gray colors\n- Dark theme retains the enhanced dark gradients with blue/purple/green accents",
+          "status": "done",
+          "dependencies": [],
+          "parentTaskId": 12
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "created": "2025-06-16T20:45:07.251Z",
+    "updated": "2025-06-17T16:18:10.231Z",
+    "description": "Tasks for master context"
+  }
+}

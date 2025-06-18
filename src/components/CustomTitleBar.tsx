@@ -39,30 +39,26 @@ const CustomTitleBar: React.FC = () => {
     broadcast('transcription-result', result)
   }
 
-  const handleToggleAssistant = async () => {
-    console.log('Ask AI button clicked - toggling assistant window, keeping focus on main')
+  const handleToggleAssistant = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
 
     if (assistantWindow.isWindowOpen && assistantWindow.isWindowVisible) {
-      console.log('Assistant window is visible, hiding it')
       assistantWindow.hideWindow()
     } else if (assistantWindow.isWindowOpen) {
-      console.log('Assistant window exists but hidden, showing it without focus')
       assistantWindow.showWindow()
 
       // Keep focus on main window after showing assistant
       setTimeout(() => {
-        console.log('Refocusing main window after showing assistant')
         if (windowState.windowId && window.electronWindow?.focusWindow) {
           window.electronWindow.focusWindow(windowState.windowId)
         }
       }, 100)
     } else {
-      console.log('Assistant window does not exist, creating it without focus')
       await assistantWindow.openWindow()
 
       // Keep focus on main window after creating assistant
       setTimeout(() => {
-        console.log('Refocusing main window after creating assistant')
         if (windowState.windowId && window.electronWindow?.focusWindow) {
           window.electronWindow.focusWindow(windowState.windowId)
         }
@@ -70,7 +66,9 @@ const CustomTitleBar: React.FC = () => {
     }
   }
 
-  const handleToggleBothWindows = async () => {
+  const handleToggleBothWindows = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     console.log('Show/Hide button clicked - toggling both windows together')
 
     // Check if main window is currently visible
@@ -87,7 +85,6 @@ const CustomTitleBar: React.FC = () => {
         window.electronWindow.minimize()
       }
     } else {
-      console.log('Main window is hidden, showing both windows')
       // Restore main window first
       if (windowState.windowId && window.electronWindow?.showWindow) {
         window.electronWindow.showWindow(windowState.windowId)
@@ -107,7 +104,9 @@ const CustomTitleBar: React.FC = () => {
     }
   }
 
-  const handleSettings = () => {
+  const handleSettings = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     assistantWindow.openWindow()
     // Send message to set AssistantWindow to Settings tab
     setTimeout(() => {
@@ -126,6 +125,9 @@ const CustomTitleBar: React.FC = () => {
       if (!target.closest('.app-region-no-drag')) {
         // Ensure the drag region is active
         ;(titleBar.style as unknown as {webkitAppRegion: string}).webkitAppRegion = 'drag'
+      } else {
+        // Prevent dragging on interactive elements
+        e.stopPropagation()
       }
     }
 
@@ -146,59 +148,143 @@ const CustomTitleBar: React.FC = () => {
   return (
     <div
       ref={titleBarRef}
-      className="app-region-drag flex h-10 items-center gap-3 rounded-t-lg bg-[#f6faff] px-4 shadow-sm select-none"
-      style={{WebkitAppRegion: 'drag'} as React.CSSProperties}
+      className="app-region-drag flex w-full items-center overflow-hidden px-4 select-none"
+      style={
+        {
+          WebkitAppRegion: 'drag',
+          background: 'var(--glass-medium)',
+          border: '1px solid var(--glass-border)',
+          boxShadow: '0 2px 8px var(--glass-shadow)',
+          borderRadius: '8px',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          height: '60px',
+          minHeight: '60px',
+          maxHeight: '60px',
+          position: 'relative',
+          zIndex: 1
+        } as React.CSSProperties
+      }
     >
-      <RecordingControls onTranscription={handleTranscription} />
+      {/* Left side - Recording controls */}
+      <div
+        className="app-region-no-drag flex h-full items-center"
+        style={
+          {WebkitAppRegion: 'no-drag', zIndex: 20, position: 'relative'} as React.CSSProperties
+        }
+      >
+        <RecordingControls onTranscription={handleTranscription} />
+      </div>
 
-      <ToggleTheme />
-      <PerformanceDashboard compact />
+      {/* Spacer */}
       <div className="flex-1"></div>
-      <button
-        onClick={handleToggleAssistant}
-        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
-        title="Toggle Assistant Visibility (focus stays on main)"
+
+      {/* Right side - Controls */}
+      <div
+        className="app-region-no-drag flex h-full items-center gap-2"
+        style={
+          {WebkitAppRegion: 'no-drag', zIndex: 20, position: 'relative'} as React.CSSProperties
+        }
       >
-        {assistantWindow.isWindowVisible ? 'Hide AI' : 'Ask AI'}
-      </button>
-      <span
-        className="shortcut app-region-no-drag mx-1 text-xs text-slate-400"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
-      >
-        {navigator.platform.toUpperCase().includes('MAC') ? '⌘↵' : 'Ctrl+↵'}
-      </span>
-      <button
-        onClick={handleToggleBothWindows}
-        className="app-region-no-drag flex items-center rounded border-none bg-none px-2 py-1 text-slate-700 hover:bg-slate-100"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
-        title="Toggle Both Windows Together"
-      >
-        {windowState.isVisible ? 'Hide' : 'Show'}
-      </button>
-      <span
-        className="shortcut app-region-no-drag mx-1 text-xs text-slate-400"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
-      >
-        {navigator.platform.toUpperCase().includes('MAC') ? '⌘\\' : 'Ctrl+\\'}
-      </span>
-      <button
-        onClick={handleSettings}
-        className="settings-btn app-region-no-drag ml-2 rounded border-none bg-none p-1 hover:bg-slate-100"
-        style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
-        title="Settings"
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 18 18"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
+        <ToggleTheme />
+        <PerformanceDashboard compact />
+
+        <button
+          onClick={handleToggleAssistant}
+          title="Ask AI"
+          className="app-region-no-drag h-10 rounded-lg px-4 text-sm transition-all duration-200 hover:scale-105 active:scale-95"
+          style={
+            {
+              WebkitAppRegion: 'no-drag',
+              background: 'var(--glass-light)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              zIndex: 10,
+              cursor: 'pointer',
+              pointerEvents: 'auto'
+            } as React.CSSProperties
+          }
         >
-          <circle cx="9" cy="9" r="8" stroke="#cbd5e1" strokeWidth="2" />
-          <circle cx="9" cy="9" r="2" fill="#cbd5e1" />
-        </svg>
-      </button>
+          Ask AI
+        </button>
+
+        <span
+          className="mx-1 text-xs opacity-60"
+          style={
+            {
+              color: 'var(--text-muted)',
+              WebkitAppRegion: 'no-drag'
+            } as React.CSSProperties
+          }
+        >
+          {navigator.platform.toUpperCase().includes('MAC') ? '⌘↵' : 'Ctrl+↵'}
+        </span>
+
+        <button
+          onClick={handleToggleBothWindows}
+          title="Show/Hide"
+          className="app-region-no-drag h-10 rounded-lg px-4 text-sm transition-all duration-200 hover:scale-105 active:scale-95"
+          style={
+            {
+              WebkitAppRegion: 'no-drag',
+              background: 'var(--glass-light)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              zIndex: 10,
+              cursor: 'pointer',
+              pointerEvents: 'auto'
+            } as React.CSSProperties
+          }
+        >
+          {windowState.isVisible ? 'Hide' : 'Show'}
+        </button>
+
+        <span
+          className="mx-1 text-xs opacity-60"
+          style={
+            {
+              color: 'var(--text-muted)',
+              WebkitAppRegion: 'no-drag'
+            } as React.CSSProperties
+          }
+        >
+          {navigator.platform.toUpperCase().includes('MAC') ? '⌘\\' : 'Ctrl+\\'}
+        </span>
+
+        <button
+          onClick={handleSettings}
+          title="Settings"
+          className="app-region-no-drag flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+          style={
+            {
+              WebkitAppRegion: 'no-drag',
+              background: 'var(--glass-light)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              zIndex: 10,
+              cursor: 'pointer',
+              pointerEvents: 'auto'
+            } as React.CSSProperties
+          }
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 18 18"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <circle cx="9" cy="9" r="8" stroke="currentColor" strokeWidth="2" />
+            <circle cx="9" cy="9" r="2" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }

@@ -100,8 +100,6 @@ export const FocusManager: React.FC<FocusManagerProps> = ({
   const handleFocusBothWindows = () => {
     if (!focusBoth) return
 
-    console.log('handleFocusBothWindows called - being conservative')
-
     // Focus current window first
     if (containerRef.current) {
       const focusableElement = getFocusableElements(containerRef.current)[0]
@@ -118,7 +116,6 @@ export const FocusManager: React.FC<FocusManagerProps> = ({
         window.electronWindow.getAllWindows().then((windows: WindowInfo[]) => {
           const assistantWindow = windows.find(w => w.type === 'assistant' && w.isVisible)
           if (assistantWindow && window.electronWindow?.focusWindow) {
-            console.log('Also focusing assistant window')
             setTimeout(() => {
               window.electronWindow.focusWindow(assistantWindow.windowId)
             }, 150) // Slight delay to allow main window to focus first

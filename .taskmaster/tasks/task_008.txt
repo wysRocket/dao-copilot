@@ -1,0 +1,21 @@
+# Task ID: 8
+# Title: Redesign window-input.tsx Component
+# Status: pending
+# Dependencies: 1, 2
+# Priority: medium
+# Description: Apply glassmorphism effects to the window-input.tsx component for the AI chat input.
+# Details:
+1. Refactor window-input.tsx to use GlassBox for the input container
+2. Implement a glass effect for the input field
+3. Style the send button with a glass effect
+4. Ensure proper contrast for input text
+5. Implement focus and hover states with subtle animations
+6. Maintain existing functionality (e.g., submit on enter, character limit)
+7. Ensure the input is keyboard accessible
+
+# Test Strategy:
+1. Verify that the input field renders correctly with glass effects
+2. Test focus, hover, and active states
+3. Ensure the input field and send button function correctly
+4. Check that the input is keyboard accessible
+5. Validate that the component maintains its appearance and functionality across different operating systems

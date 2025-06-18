@@ -1,12 +1,15 @@
 import React, {useEffect} from 'react'
 import {useWindowState} from '../contexts/WindowStateProvider'
 import {useTranscriptionState, useWindowCommunication} from '../hooks/useSharedState'
+import {useGlassEffects} from '../contexts/GlassEffectsProvider'
+import {useTheme} from '../contexts/ThemeProvider'
 import {
   AssistantNavigationProvider,
   useAssistantNavigation
 } from '../contexts/AssistantNavigationContext'
 import {WindowButton} from '../components/ui/window-button'
 import {WindowStatus} from '../components/ui/window-status'
+import {BackgroundEffect} from '../components/ui/BackgroundEffect'
 
 // Import page components
 import ChatPage from '../pages/assistant/ChatPage'
@@ -24,6 +27,8 @@ function AssistantContent() {
   const {windowState, updateLocalState} = useWindowState()
   const {transcripts} = useTranscriptionState()
   const {sendToWindow, onMessage} = useWindowCommunication()
+  const {config: glassConfig} = useGlassEffects()
+  const {mode: themeMode} = useTheme()
 
   // Listen for navigation messages from other windows
   useEffect(() => {
@@ -57,10 +62,27 @@ function AssistantContent() {
 
   // Assistant-specific header with transcription status
   const AssistantHeader = () => (
-    <div className="bg-card flex items-center justify-between border-b px-4 py-2">
-      <div className="flex items-center space-x-2">
-        <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-        <span className="text-sm font-medium">AI Assistant</span>
+    <div
+      className="flex items-center justify-between px-4 py-3"
+      style={{
+        background: 'var(--glass-heavy)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid var(--glass-border)',
+        boxShadow: '0 2px 12px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+      }}
+    >
+      <div className="flex items-center space-x-3">
+        <div
+          className="h-2 w-2 rounded-full"
+          style={{
+            background: 'linear-gradient(45deg, #60a5fa, #3b82f6)',
+            boxShadow: '0 0 8px rgba(96, 165, 250, 0.5)'
+          }}
+        ></div>
+        <span className="text-sm font-semibold" style={{color: 'var(--text-primary)'}}>
+          AI Assistant
+        </span>
       </div>
 
       <div className="flex items-center space-x-4">
@@ -73,9 +95,9 @@ function AssistantContent() {
             size="icon-sm"
             onClick={() => sendToWindow('main', 'focus-transcription')}
             title="Focus main window"
-            className="h-6 w-6"
+            className="h-7 w-7"
           >
-            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -90,9 +112,9 @@ function AssistantContent() {
             size="icon-sm"
             onClick={() => updateLocalState('sidebarOpen', !windowState.localState.sidebarOpen)}
             title="Toggle sidebar"
-            className="h-6 w-6"
+            className="h-7 w-7"
           >
-            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -108,7 +130,16 @@ function AssistantContent() {
 
   // Assistant-specific footer with tab navigation
   const AssistantFooter = () => (
-    <div className="bg-card flex items-center justify-between border-t px-4 py-2">
+    <div
+      className="flex items-center justify-between px-4 py-3"
+      style={{
+        background: 'var(--glass-heavy)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderTop: '1px solid var(--glass-border)',
+        boxShadow: '0 -2px 12px var(--glass-shadow), inset 0 -1px 0 rgba(255, 255, 255, 0.1)'
+      }}
+    >
       <WindowStatus
         showWindowInfo
         showConnectionStatus={false}
@@ -117,11 +148,12 @@ function AssistantContent() {
         compact
       />
 
-      <div className="flex space-x-1">
+      <div className="flex space-x-2">
         <WindowButton
           variant={currentTab === 'chat' ? 'default' : 'ghost'}
           size="compact"
           onClick={() => navigateToTab('chat')}
+          className="transition-all duration-200"
         >
           💬 Chat
         </WindowButton>
@@ -129,6 +161,7 @@ function AssistantContent() {
           variant={currentTab === 'transcripts' ? 'default' : 'ghost'}
           size="compact"
           onClick={() => navigateToTab('transcripts')}
+          className="transition-all duration-200"
         >
           📝 Transcripts
         </WindowButton>
@@ -136,6 +169,7 @@ function AssistantContent() {
           variant={currentTab === 'analysis' ? 'default' : 'ghost'}
           size="compact"
           onClick={() => navigateToTab('analysis')}
+          className="transition-all duration-200"
         >
           📊 Analysis
         </WindowButton>
@@ -143,6 +177,7 @@ function AssistantContent() {
           variant={currentTab === 'settings' ? 'default' : 'ghost'}
           size="compact"
           onClick={() => navigateToTab('settings')}
+          className="transition-all duration-200"
         >
           ⚙️ Settings
         </WindowButton>
@@ -150,26 +185,114 @@ function AssistantContent() {
     </div>
   )
 
-  return (
-    <>
-      <AssistantHeader />
+  const isDark = themeMode === 'dark'
 
-      <div className="flex flex-1 overflow-hidden">
+  // Theme-aware background gradients
+  const getBackgroundStyle = () => {
+    if (!glassConfig.enabled || !glassConfig.backgroundEffects) {
+      return 'var(--bg-primary)'
+    }
+
+    if (isDark) {
+      return 'linear-gradient(135deg, rgba(15, 20, 25, 0.95) 0%, rgba(26, 26, 26, 0.98) 25%, rgba(30, 35, 40, 0.96) 50%, rgba(26, 26, 26, 0.98) 75%, rgba(15, 20, 25, 0.95) 100%)'
+    } else {
+      return 'linear-gradient(135deg, rgba(248, 250, 252, 0.95) 0%, rgba(241, 245, 249, 0.98) 25%, rgba(226, 232, 240, 0.96) 50%, rgba(241, 245, 249, 0.98) 75%, rgba(248, 250, 252, 0.95) 100%)'
+    }
+  }
+
+  // Theme-aware overlay gradients
+  const getOverlayStyle = () => {
+    if (isDark) {
+      return `
+        radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.12) 0%, transparent 35%),
+        radial-gradient(circle at 80% 70%, rgba(168, 85, 247, 0.10) 0%, transparent 35%),
+        radial-gradient(circle at 40% 80%, rgba(34, 197, 94, 0.08) 0%, transparent 35%),
+        linear-gradient(135deg, rgba(15, 23, 42, 0.3) 0%, rgba(30, 41, 59, 0.2) 50%, rgba(15, 23, 42, 0.3) 100%)
+      `
+    } else {
+      return `
+        radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.08) 0%, transparent 35%),
+        radial-gradient(circle at 80% 70%, rgba(168, 85, 247, 0.06) 0%, transparent 35%),
+        radial-gradient(circle at 40% 80%, rgba(34, 197, 94, 0.05) 0%, transparent 35%),
+        linear-gradient(135deg, rgba(248, 250, 252, 0.4) 0%, rgba(226, 232, 240, 0.3) 50%, rgba(248, 250, 252, 0.4) 100%)
+      `
+    }
+  }
+
+  return (
+    <div
+      className="relative flex h-full flex-col"
+      style={{
+        background: getBackgroundStyle(),
+        color: 'var(--text-primary)',
+        minHeight: '100vh'
+      }}
+    >
+      {/* Background Effects */}
+      {glassConfig.enabled && glassConfig.backgroundEffects && (
+        <>
+          <BackgroundEffect
+            type="mesh"
+            intensity="vibrant"
+            animated={true}
+            className="absolute inset-0"
+          />
+          {/* Theme-aware gradient overlay */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: getOverlayStyle(),
+              opacity: isDark ? 0.6 : 0.4
+            }}
+          />
+        </>
+      )}
+
+      <div className="relative z-10">
+        <AssistantHeader />
+      </div>
+
+      <div className="relative z-10 flex flex-1 overflow-hidden">
         {/* Sidebar */}
         {windowState.localState.sidebarOpen && (
-          <div className="bg-card/50 w-48 border-r p-3">
-            <div className="space-y-2">
-              <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          <div
+            className="w-52 p-4"
+            style={{
+              background: 'var(--glass-medium)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              borderRight: '1px solid var(--glass-border)',
+              boxShadow: '2px 0 12px var(--glass-shadow)'
+            }}
+          >
+            <div className="space-y-4">
+              <div
+                className="text-xs font-semibold tracking-wider uppercase"
+                style={{color: 'var(--text-accent)'}}
+              >
                 Recent Topics
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {transcripts.slice(-5).map(transcript => (
                   <div
                     key={transcript.id}
-                    className="hover:bg-accent cursor-pointer rounded p-2 text-xs"
+                    className="cursor-pointer rounded-lg p-3 text-xs transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
+                    style={{
+                      background: 'var(--glass-light)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)',
+                      border: '1px solid var(--glass-border)',
+                      color: 'var(--text-primary)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+                    }}
                     onClick={() => updateLocalState('selectedItems', [transcript.id])}
                   >
-                    {transcript.text.slice(0, 30)}...
+                    <div className="mb-1 truncate font-medium">
+                      {transcript.text.slice(0, 35)}...
+                    </div>
+                    <div className="text-xs opacity-70" style={{color: 'var(--text-muted)'}}>
+                      Recent
+                    </div>
                   </div>
                 ))}
               </div>
@@ -178,11 +301,13 @@ function AssistantContent() {
         )}
 
         {/* Main content area */}
-        <div className="flex-1 overflow-auto">{renderCurrentPage()}</div>
+        <div className="flex min-h-0 flex-1 flex-col">{renderCurrentPage()}</div>
       </div>
 
-      <AssistantFooter />
-    </>
+      <div className="relative z-10">
+        <AssistantFooter />
+      </div>
+    </div>
   )
 }
 
