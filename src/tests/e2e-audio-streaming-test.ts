@@ -1,12 +1,15 @@
 /**
  * End-to-End Audio Streaming Pipeline Demo
- * 
+ *
  * Demonstrates the complete audio streaming pipeline integration
  * for testing and validation purposes.
  */
 
-import { AudioStreamingPipeline, createAudioStreamingPipeline } from '../services/audio-streaming-pipeline'
-import type { AudioPipelineConfig } from '../services/audio-streaming-pipeline'
+import {
+  AudioStreamingPipeline,
+  createAudioStreamingPipeline
+} from '../services/audio-streaming-pipeline'
+import type {AudioPipelineConfig} from '../services/audio-streaming-pipeline'
 
 // Performance monitoring utility
 class PerformanceMonitor {
@@ -40,7 +43,7 @@ class PerformanceMonitor {
     this.metrics.totalBytes += size
     this.metrics.totalLatency += latency
     this.metrics.averageLatency = this.metrics.totalLatency / this.metrics.totalChunks
-    
+
     const elapsedSeconds = (Date.now() - this.startTime) / 1000
     this.metrics.bytesPerSecond = this.metrics.totalBytes / elapsedSeconds
   }
@@ -50,7 +53,7 @@ class PerformanceMonitor {
   }
 
   getMetrics() {
-    return { ...this.metrics }
+    return {...this.metrics}
   }
 
   reset(): void {
@@ -131,10 +134,9 @@ export class AudioStreamingE2ETest {
       await this.testStreamingPerformance()
       await this.testErrorHandling()
       await this.testResourceCleanup()
-      
+
       this.testResults.success = true
       console.log('✅ All tests completed successfully!')
-      
     } catch (error) {
       this.testResults.success = false
       this.testResults.errors.push(`Test failed: ${error}`)
@@ -152,7 +154,7 @@ export class AudioStreamingE2ETest {
    */
   private async testInitialization(): Promise<void> {
     console.log('\n🔧 Testing Pipeline Initialization...')
-    
+
     const pipelineConfig: AudioPipelineConfig = {
       websocket: {
         apiKey: this.config.apiKey,
@@ -173,24 +175,24 @@ export class AudioStreamingE2ETest {
     }
 
     this.pipeline = createAudioStreamingPipeline(pipelineConfig)
-    
+
     // Test initialization
     const initStart = Date.now()
     await this.pipeline.initialize()
     const initTime = Date.now() - initStart
-    
+
     console.log(`✅ Pipeline initialized in ${initTime}ms`)
-    
+
     // Verify initial state
     if (this.pipeline.isStreamingActive()) {
       throw new Error('Pipeline should not be active after initialization')
     }
-    
+
     const metrics = this.pipeline.getMetrics()
     if (metrics.isActive || metrics.chunksProcessed !== 0) {
       throw new Error('Initial metrics should show inactive state')
     }
-    
+
     console.log('✅ Initial state verification passed')
   }
 
@@ -199,41 +201,41 @@ export class AudioStreamingE2ETest {
    */
   private async testStreamingPerformance(): Promise<void> {
     if (!this.pipeline) throw new Error('Pipeline not initialized')
-    
+
     console.log('\n📊 Testing Streaming Performance...')
-    
+
     // Set up event monitoring
     this.setupEventMonitoring()
-    
+
     // Start performance monitoring
     this.monitor.start()
     this.isRunning = true
-    
+
     // Start streaming
     const streamStart = Date.now()
     await this.pipeline.startStreaming()
     const streamStartTime = Date.now() - streamStart
-    
+
     console.log(`✅ Streaming started in ${streamStartTime}ms`)
     console.log(`📡 Running performance test for ${this.config.duration}s...`)
-    
+
     // Run for specified duration
     await this.waitForDuration(this.config.duration * 1000)
-    
+
     // Stop streaming
     await this.pipeline.stopStreaming()
     this.isRunning = false
-    
+
     // Analyze performance
     const pipelineMetrics = this.pipeline.getMetrics()
     const monitorMetrics = this.monitor.getMetrics()
-    
+
     console.log(this.monitor.generateReport())
     console.log('Pipeline Metrics:', pipelineMetrics)
-    
+
     // Validate performance thresholds
     this.validatePerformance(monitorMetrics, pipelineMetrics)
-    
+
     this.testResults.metrics = {
       monitor: monitorMetrics,
       pipeline: pipelineMetrics
@@ -245,32 +247,32 @@ export class AudioStreamingE2ETest {
    */
   private async testErrorHandling(): Promise<void> {
     if (!this.pipeline) throw new Error('Pipeline not initialized')
-    
+
     console.log('\n🛡️ Testing Error Handling...')
-    
+
     // Test multiple start calls
     await this.pipeline.startStreaming()
     await this.pipeline.startStreaming() // Should not cause issues
-    
+
     // Test multiple stop calls
     await this.pipeline.stopStreaming()
     await this.pipeline.stopStreaming() // Should not cause issues
-    
+
     console.log('✅ Multiple start/stop calls handled correctly')
-    
+
     // Test error recovery (simulated)
     let errorEmitted = false
     this.pipeline.once('error', () => {
       errorEmitted = true
     })
-    
+
     // Simulate processing error by emitting an error
     this.pipeline.emit('error', new Error('Simulated error'))
-    
+
     if (!errorEmitted) {
       throw new Error('Error event should have been emitted')
     }
-    
+
     console.log('✅ Error handling verification passed')
   }
 
@@ -279,20 +281,20 @@ export class AudioStreamingE2ETest {
    */
   private async testResourceCleanup(): Promise<void> {
     if (!this.pipeline) throw new Error('Pipeline not initialized')
-    
+
     console.log('\n🧹 Testing Resource Cleanup...')
-    
+
     let cleanedEmitted = false
     this.pipeline.once('cleaned', () => {
       cleanedEmitted = true
     })
-    
+
     await this.pipeline.cleanup()
-    
+
     if (!cleanedEmitted) {
       throw new Error('Cleaned event should have been emitted')
     }
-    
+
     console.log('✅ Resource cleanup completed successfully')
   }
 
@@ -301,33 +303,33 @@ export class AudioStreamingE2ETest {
    */
   private setupEventMonitoring(): void {
     if (!this.pipeline) return
-    
+
     this.pipeline.on('initialized', () => {
       if (this.config.enableLogging) {
         console.log('📡 Pipeline initialized')
       }
     })
-    
+
     this.pipeline.on('streamingStarted', () => {
       if (this.config.enableLogging) {
         console.log('🎵 Streaming started')
       }
     })
-    
+
     this.pipeline.on('streamingStopped', () => {
       if (this.config.enableLogging) {
         console.log('⏹️ Streaming stopped')
       }
     })
-    
-    this.pipeline.on('chunkProcessed', (data) => {
+
+    this.pipeline.on('chunkProcessed', data => {
       this.monitor.recordChunk(data.size, data.latency)
       if (this.config.enableLogging) {
         console.log(`📦 Chunk processed: ${data.size} bytes, ${data.latency}ms latency`)
       }
     })
-    
-    this.pipeline.on('error', (error) => {
+
+    this.pipeline.on('error', error => {
       this.monitor.recordError()
       this.testResults.errors.push(error.message)
       if (this.config.enableLogging) {
@@ -339,23 +341,32 @@ export class AudioStreamingE2ETest {
   /**
    * Validate performance against thresholds
    */
-  private validatePerformance(monitorMetrics: ReturnType<PerformanceMonitor['getMetrics']>, pipelineMetrics: any): void {
+  private validatePerformance(
+    monitorMetrics: ReturnType<PerformanceMonitor['getMetrics']>,
+    pipelineMetrics: any
+  ): void {
     console.log('\n🎯 Validating Performance Thresholds...')
-    
+
     // Latency threshold: should be under 100ms average
     if (monitorMetrics.averageLatency > 100) {
-      console.warn(`⚠️ High latency detected: ${monitorMetrics.averageLatency}ms (threshold: 100ms)`)
+      console.warn(
+        `⚠️ High latency detected: ${monitorMetrics.averageLatency}ms (threshold: 100ms)`
+      )
     } else {
       console.log(`✅ Latency within threshold: ${monitorMetrics.averageLatency.toFixed(2)}ms`)
     }
-    
+
     // Throughput threshold: should process at least 1KB/s
     if (monitorMetrics.bytesPerSecond < 1024) {
-      console.warn(`⚠️ Low throughput detected: ${(monitorMetrics.bytesPerSecond / 1024).toFixed(2)} KB/s`)
+      console.warn(
+        `⚠️ Low throughput detected: ${(monitorMetrics.bytesPerSecond / 1024).toFixed(2)} KB/s`
+      )
     } else {
-      console.log(`✅ Throughput adequate: ${(monitorMetrics.bytesPerSecond / 1024).toFixed(2)} KB/s`)
+      console.log(
+        `✅ Throughput adequate: ${(monitorMetrics.bytesPerSecond / 1024).toFixed(2)} KB/s`
+      )
     }
-    
+
     // Error rate threshold: should be under 5%
     const errorRate = (monitorMetrics.errors / monitorMetrics.totalChunks) * 100
     if (errorRate > 5) {
@@ -363,7 +374,7 @@ export class AudioStreamingE2ETest {
     } else {
       console.log(`✅ Error rate acceptable: ${errorRate.toFixed(2)}%`)
     }
-    
+
     // Pipeline metrics consistency
     if (pipelineMetrics.chunksProcessed === 0) {
       console.warn('⚠️ No chunks processed by pipeline')
@@ -418,7 +429,7 @@ export async function runQuickValidationTest(): Promise<void> {
 
   const test = new AudioStreamingE2ETest(config)
   await test.runFullTest()
-  
+
   const results = test.getResults()
   console.log('🎉 Quick validation test completed:', results.success ? 'PASSED' : 'FAILED')
 }
@@ -440,7 +451,7 @@ export async function runPerformanceTest(): Promise<void> {
 
   const test = new AudioStreamingE2ETest(config)
   await test.runFullTest()
-  
+
   const results = test.getResults()
   console.log('🏆 Performance test completed:', results.success ? 'PASSED' : 'FAILED')
   console.log('📊 Final Results:', results)
@@ -452,7 +463,7 @@ export async function runPerformanceTest(): Promise<void> {
 export async function demonstrateAudioPipeline(): Promise<void> {
   console.log('🎪 Audio Streaming Pipeline Demonstration')
   console.log('==========================================')
-  
+
   const pipeline = createAudioStreamingPipeline({
     websocket: {
       apiKey: process.env.GEMINI_API_KEY || 'demo-key',
@@ -479,11 +490,11 @@ export async function demonstrateAudioPipeline(): Promise<void> {
     console.log('✅ Pipeline initialized')
 
     // Set up monitoring
-    pipeline.on('chunkProcessed', (data) => {
+    pipeline.on('chunkProcessed', data => {
       console.log(`📦 Processed chunk: ${data.size} bytes, ${data.latency}ms`)
     })
 
-    pipeline.on('error', (error) => {
+    pipeline.on('error', error => {
       console.error('❌ Pipeline error:', error.message)
     })
 
@@ -499,12 +510,11 @@ export async function demonstrateAudioPipeline(): Promise<void> {
     // Stop and cleanup
     console.log('⏹️ Stopping streaming...')
     await pipeline.stopStreaming()
-    
+
     console.log('🧹 Cleaning up...')
     await pipeline.cleanup()
-    
-    console.log('✨ Demo completed successfully!')
 
+    console.log('✨ Demo completed successfully!')
   } catch (error) {
     console.error('❌ Demo failed:', error)
     await pipeline.cleanup()
@@ -515,7 +525,7 @@ export async function demonstrateAudioPipeline(): Promise<void> {
 // Export for CLI usage
 if (typeof window === 'undefined' && require.main === module) {
   const command = process.argv[2]
-  
+
   switch (command) {
     case 'quick':
       runQuickValidationTest().catch(console.error)
