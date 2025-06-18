@@ -12,6 +12,10 @@ import {
 } from './gemini-message-handler'
 import { GeminiErrorHandler, ErrorType, type GeminiError } from './gemini-error-handler'
 import { logger } from './gemini-logger'
+import ReconnectionManager, { 
+  ReconnectionStrategy, 
+  type ReconnectionConfig 
+} from './gemini-reconnection-manager'
 
 export enum ConnectionState {
   DISCONNECTED = 'disconnected',
@@ -29,6 +33,8 @@ export interface GeminiLiveConfig {
   reconnectAttempts?: number
   heartbeatInterval?: number
   connectionTimeout?: number
+  reconnectionStrategy?: ReconnectionStrategy
+  reconnectionConfig?: Partial<ReconnectionConfig>
 }
 
 export interface AudioData {
@@ -74,6 +80,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private isClosingIntentionally = false
   private messageHandler: GeminiMessageHandler
   private errorHandler: GeminiErrorHandler
+  private reconnectionManager: ReconnectionManager
 
   constructor(config: GeminiLiveConfig) {
     super()
@@ -101,10 +108,26 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     })
     this.setupErrorHandlerEvents()
     
+    // Initialize reconnection manager
+    this.reconnectionManager = new ReconnectionManager({
+      maxAttempts: this.maxReconnectAttempts,
+      strategy: this.config.reconnectionStrategy || ReconnectionStrategy.EXPONENTIAL,
+      baseDelay: 1000,
+      maxDelay: 30000,
+      jitterEnabled: true,
+      jitterRange: 0.1,
+      qualityThreshold: 0.8,
+      unstableConnectionThreshold: 3,
+      backoffMultiplier: 2,
+      ...this.config.reconnectionConfig
+    }, this.errorHandler)
+    this.setupReconnectionManagerEvents()
+    
     logger.info('GeminiLiveWebSocketClient initialized', {
       model: this.config.model,
       heartbeatInterval: this.heartbeatInterval,
-      maxReconnectAttempts: this.maxReconnectAttempts
+      maxReconnectAttempts: this.maxReconnectAttempts,
+      reconnectionStrategy: this.config.reconnectionStrategy || ReconnectionStrategy.EXPONENTIAL
     })
   }
 
@@ -152,6 +175,10 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         this.reconnectAttempts = 0
         this.startHeartbeat()
         this.processMessageQueue()
+        
+        // Notify reconnection manager of successful connection
+        this.reconnectionManager.onConnectionEstablished()
+        
         this.emit('connected')
       }
 
@@ -422,7 +449,15 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.emit('error', geminiError)
 
     if (!this.isClosingIntentionally && geminiError.retryable) {
-      this.attemptReconnection()
+      // Let reconnection manager decide if we should reconnect
+      const shouldReconnect = this.reconnectionManager.onConnectionLost(
+        `Error: ${geminiError.message}`
+      )
+      
+      if (shouldReconnect) {
+        this.setConnectionState(ConnectionState.RECONNECTING)
+        this.reconnectionManager.startReconnection(() => this.connect())
+      }
     }
   }
 
@@ -434,34 +469,75 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.stopHeartbeat()
     this.emit('disconnected', event)
 
-    if (!this.isClosingIntentionally && event.code !== 1000) {
-      this.attemptReconnection()
+    if (!this.isClosingIntentionally) {
+      // Let reconnection manager decide if we should reconnect
+      const shouldReconnect = this.reconnectionManager.onConnectionLost(
+        `WebSocket closed: ${event.code} - ${event.reason}`
+      )
+      
+      if (shouldReconnect) {
+        this.setConnectionState(ConnectionState.RECONNECTING)
+        this.reconnectionManager.startReconnection(() => this.connect())
+      }
     }
   }
 
   /**
-   * Attempt to reconnect with exponential backoff
+   * Set up reconnection manager event listeners
    */
-  private attemptReconnection(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached')
-      this.emit('maxReconnectAttemptsReached')
-      return
-    }
+  private setupReconnectionManagerEvents(): void {
+    this.reconnectionManager.on('connectionEstablished', (data) => {
+      logger.info('Reconnection manager: connection established', data)
+      this.emit('connectionQualityUpdate', data.metrics.connectionQuality)
+    })
 
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000) // Max 30 seconds
-    this.reconnectAttempts++
-
-    console.log(
-      `Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`
-    )
-    this.setConnectionState(ConnectionState.RECONNECTING)
-
-    this.reconnectTimer = setTimeout(() => {
-      this.connect().catch(error => {
-        console.error('Reconnection failed:', error)
+    this.reconnectionManager.on('connectionLost', (data) => {
+      logger.warn('Reconnection manager: connection lost', {
+        reason: data.reason,
+        shouldReconnect: data.shouldReconnect
       })
-    }, delay)
+      this.emit('connectionQualityUpdate', data.metrics.connectionQuality)
+    })
+
+    this.reconnectionManager.on('reconnectionStarted', (data) => {
+      logger.info('Reconnection manager: reconnection started', {
+        attempt: data.attempt,
+        delay: data.delay
+      })
+      this.emit('reconnectionStarted', data)
+    })
+
+    this.reconnectionManager.on('reconnectionAttempt', (data) => {
+      logger.info('Reconnection manager: attempting reconnection', {
+        attempt: data.attempt
+      })
+      this.emit('reconnectionAttempt', data)
+    })
+
+    this.reconnectionManager.on('reconnectionFailed', (data) => {
+      logger.warn('Reconnection manager: reconnection failed', {
+        attempt: data.attempt,
+        error: data.error.message
+      })
+      this.emit('reconnectionFailed', data)
+    })
+
+    this.reconnectionManager.on('maxAttemptsReached', (data) => {
+      logger.error('Reconnection manager: maximum attempts reached', {
+        attempts: data.attempts,
+        totalTime: data.totalTime
+      })
+      this.emit('maxReconnectAttemptsReached', data)
+    })
+
+    this.reconnectionManager.on('countdownUpdate', (data) => {
+      this.emit('reconnectionCountdown', data)
+    })
+
+    this.reconnectionManager.on('reconnectionStopped', () => {
+      logger.info('Reconnection manager: reconnection stopped')
+      this.emit('reconnectionStopped')
+    })
   }
 
   /**
@@ -501,6 +577,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     
     this.isClosingIntentionally = true
 
+    // Stop reconnection manager
+    this.reconnectionManager.stopReconnection()
+
     // Clear timers
     this.stopHeartbeat()
     if (this.reconnectTimer) {
@@ -531,6 +610,41 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
+   * Get connection metrics from reconnection manager
+   */
+  getConnectionMetrics() {
+    return this.reconnectionManager.getMetrics()
+  }
+
+  /**
+   * Get reconnection state
+   */
+  getReconnectionState() {
+    return this.reconnectionManager.getState()
+  }
+
+  /**
+   * Get connection history
+   */
+  getConnectionHistory() {
+    return this.reconnectionManager.getConnectionHistory()
+  }
+
+  /**
+   * Update reconnection configuration
+   */
+  updateReconnectionConfig(config: Partial<ReconnectionConfig>) {
+    this.reconnectionManager.updateConfig(config)
+  }
+
+  /**
+   * Reset connection metrics and history
+   */
+  resetConnectionMetrics() {
+    this.reconnectionManager.reset()
+  }
+
+  /**
    * Cleanup and destroy all resources
    */
   destroy(): void {
@@ -544,6 +658,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     // Cleanup handlers
     this.messageHandler.destroy()
     this.errorHandler.destroy()
+    this.reconnectionManager.destroy()
 
     // Clear message queue
     this.messageQueue.length = 0

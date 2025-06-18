@@ -18,13 +18,13 @@ export function convertAudioToBase64(audioBuffer: ArrayBuffer): string {
  */
 export function convertFloat32ToPCM16(float32Array: Float32Array): ArrayBuffer {
   const pcm16 = new Int16Array(float32Array.length)
-  
+
   for (let i = 0; i < float32Array.length; i++) {
     // Clamp values to [-1, 1] range and convert to 16-bit integer
     const sample = Math.max(-1, Math.min(1, float32Array[i]))
-    pcm16[i] = sample * 0x7FFF
+    pcm16[i] = sample * 0x7fff
   }
-  
+
   return pcm16.buffer
 }
 
@@ -52,8 +52,8 @@ export function resampleAudio(
     const fraction = sourceIndex - sourceIndexFloor
 
     // Linear interpolation between samples
-    resampledData[i] = audioData[sourceIndexFloor] * (1 - fraction) + 
-                      audioData[sourceIndexCeil] * fraction
+    resampledData[i] =
+      audioData[sourceIndexFloor] * (1 - fraction) + audioData[sourceIndexCeil] * fraction
   }
 
   return resampledData
@@ -108,7 +108,7 @@ export function validateAudioFormat(
   sampleRate: number,
   channels: number,
   bitDepth: number
-): { isValid: boolean; issues: string[] } {
+): {isValid: boolean; issues: string[]} {
   const issues: string[] = []
 
   if (sampleRate !== 16000) {
