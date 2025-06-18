@@ -395,6 +395,41 @@ export class GeminiLiveIntegrationService extends EventEmitter {
   }
 
   /**
+   * Send audio data for real-time transcription
+   * Used by the real-time streaming service
+   */
+  async sendAudioData(
+    audioBuffer: Uint8Array,
+    mimeType = 'audio/pcm;rate=16000;encoding=linear16'
+  ): Promise<void> {
+    if (!this.websocketClient || this.state.connectionState !== ConnectionState.CONNECTED) {
+      throw new Error('WebSocket not connected')
+    }
+
+    // Convert buffer to base64
+    let binary = ''
+    const bytes = new Uint8Array(audioBuffer)
+    const len = bytes.byteLength
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    const base64Data = btoa(binary)
+
+    // Send via WebSocket
+    await this.websocketClient.sendRealtimeInput({
+      audio: {
+        data: base64Data,
+        mimeType: mimeType
+      }
+    })
+
+    // Update streaming metrics
+    this.updateState({
+      bytesStreamed: this.state.bytesStreamed + audioBuffer.length
+    })
+  }
+
+  /**
    * Initiate failover to batch processing
    */
   private async initiateFailover(): Promise<void> {

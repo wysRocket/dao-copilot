@@ -1,6 +1,6 @@
 /**
  * Audio Format Converter Service
- * 
+ *
  * Handles real-time audio format conversion for streaming to Gemini Live API.
  * Supports multiple audio formats and optimizes for minimal latency.
  */
@@ -73,7 +73,7 @@ export class AudioFormatConverter {
   private isInitialized = false
 
   constructor(config: Partial<AudioConversionConfig> = {}) {
-    this.config = { ...DEFAULT_CONVERSION_CONFIG, ...config }
+    this.config = {...DEFAULT_CONVERSION_CONFIG, ...config}
   }
 
   /**
@@ -93,25 +93,35 @@ export class AudioFormatConverter {
 
       // Initialize compressor if enabled
       if (this.config.enableCompression && this.config.outputFormat.format !== AudioFormat.PCM16) {
-        this.compressor = new AudioCompressor(this.config.outputFormat.format, this.config.qualityLevel)
+        this.compressor = new AudioCompressor(
+          this.config.outputFormat.format,
+          this.config.qualityLevel
+        )
         await this.compressor.initialize()
       }
 
       // Initialize Web Worker for intensive operations if not in low latency mode
       if (!this.config.lowLatencyMode) {
-        this.conversionWorker = new Worker(new URL('./workers/audio-conversion-worker.js', import.meta.url))
+        this.conversionWorker = new Worker(
+          new URL('./workers/audio-conversion-worker.js', import.meta.url)
+        )
       }
 
       this.isInitialized = true
     } catch (error) {
-      throw new Error(`Failed to initialize audio converter: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw new Error(
+        `Failed to initialize audio converter: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
   /**
    * Convert audio data from input format to output format
    */
-  async convert(audioData: Float32Array, timestamp: number = Date.now()): Promise<ConversionResult> {
+  async convert(
+    audioData: Float32Array,
+    timestamp: number = Date.now()
+  ): Promise<ConversionResult> {
     if (!this.isInitialized) {
       await this.initialize()
     }
@@ -147,7 +157,7 @@ export class AudioFormatConverter {
       }
 
       // Calculate duration
-      const duration = processedData.length / currentSampleRate * 1000 // in milliseconds
+      const duration = (processedData.length / currentSampleRate) * 1000 // in milliseconds
 
       return {
         data: outputData,
@@ -159,7 +169,9 @@ export class AudioFormatConverter {
         compressionRatio
       }
     } catch (error) {
-      throw new Error(`Audio conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw new Error(
+        `Audio conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
@@ -186,14 +198,18 @@ export class AudioFormatConverter {
   /**
    * Convert bit depth from Float32 to target format
    */
-  private convertBitDepth(data: Float32Array, inputBits: number, outputBits: number): Float32Array | Int16Array {
+  private convertBitDepth(
+    data: Float32Array,
+    inputBits: number,
+    outputBits: number
+  ): Float32Array | Int16Array {
     if (inputBits === 32 && outputBits === 16) {
       // Convert Float32 to Int16
       const int16Data = new Int16Array(data.length)
       for (let i = 0; i < data.length; i++) {
         // Clamp and scale to Int16 range
         const sample = Math.max(-1, Math.min(1, data[i]))
-        int16Data[i] = sample * 0x7FFF
+        int16Data[i] = sample * 0x7fff
       }
       return int16Data
     }
@@ -226,14 +242,14 @@ export class AudioFormatConverter {
    * Get current configuration
    */
   getConfig(): AudioConversionConfig {
-    return { ...this.config }
+    return {...this.config}
   }
 
   /**
    * Update configuration
    */
   updateConfig(updates: Partial<AudioConversionConfig>): void {
-    this.config = { ...this.config, ...updates }
+    this.config = {...this.config, ...updates}
     // Reinitialize if needed
     this.isInitialized = false
   }
@@ -288,8 +304,8 @@ class AudioResampler {
       const fraction = sourceIndex - sourceIndexFloor
 
       // Linear interpolation
-      outputData[i] = inputData[sourceIndexFloor] * (1 - fraction) + 
-                      inputData[sourceIndexCeil] * fraction
+      outputData[i] =
+        inputData[sourceIndexFloor] * (1 - fraction) + inputData[sourceIndexCeil] * fraction
     }
 
     return outputData
@@ -328,11 +344,13 @@ class AudioCompressor {
     }
   }
 
-  async compress(data: Float32Array | Int16Array): Promise<{ data: ArrayBuffer; compressionRatio: number }> {
+  async compress(
+    data: Float32Array | Int16Array
+  ): Promise<{data: ArrayBuffer; compressionRatio: number}> {
     // For now, return uncompressed data
     // In a real implementation, this would use the appropriate encoder
     let arrayBuffer: ArrayBuffer
-    
+
     if (data.buffer instanceof ArrayBuffer) {
       arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
     } else {
@@ -340,7 +358,7 @@ class AudioCompressor {
       arrayBuffer = new ArrayBuffer(data.byteLength)
       new Uint8Array(arrayBuffer).set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
     }
-    
+
     return {
       data: arrayBuffer,
       compressionRatio: 1.0 // No compression
@@ -355,7 +373,9 @@ class AudioCompressor {
 /**
  * Create and configure an audio format converter
  */
-export function createAudioFormatConverter(config?: Partial<AudioConversionConfig>): AudioFormatConverter {
+export function createAudioFormatConverter(
+  config?: Partial<AudioConversionConfig>
+): AudioFormatConverter {
   return new AudioFormatConverter(config)
 }
 
@@ -370,7 +390,10 @@ export function getOptimalAudioFormat(): AudioFormat {
 /**
  * Utility function to validate audio format configuration
  */
-export function validateAudioConfig(config: AudioConversionConfig): { valid: boolean; errors: string[] } {
+export function validateAudioConfig(config: AudioConversionConfig): {
+  valid: boolean
+  errors: string[]
+} {
   const errors: string[] = []
 
   if (config.inputFormat.sampleRate <= 0) {

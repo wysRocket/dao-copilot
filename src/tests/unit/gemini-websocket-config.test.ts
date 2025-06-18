@@ -2,7 +2,7 @@
  * Tests for Gemini WebSocket Configuration
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import {describe, it, expect, beforeEach, vi} from 'vitest'
 import {
   loadConfigFromEnvironment,
   validateConfig,
@@ -11,7 +11,7 @@ import {
   getConfigSummary,
   type GeminiWebSocketConfig
 } from '../../helpers/gemini-websocket-config'
-import { TranscriptionMode } from '../../services/gemini-live-integration'
+import {TranscriptionMode} from '../../services/gemini-live-integration'
 
 describe('Gemini WebSocket Configuration', () => {
   beforeEach(() => {
@@ -37,7 +37,7 @@ describe('Gemini WebSocket Configuration', () => {
   describe('loadConfigFromEnvironment', () => {
     it('should load default configuration when no environment variables are set', () => {
       const config = loadConfigFromEnvironment()
-      
+
       expect(config.websocketEnabled).toBe(true)
       expect(config.transcriptionMode).toBe(TranscriptionMode.HYBRID)
       expect(config.fallbackToBatch).toBe(true)
@@ -54,9 +54,9 @@ describe('Gemini WebSocket Configuration', () => {
       process.env.GEMINI_REALTIME_THRESHOLD = '5000'
       process.env.GEMINI_CONNECTION_TIMEOUT = '45000'
       process.env.PROXY_URL = 'http://localhost:4000'
-      
+
       const config = loadConfigFromEnvironment()
-      
+
       expect(config.apiKey).toBe('test-api-key')
       expect(config.websocketEnabled).toBe(false)
       expect(config.transcriptionMode).toBe(TranscriptionMode.BATCH)
@@ -118,75 +118,93 @@ describe('Gemini WebSocket Configuration', () => {
 
     it('should validate a correct configuration', () => {
       const validation = validateConfig(validConfig)
-      
+
       expect(validation.isValid).toBe(true)
       expect(validation.errors).toHaveLength(0)
     })
 
     it('should detect missing API key', () => {
-      const config = { ...validConfig, apiKey: '' }
+      const config = {...validConfig, apiKey: ''}
       const validation = validateConfig(config)
-      
+
       expect(validation.isValid).toBe(false)
-      expect(validation.errors).toContain('API key is required. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.')
+      expect(validation.errors).toContain(
+        'API key is required. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.'
+      )
     })
 
     it('should warn about short API key', () => {
-      const config = { ...validConfig, apiKey: 'short' }
+      const config = {...validConfig, apiKey: 'short'}
       const validation = validateConfig(config)
-      
-      expect(validation.warnings).toContain('API key appears to be too short. Please verify it is correct.')
+
+      expect(validation.warnings).toContain(
+        'API key appears to be too short. Please verify it is correct.'
+      )
     })
 
     it('should validate WebSocket URL', () => {
-      const config = { ...validConfig, websocketUrl: 'invalid-url' }
+      const config = {...validConfig, websocketUrl: 'invalid-url'}
       const validation = validateConfig(config)
-      
+
       expect(validation.errors).toContain('Invalid WebSocket URL format.')
     })
 
     it('should warn about insecure WebSocket URL', () => {
-      const config = { ...validConfig, websocketUrl: 'ws://example.com/ws' }
+      const config = {...validConfig, websocketUrl: 'ws://example.com/ws'}
       const validation = validateConfig(config)
-      
-      expect(validation.warnings).toContain('WebSocket URL should use wss:// for secure connections in production.')
+
+      expect(validation.warnings).toContain(
+        'WebSocket URL should use wss:// for secure connections in production.'
+      )
     })
 
     it('should validate timeout values', () => {
-      const config = { ...validConfig, connectionTimeout: 2000, realTimeThreshold: 500 }
+      const config = {...validConfig, connectionTimeout: 2000, realTimeThreshold: 500}
       const validation = validateConfig(config)
-      
-      expect(validation.warnings).toContain('Connection timeout is very low. Consider using at least 5 seconds.')
-      expect(validation.warnings).toContain('Real-time threshold is very low. This may cause excessive WebSocket usage.')
+
+      expect(validation.warnings).toContain(
+        'Connection timeout is very low. Consider using at least 5 seconds.'
+      )
+      expect(validation.warnings).toContain(
+        'Real-time threshold is very low. This may cause excessive WebSocket usage.'
+      )
     })
 
     it('should validate reconnection settings', () => {
-      const config = { ...validConfig, reconnectionEnabled: true, maxReconnectionAttempts: 0 }
+      const config = {...validConfig, reconnectionEnabled: true, maxReconnectionAttempts: 0}
       const validation = validateConfig(config)
-      
-      expect(validation.errors).toContain('Maximum reconnection attempts must be at least 1 when reconnection is enabled.')
+
+      expect(validation.errors).toContain(
+        'Maximum reconnection attempts must be at least 1 when reconnection is enabled.'
+      )
     })
 
     it('should provide recommendations', () => {
-      const config = { 
-        ...validConfig, 
+      const config = {
+        ...validConfig,
         transcriptionMode: TranscriptionMode.WEBSOCKET,
         fallbackToBatch: false,
         reconnectionEnabled: false,
         proxyFallbackEnabled: false
       }
       const validation = validateConfig(config)
-      
-      expect(validation.recommendations).toContain('Consider enabling fallback to batch mode for better reliability.')
-      expect(validation.recommendations).toContain('Consider enabling reconnection for better user experience.')
-      expect(validation.recommendations).toContain('Consider enabling proxy fallback for environments with restricted network access.')
+
+      expect(validation.recommendations).toContain(
+        'Consider enabling fallback to batch mode for better reliability.'
+      )
+      expect(validation.recommendations).toContain(
+        'Consider enabling reconnection for better user experience.'
+      )
+      expect(validation.recommendations).toContain(
+        'Consider enabling proxy fallback for environments with restricted network access.'
+      )
     })
   })
 
   describe('setupDevelopmentEnvironment', () => {
     it('should set development defaults when environment variables are not set', () => {
       setupDevelopmentEnvironment()
-      
+
       expect(process.env.GEMINI_WEBSOCKET_ENABLED).toBe('true')
       expect(process.env.GEMINI_TRANSCRIPTION_MODE).toBe('hybrid')
       expect(process.env.GEMINI_FALLBACK_TO_BATCH).toBe('true')
@@ -197,9 +215,9 @@ describe('Gemini WebSocket Configuration', () => {
 
     it('should not override existing environment variables', () => {
       process.env.GEMINI_WEBSOCKET_ENABLED = 'false'
-      
+
       setupDevelopmentEnvironment()
-      
+
       expect(process.env.GEMINI_WEBSOCKET_ENABLED).toBe('false')
     })
   })
@@ -207,9 +225,9 @@ describe('Gemini WebSocket Configuration', () => {
   describe('getValidatedConfig', () => {
     it('should return configuration with validation results', () => {
       process.env.GEMINI_API_KEY = 'test-api-key-with-sufficient-length'
-      
+
       const result = getValidatedConfig()
-      
+
       expect(result.config).toBeDefined()
       expect(result.validation).toBeDefined()
       expect(result.config.apiKey).toBe('test-api-key-with-sufficient-length')
@@ -234,9 +252,9 @@ describe('Gemini WebSocket Configuration', () => {
         proxyFallbackEnabled: true,
         proxyAuthToken: 'proxy-token-789'
       }
-      
+
       const summary = getConfigSummary(config)
-      
+
       expect(summary).toContain('***3456') // Masked API key
       expect(summary).toContain('WebSocket Enabled: true')
       expect(summary).toContain('Transcription Mode: hybrid')
@@ -259,9 +277,9 @@ describe('Gemini WebSocket Configuration', () => {
         proxyWebSocketEnabled: false,
         proxyFallbackEnabled: false
       }
-      
+
       const summary = getConfigSummary(config)
-      
+
       expect(summary).toContain('API Key: NOT SET')
       expect(summary).toContain('Proxy Auth Token: NOT SET')
     })
