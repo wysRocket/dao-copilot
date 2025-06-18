@@ -16,6 +16,7 @@ import ReconnectionManager, {
   ReconnectionStrategy,
   type ReconnectionConfig
 } from './gemini-reconnection-manager'
+import {WebSocketHeartbeatMonitor, HeartbeatStatus} from './websocket-heartbeat-monitor'
 
 export enum ConnectionState {
   DISCONNECTED = 'disconnected',
@@ -73,7 +74,6 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private reconnectAttempts = 0
   private maxReconnectAttempts: number
   private heartbeatInterval: number
-  private heartbeatTimer: NodeJS.Timeout | null = null
   private connectionTimeout: number
   private reconnectTimer: NodeJS.Timeout | null = null
   private messageQueue: RealtimeInput[] = []
@@ -81,6 +81,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private messageHandler: GeminiMessageHandler
   private errorHandler: GeminiErrorHandler
   private reconnectionManager: ReconnectionManager
+  private heartbeatMonitor: WebSocketHeartbeatMonitor
 
   constructor(config: GeminiLiveConfig) {
     super()
@@ -125,6 +126,17 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       this.errorHandler
     )
     this.setupReconnectionManagerEvents()
+
+    // Initialize heartbeat monitor
+    this.heartbeatMonitor = new WebSocketHeartbeatMonitor({
+      interval: this.heartbeatInterval,
+      timeout: 5000, // 5 second pong timeout
+      maxMissedBeats: 3,
+      useNativePing: false, // Gemini Live uses application-level heartbeat
+      enableMetrics: true,
+      customPingMessage: {ping: true}
+    })
+    this.setupHeartbeatMonitorEvents()
 
     logger.info('GeminiLiveWebSocketClient initialized', {
       model: this.config.model,
@@ -336,6 +348,16 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    */
   private handleMessage(event: MessageEvent): void {
     try {
+      // Parse the raw message first
+      const rawMessage = JSON.parse(event.data)
+
+      // Check if heartbeat monitor can handle this message
+      if (this.heartbeatMonitor.handleMessage(rawMessage)) {
+        // Message was handled by heartbeat monitor (pong response)
+        logger.debug('Message handled by heartbeat monitor')
+        return
+      }
+
       // Use message handler to process incoming message
       const processed = this.messageHandler.processIncomingMessage(event.data)
 
@@ -397,34 +419,76 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
+   * Setup heartbeat monitor event listeners
+   */
+  private setupHeartbeatMonitorEvents(): void {
+    this.heartbeatMonitor.on('unhealthy', event => {
+      logger.warn('Heartbeat monitor detected unhealthy connection', {
+        consecutiveMissed: event.consecutiveMissed,
+        reason: event.reason
+      })
+
+      // Trigger reconnection through reconnection manager
+      const error = this.errorHandler.handleError(
+        new Error('Heartbeat monitoring detected unhealthy connection'),
+        {consecutiveMissed: event.consecutiveMissed},
+        {type: ErrorType.NETWORK, retryable: true}
+      )
+      this.handleConnectionError(error)
+    })
+
+    this.heartbeatMonitor.on('failed', event => {
+      logger.error('Heartbeat monitor failed', {
+        reason: event.reason,
+        error: event.error
+      })
+
+      // Treat as connection failure
+      const error = this.errorHandler.handleError(
+        new Error(`Heartbeat monitor failed: ${event.reason}`),
+        {originalError: event.error},
+        {type: ErrorType.NETWORK, retryable: true}
+      )
+      this.handleConnectionError(error)
+    })
+
+    this.heartbeatMonitor.on('health_changed', event => {
+      logger.debug('Connection health changed', {
+        healthScore: event.healthScore,
+        consecutiveMissed: event.consecutiveMissed
+      })
+
+      // Emit health status for UI updates
+      this.emit('health_changed', {
+        healthScore: event.healthScore,
+        isHealthy: this.heartbeatMonitor.isHealthy(),
+        metrics: this.heartbeatMonitor.getMetrics()
+      })
+    })
+
+    this.heartbeatMonitor.on('pong_received', () => {
+      // Update reconnection manager - heartbeat successful indicates healthy connection
+      // (ReconnectionManager doesn't have onConnectionHealthy, so we just log)
+      logger.debug('Heartbeat pong received - connection healthy')
+    })
+  }
+
+  /**
    * Start heartbeat mechanism
    */
   private startHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer)
+    if (this.ws) {
+      this.heartbeatMonitor.start(this.ws)
+      logger.debug('Heartbeat monitoring started')
     }
-
-    this.heartbeatTimer = setInterval(() => {
-      if (this.connectionState === ConnectionState.CONNECTED && this.ws) {
-        try {
-          // Send a ping message to keep connection alive
-          this.ws.send(JSON.stringify({ping: Date.now()}))
-        } catch (error) {
-          console.error('Failed to send heartbeat:', error)
-          this.handleConnectionError(error as Error)
-        }
-      }
-    }, this.heartbeatInterval)
   }
 
   /**
    * Stop heartbeat mechanism
    */
   private stopHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer)
-      this.heartbeatTimer = null
-    }
+    this.heartbeatMonitor.stop()
+    logger.debug('Heartbeat monitoring stopped')
   }
 
   /**
@@ -660,6 +724,34 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
+   * Get heartbeat monitor status
+   */
+  getHeartbeatStatus(): HeartbeatStatus {
+    return this.heartbeatMonitor.getStatus()
+  }
+
+  /**
+   * Get heartbeat metrics
+   */
+  getHeartbeatMetrics() {
+    return this.heartbeatMonitor.getMetrics()
+  }
+
+  /**
+   * Check if connection is healthy according to heartbeat monitor
+   */
+  isConnectionHealthy(): boolean {
+    return this.heartbeatMonitor.isHealthy()
+  }
+
+  /**
+   * Update heartbeat monitor configuration
+   */
+  updateHeartbeatConfig(config: Parameters<typeof this.heartbeatMonitor.updateConfig>[0]) {
+    this.heartbeatMonitor.updateConfig(config)
+  }
+
+  /**
    * Cleanup and destroy all resources
    */
   destroy(): void {
@@ -674,6 +766,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.messageHandler.destroy()
     this.errorHandler.destroy()
     this.reconnectionManager.destroy()
+    this.heartbeatMonitor.stop()
 
     // Clear message queue
     this.messageQueue.length = 0
