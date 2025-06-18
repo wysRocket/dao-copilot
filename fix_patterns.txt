@@ -1,0 +1,5 @@
+// Replace all event handler mock calls with proper mock events
+s/mockWebSocket\.onopen\({}\)/mockWebSocket.onopen(createMockEvent())/g
+s/invalidWebSocket\.onopen\({}\)/invalidWebSocket.onopen(createMockEvent())/g
+s/mockWebSocket\.onerror\(new Error\('([^']+)'\)\)/mockWebSocket.onerror(createMockErrorEvent('$1'))/g
+s/mockWebSocket\.onclose\({ code: (\d+), reason: '([^']+)', wasClean: (false|true) }\)/mockWebSocket.onclose(createMockCloseEvent($1, '$2', $3))/g

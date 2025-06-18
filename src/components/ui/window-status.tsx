@@ -2,6 +2,9 @@ import * as React from 'react'
 import {cn} from '@/utils/tailwind'
 import {useWindowState} from '../../contexts/WindowStateProvider'
 import {useSharedState} from '../../hooks/useSharedState'
+import GeminiConnectionIndicator from '../GeminiConnectionIndicator'
+import {ConnectionState} from '../../services/gemini-live-websocket'
+import {ConnectionQuality} from '../../services/gemini-reconnection-manager'
 
 export interface WindowStatusProps {
   className?: string
@@ -9,6 +12,11 @@ export interface WindowStatusProps {
   showConnectionStatus?: boolean
   showRecordingStatus?: boolean
   showTranscriptCount?: boolean
+  showGeminiConnection?: boolean
+  geminiConnectionState?: ConnectionState
+  geminiConnectionQuality?: ConnectionQuality | null
+  geminiReconnecting?: boolean
+  geminiReconnectionAttempts?: number
   compact?: boolean
 }
 
@@ -18,6 +26,11 @@ export const WindowStatus: React.FC<WindowStatusProps> = ({
   showConnectionStatus = false,
   showRecordingStatus = true,
   showTranscriptCount = false,
+  showGeminiConnection = false,
+  geminiConnectionState = ConnectionState.DISCONNECTED,
+  geminiConnectionQuality = null,
+  geminiReconnecting = false,
+  geminiReconnectionAttempts = 0,
   compact = false
 }) => {
   const {windowState} = useWindowState()
@@ -66,6 +79,16 @@ export const WindowStatus: React.FC<WindowStatusProps> = ({
 
         {showTranscriptCount && <span>{transcripts.length}</span>}
 
+        {showGeminiConnection && (
+          <GeminiConnectionIndicator
+            state={geminiConnectionState}
+            quality={geminiConnectionQuality}
+            isReconnecting={geminiReconnecting}
+            reconnectionAttempts={geminiReconnectionAttempts}
+            showLabel={false}
+          />
+        )}
+
         {showWindowInfo && <span>{getWindowTypeIcon()}</span>}
       </div>
     )
@@ -111,6 +134,16 @@ export const WindowStatus: React.FC<WindowStatusProps> = ({
           ></div>
           <span>{windowState.isFocused ? 'Focused' : 'Background'}</span>
         </div>
+      )}
+
+      {showGeminiConnection && (
+        <GeminiConnectionIndicator
+          state={geminiConnectionState}
+          quality={geminiConnectionQuality}
+          isReconnecting={geminiReconnecting}
+          reconnectionAttempts={geminiReconnectionAttempts}
+          showLabel={true}
+        />
       )}
     </div>
   )

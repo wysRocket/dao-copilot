@@ -1,68 +1,175 @@
-# Product Requirements Document: @rdev/liquid-glass-react Integration
+# Product Requirements Document: Gemini Live API WebSocket Integration
 
-## Project Overview
-Integrate @rdev/liquid-glass-react library to enhance the DAO Copilot AI assistant interface with modern glassmorphism effects and Fumadocs dark theme aesthetics.
+## Overview
+Update the DAO Copilot transcribing flow to integrate with Google's Gemini Live API using WebSocket connections for real-time transcription capabilities. This migration from the current batch-based approach will provide better performance, lower latency, and improved accuracy.
 
 ## Background
-The current DAO Copilot application has a functional UI but needs visual enhancement to provide a more modern, professional desktop application aesthetic. The integration should maintain all existing functionality while applying glassmorphism effects and dark theme styling.
+The current implementation uses batch-based transcription where audio is recorded in intervals and sent to the Gemini API via HTTP requests. Google has released the Gemini Live API which provides enhanced real-time transcription features through WebSocket connections, offering better performance and lower latency.
 
 ## Objectives
-1. Recreate the AI assistant interface using glassmorphism design patterns
-2. Apply Fumadocs dark theme (black/dark gray color scheme)
-3. Enhance visual appeal without impacting performance
-4. Maintain accessibility and keyboard navigation
-5. Ensure seamless integration with existing multi-window Electron architecture
-
-## Target Components for Refactoring
-
-### Phase 1: Core Interface Components
-- **TranscriptDisplay.tsx**: Chat/conversation display with liquid-glass overlays
-- **PerformanceDashboard.tsx**: Feature summary component with glass accents
-- **CustomTitleBar.tsx**: Dark glass title bar with Ask AI button and controls
-
-### Phase 2: UI Component Mapping
-- **CustomTitleBar.tsx** → Dark glass navigation bar
-- **TranscriptDisplay.tsx** → Chat panel with glass effect
-- **PerformanceDashboard.tsx** → Features/info block with glass styling
-- **window-button.tsx, button.tsx** → Action buttons and toolbar
-- **window-status.tsx** → Session/timer/status indicators
-- **window-input.tsx** → AI chat input with glass effects
-
-### Phase 3: Technical Implementation
-- Install and configure @rdev/liquid-glass-react
-- Set up dark theme color variables
-- Apply glass overlays, blur, and opacity effects
-- Ensure Fumadocs-style typography consistency
-
-### Phase 4: Integration & Testing
-- Test in Electron multi-window context
-- Maintain IPC and window focus communication
-- Optimize glass rendering performance
-- Validate accessibility features
-
-## Success Criteria
-1. Interface functionality recreated with glassmorphism effects
-2. Dark theme applied consistently across all components
-3. Performance maintained or improved
-4. All existing IPC communication preserved
-5. Accessibility and keyboard navigation retained
-6. Professional desktop application aesthetic achieved
+- Replace the current batch-based transcription with real-time WebSocket streaming
+- Implement WebSocket client for Gemini Live API integration
+- Maintain all existing functionality while improving performance
+- Provide seamless user experience with real-time transcription updates
+- Implement robust error handling and reconnection logic
 
 ## Technical Requirements
-- Maintain existing React/TypeScript architecture
-- Preserve Electron multi-window functionality
-- Keep existing state management and IPC patterns
-- Ensure compatibility with current build system (Vite)
-- No breaking changes to existing API contracts
+
+### 1. WebSocket Implementation
+- Implement WebSocket client for Gemini Live API integration
+- Establish bidirectional communication with the API
+- Handle connection lifecycle (open, close, error events)
+- Implement reconnection logic with exponential backoff
+- Support binary and text message formats
+
+### 2. Real-time Audio Streaming
+- Replace batch audio processing with continuous streaming
+- Implement audio capture using Web Audio API
+- Convert audio data to required format (16-bit PCM)
+- Stream audio chunks in real-time over WebSocket
+- Implement audio buffering and backpressure handling
+
+### 3. Connection Management
+- Proper WebSocket connection lifecycle management
+- Handle network interruptions gracefully
+- Implement heartbeat mechanism for connection health
+- Support authentication and session management
+- Clean up resources on disconnection
+
+### 4. Error Handling and Recovery
+- Graceful handling of WebSocket connection failures
+- Fallback to HTTP-based approach when WebSocket fails
+- Network interruption recovery
+- API error handling and user feedback
+- Connection state management and status indicators
+
+### 5. UI/UX Updates
+- Real-time transcription display updates
+- Connection status indicators
+- Streaming progress feedback
+- Smooth animations for live transcription
+- Performance optimizations for continuous updates
+
+### 6. Performance Optimization
+- Efficient audio data processing
+- Memory management for continuous streaming
+- CPU usage optimization
+- Network bandwidth optimization
+- Responsive UI during streaming operations
+
+## Functional Requirements
+
+### Core Functionality
+1. **Real-time Transcription**: Continuous audio capture and transcription
+2. **WebSocket Communication**: Bidirectional communication with Gemini Live API
+3. **Connection Management**: Robust connection handling and recovery
+4. **Audio Streaming**: Efficient real-time audio data streaming
+5. **Error Recovery**: Graceful degradation and fallback mechanisms
+
+### User Experience
+1. **Immediate Feedback**: Real-time transcription results displayed instantly
+2. **Connection Status**: Visual indicators for connection state
+3. **Seamless Operation**: No interruption to existing workflow
+4. **Performance**: No degradation in responsiveness
+5. **Reliability**: Consistent operation under various network conditions
 
 ## Non-Functional Requirements
-- Performance: Glass effects should not impact rendering performance
-- Accessibility: All UI elements remain keyboard navigable
-- Compatibility: Works across all supported platforms
-- Maintainability: Code remains clean and well-documented
 
-## Out of Scope
-- Changes to core application logic
-- Modifications to transcription functionality
-- Alterations to window management system
-- Performance monitoring system changes
+### Performance
+- Latency: < 200ms from audio input to transcription display
+- CPU Usage: No significant increase from current implementation
+- Memory Usage: Efficient memory management for continuous operation
+- Network Usage: Optimized data transmission
+
+### Reliability
+- 99.9% uptime for WebSocket connections
+- Automatic recovery from network failures
+- Fallback mechanism availability
+- Data integrity during transmission
+
+### Scalability
+- Support for extended recording sessions
+- Handle high-frequency audio updates
+- Manage large transcription histories
+- Efficient resource cleanup
+
+## Implementation Phases
+
+### Phase 1: WebSocket Client Foundation
+- Implement basic WebSocket client
+- Establish connection to Gemini Live API
+- Handle basic message exchange
+- Implement connection lifecycle management
+
+### Phase 2: Audio Streaming Integration
+- Update audio recording service for real-time streaming
+- Implement audio format conversion
+- Integrate WebSocket client with audio service
+- Handle audio data transmission
+
+### Phase 3: Real-time Transcription Processing
+- Process incoming transcription results
+- Update UI components for real-time display
+- Implement partial result handling
+- Optimize rendering performance
+
+### Phase 4: Error Handling and Recovery
+- Implement comprehensive error handling
+- Add reconnection logic
+- Create fallback mechanisms
+- Add connection status indicators
+
+### Phase 5: Testing and Optimization
+- Performance testing and optimization
+- End-to-end testing
+- Error scenario testing
+- User acceptance testing
+
+## Technical Specifications
+
+### WebSocket Configuration
+- Protocol: WSS (WebSocket Secure)
+- Message Format: JSON and Binary
+- Compression: Optional gzip compression
+- Heartbeat: 30-second intervals
+
+### Audio Specifications
+- Format: 16-bit PCM
+- Sample Rate: 16kHz (configurable)
+- Channels: Mono
+- Chunk Size: 100ms buffers
+
+### API Integration
+- Endpoint: Gemini Live API WebSocket endpoint
+- Authentication: API key-based
+- Session Management: Connection-based sessions
+- Rate Limiting: Respect API limits
+
+## Dependencies
+- Existing audio capture service (audio-recording.ts)
+- Current transcription infrastructure
+- WebSocket library (ws or native WebSocket API)
+- Electron IPC system
+- React UI components
+
+## Risks and Mitigation
+1. **WebSocket Connectivity**: Implement fallback to HTTP-based approach
+2. **Performance Impact**: Thorough performance testing and optimization
+3. **API Changes**: Monitor API documentation and implement version handling
+4. **Network Issues**: Robust reconnection and error handling
+5. **Browser Compatibility**: Test across different Electron versions
+
+## Success Criteria
+- Successful WebSocket connection to Gemini Live API
+- Real-time transcription functionality working
+- No degradation in existing features
+- Improved latency compared to batch approach
+- Robust error handling and recovery
+- Comprehensive test coverage
+- Updated documentation
+
+## References
+- [Gemini Live API Documentation](https://ai.google.dev/gemini-api/docs/live#javascript)
+- [Gemini Live API Reference](https://ai.google.dev/api/live)
+- Current implementation in src/services/
+- Existing audio capture system

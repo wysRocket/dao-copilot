@@ -1,21 +1,21 @@
 # Task ID: 3
-# Title: Refactor CustomTitleBar Component
+# Title: Integrate WebSocket Client with Audio Streaming
 # Status: pending
 # Dependencies: 1, 2
-# Priority: medium
-# Description: Redesign the CustomTitleBar component using glassmorphism effects and the new dark theme.
+# Priority: high
+# Description: Connect the WebSocket client to the audio capture service for real-time streaming of audio data to the Gemini Live API.
 # Details:
-1. Import necessary components from @rdev/liquid-glass-react
-2. Refactor CustomTitleBar.tsx to use GlassBox component for the main container
-3. Apply appropriate blur and opacity settings
-4. Implement glass effect for the Ask AI button
-5. Ensure window controls (minimize, maximize, close) are styled correctly
-6. Maintain existing functionality for dragging the window
-7. Implement subtle hover effects for interactive elements
+1. Create an AudioStreamingService class to bridge WebSocketClient and AudioCaptureService.
+2. Implement method to start streaming that initializes both WebSocket connection and audio capture.
+3. Convert audio chunks to base64-encoded strings for WebSocket transmission.
+4. Implement flow control to handle backpressure (use a queue with configurable max size).
+5. Use the 'buffer' npm package (version 6.x) for efficient binary data handling.
+6. Implement error handling for both WebSocket and audio capture failures.
+7. Use RxJS (version 7.x) for reactive stream processing if complex stream management is needed.
 
 # Test Strategy:
-1. Verify that the title bar renders correctly with glass effects
-2. Test window dragging functionality
-3. Ensure all buttons (Ask AI, window controls) work as expected
-4. Check that the title bar is responsive and adapts to different window sizes
-5. Validate that the component maintains its appearance and functionality across different operating systems
+1. Unit test AudioStreamingService methods.
+2. Integration test with mock WebSocket server and audio input.
+3. Test flow control and backpressure handling.
+4. Verify correct audio data transmission format.
+5. Measure and assert on streaming performance metrics.
