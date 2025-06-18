@@ -1,6 +1,11 @@
 import {GoogleGenAI} from '@google/genai'
 import {GeminiLiveIntegrationService, TranscriptionMode} from './gemini-live-integration'
 import {GeminiLiveIntegrationFactory} from './gemini-live-integration-factory'
+import {
+  createLegacyWrapper,
+  migrateLegacyConfig,
+  LegacyAliases
+} from './transcription-compatibility'
 import type {TranscriptionResult as IntegrationTranscriptionResult} from './audio-recording'
 
 // User-specified model name
@@ -302,3 +307,40 @@ async function transcribeAudioBatch(
     throw error // Re-throw the error to be handled by the caller
   }
 }
+
+// Legacy compatibility wrapper for backward compatibility
+const originalTranscribeAudio = transcribeAudio as (...args: unknown[]) => unknown
+
+/**
+ * Legacy-compatible transcription function with automatic option migration
+ */
+export const transcribeAudioLegacy = createLegacyWrapper(originalTranscribeAudio, 'transcribeAudio')
+
+/**
+ * Enhanced transcription function that automatically detects and migrates legacy options
+ */
+export async function transcribeAudioWithCompatibility(
+  audioData: Buffer,
+  options: TranscriptionOptions = {}
+): Promise<TranscriptionResult> {
+  // Migrate legacy configuration options if needed (cast to compatible type)
+  const migrationResult = migrateLegacyConfig(options as Parameters<typeof migrateLegacyConfig>[0])
+
+  if (migrationResult.isLegacy) {
+    console.warn('Legacy configuration detected. Consider migrating to the new format.')
+    if (migrationResult.deprecations.length > 0) {
+      migrationResult.deprecations.forEach(deprecation => {
+        console.warn(`[DEPRECATION] ${deprecation}`)
+      })
+    }
+  }
+
+  return transcribeAudio(audioData, migrationResult.newConfig as TranscriptionOptions)
+}
+
+// Export legacy aliases for backward compatibility
+export const {
+  transcribeAudioLegacy: legacyTranscribeAudioAlias,
+  createLegacyConfig: createLegacyTranscriptionConfig,
+  setupLegacyEnvironment: setupLegacyTranscriptionEnvironment
+} = LegacyAliases

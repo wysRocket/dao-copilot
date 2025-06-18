@@ -1,7 +1,11 @@
 import fetch from 'node-fetch'
 import {getProxyAuthToken} from '../helpers/proxy-server'
 import {TranscriptionMode} from './gemini-live-integration'
-import type {TranscriptionResult} from './main-stt-transcription'
+import {
+  createLegacyWrapper,
+  migrateLegacyConfig,
+  LegacyAliases
+} from './transcription-compatibility'
 
 /**
  * Configuration options for the proxy-based transcription service
@@ -37,7 +41,7 @@ interface GeminiProxyResponse {
 /**
  * Alternative transcription service that uses the proxy server
  * This can be used as a fallback if direct API calls have issues
- * 
+ *
  * @deprecated Use transcribeAudioViaProxyEnhanced for better mode support
  */
 export async function transcribeAudioViaProxy(
@@ -54,15 +58,17 @@ export async function transcribeAudioViaProxy(
 function shouldUseWebSocketProxy(options: ProxyTranscriptionOptions): boolean {
   // Check feature flag
   const webSocketEnabled = process.env.GEMINI_WEBSOCKET_ENABLED !== 'false'
-  
+
   // Check explicit option
   if (options.enableWebSocket !== undefined) {
     return options.enableWebSocket && webSocketEnabled
   }
-  
+
   // Use mode to determine WebSocket usage
   const mode = options.mode || TranscriptionMode.HYBRID
-  return webSocketEnabled && (mode === TranscriptionMode.WEBSOCKET || mode === TranscriptionMode.HYBRID)
+  return (
+    webSocketEnabled && (mode === TranscriptionMode.WEBSOCKET || mode === TranscriptionMode.HYBRID)
+  )
 }
 
 /**
@@ -75,34 +81,31 @@ async function transcribeAudioViaWebSocketProxy(
 ): Promise<ProxyTranscriptionResult> {
   const startTime = Date.now()
   const proxyUrl = options.proxyUrl || DEFAULT_PROXY_URL
-  
+
   // For WebSocket proxy, we'll use a different endpoint that handles real-time streaming
   const wsProxyEndpoint = `${proxyUrl.replace('http', 'ws')}/gemini/websocket/transcribe`
-  
+
   console.log(`Attempting WebSocket proxy transcription via: ${wsProxyEndpoint}`)
-  
+
   try {
     // For now, we'll simulate WebSocket proxy by using a special HTTP endpoint
     // In a real implementation, this would establish a WebSocket connection through the proxy
-    const response = await fetch(
-      `${proxyUrl}/gemini/websocket/transcribe`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-proxy-auth': getProxyAuthToken(),
-          'x-transcription-mode': 'websocket'
-        },
-        body: JSON.stringify({
-          audio: audioData.toString('base64'),
-          mimeType: 'audio/wav',
-          options: {
-            model: options.modelName || DEFAULT_GEMINI_MODEL,
-            realTime: true
-          }
-        })
-      }
-    )
+    const response = await fetch(`${proxyUrl}/gemini/websocket/transcribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-proxy-auth': getProxyAuthToken(),
+        'x-transcription-mode': 'websocket'
+      },
+      body: JSON.stringify({
+        audio: audioData.toString('base64'),
+        mimeType: 'audio/wav',
+        options: {
+          model: options.modelName || DEFAULT_GEMINI_MODEL,
+          realTime: true
+        }
+      })
+    })
 
     const endTime = Date.now()
     const duration = endTime - startTime
@@ -111,8 +114,8 @@ async function transcribeAudioViaWebSocketProxy(
       throw new Error(`WebSocket proxy failed: ${response.status} ${response.statusText}`)
     }
 
-    const result = await response.json() as {text: string; confidence?: number}
-    
+    const result = (await response.json()) as {text: string; confidence?: number}
+
     console.log(`WebSocket proxy transcription completed in ${duration} ms`)
 
     return {
@@ -250,11 +253,13 @@ export async function transcribeAudioViaProxyEnhanced(
   const enableWebSocket = shouldUseWebSocketProxy(options)
   const fallbackToBatch = options.fallbackToBatch !== false
   const realTimeThreshold = options.realTimeThreshold || 3000 // 3 seconds
-  
+
   const audioLengthMs = getAudioLengthMs(audioData)
   const isShortAudio = audioLengthMs < realTimeThreshold
-  
-  console.log(`Proxy transcription mode: ${mode}, audio length: ${audioLengthMs}ms, WebSocket enabled: ${enableWebSocket}`)
+
+  console.log(
+    `Proxy transcription mode: ${mode}, audio length: ${audioLengthMs}ms, WebSocket enabled: ${enableWebSocket}`
+  )
 
   try {
     switch (mode) {
@@ -275,7 +280,10 @@ export async function transcribeAudioViaProxyEnhanced(
             console.log('Using WebSocket proxy for short audio in hybrid mode')
             return await transcribeAudioViaWebSocketProxy(audioData, options)
           } catch (webSocketError) {
-            console.warn('WebSocket proxy failed in hybrid mode, falling back to batch:', webSocketError)
+            console.warn(
+              'WebSocket proxy failed in hybrid mode, falling back to batch:',
+              webSocketError
+            )
             if (fallbackToBatch) {
               return await transcribeAudioViaBatchProxy(audioData, options)
             }
@@ -375,10 +383,10 @@ export function getDefaultProxyConfig(): ProxyTranscriptionOptions {
  * Create a configured proxy transcription function with preset options
  */
 export function createProxyTranscriber(defaultOptions: ProxyTranscriptionOptions = {}) {
-  const config = { ...getDefaultProxyConfig(), ...defaultOptions }
-  
+  const config = {...getDefaultProxyConfig(), ...defaultOptions}
+
   return async (audioData: Buffer, overrideOptions: ProxyTranscriptionOptions = {}) => {
-    const finalOptions = { ...config, ...overrideOptions }
+    const finalOptions = {...config, ...overrideOptions}
     return transcribeAudioViaProxyEnhanced(audioData, finalOptions)
   }
 }
@@ -393,7 +401,7 @@ export async function checkProxyHealth(proxyUrl: string = DEFAULT_PROXY_URL): Pr
   error?: string
 }> {
   const startTime = Date.now()
-  
+
   try {
     // Check basic health endpoint
     const healthResponse = await fetch(`${proxyUrl}/health`, {
@@ -402,9 +410,9 @@ export async function checkProxyHealth(proxyUrl: string = DEFAULT_PROXY_URL): Pr
         'x-proxy-auth': getProxyAuthToken()
       }
     })
-    
+
     const latency = Date.now() - startTime
-    
+
     if (!healthResponse.ok) {
       return {
         isHealthy: false,
@@ -413,7 +421,7 @@ export async function checkProxyHealth(proxyUrl: string = DEFAULT_PROXY_URL): Pr
         error: `Health check failed: ${healthResponse.status}`
       }
     }
-    
+
     // Check WebSocket support
     let supportsWebSocket = false
     try {
@@ -428,7 +436,7 @@ export async function checkProxyHealth(proxyUrl: string = DEFAULT_PROXY_URL): Pr
       // WebSocket endpoint not available
       supportsWebSocket = false
     }
-    
+
     return {
       isHealthy: true,
       supportsWebSocket,
@@ -453,17 +461,21 @@ export const ProxyTranscriptionEnv = {
     const validation = validateProxyConfig()
     return validation.isValid
   },
-  
+
   // Get configuration status
   getConfigStatus() {
     const validation = validateProxyConfig()
     const config = getDefaultProxyConfig()
-    
+
     return {
       ...validation,
       config,
       environment: {
-        hasApiKey: !!process.env.GOOGLE_API_KEY || !!process.env.VITE_GOOGLE_API_KEY || !!process.env.GOOGLE_GENERATIVE_AI_API_KEY || !!process.env.GEMINI_API_KEY,
+        hasApiKey:
+          !!process.env.GOOGLE_API_KEY ||
+          !!process.env.VITE_GOOGLE_API_KEY ||
+          !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+          !!process.env.GEMINI_API_KEY,
         proxyUrl: process.env.PROXY_URL || DEFAULT_PROXY_URL,
         webSocketEnabled: process.env.GEMINI_WEBSOCKET_ENABLED !== 'false',
         transcriptionMode: process.env.GEMINI_TRANSCRIPTION_MODE || TranscriptionMode.HYBRID
@@ -473,4 +485,58 @@ export const ProxyTranscriptionEnv = {
 }
 
 // Re-export types and enums for convenience
-export { TranscriptionMode } from './gemini-live-integration'
+export {TranscriptionMode} from './gemini-live-integration'
+
+// Legacy compatibility wrapper for backward compatibility
+const originalTranscribeAudioViaProxy = transcribeAudioViaProxy as (...args: unknown[]) => unknown
+const originalTranscribeAudioViaProxyEnhanced = transcribeAudioViaProxyEnhanced as (
+  ...args: unknown[]
+) => unknown
+
+/**
+ * Legacy-compatible proxy transcription function with automatic option migration
+ */
+export const transcribeAudioViaProxyLegacy = createLegacyWrapper(
+  originalTranscribeAudioViaProxy,
+  'transcribeAudioViaProxy'
+)
+
+/**
+ * Enhanced legacy-compatible proxy transcription function with automatic option migration
+ */
+export const transcribeAudioViaProxyEnhancedLegacy = createLegacyWrapper(
+  originalTranscribeAudioViaProxyEnhanced,
+  'transcribeAudioViaProxyEnhanced'
+)
+
+/**
+ * Enhanced proxy transcription function that automatically detects and migrates legacy options
+ */
+export async function transcribeAudioViaProxyWithCompatibility(
+  audioData: Buffer,
+  options: ProxyTranscriptionOptions = {}
+): Promise<ProxyTranscriptionResult> {
+  // Migrate legacy configuration options if needed (cast to compatible type)
+  const migrationResult = migrateLegacyConfig(options as Parameters<typeof migrateLegacyConfig>[0])
+
+  if (migrationResult.isLegacy) {
+    console.warn('Legacy proxy configuration detected. Consider migrating to the new format.')
+    if (migrationResult.deprecations.length > 0) {
+      migrationResult.deprecations.forEach(deprecation => {
+        console.warn(`[DEPRECATION] ${deprecation}`)
+      })
+    }
+  }
+
+  return transcribeAudioViaProxyEnhanced(
+    audioData,
+    migrationResult.newConfig as ProxyTranscriptionOptions
+  )
+}
+
+// Export legacy aliases for backward compatibility
+export const {
+  proxyTranscribeLegacy: legacyProxyTranscribeAlias,
+  createLegacyConfig: createLegacyProxyConfig,
+  setupLegacyEnvironment: setupLegacyProxyEnvironment
+} = LegacyAliases

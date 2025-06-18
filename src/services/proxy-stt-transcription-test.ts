@@ -9,34 +9,28 @@ import {
   checkProxyHealth,
   ProxyTranscriptionEnv,
   TranscriptionMode
-} from '../../services/proxy-stt-transcription'
+} from './proxy-stt-transcription'
 
 // Mock fetch
 vi.mock('node-fetch')
 const mockFetch = vi.mocked(fetch)
 
 // Mock proxy auth token
-vi.mock('../../helpers/proxy-server', () => ({
+vi.mock('../helpers/proxy-server', () => ({
   getProxyAuthToken: () => 'mock-auth-token'
 }))
 
 describe('Proxy STT Transcription Service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.useFakeTimers()
     // Reset environment variables
     delete process.env.GOOGLE_API_KEY
     delete process.env.GEMINI_WEBSOCKET_ENABLED
     delete process.env.GEMINI_TRANSCRIPTION_MODE
-    delete process.env.GEMINI_FALLBACK_TO_BATCH
-    delete process.env.GEMINI_REALTIME_THRESHOLD
-    delete process.env.PROXY_URL
-    delete process.env.GEMINI_MODEL
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.useRealTimers()
   })
 
   const mockAudioData = Buffer.from('mock-audio-data')
@@ -59,17 +53,12 @@ describe('Proxy STT Transcription Service', () => {
         json: () => Promise.resolve(mockResponse)
       } as Response)
 
-      const resultPromise = transcribeAudioViaProxy(mockAudioData, {
+      const result = await transcribeAudioViaProxy(mockAudioData, {
         apiKey: mockApiKey
       })
 
-      // Advance time to make duration > 0
-      vi.advanceTimersByTime(100)
-
-      const result = await resultPromise
-
       expect(result.text).toBe('Hello world')
-      expect(result.duration).toBeGreaterThanOrEqual(0) // Changed to >= since timing can be tricky
+      expect(result.duration).toBeGreaterThan(0)
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('/gemini/models/'),
         expect.objectContaining({
@@ -310,14 +299,6 @@ describe('Proxy STT Transcription Service', () => {
     })
 
     it('should use defaults when environment variables are not set', () => {
-      // Ensure all environment variables are cleared
-      delete process.env.GEMINI_TRANSCRIPTION_MODE
-      delete process.env.GEMINI_WEBSOCKET_ENABLED
-      delete process.env.GEMINI_FALLBACK_TO_BATCH
-      delete process.env.GEMINI_REALTIME_THRESHOLD
-      delete process.env.PROXY_URL
-      delete process.env.GEMINI_MODEL
-
       const config = getDefaultProxyConfig()
 
       expect(config.mode).toBe(TranscriptionMode.HYBRID)
@@ -406,16 +387,11 @@ describe('Proxy STT Transcription Service', () => {
           ok: true
         } as Response)
 
-      const healthPromise = checkProxyHealth('http://test-proxy:8000')
-
-      // Advance time to make latency > 0
-      vi.advanceTimersByTime(50)
-
-      const health = await healthPromise
+      const health = await checkProxyHealth('http://test-proxy:8000')
 
       expect(health.isHealthy).toBe(true)
       expect(health.supportsWebSocket).toBe(true)
-      expect(health.latency).toBeGreaterThanOrEqual(0) // Changed to >= since timing can be tricky
+      expect(health.latency).toBeGreaterThan(0)
       expect(mockFetch).toHaveBeenCalledWith(
         'http://test-proxy:8000/health',
         expect.objectContaining({
