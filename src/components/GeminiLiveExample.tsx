@@ -16,10 +16,7 @@ export interface GeminiLiveExampleProps {
   apiKey?: string
 }
 
-export const GeminiLiveExample: React.FC<GeminiLiveExampleProps> = ({
-  className,
-  apiKey
-}) => {
+export const GeminiLiveExample: React.FC<GeminiLiveExampleProps> = ({className, apiKey}) => {
   // Use the Gemini connection hook
   const [connectionState, controls] = useGeminiConnection({
     apiKey,
@@ -33,7 +30,7 @@ export const GeminiLiveExample: React.FC<GeminiLiveExampleProps> = ({
     <div className={cn('space-y-6 p-4', className)}>
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">Gemini Live WebSocket Integration</h2>
-        
+
         {/* Simple indicator */}
         <div className="space-y-2">
           <h3 className="text-sm font-medium">Simple Connection Indicator</h3>
@@ -95,26 +92,26 @@ export const GeminiLiveExample: React.FC<GeminiLiveExampleProps> = ({
             <button
               onClick={controls.connect}
               disabled={connectionState.connectionState !== 'disconnected'}
-              className="px-3 py-1 text-sm bg-green-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700"
+              className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Connect
             </button>
             <button
               onClick={controls.disconnect}
               disabled={connectionState.connectionState === 'disconnected'}
-              className="px-3 py-1 text-sm bg-red-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-700"
+              className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Disconnect
             </button>
             <button
               onClick={() => controls.setMode(TranscriptionMode.WEBSOCKET)}
-              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
             >
               WebSocket Only
             </button>
             <button
               onClick={() => controls.setMode(TranscriptionMode.HYBRID)}
-              className="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700"
+              className="rounded bg-purple-600 px-3 py-1 text-sm text-white hover:bg-purple-700"
             >
               Hybrid Mode
             </button>
@@ -125,7 +122,7 @@ export const GeminiLiveExample: React.FC<GeminiLiveExampleProps> = ({
         {connectionState.integrationState && (
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Integration State</h3>
-            <div className="text-xs space-y-1 font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded">
+            <div className="space-y-1 rounded bg-gray-100 p-2 font-mono text-xs dark:bg-gray-800">
               <div>Mode: {connectionState.integrationState.mode}</div>
               <div>Streaming: {connectionState.integrationState.isStreaming ? 'Yes' : 'No'}</div>
               <div>Processing: {connectionState.integrationState.isProcessing ? 'Yes' : 'No'}</div>

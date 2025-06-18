@@ -32,7 +32,7 @@ async function testInitialization(): Promise<void> {
 
   try {
     const integrationService = new GeminiLiveIntegrationService(mockConfig)
-    
+
     const state = integrationService.getState()
     console.log('✓ Integration service initialized')
     console.log(`✓ Initial mode: ${state.mode}`)
@@ -41,7 +41,6 @@ async function testInitialization(): Promise<void> {
 
     await integrationService.destroy()
     console.log('✓ Integration service destroyed')
-    
   } catch (error) {
     console.error('❌ Initialization test failed:', error)
     throw error
@@ -58,7 +57,7 @@ async function testModeSwitching(): Promise<void> {
 
   try {
     let modeChangeEvents = 0
-    integrationService.on('modeChanged', (mode) => {
+    integrationService.on('modeChanged', mode => {
       modeChangeEvents++
       console.log(`✓ Mode changed to: ${mode}`)
     })
@@ -79,7 +78,6 @@ async function testModeSwitching(): Promise<void> {
     console.log(`✓ Switched to Hybrid mode: ${hybridState.mode}`)
 
     console.log(`✓ Total mode change events: ${modeChangeEvents}`)
-
   } catch (error) {
     console.error('❌ Mode switching test failed:', error)
     throw error
@@ -103,7 +101,7 @@ async function testEventHandling(): Promise<void> {
     let eventsReceived = 0
 
     // Set up event listeners
-    integrationService.on('stateChanged', (state) => {
+    integrationService.on('stateChanged', state => {
       eventsReceived++
       console.log(`✓ State changed event received: ${state.mode}`)
     })
@@ -123,7 +121,7 @@ async function testEventHandling(): Promise<void> {
       console.log(`✓ Transcription received from ${source}: "${result.text}"`)
     })
 
-    integrationService.on('error', (error) => {
+    integrationService.on('error', error => {
       eventsReceived++
       console.log(`✓ Error event received: ${error.message}`)
     })
@@ -143,7 +141,6 @@ async function testEventHandling(): Promise<void> {
     await integrationService.switchMode(TranscriptionMode.HYBRID)
 
     console.log(`✓ Total events received: ${eventsReceived}`)
-
   } catch (error) {
     console.error('❌ Event handling test failed:', error)
     throw error
@@ -169,7 +166,7 @@ async function testAudioStreaming(): Promise<void> {
     // Mock audio data
     const mockAudioData = new Float32Array(1024)
     for (let i = 0; i < mockAudioData.length; i++) {
-      mockAudioData[i] = Math.sin(2 * Math.PI * 440 * i / 44100) // 440Hz sine wave
+      mockAudioData[i] = Math.sin((2 * Math.PI * 440 * i) / 44100) // 440Hz sine wave
     }
 
     console.log('✓ Generated mock audio data')
@@ -187,7 +184,6 @@ async function testAudioStreaming(): Promise<void> {
     const state = integrationService.getState()
     console.log(`✓ Streaming state: ${state.isStreaming}`)
     console.log(`✓ Bytes streamed: ${state.bytesStreamed}`)
-
   } catch (error) {
     console.error('❌ Audio streaming test failed:', error)
     throw error
@@ -206,7 +202,7 @@ async function testConfigurationUpdates(): Promise<void> {
 
   try {
     let configUpdateEvents = 0
-    integrationService.on('configUpdated', (config) => {
+    integrationService.on('configUpdated', config => {
       configUpdateEvents++
       console.log(`✓ Configuration updated: ${Object.keys(config).join(', ')}`)
     })
@@ -228,7 +224,6 @@ async function testConfigurationUpdates(): Promise<void> {
       messagesReceived: metrics.messagesReceived,
       errors: metrics.errors
     })
-
   } catch (error) {
     console.error('❌ Configuration update test failed:', error)
     throw error
@@ -254,12 +249,12 @@ async function testErrorHandlingAndFailover(): Promise<void> {
     let failoverEvents = 0
     let errorEvents = 0
 
-    integrationService.on('failover', (mode) => {
+    integrationService.on('failover', mode => {
       failoverEvents++
       console.log(`✓ Failover to ${mode} mode`)
     })
 
-    integrationService.on('error', (error) => {
+    integrationService.on('error', error => {
       errorEvents++
       console.log(`✓ Error handled: ${error.message}`)
     })
@@ -268,13 +263,12 @@ async function testErrorHandlingAndFailover(): Promise<void> {
     try {
       await integrationService.startTranscription()
       console.log('✓ Transcription started (may have triggered failover)')
-      
+
       // Wait a bit for any async operations
       await new Promise(resolve => setTimeout(resolve, 2000))
-      
+
       await integrationService.stopTranscription()
       console.log('✓ Transcription stopped')
-      
     } catch {
       console.log('✓ Expected error during transcription test (likely no real API key)')
     }
@@ -283,7 +277,6 @@ async function testErrorHandlingAndFailover(): Promise<void> {
     console.log(`✓ Final state - Mode: ${finalState.mode}, Errors: ${finalState.errors}`)
     console.log(`✓ Failover events: ${failoverEvents}`)
     console.log(`✓ Error events: ${errorEvents}`)
-
   } catch (error) {
     console.error('❌ Error handling test failed:', error)
     throw error
@@ -329,7 +322,6 @@ async function testMetricsAndMonitoring(): Promise<void> {
       isStreaming: state.isStreaming,
       isProcessing: state.isProcessing
     })
-
   } catch (error) {
     console.error('❌ Metrics and monitoring test failed:', error)
     throw error
@@ -362,7 +354,6 @@ async function runAllTests(): Promise<void> {
     console.log('• Configuration updates: ✓')
     console.log('• Error handling and failover: ✓')
     console.log('• Metrics and monitoring: ✓')
-    
   } catch (error) {
     console.error('\n❌ Integration test suite failed:', error)
     process.exit(1)

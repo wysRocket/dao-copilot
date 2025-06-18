@@ -25,16 +25,16 @@ export interface GeminiConnectionState {
   // Connection state
   connectionState: ConnectionState
   integrationState: IntegrationState | null
-  
+
   // Quality and metrics
   quality: ConnectionQuality | null
   metrics: ConnectionMetrics | null
-  
+
   // Reconnection info
   isReconnecting: boolean
   reconnectionAttempts: number
   nextReconnectDelay: number
-  
+
   // Streaming info
   isStreaming: boolean
   isProcessing: boolean
@@ -103,7 +103,7 @@ export function useGeminiConnection(
     try {
       const integrationService = new GeminiLiveIntegrationService(config)
       integrationServiceRef.current = integrationService
-      
+
       // Set up event listeners
       setupEventListeners(integrationService)
 
@@ -122,7 +122,6 @@ export function useGeminiConnection(
           }
         })
       }
-
     } catch (error) {
       if (enableLogging) {
         logger.error('Failed to initialize Gemini integration service:', {
@@ -140,9 +139,7 @@ export function useGeminiConnection(
     }
   }, [apiKey, mode, fallbackToBatch, autoConnect, enableLogging])
 
-  const setupEventListeners = useCallback((
-    integrationService: GeminiLiveIntegrationService
-  ) => {
+  const setupEventListeners = useCallback((integrationService: GeminiLiveIntegrationService) => {
     // Integration service events
     integrationService.on('stateUpdate', (integrationState: IntegrationState) => {
       setState(prev => ({
@@ -204,7 +201,7 @@ export function useGeminiConnection(
   }, [])
 
   const getClient = useCallback(() => clientRef.current, [])
-  
+
   const getIntegrationService = useCallback(() => integrationServiceRef.current, [])
 
   const controls: GeminiConnectionControls = {

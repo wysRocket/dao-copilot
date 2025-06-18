@@ -22,18 +22,18 @@ import {logger} from './gemini-logger'
 import type {ProcessedMessage} from './gemini-message-handler'
 
 export enum TranscriptionMode {
-  BATCH = 'batch',        // Traditional batch processing
+  BATCH = 'batch', // Traditional batch processing
   WEBSOCKET = 'websocket', // Real-time WebSocket
-  HYBRID = 'hybrid'       // Fallback between WebSocket and batch
+  HYBRID = 'hybrid' // Fallback between WebSocket and batch
 }
 
 export interface IntegrationConfig extends GeminiLiveConfig {
   mode: TranscriptionMode
-  fallbackToBatch: boolean        // Fallback to batch if WebSocket fails
-  realTimeThreshold: number      // Min audio length for real-time processing (ms)
-  batchFallbackDelay: number     // Delay before falling back to batch (ms)
-  audioBufferSize: number        // Size of audio buffer for streaming
-  enableAudioStreaming: boolean  // Enable continuous audio streaming
+  fallbackToBatch: boolean // Fallback to batch if WebSocket fails
+  realTimeThreshold: number // Min audio length for real-time processing (ms)
+  batchFallbackDelay: number // Delay before falling back to batch (ms)
+  audioBufferSize: number // Size of audio buffer for streaming
+  enableAudioStreaming: boolean // Enable continuous audio streaming
 }
 
 export interface IntegrationState {
@@ -63,7 +63,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
 
   constructor(config: Partial<IntegrationConfig>) {
     super()
-    
+
     this.config = {
       mode: TranscriptionMode.HYBRID,
       fallbackToBatch: true,
@@ -81,7 +81,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     }
 
     this.audioService = getAudioRecordingService()
-    
+
     this.state = {
       mode: this.config.mode,
       connectionState: ConnectionState.DISCONNECTED,
@@ -94,7 +94,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     }
 
     this.initializeServices()
-    
+
     logger.info('GeminiLiveIntegrationService initialized', {
       mode: this.config.mode,
       fallbackEnabled: this.config.fallbackToBatch,
@@ -107,8 +107,10 @@ export class GeminiLiveIntegrationService extends EventEmitter {
    */
   private initializeServices(): void {
     // Initialize WebSocket client if needed
-    if (this.config.mode === TranscriptionMode.WEBSOCKET || 
-        this.config.mode === TranscriptionMode.HYBRID) {
+    if (
+      this.config.mode === TranscriptionMode.WEBSOCKET ||
+      this.config.mode === TranscriptionMode.HYBRID
+    ) {
       this.initializeWebSocketClient()
     }
 
@@ -134,7 +136,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       logger.info('WebSocket client connected')
       this.updateState({connectionState: ConnectionState.CONNECTED})
       this.emit('websocketConnected')
-      
+
       // Cancel fallback timer if connection succeeds
       if (this.fallbackTimer) {
         clearTimeout(this.fallbackTimer)
@@ -142,7 +144,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       }
     })
 
-    this.websocketClient.on('disconnected', (event) => {
+    this.websocketClient.on('disconnected', event => {
       logger.warn('WebSocket client disconnected', {
         code: event.code,
         reason: event.reason
@@ -151,26 +153,26 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       this.emit('websocketDisconnected', event)
     })
 
-    this.websocketClient.on('stateChange', (newState) => {
+    this.websocketClient.on('stateChange', newState => {
       this.updateState({connectionState: newState})
       this.emit('connectionStateChanged', newState)
     })
 
-    this.websocketClient.on('message', (message) => {
+    this.websocketClient.on('message', message => {
       this.handleWebSocketMessage(message)
     })
 
-    this.websocketClient.on('serverContent', (content) => {
+    this.websocketClient.on('serverContent', content => {
       this.handleTranscriptionResult(content, 'websocket')
     })
 
-    this.websocketClient.on('audioData', (audioData) => {
+    this.websocketClient.on('audioData', audioData => {
       logger.debug('Received audio data from WebSocket', {
         length: audioData.length
       })
     })
 
-    this.websocketClient.on('error', (error) => {
+    this.websocketClient.on('error', error => {
       logger.error('WebSocket client error', {
         error: error.message,
         type: error.type
@@ -196,7 +198,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
    * Set up audio service event handlers
    */
   private setupAudioServiceHandlers(): void {
-    this.audioService.onStateChange((recordingState) => {
+    this.audioService.onStateChange(recordingState => {
       this.updateState({recordingState})
       this.emit('recordingStateChanged', recordingState)
 
@@ -216,7 +218,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
    */
   private handleWebSocketMessage(message: ProcessedMessage): void {
     this.updateState({messagesReceived: this.state.messagesReceived + 1})
-    
+
     logger.debug('Processing WebSocket message', {
       type: message.type,
       isValid: message.isValid
@@ -226,11 +228,14 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       // Extract transcription text if available
       const payload = message.payload as Record<string, unknown>
       if (payload.text) {
-        this.handleTranscriptionResult({
-          text: payload.text,
-          confidence: payload.confidence,
-          timestamp: Date.now()
-        }, 'websocket')
+        this.handleTranscriptionResult(
+          {
+            text: payload.text,
+            confidence: payload.confidence,
+            timestamp: Date.now()
+          },
+          'websocket'
+        )
       }
     }
   }
@@ -239,17 +244,23 @@ export class GeminiLiveIntegrationService extends EventEmitter {
    * Handle transcription results from either source
    */
   private handleTranscriptionResult(
-    result: TranscriptionResult | Record<string, unknown>, 
+    result: TranscriptionResult | Record<string, unknown>,
     source: 'websocket' | 'batch'
   ): void {
-    const transcriptionResult: TranscriptionResult = 'text' in result ? 
-      result as TranscriptionResult : {
-        text: (typeof result.text === 'string' ? result.text : 
-               typeof result.content === 'string' ? result.content : ''),
-        confidence: typeof result.confidence === 'number' ? result.confidence : undefined,
-        duration: typeof result.duration === 'number' ? result.duration : undefined,
-        timestamp: (typeof result.timestamp === 'number' ? result.timestamp : Date.now())
-      }
+    const transcriptionResult: TranscriptionResult =
+      'text' in result
+        ? (result as TranscriptionResult)
+        : {
+            text:
+              typeof result.text === 'string'
+                ? result.text
+                : typeof result.content === 'string'
+                  ? result.content
+                  : '',
+            confidence: typeof result.confidence === 'number' ? result.confidence : undefined,
+            duration: typeof result.duration === 'number' ? result.duration : undefined,
+            timestamp: typeof result.timestamp === 'number' ? result.timestamp : Date.now()
+          }
 
     logger.info('Transcription result received', {
       source,
@@ -352,7 +363,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       }
 
       await this.websocketClient.sendRealtimeInput(audioInput)
-      
+
       this.updateState({
         bytesStreamed: this.state.bytesStreamed + pcmData.byteLength
       })
@@ -361,7 +372,6 @@ export class GeminiLiveIntegrationService extends EventEmitter {
         samples: resampledAudio.length,
         bytes: pcmData.byteLength
       })
-
     } catch (error) {
       logger.error('Failed to stream audio buffer', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -393,7 +403,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     }
 
     logger.warn('Initiating failover to batch processing')
-    
+
     this.updateState({mode: TranscriptionMode.BATCH})
     this.emit('failover', 'batch')
 
@@ -419,7 +429,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     }
 
     logger.info('Attempting WebSocket reconnection for hybrid mode')
-    
+
     try {
       await this.websocketClient.connect()
       this.updateState({mode: this.config.mode}) // Return to original mode
@@ -428,7 +438,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       logger.error('WebSocket reconnection failed', {
         error: error instanceof Error ? error.message : 'Unknown error'
       })
-      
+
       // Retry after delay
       this.fallbackTimer = setTimeout(() => {
         this.attemptWebSocketReconnection()
@@ -441,15 +451,16 @@ export class GeminiLiveIntegrationService extends EventEmitter {
    */
   async startTranscription(): Promise<void> {
     this.updateState({isProcessing: true})
-    
+
     logger.info('Starting transcription', {
       mode: this.state.mode
     })
 
     try {
-      if (this.state.mode === TranscriptionMode.WEBSOCKET || 
-          this.state.mode === TranscriptionMode.HYBRID) {
-        
+      if (
+        this.state.mode === TranscriptionMode.WEBSOCKET ||
+        this.state.mode === TranscriptionMode.HYBRID
+      ) {
         if (!this.websocketClient) {
           throw new Error('WebSocket client not initialized')
         }
@@ -458,7 +469,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       }
 
       // Start audio recording
-      this.audioService.startIntervalRecording((result) => {
+      this.audioService.startIntervalRecording(result => {
         // Handle batch transcription results
         if (this.state.mode === TranscriptionMode.BATCH) {
           this.handleTranscriptionResult(result, 'batch')
@@ -466,14 +477,13 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       })
 
       this.emit('transcriptionStarted')
-      
     } catch (error) {
       logger.error('Failed to start transcription', {
         error: error instanceof Error ? error.message : 'Unknown error'
       })
-      
+
       this.updateState({isProcessing: false})
-      
+
       if (this.config.fallbackToBatch && this.state.mode !== TranscriptionMode.BATCH) {
         await this.initiateFailover()
         await this.startTranscription() // Retry with batch mode
@@ -609,7 +619,7 @@ export class GeminiLiveIntegrationService extends EventEmitter {
    */
   updateConfig(updates: Partial<IntegrationConfig>): void {
     this.config = {...this.config, ...updates}
-    
+
     if (this.websocketClient && updates.reconnectionConfig) {
       this.websocketClient.updateReconnectionConfig(updates.reconnectionConfig)
     }

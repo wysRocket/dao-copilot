@@ -199,11 +199,11 @@ integrationService.on('transcription', (result, source) => {
   console.log(`Transcription from ${source}:`, result.text)
 })
 
-integrationService.on('modeChanged', (mode) => {
+integrationService.on('modeChanged', mode => {
   console.log(`Switched to ${mode} mode`)
 })
 
-integrationService.on('failover', (mode) => {
+integrationService.on('failover', mode => {
   console.log(`Failed over to ${mode} mode`)
 })
 
@@ -404,6 +404,7 @@ function MyComponent() {
 ```
 
 Props:
+
 - `client`: GeminiLiveWebSocketClient instance
 - `showQuality`: Display connection quality indicator
 - `showMetrics`: Show detailed connection metrics
@@ -421,17 +422,14 @@ import {GeminiConnectionIndicator} from '../components/GeminiConnectionIndicator
 function StatusBar() {
   return (
     <div className="status-bar">
-      <GeminiConnectionIndicator
-        showQuality={true}
-        showReconnection={true}
-        className="mr-2"
-      />
+      <GeminiConnectionIndicator showQuality={true} showReconnection={true} className="mr-2" />
     </div>
   )
 }
 ```
 
 Props:
+
 - `showQuality`: Display connection quality
 - `showReconnection`: Show reconnection status
 - `className`: Additional CSS classes
@@ -478,9 +476,7 @@ function TranscriptionComponent() {
       <button onClick={disconnect} disabled={!isConnected}>
         Disconnect
       </button>
-      <button onClick={() => sendMessage('Hello!')}>
-        Send Message
-      </button>
+      <button onClick={() => sendMessage('Hello!')}>Send Message</button>
     </div>
   )
 }
@@ -509,6 +505,7 @@ function AppStatusBar() {
 ```
 
 New props:
+
 - `showGeminiConnection`: Display Gemini WebSocket connection status
 
 ### Complete Integration Example
@@ -517,7 +514,10 @@ Here's a complete example showing how to integrate all components:
 
 ```tsx
 import React, {useEffect, useState} from 'react'
-import {GeminiLiveIntegrationFactory, TranscriptionMode} from '../services/gemini-live-integration-factory'
+import {
+  GeminiLiveIntegrationFactory,
+  TranscriptionMode
+} from '../services/gemini-live-integration-factory'
 import {WebSocketConnectionStatus} from '../components/WebSocketConnectionStatus'
 import {useGeminiConnection} from '../hooks/useGeminiConnection'
 import {TranscriptionResult} from '../services/audio-recording'
@@ -566,14 +566,14 @@ function GeminiLiveExample() {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="space-y-4 p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Gemini Live Transcription</h2>
         <div className="flex items-center space-x-2">
           <select
             value={currentMode}
-            onChange={(e) => handleModeSwitch(e.target.value as TranscriptionMode)}
-            className="border rounded px-2 py-1"
+            onChange={e => handleModeSwitch(e.target.value as TranscriptionMode)}
+            className="rounded border px-2 py-1"
           >
             <option value={TranscriptionMode.HYBRID}>Hybrid</option>
             <option value={TranscriptionMode.WEBSOCKET}>WebSocket</option>
@@ -581,7 +581,7 @@ function GeminiLiveExample() {
           </select>
           <button
             onClick={isConnected ? disconnect : connect}
-            className={`px-3 py-1 rounded ${
+            className={`rounded px-3 py-1 ${
               isConnected ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
             }`}
           >
@@ -598,13 +598,13 @@ function GeminiLiveExample() {
         compact={false}
       />
 
-      <div className="bg-gray-100 p-4 rounded">
-        <h3 className="font-semibold mb-2">Transcription Results</h3>
-        <div className="space-y-2 max-h-60 overflow-y-auto">
+      <div className="rounded bg-gray-100 p-4">
+        <h3 className="mb-2 font-semibold">Transcription Results</h3>
+        <div className="max-h-60 space-y-2 overflow-y-auto">
           {transcripts.map((transcript, index) => (
-            <div key={index} className="bg-white p-2 rounded border">
+            <div key={index} className="rounded border bg-white p-2">
               <div className="text-sm text-gray-500">
-                {new Date(transcript.timestamp).toLocaleTimeString()} 
+                {new Date(transcript.timestamp).toLocaleTimeString()}
                 {transcript.source && ` (${transcript.source})`}
               </div>
               <div>{transcript.text}</div>
@@ -638,7 +638,7 @@ import {GeminiLiveIntegrationFactory} from './gemini-live-integration'
 const integrationService = GeminiLiveIntegrationFactory.createFromEnvironment()
 
 // Audio recording state is automatically synchronized
-integrationService.on('recordingStateChanged', (state) => {
+integrationService.on('recordingStateChanged', state => {
   console.log('Recording state:', state)
 })
 
@@ -695,11 +695,13 @@ const hybridResult = await transcribeAudio(audioData, {
 ### Common Issues
 
 1. **Connection Failures**
+
    - Check API key validity
    - Verify network connectivity
    - Check firewall settings for WebSocket connections
 
 2. **Audio Processing Issues**
+
    - Ensure audio format meets requirements (16-bit PCM, 16kHz, mono)
    - Check audio device permissions
    - Verify audio input source
@@ -762,11 +764,13 @@ GEMINI_BACKOFF_MULTIPLIER=2.0
 Main WebSocket client class.
 
 #### Constructor
+
 ```typescript
 new GeminiLiveWebSocketClient(config: GeminiLiveConfig)
 ```
 
 #### Methods
+
 - `connect(): Promise<void>` - Establish WebSocket connection
 - `disconnect(): void` - Close WebSocket connection
 - `sendRealtimeInput(input: RealtimeInput): void` - Send input to API
@@ -776,6 +780,7 @@ new GeminiLiveWebSocketClient(config: GeminiLiveConfig)
 - `updateReconnectionConfig(config: Partial<ReconnectionConfig>): void` - Update reconnection configuration
 
 #### Events
+
 - `connected` - Connection established
 - `disconnected` - Connection closed
 - `message` - Message received
@@ -788,11 +793,13 @@ new GeminiLiveWebSocketClient(config: GeminiLiveConfig)
 High-level integration service.
 
 #### Constructor
+
 ```typescript
 new GeminiLiveIntegrationService(config: Partial<IntegrationConfig>)
 ```
 
 #### Methods
+
 - `startTranscription(): Promise<void>` - Start transcription service
 - `stopTranscription(): Promise<void>` - Stop transcription service
 - `switchMode(mode: TranscriptionMode): Promise<void>` - Switch operating mode
@@ -801,6 +808,7 @@ new GeminiLiveIntegrationService(config: Partial<IntegrationConfig>)
 - `destroy(): Promise<void>` - Cleanup and destroy service
 
 #### Events
+
 - `transcription` - Transcription result received
 - `modeChanged` - Operating mode changed
 - `failover` - Automatic failover occurred

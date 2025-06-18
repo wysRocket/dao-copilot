@@ -68,22 +68,17 @@ export const GeminiConnectionIndicator: React.FC<GeminiConnectionIndicatorProps>
     }
   }
 
-  const shouldAnimate = state === ConnectionState.CONNECTING || 
-                       state === ConnectionState.RECONNECTING || 
-                       isReconnecting
+  const shouldAnimate =
+    state === ConnectionState.CONNECTING || state === ConnectionState.RECONNECTING || isReconnecting
 
   return (
     <div className={cn('flex items-center space-x-2 text-xs', className)}>
       <div
-        className={cn(
-          'h-2 w-2 rounded-full',
-          getStatusColor(state),
-          {
-            'animate-pulse': shouldAnimate
-          }
-        )}
+        className={cn('h-2 w-2 rounded-full', getStatusColor(state), {
+          'animate-pulse': shouldAnimate
+        })}
       />
-      
+
       {showLabel && (
         <span className="text-muted-foreground">
           {getStatusText(state)}
@@ -92,9 +87,9 @@ export const GeminiConnectionIndicator: React.FC<GeminiConnectionIndicatorProps>
           )}
         </span>
       )}
-      
+
       {quality && (
-        <span 
+        <span
           className="font-mono text-xs opacity-60"
           title={`Connection quality: ${quality.toLowerCase()}`}
         >

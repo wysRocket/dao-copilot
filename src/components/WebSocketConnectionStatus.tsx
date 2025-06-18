@@ -191,19 +191,15 @@ export const WebSocketConnectionStatus: React.FC<WebSocketConnectionStatusProps>
 
   if (compact) {
     return (
-      <div className={cn('flex items-center space-x-2 text-xs text-muted-foreground', className)}>
+      <div className={cn('text-muted-foreground flex items-center space-x-2 text-xs', className)}>
         <div
           className={cn('h-1.5 w-1.5 rounded-full', getStatusColor(status.state), {
             'animate-pulse': status.state === ConnectionState.CONNECTING || status.isReconnecting
           })}
         />
-        {showQuality && status.quality && (
-          <span className={getQualityIcon(status.quality)}></span>
-        )}
+        {showQuality && status.quality && <span className={getQualityIcon(status.quality)}></span>}
         {status.isReconnecting && status.reconnectionAttempts > 0 && (
-          <span className="font-mono">
-            {status.reconnectionAttempts}
-          </span>
+          <span className="font-mono">{status.reconnectionAttempts}</span>
         )}
       </div>
     )
@@ -221,7 +217,7 @@ export const WebSocketConnectionStatus: React.FC<WebSocketConnectionStatusProps>
           />
           <span className="text-sm font-medium">{getStatusText(status.state)}</span>
           {status.isReconnecting && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               (Attempt {status.reconnectionAttempts})
             </span>
           )}
@@ -231,15 +227,18 @@ export const WebSocketConnectionStatus: React.FC<WebSocketConnectionStatusProps>
           <div className="flex items-center space-x-1">
             <button
               onClick={handleConnect}
-              disabled={status.state === ConnectionState.CONNECTED || status.state === ConnectionState.CONNECTING}
-              className="text-xs px-2 py-1 rounded bg-green-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700"
+              disabled={
+                status.state === ConnectionState.CONNECTED ||
+                status.state === ConnectionState.CONNECTING
+              }
+              className="rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Connect
             </button>
             <button
               onClick={handleDisconnect}
               disabled={status.state === ConnectionState.DISCONNECTED}
-              className="text-xs px-2 py-1 rounded bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-700"
+              className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Disconnect
             </button>
@@ -260,25 +259,28 @@ export const WebSocketConnectionStatus: React.FC<WebSocketConnectionStatusProps>
 
       {/* Reconnection Progress */}
       {status.isReconnecting && status.nextReconnectDelay > 0 && (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-muted-foreground text-xs">
           Next attempt in {Math.ceil(status.nextReconnectDelay / 1000)}s
         </div>
       )}
 
       {/* Connection Metrics */}
       {showMetrics && status.metrics && (
-        <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+        <div className="text-muted-foreground grid grid-cols-2 gap-2 text-xs">
           <div>
-            <span className="font-medium">Success:</span> {status.metrics.successfulConnections || 0}
+            <span className="font-medium">Success:</span>{' '}
+            {status.metrics.successfulConnections || 0}
           </div>
           <div>
             <span className="font-medium">Failed:</span> {status.metrics.failedConnections || 0}
           </div>
           <div>
-            <span className="font-medium">Uptime:</span> {Math.floor((status.metrics.totalUptime || 0) / 1000)}s
+            <span className="font-medium">Uptime:</span>{' '}
+            {Math.floor((status.metrics.totalUptime || 0) / 1000)}s
           </div>
           <div>
-            <span className="font-medium">Avg Duration:</span> {Math.floor((status.metrics.averageConnectionDuration || 0) / 1000)}s
+            <span className="font-medium">Avg Duration:</span>{' '}
+            {Math.floor((status.metrics.averageConnectionDuration || 0) / 1000)}s
           </div>
         </div>
       )}

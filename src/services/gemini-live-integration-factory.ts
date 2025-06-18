@@ -98,7 +98,10 @@ export class GeminiLiveIntegrationFactory {
   /**
    * Create integration service with development preset
    */
-  static createDevelopment(apiKey: string, overrides?: Partial<IntegrationConfig>): GeminiLiveIntegrationService {
+  static createDevelopment(
+    apiKey: string,
+    overrides?: Partial<IntegrationConfig>
+  ): GeminiLiveIntegrationService {
     const config = {
       ...IntegrationPresets.development,
       apiKey,
@@ -116,7 +119,10 @@ export class GeminiLiveIntegrationFactory {
   /**
    * Create integration service with production preset
    */
-  static createProduction(apiKey: string, overrides?: Partial<IntegrationConfig>): GeminiLiveIntegrationService {
+  static createProduction(
+    apiKey: string,
+    overrides?: Partial<IntegrationConfig>
+  ): GeminiLiveIntegrationService {
     const config = {
       ...IntegrationPresets.production,
       apiKey,
@@ -134,7 +140,10 @@ export class GeminiLiveIntegrationFactory {
   /**
    * Create integration service with real-time preset
    */
-  static createRealtime(apiKey: string, overrides?: Partial<IntegrationConfig>): GeminiLiveIntegrationService {
+  static createRealtime(
+    apiKey: string,
+    overrides?: Partial<IntegrationConfig>
+  ): GeminiLiveIntegrationService {
     const config = {
       ...IntegrationPresets.realtime,
       apiKey,
@@ -152,7 +161,10 @@ export class GeminiLiveIntegrationFactory {
   /**
    * Create integration service with batch-only preset
    */
-  static createBatchOnly(apiKey: string, overrides?: Partial<IntegrationConfig>): GeminiLiveIntegrationService {
+  static createBatchOnly(
+    apiKey: string,
+    overrides?: Partial<IntegrationConfig>
+  ): GeminiLiveIntegrationService {
     const config = {
       ...IntegrationPresets.batchOnly,
       apiKey,
@@ -169,14 +181,19 @@ export class GeminiLiveIntegrationFactory {
   /**
    * Create integration service from environment variables
    */
-  static createFromEnvironment(preset: keyof typeof IntegrationPresets = 'production'): GeminiLiveIntegrationService {
-    const apiKey = process.env.GOOGLE_API_KEY || 
-                   process.env.GEMINI_API_KEY || 
-                   process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-                   process.env.VITE_GOOGLE_API_KEY
+  static createFromEnvironment(
+    preset: keyof typeof IntegrationPresets = 'production'
+  ): GeminiLiveIntegrationService {
+    const apiKey =
+      process.env.GOOGLE_API_KEY ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.VITE_GOOGLE_API_KEY
 
     if (!apiKey) {
-      throw new Error('API key not found in environment variables. Please set GOOGLE_API_KEY, GEMINI_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, or VITE_GOOGLE_API_KEY')
+      throw new Error(
+        'API key not found in environment variables. Please set GOOGLE_API_KEY, GEMINI_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, or VITE_GOOGLE_API_KEY'
+      )
     }
 
     const envOverrides: Partial<IntegrationConfig> = {}
@@ -242,12 +259,15 @@ export class IntegrationUtils {
   /**
    * Monitor integration service state and log changes
    */
-  static monitorState(service: GeminiLiveIntegrationService, logInterval: number = 10000): () => void {
+  static monitorState(
+    service: GeminiLiveIntegrationService,
+    logInterval: number = 10000
+  ): () => void {
     let lastState: IntegrationState | null = null
 
     const monitor = () => {
       const currentState = service.getState()
-      
+
       if (!lastState || this.hasStateChanged(lastState, currentState)) {
         logger.info('Integration service state update', {
           mode: currentState.mode,
@@ -295,7 +315,7 @@ export class IntegrationUtils {
   } {
     const state = service.getState()
     const metrics = service.getMetrics()
-    
+
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy'
     const details: Record<string, unknown> = {
       mode: state.mode,
@@ -322,14 +342,17 @@ export class IntegrationUtils {
       details.connectionQuality = connMetrics.connectionQuality
       details.successfulConnections = connMetrics.successfulConnections
       details.failedConnections = connMetrics.failedConnections
-      
-      if (connMetrics.connectionQuality === 'unstable' || connMetrics.connectionQuality === 'poor') {
+
+      if (
+        connMetrics.connectionQuality === 'unstable' ||
+        connMetrics.connectionQuality === 'poor'
+      ) {
         if (status === 'healthy') status = 'degraded'
         details.connectionIssue = `Connection quality is ${connMetrics.connectionQuality}`
       }
     }
 
-    return { status, details }
+    return {status, details}
   }
 
   /**
@@ -356,13 +379,17 @@ Communication:
 - Messages Received: ${state.messagesReceived}
 - Error Count: ${state.errors}
 
-${('connectionMetrics' in metrics) ? `
+${
+  'connectionMetrics' in metrics
+    ? `
 Connection Quality:
 - Quality: ${(metrics.connectionMetrics as ConnectionMetrics).connectionQuality}
 - Successful Connections: ${(metrics.connectionMetrics as ConnectionMetrics).successfulConnections}
 - Failed Connections: ${(metrics.connectionMetrics as ConnectionMetrics).failedConnections}
 - Average Duration: ${Math.round((metrics.connectionMetrics as ConnectionMetrics).averageConnectionDuration / 1000)}s
-` : ''}
+`
+    : ''
+}
 
 Last Updated: ${new Date().toISOString()}
 `
@@ -389,7 +416,7 @@ export class IntegrationSingleton {
 
     this.config = config
     this.instance = new GeminiLiveIntegrationService(config)
-    
+
     logger.info('Integration singleton initialized')
     return this.instance
   }
@@ -399,7 +426,9 @@ export class IntegrationSingleton {
    */
   static getInstance(): GeminiLiveIntegrationService {
     if (!this.instance) {
-      throw new Error('Integration singleton not initialized. Call IntegrationSingleton.initialize() first.')
+      throw new Error(
+        'Integration singleton not initialized. Call IntegrationSingleton.initialize() first.'
+      )
     }
     return this.instance
   }

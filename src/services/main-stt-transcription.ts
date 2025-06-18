@@ -57,17 +57,17 @@ export async function transcribeAudio(
     try {
       // Use integration service for WebSocket or hybrid mode
       const service = getIntegrationService(options)
-      
+
       // Convert Buffer to Float32Array for integration service
       const audioArray = new Float32Array(audioData.length / 4)
       for (let i = 0; i < audioArray.length; i++) {
         audioArray[i] = audioData.readFloatLE(i * 4)
       }
-      
+
       // Use the integration service to process audio
       return new Promise((resolve, reject) => {
         let resolved = false
-        
+
         const handleTranscription = (result: IntegrationTranscriptionResult, source: string) => {
           if (!resolved) {
             resolved = true
@@ -75,20 +75,20 @@ export async function transcribeAudio(
             resolve(convertToLegacyResult(result, duration, source))
           }
         }
-        
+
         const handleError = (error: Error) => {
           if (!resolved) {
             resolved = true
             reject(error)
           }
         }
-        
+
         service.once('transcription', handleTranscription)
         service.once('error', handleError)
-        
+
         // Start transcription - the service will handle mode selection
         service.startTranscription().catch(handleError)
-        
+
         // Cleanup after timeout
         setTimeout(() => {
           if (!resolved) {
@@ -172,7 +172,9 @@ function shouldUseWebSocket(options: TranscriptionOptions): boolean {
 
   // Use mode to determine WebSocket usage
   const mode = options.mode || TranscriptionMode.HYBRID
-  return webSocketEnabled && (mode === TranscriptionMode.WEBSOCKET || mode === TranscriptionMode.HYBRID)
+  return (
+    webSocketEnabled && (mode === TranscriptionMode.WEBSOCKET || mode === TranscriptionMode.HYBRID)
+  )
 }
 
 /**
