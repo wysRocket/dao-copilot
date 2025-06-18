@@ -1,21 +1,22 @@
 # Task ID: 9
-# Title: Implement Glass Overlay Effects
+# Title: Implement Fallback Mechanism
 # Status: pending
-# Dependencies: 1, 2, 3, 4, 5, 6, 7, 8
-# Priority: low
-# Description: Create and apply glass overlay effects to enhance the overall UI aesthetics.
+# Dependencies: 3, 6
+# Priority: medium
+# Description: Develop a fallback system to revert to the HTTP-based approach when WebSocket streaming fails.
 # Details:
-1. Create a new GlassOverlay component using @rdev/liquid-glass-react
-2. Implement subtle background patterns or gradients
-3. Apply the overlay to the main application container
-4. Ensure the overlay doesn't interfere with user interactions
-5. Optimize the overlay for performance
-6. Implement a toggle for enabling/disabling the overlay (optional)
-7. Ensure the overlay is consistent across all windows in the Electron app
+1. Create a FallbackService class to manage the transition between WebSocket and HTTP approaches.
+2. Implement logic to detect WebSocket failures and trigger fallback.
+3. Adapt existing HTTP-based transcription code to work alongside WebSocket implementation.
+4. Use the Adapter pattern to create a common interface for both WebSocket and HTTP approaches.
+5. Implement feature flags (use unleash-client-node version 3.x) to control fallback behavior.
+6. Ensure seamless user experience during fallback transitions.
+7. Implement logging and analytics to track fallback occurrences.
+8. Use TypeScript discriminated unions for type-safe handling of different operation modes.
 
 # Test Strategy:
-1. Verify that the glass overlay renders correctly
-2. Test that the overlay doesn't impact user interactions
-3. Check performance impact of the overlay
-4. Ensure the overlay is consistent across different screen sizes and resolutions
-5. Validate that the overlay maintains its appearance across different operating systems
+1. Unit test FallbackService class methods.
+2. Integration test fallback mechanism with simulated WebSocket failures.
+3. Test seamless transition between WebSocket and HTTP modes.
+4. Verify correct functionality in fallback mode.
+5. User acceptance testing for uninterrupted experience during fallbacks.
