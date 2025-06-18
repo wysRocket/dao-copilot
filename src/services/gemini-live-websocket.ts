@@ -5,6 +5,7 @@
 
 import { EventEmitter } from 'events'
 import { GeminiMessageHandler, MessageType, MessagePriority, type ProcessedMessage } from './gemini-message-handler'
+import { GeminiAuthManager, AuthMethod, type AuthConfig } from './gemini-auth'
 
 export enum ConnectionState {
   DISCONNECTED = 'disconnected',
@@ -15,7 +16,8 @@ export enum ConnectionState {
 }
 
 export interface GeminiLiveConfig {
-  apiKey: string
+  apiKey?: string // For backward compatibility
+  authConfig?: AuthConfig // New auth configuration
   model?: string
   responseModalities?: string[]
   systemInstruction?: string
@@ -66,6 +68,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private messageQueue: RealtimeInput[] = []
   private isClosingIntentionally = false
   private messageHandler: GeminiMessageHandler
+  private authManager: GeminiAuthManager
 
   constructor(config: GeminiLiveConfig) {
     super()
@@ -85,6 +88,10 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     // Initialize message handler
     this.messageHandler = new GeminiMessageHandler()
     this.setupMessageHandlerEvents()
+    
+    // Initialize authentication manager
+    this.authManager = this.createAuthManager()
+    this.setupAuthEvents()
   }
 
   /**
@@ -101,6 +108,16 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.isClosingIntentionally = false
 
     try {
+      // Authenticate first
+      console.log('Authenticating with Gemini Live API...')
+      const authResult = await this.authManager.authenticate()
+      
+      if (!authResult.success) {
+        throw new Error(`Authentication failed: ${authResult.error}`)
+      }
+      
+      console.log('Authentication successful, establishing WebSocket connection...')
+      
       // Construct WebSocket URL for Gemini Live API
       const wsUrl = this.buildWebSocketUrl()
       
@@ -152,9 +169,11 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    */
   private buildWebSocketUrl(): string {
     const baseUrl = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.LiveStreaming'
-    const params = new URLSearchParams({
-      key: this.config.apiKey
-    })
+    
+    // Get authentication parameters from auth manager
+    const authParams = this.authManager.getWebSocketParams()
+    const params = new URLSearchParams(authParams)
+    
     return `${baseUrl}?${params.toString()}`
   }
 
@@ -433,6 +452,53 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     
     this.messageHandler.on('message:sent', (messageId: string) => {
       this.emit('messageSent', messageId)
+    })
+  }
+
+  /**
+   * Create authentication manager based on configuration
+   */
+  private createAuthManager(): GeminiAuthManager {
+    let authConfig: AuthConfig
+    
+    if (this.config.authConfig) {
+      // Use provided auth configuration
+      authConfig = this.config.authConfig
+    } else if (this.config.apiKey) {
+      // Backward compatibility - create API key auth config
+      authConfig = {
+        method: AuthMethod.API_KEY,
+        apiKey: this.config.apiKey
+      }
+    } else {
+      throw new Error('No authentication configuration provided')
+    }
+    
+    return new GeminiAuthManager(authConfig)
+  }
+
+  /**
+   * Set up authentication event listeners
+   */
+  private setupAuthEvents(): void {
+    this.authManager.on('authenticated', (credentials) => {
+      console.log('Authentication successful')
+      this.emit('authenticated', credentials)
+    })
+    
+    this.authManager.on('authError', (error) => {
+      console.error('Authentication error:', error)
+      this.emit('authError', error)
+    })
+    
+    this.authManager.on('tokenRefreshed', (credentials) => {
+      console.log('Token refreshed successfully')
+      this.emit('tokenRefreshed', credentials)
+    })
+    
+    this.authManager.on('refreshError', (error) => {
+      console.error('Token refresh error:', error)
+      this.emit('refreshError', error)
     })
   }
 }
