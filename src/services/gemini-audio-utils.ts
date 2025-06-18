@@ -8,8 +8,29 @@
  * The API requires 16-bit PCM, 16kHz, mono format
  */
 export function convertAudioToBase64(audioBuffer: ArrayBuffer): string {
-  const uint8Array = new Uint8Array(audioBuffer)
-  return btoa(String.fromCharCode(...uint8Array))
+  try {
+    const uint8Array = new Uint8Array(audioBuffer)
+
+    // Check if we're in Node.js environment
+    if (typeof Buffer !== 'undefined') {
+      // Node.js environment - use Buffer for better performance and compatibility
+      return Buffer.from(uint8Array).toString('base64')
+    }
+
+    // Browser environment - use chunked conversion to avoid stack overflow
+    let binaryString = ''
+    const CHUNK_SIZE = 8192 // Process in chunks to avoid stack overflow
+
+    for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
+      const chunk = uint8Array.subarray(i, i + CHUNK_SIZE)
+      binaryString += String.fromCharCode.apply(null, Array.from(chunk))
+    }
+
+    return btoa(binaryString)
+  } catch (error) {
+    console.error('Error converting audio to base64:', error)
+    throw new Error('Failed to convert audio to base64')
+  }
 }
 
 /**
@@ -75,12 +96,13 @@ export function convertStereoToMono(stereoData: Float32Array): Float32Array {
 
 /**
  * Prepare audio data for Gemini Live API
- * Converts to required format: 16-bit PCM, 16kHz, mono
+ * Converts to required format: 16-bit PCM, 16kHz (configurable), mono
  */
 export function prepareAudioForGemini(
   audioData: Float32Array,
   originalSampleRate: number,
-  channels: number = 1
+  channels: number = 1,
+  targetSampleRate: number = 16000
 ): string {
   let processedAudio = audioData
 
@@ -89,9 +111,9 @@ export function prepareAudioForGemini(
     processedAudio = convertStereoToMono(processedAudio)
   }
 
-  // Resample to 16kHz if needed
-  if (originalSampleRate !== 16000) {
-    processedAudio = resampleAudio(processedAudio, originalSampleRate, 16000)
+  // Resample to target sample rate if needed
+  if (originalSampleRate !== targetSampleRate) {
+    processedAudio = resampleAudio(processedAudio, originalSampleRate, targetSampleRate)
   }
 
   // Convert to 16-bit PCM
