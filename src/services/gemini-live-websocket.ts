@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events'
+import { GeminiMessageHandler, MessageType, MessagePriority, type ProcessedMessage } from './gemini-message-handler'
 
 export enum ConnectionState {
   DISCONNECTED = 'disconnected',
@@ -64,6 +65,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private reconnectTimer: NodeJS.Timeout | null = null
   private messageQueue: RealtimeInput[] = []
   private isClosingIntentionally = false
+  private messageHandler: GeminiMessageHandler
 
   constructor(config: GeminiLiveConfig) {
     super()
@@ -79,6 +81,10 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.maxReconnectAttempts = this.config.reconnectAttempts!
     this.heartbeatInterval = this.config.heartbeatInterval!
     this.connectionTimeout = this.config.connectionTimeout!
+
+    // Initialize message handler
+    this.messageHandler = new GeminiMessageHandler()
+    this.setupMessageHandlerEvents()
   }
 
   /**
@@ -155,7 +161,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   /**
    * Send realtime input (audio or text) to the API
    */
-  sendRealtimeInput(input: RealtimeInput): void {
+  async sendRealtimeInput(input: RealtimeInput): Promise<void> {
     if (this.connectionState !== ConnectionState.CONNECTED) {
       console.log('Connection not ready, queueing message')
       this.messageQueue.push(input)
@@ -168,6 +174,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     }
 
     try {
+      // For now, send directly but also process through message handler for validation
       const message = JSON.stringify({
         client_content: {
           turns: [{
@@ -181,6 +188,10 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       console.log('Sending message to Gemini Live API:', message.substring(0, 200) + '...')
       this.ws.send(message)
       this.emit('messageSent', input)
+      
+      // Also queue through message handler for future integration
+      this.messageHandler.queueMessage(input, MessageType.CLIENT_CONTENT, MessagePriority.HIGH)
+      
     } catch (error) {
       console.error('Failed to send message:', error)
       this.emit('error', error)
@@ -190,8 +201,8 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   /**
    * Build message parts from realtime input
    */
-  private buildMessageParts(input: RealtimeInput): any[] {
-    const parts: any[] = []
+  private buildMessageParts(input: RealtimeInput): Array<Record<string, unknown>> {
+    const parts: Array<Record<string, unknown>> = []
 
     if (input.text) {
       parts.push({ text: input.text })
@@ -214,31 +225,46 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    */
   private handleMessage(event: MessageEvent): void {
     try {
-      const message: GeminiMessage = JSON.parse(event.data)
-      console.log('Received message from Gemini Live API')
+      // Use message handler to process incoming message
+      const processed = this.messageHandler.processIncomingMessage(event.data)
       
-      this.emit('message', message)
+      console.log(`Received message type: ${processed.type}, valid: ${processed.isValid}`)
       
-      // Handle different types of messages
-      if (message.serverContent) {
-        this.emit('serverContent', message.serverContent)
-        
-        if (message.serverContent.turnComplete) {
-          this.emit('turnComplete', message)
+      // Emit the processed message for subscribers
+      this.emit('message', processed)
+      
+      // If the message is valid, emit specific events based on type
+      if (processed.isValid) {
+        switch (processed.type) {
+          case MessageType.SERVER_CONTENT:
+            this.emit('serverContent', processed.payload)
+            break
+          case MessageType.MODEL_TURN:
+            this.emit('modelTurn', processed.payload)
+            break
+          case MessageType.TURN_COMPLETE:
+            this.emit('turnComplete', processed.payload)
+            break
+          case MessageType.AUDIO_DATA:
+            this.emit('audioData', processed.payload)
+            break
+          case MessageType.PONG:
+            this.emit('pong', processed.payload)
+            break
+          case MessageType.SETUP_COMPLETE:
+            this.emit('setupComplete', processed.payload)
+            break
+          case MessageType.ERROR:
+            this.emit('apiError', processed.payload)
+            break
         }
-        
-        if (message.serverContent.modelTurn) {
-          this.emit('modelTurn', message.serverContent.modelTurn)
-        }
-      }
-
-      // Handle audio data
-      if (message.data) {
-        this.emit('audioData', message.data)
+      } else {
+        console.warn('Invalid message received:', processed.errors)
+        this.emit('invalidMessage', processed)
       }
 
     } catch (error) {
-      console.error('Failed to parse message:', error)
+      console.error('Failed to process message:', error)
       this.emit('error', error)
     }
   }
@@ -391,6 +417,23 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.disconnect()
     this.removeAllListeners()
     this.messageQueue = []
+  }
+
+  /**
+   * Set up event listeners for the message handler
+   */
+  private setupMessageHandlerEvents(): void {
+    this.messageHandler.on('message:processed', (processed: ProcessedMessage) => {
+      this.emit('transcription', processed)
+    })
+    
+    this.messageHandler.on('message:error', (error: Error) => {
+      this.emit('error', error)
+    })
+    
+    this.messageHandler.on('message:sent', (messageId: string) => {
+      this.emit('messageSent', messageId)
+    })
   }
 }
 
