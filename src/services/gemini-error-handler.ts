@@ -3,7 +3,7 @@
  * Comprehensive error management, classification, and logging
  */
 
-import { EventEmitter } from 'events'
+import {EventEmitter} from 'events'
 
 export enum ErrorType {
   NETWORK = 'network',
@@ -72,20 +72,16 @@ export class GeminiErrorHandler extends EventEmitter {
     nonRetryable: 0,
     lastOccurrence: 0
   }
-  
+
   private maxErrorHistory = 1000
   private maxLogHistory = 5000
   private logLevel: LogLevel = LogLevel.INFO
   private errorIdCounter = 0
   private logIdCounter = 0
 
-  constructor(options?: {
-    maxErrorHistory?: number
-    maxLogHistory?: number
-    logLevel?: LogLevel
-  }) {
+  constructor(options?: {maxErrorHistory?: number; maxLogHistory?: number; logLevel?: LogLevel}) {
     super()
-    
+
     if (options) {
       this.maxErrorHistory = options.maxErrorHistory ?? this.maxErrorHistory
       this.maxLogHistory = options.maxLogHistory ?? this.maxLogHistory
@@ -112,22 +108,22 @@ export class GeminiErrorHandler extends EventEmitter {
     }
   ): GeminiError {
     const geminiError = this.classifyError(error, context, options)
-    
+
     // Add to error history
     this.addError(geminiError)
-    
+
     // Log the error
     this.error(geminiError.message, {
       error: geminiError,
       context: geminiError.context
     })
-    
+
     // Emit error event
     this.emit('error', geminiError)
-    
+
     // Emit specific error type events
     this.emit(`error:${geminiError.type}`, geminiError)
-    
+
     return geminiError
   }
 
@@ -153,12 +149,12 @@ export class GeminiErrorHandler extends EventEmitter {
     if (error instanceof Error) {
       message = error.message
       stack = error.stack
-      
+
       // Auto-classify based on error message/type
       if (!options?.type) {
         type = this.autoClassifyError(error)
       }
-      
+
       // Auto-determine retryability
       if (options?.retryable === undefined) {
         retryable = this.isRetryableError(error, type)
@@ -167,8 +163,8 @@ export class GeminiErrorHandler extends EventEmitter {
       message = error
     } else if (error && typeof error === 'object') {
       const errorObj = error as Record<string, unknown>
-      message = errorObj.message as string || 'Object error'
-      code = errorObj.code as string || code
+      message = (errorObj.message as string) || 'Object error'
+      code = (errorObj.code as string) || code
       stack = errorObj.stack as string
     }
 
@@ -195,54 +191,61 @@ export class GeminiErrorHandler extends EventEmitter {
     const name = error.name.toLowerCase()
 
     // Network errors
-    if (message.includes('network') || 
-        message.includes('connection') || 
-        message.includes('timeout') ||
-        name.includes('networkerror')) {
+    if (
+      message.includes('network') ||
+      message.includes('connection') ||
+      message.includes('timeout') ||
+      name.includes('networkerror')
+    ) {
       return ErrorType.NETWORK
     }
 
     // WebSocket errors
-    if (message.includes('websocket') || 
-        message.includes('ws://') || 
-        message.includes('wss://') ||
-        name.includes('websocketerror')) {
+    if (
+      message.includes('websocket') ||
+      message.includes('ws://') ||
+      message.includes('wss://') ||
+      name.includes('websocketerror')
+    ) {
       return ErrorType.WEBSOCKET
     }
 
     // Authentication errors
-    if (message.includes('auth') || 
-        message.includes('unauthorized') || 
-        message.includes('forbidden') ||
-        message.includes('token')) {
+    if (
+      message.includes('auth') ||
+      message.includes('unauthorized') ||
+      message.includes('forbidden') ||
+      message.includes('token')
+    ) {
       return ErrorType.AUTHENTICATION
     }
 
     // API errors
-    if (message.includes('api') || 
-        message.includes('400') || 
-        message.includes('500') ||
-        message.includes('bad request')) {
+    if (
+      message.includes('api') ||
+      message.includes('400') ||
+      message.includes('500') ||
+      message.includes('bad request')
+    ) {
       return ErrorType.API
     }
 
     // Validation errors
-    if (message.includes('validation') || 
-        message.includes('invalid') || 
-        message.includes('required')) {
+    if (
+      message.includes('validation') ||
+      message.includes('invalid') ||
+      message.includes('required')
+    ) {
       return ErrorType.VALIDATION
     }
 
     // Rate limit errors
-    if (message.includes('rate limit') || 
-        message.includes('quota') || 
-        message.includes('429')) {
+    if (message.includes('rate limit') || message.includes('quota') || message.includes('429')) {
       return ErrorType.RATE_LIMIT
     }
 
     // Timeout errors
-    if (message.includes('timeout') || 
-        message.includes('timed out')) {
+    if (message.includes('timeout') || message.includes('timed out')) {
       return ErrorType.TIMEOUT
     }
 
@@ -256,8 +259,7 @@ export class GeminiErrorHandler extends EventEmitter {
     const message = error.message.toLowerCase()
 
     // Non-retryable error types
-    if (type === ErrorType.AUTHENTICATION || 
-        type === ErrorType.VALIDATION) {
+    if (type === ErrorType.AUTHENTICATION || type === ErrorType.VALIDATION) {
       return false
     }
 
@@ -290,26 +292,26 @@ export class GeminiErrorHandler extends EventEmitter {
    */
   private addError(error: GeminiError): void {
     this.errors.push(error)
-    
+
     // Maintain history size
     if (this.errors.length > this.maxErrorHistory) {
       this.errors.shift()
     }
-    
+
     // Update statistics
     this.stats.total++
     this.stats.byType[error.type]++
-    
+
     if (error.code) {
       this.stats.byCode[error.code] = (this.stats.byCode[error.code] || 0) + 1
     }
-    
+
     if (error.retryable) {
       this.stats.retryable++
     } else {
       this.stats.nonRetryable++
     }
-    
+
     this.stats.lastError = error
     this.stats.lastOccurrence = error.timestamp
   }
@@ -353,8 +355,8 @@ export class GeminiErrorHandler extends EventEmitter {
    * Core logging method
    */
   private log(
-    level: LogLevel, 
-    message: string, 
+    level: LogLevel,
+    message: string,
     context?: Record<string, unknown>,
     metadata?: Record<string, unknown>
   ): void {
@@ -372,7 +374,7 @@ export class GeminiErrorHandler extends EventEmitter {
     }
 
     this.logs.push(entry)
-    
+
     // Maintain log history size
     if (this.logs.length > this.maxLogHistory) {
       this.logs.shift()
@@ -441,7 +443,7 @@ export class GeminiErrorHandler extends EventEmitter {
    * Get error statistics
    */
   getStats(): ErrorStats {
-    return { ...this.stats }
+    return {...this.stats}
   }
 
   /**

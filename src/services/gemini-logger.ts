@@ -3,8 +3,8 @@
  * Centralized logging with multiple outputs and formatting
  */
 
-import { EventEmitter } from 'events'
-import { LogLevel, LogEntry } from './gemini-error-handler'
+import {EventEmitter} from 'events'
+import {LogLevel, LogEntry} from './gemini-error-handler'
 
 export interface LoggerConfig {
   level: LogLevel
@@ -39,9 +39,9 @@ export class ConsoleLogOutput implements LogOutput {
     const timestamp = new Date(entry.timestamp).toISOString()
     const levelName = LogLevel[entry.level]
     const prefix = `[${timestamp}] [${levelName}] [Gemini]`
-    
+
     let output = `${prefix} ${entry.message}`
-    
+
     if (entry.context && Object.keys(entry.context).length > 0) {
       output += ` ${JSON.stringify(entry.context)}`
     }
@@ -70,10 +70,10 @@ export class ConsoleLogOutput implements LogOutput {
   private colorizeOutput(output: string, level: LogLevel): string {
     const colors = {
       [LogLevel.ERROR]: '\x1b[31m', // Red
-      [LogLevel.WARN]: '\x1b[33m',  // Yellow
-      [LogLevel.INFO]: '\x1b[36m',  // Cyan
+      [LogLevel.WARN]: '\x1b[33m', // Yellow
+      [LogLevel.INFO]: '\x1b[36m', // Cyan
       [LogLevel.DEBUG]: '\x1b[37m', // White
-      [LogLevel.TRACE]: '\x1b[90m'  // Gray
+      [LogLevel.TRACE]: '\x1b[90m' // Gray
     }
 
     const reset = '\x1b[0m'
@@ -94,7 +94,7 @@ export class MemoryLogOutput implements LogOutput {
 
   write(entry: LogEntry): void {
     this.entries.push(entry)
-    
+
     if (this.entries.length > this.maxEntries) {
       this.entries.shift()
     }
@@ -132,13 +132,13 @@ export class FileLogOutput implements LogOutput {
 
   write(entry: LogEntry): void {
     if (this.disabled) return
-    
+
     try {
       const timestamp = new Date(entry.timestamp).toISOString()
       const levelName = LogLevel[entry.level]
       const contextStr = entry.context ? ` ${JSON.stringify(entry.context)}` : ''
       const logLine = `[${timestamp}] [${levelName}] ${entry.message}${contextStr}\n`
-      
+
       // In a real implementation, this would write to file
       // For now, we'll just log to console in development
       if (process.env.NODE_ENV === 'development') {
@@ -170,7 +170,7 @@ export class GeminiLogger extends EventEmitter {
 
   constructor(config: Partial<LoggerConfig> = {}) {
     super()
-    
+
     this.config = {
       level: LogLevel.INFO,
       enableConsole: true,
@@ -240,7 +240,7 @@ export class GeminiLogger extends EventEmitter {
 
     // Buffer the entry
     this.buffer.push(entry)
-    
+
     // Flush if buffer is full
     if (this.buffer.length >= this.bufferSize) {
       this.flush()
@@ -336,7 +336,7 @@ export class GeminiLogger extends EventEmitter {
   setConsoleEnabled(enabled: boolean): void {
     this.config.enableConsole = enabled
     this.outputs = this.outputs.filter(output => !(output instanceof ConsoleLogOutput))
-    
+
     if (enabled) {
       this.outputs.push(new ConsoleLogOutput(this.config.colorize))
     }
@@ -352,7 +352,7 @@ export class GeminiLogger extends EventEmitter {
     }
 
     this.flush()
-    
+
     this.outputs.forEach(output => {
       try {
         output.close?.()

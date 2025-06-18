@@ -65,15 +65,15 @@ async function testWebSocketClient() {
   })
 
   // New ReconnectionManager event listeners
-  client.on('reconnectionStarted', (data) => {
+  client.on('reconnectionStarted', data => {
     console.log(`🔄 Reconnection started: attempt ${data.attempt}, delay ${data.delay}ms`)
   })
 
-  client.on('reconnectionAttempt', (data) => {
+  client.on('reconnectionAttempt', data => {
     console.log(`🔄 Reconnection attempt ${data.attempt}`)
   })
 
-  client.on('reconnectionFailed', (data) => {
+  client.on('reconnectionFailed', data => {
     console.warn(`⚠️ Reconnection attempt ${data.attempt} failed: ${data.error.message}`)
   })
 
@@ -81,11 +81,11 @@ async function testWebSocketClient() {
     console.log('⏹️ Reconnection stopped')
   })
 
-  client.on('connectionQualityUpdate', (quality) => {
+  client.on('connectionQualityUpdate', quality => {
     console.log(`📊 Connection quality: ${quality}`)
   })
 
-  client.on('reconnectionCountdown', (data) => {
+  client.on('reconnectionCountdown', data => {
     if (data.remaining > 0) {
       console.log(`⏰ Next reconnection attempt in ${Math.ceil(data.remaining / 1000)}s`)
     }

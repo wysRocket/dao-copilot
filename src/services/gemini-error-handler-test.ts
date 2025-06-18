@@ -3,8 +3,8 @@
  * Comprehensive testing of error classification, logging, and integration
  */
 
-import { GeminiErrorHandler, ErrorType, LogLevel } from './gemini-error-handler'
-import { GeminiLogger, MemoryLogOutput } from './gemini-logger'
+import {GeminiErrorHandler, ErrorType, LogLevel} from './gemini-error-handler'
+import {GeminiLogger, MemoryLogOutput} from './gemini-logger'
 
 /**
  * Test the error handler functionality
@@ -21,7 +21,7 @@ async function testErrorHandler(): Promise<void> {
   console.log('\n1. Testing error classification...')
   const networkError = new Error('Network timeout occurred')
   const classifiedError = errorHandler.handleError(networkError)
-  
+
   console.log(`✓ Network error classified as: ${classifiedError.type}`)
   console.log(`✓ Retryable: ${classifiedError.retryable}`)
   console.log(`✓ Error ID: ${classifiedError.id}`)
@@ -29,15 +29,15 @@ async function testErrorHandler(): Promise<void> {
   // Test 2: Authentication Error
   const authError = new Error('Unauthorized access - invalid token')
   const authGeminiError = errorHandler.handleError(authError)
-  
+
   console.log(`✓ Auth error classified as: ${authGeminiError.type}`)
   console.log(`✓ Retryable: ${authGeminiError.retryable}`)
 
   // Test 3: Custom Error with Context
   const customError = errorHandler.handleError(
     new Error('API rate limit exceeded'),
-    { userId: '12345', endpoint: '/api/transcribe' },
-    { type: ErrorType.RATE_LIMIT, retryable: true, maxRetries: 5 }
+    {userId: '12345', endpoint: '/api/transcribe'},
+    {type: ErrorType.RATE_LIMIT, retryable: true, maxRetries: 5}
   )
 
   console.log(`✓ Custom error type: ${customError.type}`)
@@ -78,10 +78,10 @@ async function testLogger(): Promise<void> {
   logger.addOutput(memoryOutput)
 
   // Log various levels
-  logger.error('Test error message', { context: 'error' })
-  logger.warn('Test warning message', { context: 'warn' })
-  logger.info('Test info message', { context: 'info' })
-  logger.debug('Test debug message', { context: 'debug' })
+  logger.error('Test error message', {context: 'error'})
+  logger.warn('Test warning message', {context: 'warn'})
+  logger.info('Test info message', {context: 'info'})
+  logger.debug('Test debug message', {context: 'debug'})
 
   const entries = memoryOutput.getEntries()
   console.log(`✓ Logged ${entries.length} entries to memory`)
@@ -134,14 +134,14 @@ async function testIntegration(): Promise<void> {
   logger.addOutput(memoryOutput)
 
   // Simulate error events
-  errorHandler.on('error', (error) => {
+  errorHandler.on('error', error => {
     logger.error(`Error occurred: ${error.message}`, {
       errorId: error.id,
       type: error.type
     })
   })
 
-  errorHandler.on('error:network', (error) => {
+  errorHandler.on('error:network', error => {
     logger.warn(`Network error detected: ${error.message}`, {
       errorId: error.id
     })
@@ -149,8 +149,8 @@ async function testIntegration(): Promise<void> {
 
   // Trigger some errors
   errorHandler.handleError(new Error('Connection failed'))
-  errorHandler.handleError(new Error('Invalid API key'), {}, { type: ErrorType.AUTHENTICATION })
-  errorHandler.handleError(new Error('Rate limit exceeded'), {}, { type: ErrorType.RATE_LIMIT })
+  errorHandler.handleError(new Error('Invalid API key'), {}, {type: ErrorType.AUTHENTICATION})
+  errorHandler.handleError(new Error('Rate limit exceeded'), {}, {type: ErrorType.RATE_LIMIT})
 
   const logEntries = memoryOutput.getEntries()
   const errorLogs = logEntries.filter(entry => entry.level === LogLevel.ERROR)
@@ -192,7 +192,7 @@ async function testPerformance(): Promise<void> {
 
   console.log(`\n1. Processing ${errorCount} errors...`)
   for (let i = 0; i < errorCount; i++) {
-    errorHandler.handleError(new Error(`Test error ${i}`), { iteration: i })
+    errorHandler.handleError(new Error(`Test error ${i}`), {iteration: i})
   }
 
   const errorTime = Date.now() - startTime
@@ -204,7 +204,7 @@ async function testPerformance(): Promise<void> {
 
   console.log(`\n2. Processing ${logCount} log entries...`)
   for (let i = 0; i < logCount; i++) {
-    logger.info(`Test log entry ${i}`, { iteration: i })
+    logger.info(`Test log entry ${i}`, {iteration: i})
   }
 
   // Force flush
@@ -243,7 +243,6 @@ async function runAllTests(): Promise<void> {
     console.log('• Logging with multiple outputs: ✓')
     console.log('• Error-Logger integration: ✓')
     console.log('• Performance under load: ✓')
-
   } catch (error) {
     console.error('\n❌ Test failed:', error)
     process.exit(1)
@@ -251,13 +250,7 @@ async function runAllTests(): Promise<void> {
 }
 
 // Export for use in other test files
-export {
-  testErrorHandler,
-  testLogger,
-  testIntegration,
-  testPerformance,
-  runAllTests
-}
+export {testErrorHandler, testLogger, testIntegration, testPerformance, runAllTests}
 
 // Run tests if this file is executed directly
 if (require.main === module) {

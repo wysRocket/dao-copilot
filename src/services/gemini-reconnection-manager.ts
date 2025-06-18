@@ -3,9 +3,9 @@
  * Handles network interruptions with intelligent backoff and state recovery
  */
 
-import { EventEmitter } from 'events'
-import { logger } from './gemini-logger'
-import { GeminiErrorHandler, ErrorType } from './gemini-error-handler'
+import {EventEmitter} from 'events'
+import {logger} from './gemini-logger'
+import {GeminiErrorHandler, ErrorType} from './gemini-error-handler'
 
 export enum ReconnectionStrategy {
   EXPONENTIAL = 'exponential',
@@ -66,12 +66,12 @@ export class ReconnectionManager extends EventEmitter {
   private state: ReconnectionState
   private reconnectionTimer: NodeJS.Timeout | null = null
   private errorHandler: GeminiErrorHandler
-  private connectionHistory: Array<{ timestamp: number; success: boolean; duration?: number }> = []
+  private connectionHistory: Array<{timestamp: number; success: boolean; duration?: number}> = []
   private readonly maxHistorySize = 100
 
   constructor(config: Partial<ReconnectionConfig>, errorHandler: GeminiErrorHandler) {
     super()
-    
+
     this.config = {
       maxAttempts: 10,
       strategy: ReconnectionStrategy.EXPONENTIAL,
@@ -121,7 +121,7 @@ export class ReconnectionManager extends EventEmitter {
    */
   onConnectionEstablished(): void {
     const now = Date.now()
-    
+
     if (this.state.isReconnecting) {
       this.state.totalReconnectionTime += now - this.state.nextAttemptAt + this.state.currentDelay
       logger.info('Reconnection successful', {
@@ -136,10 +136,10 @@ export class ReconnectionManager extends EventEmitter {
     // Update metrics
     this.metrics.connectionTime = now
     this.metrics.successfulConnections++
-    
+
     // Record in history
     this.addToHistory(now, true)
-    
+
     // Calculate connection quality
     this.updateConnectionQuality()
 
@@ -154,12 +154,12 @@ export class ReconnectionManager extends EventEmitter {
    */
   onConnectionLost(reason?: string): boolean {
     const now = Date.now()
-    
+
     // Calculate uptime if we had a connection
     if (this.metrics.connectionTime > 0) {
       const duration = now - this.metrics.connectionTime
       this.metrics.totalUptime += duration
-      this.metrics.averageConnectionDuration = 
+      this.metrics.averageConnectionDuration =
         this.metrics.totalUptime / Math.max(this.metrics.successfulConnections, 1)
     }
 
@@ -182,7 +182,7 @@ export class ReconnectionManager extends EventEmitter {
     this.updateConnectionQuality()
 
     const shouldReconnect = this.shouldAttemptReconnection(reason)
-    
+
     this.emit('connectionLost', {
       reason,
       shouldReconnect,
@@ -206,13 +206,13 @@ export class ReconnectionManager extends EventEmitter {
         attempts: this.state.attemptCount,
         maxAttempts: this.config.maxAttempts
       })
-      
+
       this.errorHandler.handleError(
         new Error('Maximum reconnection attempts reached'),
-        { attempts: this.state.attemptCount },
-        { type: ErrorType.NETWORK, retryable: false }
+        {attempts: this.state.attemptCount},
+        {type: ErrorType.NETWORK, retryable: false}
       )
-      
+
       this.emit('maxAttemptsReached', {
         attempts: this.state.attemptCount,
         totalTime: this.state.totalReconnectionTime
@@ -251,20 +251,23 @@ export class ReconnectionManager extends EventEmitter {
         })
 
         await reconnectFunction()
-        
+
         // Success is handled by onConnectionEstablished()
-        
       } catch (error) {
         this.state.lastAttemptResult = 'failure'
         this.metrics.failedConnections++
-        
-        const geminiError = this.errorHandler.handleError(error, {
-          attempt: this.state.attemptCount,
-          strategy: this.config.strategy
-        }, {
-          type: ErrorType.NETWORK,
-          retryable: this.state.attemptCount < this.config.maxAttempts
-        })
+
+        const geminiError = this.errorHandler.handleError(
+          error,
+          {
+            attempt: this.state.attemptCount,
+            strategy: this.config.strategy
+          },
+          {
+            type: ErrorType.NETWORK,
+            retryable: this.state.attemptCount < this.config.maxAttempts
+          }
+        )
 
         logger.warn('Reconnection attempt failed', {
           attempt: this.state.attemptCount,
@@ -316,7 +319,9 @@ export class ReconnectionManager extends EventEmitter {
 
     switch (this.config.strategy) {
       case ReconnectionStrategy.EXPONENTIAL:
-        delay = this.config.baseDelay * Math.pow(this.config.backoffMultiplier, this.state.attemptCount - 1)
+        delay =
+          this.config.baseDelay *
+          Math.pow(this.config.backoffMultiplier, this.state.attemptCount - 1)
         break
 
       case ReconnectionStrategy.LINEAR:
@@ -353,8 +358,9 @@ export class ReconnectionManager extends EventEmitter {
   private fibonacci(n: number): number {
     if (n <= 1) return 1
     if (n === 2) return 2
-    
-    let a = 1, b = 2
+
+    let a = 1,
+      b = 2
     for (let i = 3; i <= n; i++) {
       const temp = a + b
       a = b
@@ -369,7 +375,7 @@ export class ReconnectionManager extends EventEmitter {
   private startCountdown(): void {
     const countdownInterval = setInterval(() => {
       this.state.nextAttemptIn = Math.max(0, this.state.nextAttemptAt - Date.now())
-      
+
       this.emit('countdownUpdate', {
         remaining: this.state.nextAttemptIn,
         attempt: this.state.attemptCount
@@ -391,21 +397,18 @@ export class ReconnectionManager extends EventEmitter {
     }
 
     // Don't reconnect for certain error types
-    const nonRetryableReasons = [
-      'unauthorized',
-      'forbidden',
-      'invalid_api_key',
-      'quota_exceeded'
-    ]
+    const nonRetryableReasons = ['unauthorized', 'forbidden', 'invalid_api_key', 'quota_exceeded']
 
     if (reason && nonRetryableReasons.some(nr => reason.toLowerCase().includes(nr))) {
-      logger.info('Not attempting reconnection due to non-retryable reason', { reason })
+      logger.info('Not attempting reconnection due to non-retryable reason', {reason})
       return false
     }
 
     // Consider connection quality
-    if (this.metrics.connectionQuality === ConnectionQuality.UNSTABLE && 
-        this.metrics.unstableConnectionCount > this.config.unstableConnectionThreshold) {
+    if (
+      this.metrics.connectionQuality === ConnectionQuality.UNSTABLE &&
+      this.metrics.unstableConnectionCount > this.config.unstableConnectionThreshold
+    ) {
       logger.warn('Connection too unstable, postponing reconnection')
       return false
     }
@@ -421,8 +424,8 @@ export class ReconnectionManager extends EventEmitter {
 
     const recentConnections = this.connectionHistory.slice(-5)
     const recentFailures = recentConnections.filter(c => !c.success).length
-    const shortConnections = recentConnections.filter(c => 
-      c.success && c.duration && c.duration < 10000 // Less than 10 seconds
+    const shortConnections = recentConnections.filter(
+      c => c.success && c.duration && c.duration < 10000 // Less than 10 seconds
     ).length
 
     return recentFailures >= 3 || shortConnections >= 3
@@ -439,9 +442,9 @@ export class ReconnectionManager extends EventEmitter {
 
     const recent = this.connectionHistory.slice(-10)
     const successRate = recent.filter(c => c.success).length / recent.length
-    const avgDuration = recent
-      .filter(c => c.success && c.duration)
-      .reduce((sum, c) => sum + (c.duration || 0), 0) / recent.length
+    const avgDuration =
+      recent.filter(c => c.success && c.duration).reduce((sum, c) => sum + (c.duration || 0), 0) /
+      recent.length
 
     if (successRate >= 0.9 && avgDuration > 60000) {
       this.metrics.connectionQuality = ConnectionQuality.EXCELLENT
@@ -458,8 +461,8 @@ export class ReconnectionManager extends EventEmitter {
    * Add entry to connection history
    */
   private addToHistory(timestamp: number, success: boolean, duration?: number): void {
-    this.connectionHistory.push({ timestamp, success, duration })
-    
+    this.connectionHistory.push({timestamp, success, duration})
+
     if (this.connectionHistory.length > this.maxHistorySize) {
       this.connectionHistory.shift()
     }
@@ -481,20 +484,20 @@ export class ReconnectionManager extends EventEmitter {
    * Get current metrics
    */
   getMetrics(): ConnectionMetrics {
-    return { ...this.metrics }
+    return {...this.metrics}
   }
 
   /**
    * Get current reconnection state
    */
   getState(): ReconnectionState {
-    return { ...this.state }
+    return {...this.state}
   }
 
   /**
    * Get connection history
    */
-  getConnectionHistory(): Array<{ timestamp: number; success: boolean; duration?: number }> {
+  getConnectionHistory(): Array<{timestamp: number; success: boolean; duration?: number}> {
     return [...this.connectionHistory]
   }
 
@@ -502,7 +505,7 @@ export class ReconnectionManager extends EventEmitter {
    * Update configuration
    */
   updateConfig(newConfig: Partial<ReconnectionConfig>): void {
-    this.config = { ...this.config, ...newConfig }
+    this.config = {...this.config, ...newConfig}
     logger.info('Reconnection configuration updated', newConfig)
     this.emit('configUpdated', this.config)
   }
@@ -513,7 +516,7 @@ export class ReconnectionManager extends EventEmitter {
   reset(): void {
     this.stopReconnection()
     this.connectionHistory.length = 0
-    
+
     this.metrics = {
       connectionTime: 0,
       disconnectionTime: 0,
@@ -527,7 +530,7 @@ export class ReconnectionManager extends EventEmitter {
     }
 
     this.resetReconnectionState()
-    
+
     logger.info('ReconnectionManager reset')
     this.emit('reset')
   }
@@ -539,7 +542,7 @@ export class ReconnectionManager extends EventEmitter {
     config: ReconnectionConfig
     metrics: ConnectionMetrics
     state: ReconnectionState
-    history: Array<{ timestamp: number; success: boolean; duration?: number }>
+    history: Array<{timestamp: number; success: boolean; duration?: number}>
   } {
     return {
       config: this.config,

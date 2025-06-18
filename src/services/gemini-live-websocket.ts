@@ -3,18 +3,18 @@
  * Handles real-time bidirectional communication with Google's Gemini Live API
  */
 
-import { EventEmitter } from 'events'
+import {EventEmitter} from 'events'
 import {
   GeminiMessageHandler,
   MessageType,
   MessagePriority,
   type ProcessedMessage
 } from './gemini-message-handler'
-import { GeminiErrorHandler, ErrorType, type GeminiError } from './gemini-error-handler'
-import { logger } from './gemini-logger'
-import ReconnectionManager, { 
-  ReconnectionStrategy, 
-  type ReconnectionConfig 
+import {GeminiErrorHandler, ErrorType, type GeminiError} from './gemini-error-handler'
+import {logger} from './gemini-logger'
+import ReconnectionManager, {
+  ReconnectionStrategy,
+  type ReconnectionConfig
 } from './gemini-reconnection-manager'
 
 export enum ConnectionState {
@@ -100,29 +100,32 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     // Initialize message handler
     this.messageHandler = new GeminiMessageHandler()
     this.setupMessageHandlerEvents()
-    
+
     // Initialize error handler
     this.errorHandler = new GeminiErrorHandler({
       maxErrorHistory: 100,
       logLevel: process.env.NODE_ENV === 'development' ? 4 : 2 // DEBUG in dev, INFO in prod
     })
     this.setupErrorHandlerEvents()
-    
+
     // Initialize reconnection manager
-    this.reconnectionManager = new ReconnectionManager({
-      maxAttempts: this.maxReconnectAttempts,
-      strategy: this.config.reconnectionStrategy || ReconnectionStrategy.EXPONENTIAL,
-      baseDelay: 1000,
-      maxDelay: 30000,
-      jitterEnabled: true,
-      jitterRange: 0.1,
-      qualityThreshold: 0.8,
-      unstableConnectionThreshold: 3,
-      backoffMultiplier: 2,
-      ...this.config.reconnectionConfig
-    }, this.errorHandler)
+    this.reconnectionManager = new ReconnectionManager(
+      {
+        maxAttempts: this.maxReconnectAttempts,
+        strategy: this.config.reconnectionStrategy || ReconnectionStrategy.EXPONENTIAL,
+        baseDelay: 1000,
+        maxDelay: 30000,
+        jitterEnabled: true,
+        jitterRange: 0.1,
+        qualityThreshold: 0.8,
+        unstableConnectionThreshold: 3,
+        backoffMultiplier: 2,
+        ...this.config.reconnectionConfig
+      },
+      this.errorHandler
+    )
     this.setupReconnectionManagerEvents()
-    
+
     logger.info('GeminiLiveWebSocketClient initialized', {
       model: this.config.model,
       heartbeatInterval: this.heartbeatInterval,
@@ -157,9 +160,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       const timeoutId = setTimeout(() => {
         if (this.connectionState === ConnectionState.CONNECTING) {
           const timeoutError = this.errorHandler.handleError(
-            new Error('Connection timeout'), 
-            { timeout: this.connectionTimeout }, 
-            { type: ErrorType.TIMEOUT, retryable: true }
+            new Error('Connection timeout'),
+            {timeout: this.connectionTimeout},
+            {type: ErrorType.TIMEOUT, retryable: true}
           )
           this.handleConnectionError(timeoutError)
         }
@@ -175,10 +178,10 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         this.reconnectAttempts = 0
         this.startHeartbeat()
         this.processMessageQueue()
-        
+
         // Notify reconnection manager of successful connection
         this.reconnectionManager.onConnectionEstablished()
-        
+
         this.emit('connected')
       }
 
@@ -188,13 +191,17 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
 
       this.ws.onerror = error => {
         clearTimeout(timeoutId)
-        const geminiError = this.errorHandler.handleError(error, {
-          connectionState: this.connectionState,
-          reconnectAttempts: this.reconnectAttempts
-        }, {
-          type: ErrorType.WEBSOCKET,
-          retryable: true
-        })
+        const geminiError = this.errorHandler.handleError(
+          error,
+          {
+            connectionState: this.connectionState,
+            reconnectAttempts: this.reconnectAttempts
+          },
+          {
+            type: ErrorType.WEBSOCKET,
+            retryable: true
+          }
+        )
         this.handleConnectionError(geminiError)
       }
 
@@ -248,8 +255,8 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     if (!this.ws) {
       const error = this.errorHandler.handleError(
         new Error('WebSocket not initialized'),
-        { connectionState: this.connectionState },
-        { type: ErrorType.WEBSOCKET, retryable: false }
+        {connectionState: this.connectionState},
+        {type: ErrorType.WEBSOCKET, retryable: false}
       )
       throw error
     }
@@ -273,23 +280,27 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         messagePreview: message.substring(0, 200),
         inputType: input.audio ? 'audio' : 'text'
       })
-      
+
       this.ws.send(message)
       this.emit('messageSent', input)
 
       // Also queue through message handler for future integration
       this.messageHandler.queueMessage(input, MessageType.CLIENT_CONTENT, MessagePriority.HIGH)
     } catch (error) {
-      const geminiError = this.errorHandler.handleError(error, {
-        input: {
-          hasAudio: !!input.audio,
-          hasText: !!input.text,
-          textLength: input.text?.length
+      const geminiError = this.errorHandler.handleError(
+        error,
+        {
+          input: {
+            hasAudio: !!input.audio,
+            hasText: !!input.text,
+            textLength: input.text?.length
+          }
+        },
+        {
+          type: ErrorType.API,
+          retryable: true
         }
-      }, {
-        type: ErrorType.API,
-        retryable: true
-      })
+      )
       logger.error('Failed to send realtime input', {
         errorId: geminiError.id,
         message: geminiError.message
@@ -421,21 +432,25 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    */
   private handleConnectionError(error: Error | GeminiError): void {
     let geminiError: GeminiError
-    
+
     if ('id' in error && 'type' in error) {
       // Already a GeminiError
       geminiError = error as GeminiError
     } else {
       // Convert Error to GeminiError
-      geminiError = this.errorHandler.handleError(error, {
-        connectionState: this.connectionState,
-        reconnectAttempts: this.reconnectAttempts
-      }, {
-        type: ErrorType.NETWORK,
-        retryable: true
-      })
+      geminiError = this.errorHandler.handleError(
+        error,
+        {
+          connectionState: this.connectionState,
+          reconnectAttempts: this.reconnectAttempts
+        },
+        {
+          type: ErrorType.NETWORK,
+          retryable: true
+        }
+      )
     }
-    
+
     logger.error('Connection error occurred', {
       errorId: geminiError.id,
       type: geminiError.type,
@@ -443,7 +458,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       retryable: geminiError.retryable,
       connectionState: this.connectionState
     })
-    
+
     this.setConnectionState(ConnectionState.ERROR)
     this.stopHeartbeat()
     this.emit('error', geminiError)
@@ -453,7 +468,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       const shouldReconnect = this.reconnectionManager.onConnectionLost(
         `Error: ${geminiError.message}`
       )
-      
+
       if (shouldReconnect) {
         this.setConnectionState(ConnectionState.RECONNECTING)
         this.reconnectionManager.startReconnection(() => this.connect())
@@ -474,7 +489,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       const shouldReconnect = this.reconnectionManager.onConnectionLost(
         `WebSocket closed: ${event.code} - ${event.reason}`
       )
-      
+
       if (shouldReconnect) {
         this.setConnectionState(ConnectionState.RECONNECTING)
         this.reconnectionManager.startReconnection(() => this.connect())
@@ -486,12 +501,12 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    * Set up reconnection manager event listeners
    */
   private setupReconnectionManagerEvents(): void {
-    this.reconnectionManager.on('connectionEstablished', (data) => {
+    this.reconnectionManager.on('connectionEstablished', data => {
       logger.info('Reconnection manager: connection established', data)
       this.emit('connectionQualityUpdate', data.metrics.connectionQuality)
     })
 
-    this.reconnectionManager.on('connectionLost', (data) => {
+    this.reconnectionManager.on('connectionLost', data => {
       logger.warn('Reconnection manager: connection lost', {
         reason: data.reason,
         shouldReconnect: data.shouldReconnect
@@ -499,7 +514,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       this.emit('connectionQualityUpdate', data.metrics.connectionQuality)
     })
 
-    this.reconnectionManager.on('reconnectionStarted', (data) => {
+    this.reconnectionManager.on('reconnectionStarted', data => {
       logger.info('Reconnection manager: reconnection started', {
         attempt: data.attempt,
         delay: data.delay
@@ -507,14 +522,14 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       this.emit('reconnectionStarted', data)
     })
 
-    this.reconnectionManager.on('reconnectionAttempt', (data) => {
+    this.reconnectionManager.on('reconnectionAttempt', data => {
       logger.info('Reconnection manager: attempting reconnection', {
         attempt: data.attempt
       })
       this.emit('reconnectionAttempt', data)
     })
 
-    this.reconnectionManager.on('reconnectionFailed', (data) => {
+    this.reconnectionManager.on('reconnectionFailed', data => {
       logger.warn('Reconnection manager: reconnection failed', {
         attempt: data.attempt,
         error: data.error.message
@@ -522,7 +537,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       this.emit('reconnectionFailed', data)
     })
 
-    this.reconnectionManager.on('maxAttemptsReached', (data) => {
+    this.reconnectionManager.on('maxAttemptsReached', data => {
       logger.error('Reconnection manager: maximum attempts reached', {
         attempts: data.attempts,
         totalTime: data.totalTime
@@ -530,7 +545,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       this.emit('maxReconnectAttemptsReached', data)
     })
 
-    this.reconnectionManager.on('countdownUpdate', (data) => {
+    this.reconnectionManager.on('countdownUpdate', data => {
       this.emit('reconnectionCountdown', data)
     })
 
@@ -574,7 +589,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       currentState: this.connectionState,
       intentional: true
     })
-    
+
     this.isClosingIntentionally = true
 
     // Stop reconnection manager
@@ -649,7 +664,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    */
   destroy(): void {
     logger.info('Destroying GeminiLiveWebSocketClient')
-    
+
     // Disconnect if connected
     if (this.isConnected()) {
       this.disconnect()
@@ -665,7 +680,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
 
     // Remove all listeners
     this.removeAllListeners()
-    
+
     logger.info('GeminiLiveWebSocketClient destroyed')
   }
 
@@ -676,11 +691,11 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.messageHandler.on('message:processed', (processed: ProcessedMessage) => {
       this.emit('transcription', processed)
     })
-    
+
     this.messageHandler.on('message:error', (error: Error) => {
       this.emit('error', error)
     })
-    
+
     this.messageHandler.on('message:sent', (messageId: string) => {
       this.emit('messageSent', messageId)
     })
@@ -699,7 +714,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       })
       this.emit('error', error)
     })
-    
+
     this.errorHandler.on('error:network', (error: GeminiError) => {
       logger.warn('Network error detected, may trigger reconnection', {
         errorId: error.id,
@@ -707,7 +722,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       })
       this.emit('networkError', error)
     })
-    
+
     this.errorHandler.on('error:websocket', (error: GeminiError) => {
       logger.error('WebSocket-specific error', {
         errorId: error.id,
