@@ -3,7 +3,7 @@
  * Processes incoming and outgoing WebSocket messages with advanced features
  */
 
-import { EventEmitter } from 'events'
+import {EventEmitter} from 'events'
 
 export enum MessageType {
   // Outgoing message types
@@ -11,7 +11,7 @@ export enum MessageType {
   REALTIME_INPUT = 'realtime_input',
   PING = 'ping',
   SETUP = 'setup',
-  
+
   // Incoming message types
   SERVER_CONTENT = 'server_content',
   MODEL_TURN = 'model_turn',
@@ -81,7 +81,7 @@ export class GeminiMessageHandler extends EventEmitter {
     avgProcessingTime: 0,
     lastActivity: Date.now()
   }
-  
+
   private isProcessing = false
   private maxHistorySize = 1000
   private processingInterval: NodeJS.Timeout | null = null
@@ -89,7 +89,7 @@ export class GeminiMessageHandler extends EventEmitter {
 
   constructor() {
     super()
-    
+
     // Initialize priority queues
     Object.values(MessagePriority).forEach(priority => {
       if (typeof priority === 'number') {
@@ -138,7 +138,7 @@ export class GeminiMessageHandler extends EventEmitter {
       if (queue) {
         queue.push(queuedMessage)
         this.stats.queued++
-        
+
         if (!options?.expectResponse) {
           // Resolve immediately for fire-and-forget messages
           resolve(messageId)
@@ -159,10 +159,10 @@ export class GeminiMessageHandler extends EventEmitter {
    */
   processIncomingMessage(rawMessage: unknown): ProcessedMessage {
     const startTime = Date.now()
-    
+
     try {
       const processed = this.deserializeMessage(rawMessage)
-      
+
       // Update statistics
       this.stats.received++
       this.stats.processed++
@@ -180,7 +180,6 @@ export class GeminiMessageHandler extends EventEmitter {
 
       this.emit('messageProcessed', processed)
       return processed
-
     } catch (error) {
       this.stats.failed++
       const errorMessage: ProcessedMessage = {
@@ -221,19 +220,23 @@ export class GeminiMessageHandler extends EventEmitter {
    */
   private formatMessageByType(data: unknown, type: MessageType): Record<string, unknown> {
     // Type guard for safe access to unknown data
-    const isObject = (obj: unknown): obj is Record<string, unknown> => 
+    const isObject = (obj: unknown): obj is Record<string, unknown> =>
       typeof obj === 'object' && obj !== null && !Array.isArray(obj)
-    
+
     const safeData = isObject(data) ? data : {}
-    
+
     switch (type) {
       case MessageType.CLIENT_CONTENT:
         return {
           client_content: {
-            turns: Array.isArray(safeData.turns) ? safeData.turns : [{
-              role: 'user',
-              parts: safeData.parts || []
-            }],
+            turns: Array.isArray(safeData.turns)
+              ? safeData.turns
+              : [
+                  {
+                    role: 'user',
+                    parts: safeData.parts || []
+                  }
+                ],
             turn_complete: safeData.turn_complete !== false
           }
         }
@@ -260,7 +263,7 @@ export class GeminiMessageHandler extends EventEmitter {
         }
 
       default:
-        return isObject(data) ? data : { data }
+        return isObject(data) ? data : {data}
     }
   }
 
@@ -269,17 +272,22 @@ export class GeminiMessageHandler extends EventEmitter {
    */
   private deserializeMessage(rawMessage: unknown): ProcessedMessage {
     let parsed: unknown
-    
+
     try {
       parsed = typeof rawMessage === 'string' ? JSON.parse(rawMessage) : rawMessage
-    } catch (error) {
+    } catch {
       throw new Error('Failed to parse message JSON')
     }
 
     const messageType = this.detectMessageType(parsed)
+    const isObject = (obj: unknown): obj is Record<string, unknown> =>
+      typeof obj === 'object' && obj !== null && !Array.isArray(obj)
+
+    const safeParsed = isObject(parsed) ? parsed : {}
+
     const metadata: MessageMetadata = {
-      id: parsed.id || this.generateMessageId(),
-      timestamp: parsed.timestamp || Date.now(),
+      id: (safeParsed.id as string) || this.generateMessageId(),
+      timestamp: (safeParsed.timestamp as number) || Date.now(),
       type: messageType,
       priority: this.getMessagePriority(messageType)
     }
@@ -301,6 +309,14 @@ export class GeminiMessageHandler extends EventEmitter {
    * Detect message type from incoming message
    */
   private detectMessageType(message: unknown): MessageType {
+    // Type guard for safe property access
+    const isObject = (obj: unknown): obj is Record<string, unknown> =>
+      typeof obj === 'object' && obj !== null && !Array.isArray(obj)
+
+    if (!isObject(message)) {
+      return MessageType.SERVER_CONTENT // Default fallback
+    }
+
     if (message.server_content) return MessageType.SERVER_CONTENT
     if (message.model_turn) return MessageType.MODEL_TURN
     if (message.turn_complete) return MessageType.TURN_COMPLETE
@@ -308,14 +324,21 @@ export class GeminiMessageHandler extends EventEmitter {
     if (message.pong) return MessageType.PONG
     if (message.setup_complete) return MessageType.SETUP_COMPLETE
     if (message.error) return MessageType.ERROR
-    
+
     return MessageType.SERVER_CONTENT // Default fallback
   }
 
   /**
    * Extract payload from message based on type
    */
-  private extractPayload(message: any, type: MessageType): any {
+  private extractPayload(message: unknown, type: MessageType): unknown {
+    const isObject = (obj: unknown): obj is Record<string, unknown> =>
+      typeof obj === 'object' && obj !== null && !Array.isArray(obj)
+
+    if (!isObject(message)) {
+      return message
+    }
+
     switch (type) {
       case MessageType.SERVER_CONTENT:
         return message.server_content || message
@@ -357,8 +380,11 @@ export class GeminiMessageHandler extends EventEmitter {
   /**
    * Validate message structure
    */
-  private validateMessage(message: any, type: MessageType): boolean {
-    if (!message || typeof message !== 'object') return false
+  private validateMessage(message: unknown, type: MessageType): boolean {
+    const isObject = (obj: unknown): obj is Record<string, unknown> =>
+      typeof obj === 'object' && obj !== null && !Array.isArray(obj)
+
+    if (!isObject(message)) return false
 
     switch (type) {
       case MessageType.SERVER_CONTENT:
@@ -375,10 +401,12 @@ export class GeminiMessageHandler extends EventEmitter {
   /**
    * Get validation errors for invalid messages
    */
-  private getValidationErrors(message: any, type: MessageType): string[] {
+  private getValidationErrors(message: unknown, type: MessageType): string[] {
     const errors: string[] = []
+    const isObject = (obj: unknown): obj is Record<string, unknown> =>
+      typeof obj === 'object' && obj !== null && !Array.isArray(obj)
 
-    if (!message || typeof message !== 'object') {
+    if (!isObject(message)) {
       errors.push('Message must be a valid object')
       return errors
     }
@@ -461,7 +489,6 @@ export class GeminiMessageHandler extends EventEmitter {
       }
 
       this.emit('messageSent', queuedMessage.metadata.id, queuedMessage.metadata.type)
-
     } catch (error) {
       this.stats.failed++
       queuedMessage.reject?.(error as Error)
@@ -474,13 +501,20 @@ export class GeminiMessageHandler extends EventEmitter {
    */
   private handleResponseMatching(processed: ProcessedMessage): void {
     // Simple response matching - can be enhanced with more sophisticated logic
+    const isObject = (obj: unknown): obj is Record<string, unknown> =>
+      typeof obj === 'object' && obj !== null && !Array.isArray(obj)
+
+    if (!isObject(processed.original)) {
+      return
+    }
+
     const responseId = processed.original.id || processed.original.response_id
-    
-    if (responseId && this.pendingMessages.has(responseId)) {
-      const pendingMessage = this.pendingMessages.get(responseId)
+
+    if (responseId && this.pendingMessages.has(responseId as string)) {
+      const pendingMessage = this.pendingMessages.get(responseId as string)
       if (pendingMessage?.resolve) {
         pendingMessage.resolve(processed)
-        this.pendingMessages.delete(responseId)
+        this.pendingMessages.delete(responseId as string)
       }
     }
   }
@@ -516,7 +550,7 @@ export class GeminiMessageHandler extends EventEmitter {
    */
   private addToHistory(processed: ProcessedMessage): void {
     this.messageHistory.push(processed)
-    
+
     // Maintain history size
     if (this.messageHistory.length > this.maxHistorySize) {
       this.messageHistory.shift()
@@ -530,8 +564,9 @@ export class GeminiMessageHandler extends EventEmitter {
     if (this.stats.processed === 1) {
       this.stats.avgProcessingTime = processingTime
     } else {
-      this.stats.avgProcessingTime = 
-        (this.stats.avgProcessingTime * (this.stats.processed - 1) + processingTime) / this.stats.processed
+      this.stats.avgProcessingTime =
+        (this.stats.avgProcessingTime * (this.stats.processed - 1) + processingTime) /
+        this.stats.processed
     }
   }
 
@@ -546,7 +581,7 @@ export class GeminiMessageHandler extends EventEmitter {
    * Get message statistics
    */
   getStats(): MessageStats {
-    return { ...this.stats }
+    return {...this.stats}
   }
 
   /**
@@ -559,13 +594,13 @@ export class GeminiMessageHandler extends EventEmitter {
   /**
    * Get queue status
    */
-  getQueueStatus(): { [key in MessagePriority]: number } {
-    const status = {} as { [key in MessagePriority]: number }
-    
+  getQueueStatus(): {[key in MessagePriority]: number} {
+    const status = {} as {[key in MessagePriority]: number}
+
     this.messageQueue.forEach((queue, priority) => {
       status[priority] = queue.length
     })
-    
+
     return status
   }
 
