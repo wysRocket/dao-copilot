@@ -58,40 +58,40 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   // Listen for theme changes from other windows
   useEffect(() => {
     const handleMessage = (channel: string, ...args: unknown[]) => {
-      console.log('ThemeProvider received message:', channel, args)
+      // Sanitize channel name for logging to prevent log injection
+      const sanitizedChannel = String(channel).replace(/[\r\n]/g, '')
+      console.log(`ThemeProvider received message: ${sanitizedChannel}`, JSON.stringify(args))
+
       if (channel === 'theme-changed' && args[0]) {
         const newMode = args[0] as ThemeMode
-        console.log(
-          'ThemeProvider applying theme change from broadcast:',
-          newMode,
-          'current:',
-          mode
-        )
+        // Validate the theme mode before using it
+        if (['light', 'dark', 'system'].includes(newMode)) {
+          console.log(
+            `ThemeProvider applying theme change from broadcast: ${newMode}, current: ${mode}`
+          )
 
-        // Only update if different from current mode to avoid loops
-        if (newMode !== mode) {
-          console.log('ThemeProvider updating theme mode:', newMode)
-          // Use setModeState directly and also update localStorage
-          setModeState(newMode)
-          try {
-            localStorage.setItem(storageKey, newMode)
-            console.log('ThemeProvider saved theme to localStorage:', newMode)
-          } catch (error) {
-            console.warn('Failed to save theme to localStorage:', error)
+          // Only update if different from current mode to avoid loops
+          if (newMode !== mode) {
+            console.log(`ThemeProvider updating theme mode: ${newMode}`)
+            // Use setModeState directly and also update localStorage
+            setModeState(newMode)
+            try {
+              localStorage.setItem(storageKey, newMode)
+              console.log(`ThemeProvider saved theme to localStorage: ${newMode}`)
+            } catch (error) {
+              console.warn('Failed to save theme to localStorage:', error)
+            }
           }
         } else {
-          console.log('ThemeProvider: theme mode already matches, skipping update')
+          console.warn('ThemeProvider: Invalid theme mode received:', newMode)
         }
       }
     }
 
     // Set up message listener if available
     if (typeof window !== 'undefined' && window.electronWindow?.onInterWindowMessage) {
-      console.log('ThemeProvider setting up inter-window message listener')
       const unsubscribe = window.electronWindow.onInterWindowMessage(handleMessage)
       return unsubscribe
-    } else {
-      console.warn('ThemeProvider: Inter-window communication not available')
     }
   }, [storageKey, mode]) // Added mode as dependency
 

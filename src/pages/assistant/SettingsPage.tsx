@@ -1,6 +1,47 @@
-import React, {useState} from 'react'
+import React, {useState, useEffect} from 'react'
 import {useWindowState} from '../../contexts/WindowStateProvider'
 import {useGlassEffects} from '../../contexts/GlassEffectsProvider'
+
+const DEFAULT_SETTINGS = {
+  theme: 'auto',
+  language: 'en',
+  autoSave: true,
+  notifications: true,
+  aiModel: 'gpt-3.5-turbo',
+  transcriptionQuality: 'high'
+}
+
+// Reusable glass effect styles
+const GLASS_STYLES = {
+  header: {
+    background: 'var(--glass-heavy)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    borderBottom: '1px solid var(--glass-border)',
+    boxShadow: '0 2px 12px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+  },
+  section: {
+    background: 'var(--glass-medium)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: '1px solid var(--glass-border)',
+    boxShadow: '0 8px 24px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+  },
+  card: {
+    background: 'var(--glass-medium)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    border: '1px solid var(--glass-border)',
+    boxShadow: '0 2px 8px var(--glass-shadow)'
+  },
+  input: {
+    background: 'var(--glass-light)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    border: '1px solid var(--glass-border)',
+    color: 'var(--text-primary)'
+  }
+}
 
 export default function SettingsPage() {
   const {windowState, updateLocalState} = useWindowState()
@@ -10,38 +51,50 @@ export default function SettingsPage() {
     toggleEnabled,
     setIntensity
   } = useGlassEffects()
-  const [settings, setSettings] = useState({
-    theme: 'auto',
-    language: 'en',
-    autoSave: true,
-    notifications: true,
-    aiModel: 'gpt-3.5-turbo',
-    transcriptionQuality: 'high'
-  })
+
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+
+  // Load settings from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedSettings = localStorage.getItem('dao-copilot-settings')
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings)
+        setSettings({...DEFAULT_SETTINGS, ...parsedSettings})
+      }
+    } catch (error) {
+      console.warn('Failed to load settings from localStorage:', error)
+    }
+  }, [])
 
   const handleSettingChange = (key: string, value: string | boolean) => {
-    setSettings(prev => ({...prev, [key]: value}))
-    // TODO: Persist settings to storage
+    setSettings(prev => {
+      const newSettings = {...prev, [key]: value}
+      // Persist settings to localStorage
+      try {
+        localStorage.setItem('dao-copilot-settings', JSON.stringify(newSettings))
+      } catch (error) {
+        console.warn('Failed to save settings to localStorage:', error)
+      }
+      return newSettings
+    })
   }
 
   const handleSave = () => {
-    // TODO: Save settings to persistent storage
-    console.log('Saving settings:', settings)
+    // Save settings to persistent storage
+    try {
+      localStorage.setItem('dao-copilot-settings', JSON.stringify(settings))
+      // Settings saved successfully - could show user notification here
+    } catch (error) {
+      console.warn('Failed to save settings:', error)
+      // TODO: Add user feedback for save failure
+    }
   }
 
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div
-        className="flex-none p-4"
-        style={{
-          background: 'var(--glass-heavy)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          borderBottom: '1px solid var(--glass-border)',
-          boxShadow: '0 2px 12px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-        }}
-      >
+      <div className="flex-none p-4" style={GLASS_STYLES.header}>
         <h2 className="mb-1 text-lg font-bold" style={{color: 'var(--text-primary)'}}>
           Settings
         </h2>
@@ -54,16 +107,7 @@ export default function SettingsPage() {
         <div className="mx-auto max-w-2xl p-4">
           <div className="space-y-6">
             {/* Appearance Settings */}
-            <div
-              className="space-y-4 rounded-xl p-5"
-              style={{
-                background: 'var(--glass-medium)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                border: '1px solid var(--glass-border)',
-                boxShadow: '0 8px 24px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-              }}
-            >
+            <div className="space-y-4 rounded-xl p-5" style={GLASS_STYLES.section}>
               <h3 className="text-md font-semibold" style={{color: 'var(--text-accent)'}}>
                 Appearance
               </h3>
@@ -79,13 +123,7 @@ export default function SettingsPage() {
                     value={settings.theme}
                     onChange={e => handleSettingChange('theme', e.target.value)}
                     className="w-full rounded-lg px-3 py-2 transition-all duration-200 outline-none"
-                    style={{
-                      background: 'var(--glass-light)',
-                      backdropFilter: 'blur(8px)',
-                      WebkitBackdropFilter: 'blur(8px)',
-                      border: '1px solid var(--glass-border)',
-                      color: 'var(--text-primary)'
-                    }}
+                    style={GLASS_STYLES.input}
                   >
                     <option value="auto">Auto</option>
                     <option value="light">Light</option>
@@ -103,13 +141,7 @@ export default function SettingsPage() {
                     value={settings.language}
                     onChange={e => handleSettingChange('language', e.target.value)}
                     className="w-full rounded-md px-3 py-2 transition-all duration-200 outline-none"
-                    style={{
-                      background: 'var(--glass-light)',
-                      backdropFilter: 'blur(8px)',
-                      WebkitBackdropFilter: 'blur(8px)',
-                      border: '1px solid var(--glass-border)',
-                      color: 'var(--text-primary)'
-                    }}
+                    style={GLASS_STYLES.input}
                   >
                     <option value="en">English</option>
                     <option value="es">Spanish</option>
@@ -121,16 +153,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Glass Effects Settings */}
-            <div
-              className="space-y-3 rounded-lg p-4"
-              style={{
-                background: 'var(--glass-medium)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid var(--glass-border)',
-                boxShadow: '0 2px 8px var(--glass-shadow)'
-              }}
-            >
+            <div className="space-y-3 rounded-lg p-4" style={GLASS_STYLES.card}>
               <h3 className="text-md font-medium" style={{color: 'var(--text-primary)'}}>
                 Glass Effects
               </h3>
@@ -266,16 +289,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Transcription Settings */}
-            <div
-              className="space-y-3 rounded-lg p-4"
-              style={{
-                background: 'var(--glass-medium)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid var(--glass-border)',
-                boxShadow: '0 2px 8px var(--glass-shadow)'
-              }}
-            >
+            <div className="space-y-3 rounded-lg p-4" style={GLASS_STYLES.card}>
               <h3 className="text-md font-medium" style={{color: 'var(--text-primary)'}}>
                 Transcription
               </h3>
@@ -291,13 +305,7 @@ export default function SettingsPage() {
                     value={settings.transcriptionQuality}
                     onChange={e => handleSettingChange('transcriptionQuality', e.target.value)}
                     className="w-full rounded-md px-3 py-2 transition-all duration-200 outline-none"
-                    style={{
-                      background: 'var(--glass-light)',
-                      backdropFilter: 'blur(8px)',
-                      WebkitBackdropFilter: 'blur(8px)',
-                      border: '1px solid var(--glass-border)',
-                      color: 'var(--text-primary)'
-                    }}
+                    style={GLASS_STYLES.input}
                   >
                     <option value="standard">Standard</option>
                     <option value="high">High Quality</option>
@@ -315,13 +323,7 @@ export default function SettingsPage() {
                     value={settings.aiModel}
                     onChange={e => handleSettingChange('aiModel', e.target.value)}
                     className="w-full rounded-md px-3 py-2 transition-all duration-200 outline-none"
-                    style={{
-                      background: 'var(--glass-light)',
-                      backdropFilter: 'blur(8px)',
-                      WebkitBackdropFilter: 'blur(8px)',
-                      border: '1px solid var(--glass-border)',
-                      color: 'var(--text-primary)'
-                    }}
+                    style={GLASS_STYLES.input}
                   >
                     <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
                     <option value="gpt-4">GPT-4</option>
@@ -332,16 +334,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Behavior Settings */}
-            <div
-              className="space-y-3 rounded-lg p-4"
-              style={{
-                background: 'var(--glass-medium)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid var(--glass-border)',
-                boxShadow: '0 2px 8px var(--glass-shadow)'
-              }}
-            >
+            <div className="space-y-3 rounded-lg p-4" style={GLASS_STYLES.card}>
               <h3 className="text-md font-medium" style={{color: 'var(--text-primary)'}}>
                 Behavior
               </h3>
@@ -388,16 +381,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Window Settings */}
-            <div
-              className="space-y-3 rounded-lg p-4"
-              style={{
-                background: 'var(--glass-medium)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid var(--glass-border)',
-                boxShadow: '0 2px 8px var(--glass-shadow)'
-              }}
-            >
+            <div className="space-y-3 rounded-lg p-4" style={GLASS_STYLES.card}>
               <h3 className="text-md font-medium" style={{color: 'var(--text-primary)'}}>
                 Window
               </h3>

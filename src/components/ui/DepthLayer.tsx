@@ -1,4 +1,4 @@
-import React from 'react'
+import React, {useMemo} from 'react'
 import {cn} from '../../utils/tailwind'
 
 export interface DepthLayerProps {
@@ -16,7 +16,7 @@ export const DepthLayer: React.FC<DepthLayerProps> = ({
   style,
   blur = true
 }) => {
-  const getDepthStyles = () => {
+  const getDepthStyles = useMemo(() => {
     const baseStyle: React.CSSProperties = {
       position: 'relative',
       isolation: 'isolate'
@@ -62,13 +62,13 @@ export const DepthLayer: React.FC<DepthLayerProps> = ({
       default:
         return baseStyle
     }
-  }
+  }, [level, blur])
 
   return (
     <div
       className={cn('depth-layer', className)}
       style={{
-        ...getDepthStyles(),
+        ...getDepthStyles,
         ...style
       }}
     >

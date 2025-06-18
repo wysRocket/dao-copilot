@@ -11,7 +11,7 @@ export default function ChatPage() {
     }>
   >([])
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!message.trim()) return
 
@@ -23,18 +23,46 @@ export default function ChatPage() {
     }
 
     setChatHistory(prev => [...prev, userMessage])
+    const userMessageContent = message // Store the message before clearing
     setMessage('')
 
-    // TODO: Integrate with AI service
-    setTimeout(() => {
+    // Integrate with AI service with proper error handling
+    try {
+      // TODO: Replace with actual AI service call
+      // const response = await aiService.sendMessage(userMessageContent)
+
+      // Simulate AI service call with proper error handling
+      const response = await new Promise<string>((resolve, reject) => {
+        setTimeout(() => {
+          // Simulate occasional failures for testing
+          if (Math.random() > 0.9) {
+            reject(new Error('AI service temporarily unavailable'))
+          } else {
+            resolve(
+              `I received your message: "${userMessageContent}". This is a placeholder response.`
+            )
+          }
+        }, 1000)
+      })
+
       const assistantMessage = {
         id: `msg-${Date.now()}-assistant`,
         type: 'assistant' as const,
-        content: `I received your message: "${message}". This is a placeholder response.`,
+        content: response,
         timestamp: Date.now()
       }
       setChatHistory(prev => [...prev, assistantMessage])
-    }, 1000)
+    } catch (error) {
+      console.error('Error sending message to AI:', error)
+      // Show error message to user
+      const errorMessage = {
+        id: `msg-${Date.now()}-error`,
+        type: 'assistant' as const,
+        content: 'Sorry, I encountered an error while processing your message. Please try again.',
+        timestamp: Date.now()
+      }
+      setChatHistory(prev => [...prev, errorMessage])
+    }
   }
 
   return (

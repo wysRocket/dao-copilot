@@ -1,4 +1,4 @@
-import React, {createContext, useContext, useState, useEffect, ReactNode} from 'react'
+import React, {createContext, useContext, useState, useEffect, ReactNode, useRef} from 'react'
 
 export interface GlassEffectsConfig {
   enabled: boolean
@@ -34,6 +34,7 @@ const GlassEffectsContext = createContext<GlassEffectsContextType | null>(null)
 
 export const GlassEffectsProvider: React.FC<{children: ReactNode}> = ({children}) => {
   const [config, setConfig] = useState<GlassEffectsConfig>(defaultConfig)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load config from localStorage on mount
   useEffect(() => {
@@ -48,20 +49,35 @@ export const GlassEffectsProvider: React.FC<{children: ReactNode}> = ({children}
     }
   }, [])
 
-  // Save config to localStorage when it changes
+  // Save config to localStorage when it changes (debounced)
   useEffect(() => {
-    try {
-      localStorage.setItem('dao-copilot-glass-effects', JSON.stringify(config))
-    } catch (error) {
-      console.warn('Failed to save glass effects config to localStorage:', error)
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
     }
 
-    // Broadcast config changes to other windows
-    if (typeof window !== 'undefined' && window.electronWindow?.broadcast) {
+    // Set new timeout for debounced save
+    saveTimeoutRef.current = setTimeout(() => {
       try {
-        window.electronWindow.broadcast('glass-effects-changed', config)
+        localStorage.setItem('dao-copilot-glass-effects', JSON.stringify(config))
       } catch (error) {
-        console.warn('Failed to broadcast glass effects changes:', error)
+        console.warn('Failed to save glass effects config to localStorage:', error)
+      }
+
+      // Broadcast config changes to other windows
+      if (typeof window !== 'undefined' && window.electronWindow?.broadcast) {
+        try {
+          window.electronWindow.broadcast('glass-effects-changed', config)
+        } catch (error) {
+          console.warn('Failed to broadcast glass effects changes:', error)
+        }
+      }
+    }, 300) // 300ms debounce delay
+
+    // Cleanup function to clear timeout if component unmounts
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
       }
     }
   }, [config])

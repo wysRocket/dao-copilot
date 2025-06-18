@@ -33,24 +33,26 @@ const WindowInput = React.forwardRef<HTMLInputElement, WindowInputProps>(
     // Auto-detect window type if not provided
     const effectiveWindowType = windowType || windowState.windowType
 
-    // Get the appropriate value source
-    const getValue = () => {
+    // Get the appropriate value source using useCallback to avoid recreating on every render
+    const getValue = React.useCallback(() => {
       if (value !== undefined) return value
-      if (syncKey) return ((sharedStateHook as Record<string, unknown>)[syncKey] as string) || ''
-      if (localKey) return windowState.localState[localKey] || ''
+      if (syncKey && sharedStateHook) {
+        const sharedState = sharedStateHook as unknown as Record<string, unknown>
+        return (sharedState[syncKey] as string) || ''
+      }
+      if (localKey) {
+        const localState = windowState.localState as Record<string, unknown>
+        return (localState[localKey] as string) || ''
+      }
       return ''
-    }
+    }, [value, syncKey, localKey, sharedStateHook, windowState.localState])
 
     const [internalValue, setInternalValue] = React.useState(getValue())
 
     // Update internal value when external sources change
     React.useEffect(() => {
       setInternalValue(getValue())
-    }, [
-      syncKey && (sharedStateHook as Record<string, unknown>)[syncKey],
-      localKey && windowState.localState[localKey],
-      value
-    ])
+    }, [getValue])
 
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const newValue = event.target.value
@@ -61,7 +63,8 @@ const WindowInput = React.forwardRef<HTMLInputElement, WindowInputProps>(
         // For now, we'll disable this complex sync functionality
         // (sharedStateHook as any).updateSharedState?.(syncKey, newValue)
       } else if (localKey) {
-        updateLocalState(localKey, newValue)
+        // Use type assertion to handle dynamic key access
+        ;(updateLocalState as unknown as (key: string, value: unknown) => void)(localKey, newValue)
       }
 
       // Call original onChange handler
@@ -74,7 +77,11 @@ const WindowInput = React.forwardRef<HTMLInputElement, WindowInputProps>(
           // For now, we'll disable this complex sync functionality
           // (sharedStateHook as any).updateSharedState?.(syncKey, internalValue)
         } else if (localKey) {
-          updateLocalState(localKey, internalValue)
+          // Use type assertion to handle dynamic key access
+          ;(updateLocalState as unknown as (key: string, value: unknown) => void)(
+            localKey,
+            internalValue
+          )
         }
       }
 

@@ -1,5 +1,6 @@
 import React from 'react'
 import {useTranscriptionState} from '../../hooks/useSharedState'
+import GlassCard from '../../components/GlassCard'
 
 export default function AnalysisPage() {
   const {transcripts} = useTranscriptionState()
@@ -33,59 +34,32 @@ export default function AnalysisPage() {
 
       <div className="flex-1 overflow-auto p-4">
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div
-            className="rounded-xl p-5 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
-            style={{
-              background: 'var(--glass-medium)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid var(--glass-border)',
-              boxShadow: '0 8px 24px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-            }}
-          >
+          <GlassCard variant="medium">
             <h3 className="mb-2 text-sm font-semibold" style={{color: 'var(--text-accent)'}}>
               Total Transcripts
             </h3>
             <p className="text-3xl font-bold" style={{color: 'var(--text-primary)'}}>
               {transcripts.length}
             </p>
-          </div>
+          </GlassCard>
 
-          <div
-            className="rounded-xl p-5 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
-            style={{
-              background: 'var(--glass-medium)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid var(--glass-border)',
-              boxShadow: '0 8px 24px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-            }}
-          >
+          <GlassCard variant="medium">
             <h3 className="mb-2 text-sm font-semibold" style={{color: 'var(--text-accent)'}}>
               Total Words
             </h3>
             <p className="text-3xl font-bold" style={{color: 'var(--text-primary)'}}>
               {totalWords.toLocaleString()}
             </p>
-          </div>
+          </GlassCard>
 
-          <div
-            className="rounded-xl p-5 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
-            style={{
-              background: 'var(--glass-medium)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid var(--glass-border)',
-              boxShadow: '0 8px 24px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-            }}
-          >
+          <GlassCard variant="medium">
             <h3 className="mb-2 text-sm font-semibold" style={{color: 'var(--text-accent)'}}>
               Avg. Confidence
             </h3>
             <p className="text-3xl font-bold" style={{color: 'var(--text-primary)'}}>
               {averageConfidence > 0 ? `${Math.round(averageConfidence * 100)}%` : 'N/A'}
             </p>
-          </div>
+          </GlassCard>
         </div>
 
         {transcripts.length > 0 ? (
@@ -99,17 +73,10 @@ export default function AnalysisPage() {
                 .slice(-10)
                 .reverse()
                 .map(transcript => (
-                  <div
+                  <GlassCard
                     key={transcript.id}
-                    className="flex items-center justify-between rounded-xl p-4 transition-all duration-200 hover:scale-[1.01] hover:shadow-lg"
-                    style={{
-                      background: 'var(--glass-light)',
-                      backdropFilter: 'blur(12px)',
-                      WebkitBackdropFilter: 'blur(12px)',
-                      border: '1px solid var(--glass-border)',
-                      boxShadow:
-                        '0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-                    }}
+                    variant="light"
+                    className="flex items-center justify-between p-4"
                   >
                     <div className="flex-1">
                       <p
@@ -145,18 +112,12 @@ export default function AnalysisPage() {
                         </p>
                       )}
                     </div>
-                  </div>
+                  </GlassCard>
                 ))}
             </div>
           </div>
         ) : (
-          <div
-            className="rounded-xl py-16 text-center"
-            style={{
-              background: 'var(--glass-light)',
-              border: '1px solid var(--glass-border)'
-            }}
-          >
+          <GlassCard variant="light" className="py-16 text-center">
             <div
               className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
               style={{
@@ -186,7 +147,7 @@ export default function AnalysisPage() {
             <p className="text-sm" style={{color: 'var(--text-secondary)'}}>
               Start recording to see insights and statistics here
             </p>
-          </div>
+          </GlassCard>
         )}
       </div>
     </div>

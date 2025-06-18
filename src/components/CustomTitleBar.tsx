@@ -42,29 +42,23 @@ const CustomTitleBar: React.FC = () => {
   const handleToggleAssistant = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    console.log('Ask AI button clicked - toggling assistant window, keeping focus on main')
 
     if (assistantWindow.isWindowOpen && assistantWindow.isWindowVisible) {
-      console.log('Assistant window is visible, hiding it')
       assistantWindow.hideWindow()
     } else if (assistantWindow.isWindowOpen) {
-      console.log('Assistant window exists but hidden, showing it without focus')
       assistantWindow.showWindow()
 
       // Keep focus on main window after showing assistant
       setTimeout(() => {
-        console.log('Refocusing main window after showing assistant')
         if (windowState.windowId && window.electronWindow?.focusWindow) {
           window.electronWindow.focusWindow(windowState.windowId)
         }
       }, 100)
     } else {
-      console.log('Assistant window does not exist, creating it without focus')
       await assistantWindow.openWindow()
 
       // Keep focus on main window after creating assistant
       setTimeout(() => {
-        console.log('Refocusing main window after creating assistant')
         if (windowState.windowId && window.electronWindow?.focusWindow) {
           window.electronWindow.focusWindow(windowState.windowId)
         }
@@ -91,7 +85,6 @@ const CustomTitleBar: React.FC = () => {
         window.electronWindow.minimize()
       }
     } else {
-      console.log('Main window is hidden, showing both windows')
       // Restore main window first
       if (windowState.windowId && window.electronWindow?.showWindow) {
         window.electronWindow.showWindow(windowState.windowId)
@@ -114,7 +107,6 @@ const CustomTitleBar: React.FC = () => {
   const handleSettings = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    console.log('Settings button clicked')
     assistantWindow.openWindow()
     // Send message to set AssistantWindow to Settings tab
     setTimeout(() => {

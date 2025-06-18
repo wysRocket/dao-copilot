@@ -10,18 +10,16 @@ export default function ToggleTheme() {
   const handleToggle = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    console.log('Theme toggle clicked - current mode:', mode)
 
     // Calculate new mode before toggling
     const newMode = mode === 'dark' ? 'light' : 'dark'
-    console.log('Broadcasting theme change to all windows:', newMode)
 
     // Broadcast theme change to all windows FIRST
     try {
       broadcast('theme-changed', newMode)
-      console.log('Theme broadcast successful')
     } catch (error) {
-      console.error('Theme broadcast failed:', error)
+      // Handle broadcast failure silently or with user notification
+      console.warn('Failed to broadcast theme change:', error)
     }
 
     // Then toggle theme locally

@@ -103,6 +103,8 @@ out/
 # Added by Task Master AI
 dev-debug.log
 # Environment variables
+.env
+
 # Editor directories and files
 .idea
 .vscode
