@@ -4,8 +4,14 @@
  */
 
 import { EventEmitter } from 'events'
-import { GeminiMessageHandler, MessageType, MessagePriority, type ProcessedMessage } from './gemini-message-handler'
-import { GeminiAuthManager, AuthMethod, type AuthConfig } from './gemini-auth'
+import {
+  GeminiMessageHandler,
+  MessageType,
+  MessagePriority,
+  type ProcessedMessage
+} from './gemini-message-handler'
+import { GeminiErrorHandler, ErrorType, type GeminiError } from './gemini-error-handler'
+import { logger } from './gemini-logger'
 
 export enum ConnectionState {
   DISCONNECTED = 'disconnected',
@@ -16,8 +22,7 @@ export enum ConnectionState {
 }
 
 export interface GeminiLiveConfig {
-  apiKey?: string // For backward compatibility
-  authConfig?: AuthConfig // New auth configuration
+  apiKey: string
   model?: string
   responseModalities?: string[]
   systemInstruction?: string
@@ -68,7 +73,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private messageQueue: RealtimeInput[] = []
   private isClosingIntentionally = false
   private messageHandler: GeminiMessageHandler
-  private authManager: GeminiAuthManager
+  private errorHandler: GeminiErrorHandler
 
   constructor(config: GeminiLiveConfig) {
     super()
@@ -89,17 +94,28 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.messageHandler = new GeminiMessageHandler()
     this.setupMessageHandlerEvents()
     
-    // Initialize authentication manager
-    this.authManager = this.createAuthManager()
-    this.setupAuthEvents()
+    // Initialize error handler
+    this.errorHandler = new GeminiErrorHandler({
+      maxErrorHistory: 100,
+      logLevel: process.env.NODE_ENV === 'development' ? 4 : 2 // DEBUG in dev, INFO in prod
+    })
+    this.setupErrorHandlerEvents()
+    
+    logger.info('GeminiLiveWebSocketClient initialized', {
+      model: this.config.model,
+      heartbeatInterval: this.heartbeatInterval,
+      maxReconnectAttempts: this.maxReconnectAttempts
+    })
   }
 
   /**
    * Establish WebSocket connection to Gemini Live API
    */
   async connect(): Promise<void> {
-    if (this.connectionState === ConnectionState.CONNECTED || 
-        this.connectionState === ConnectionState.CONNECTING) {
+    if (
+      this.connectionState === ConnectionState.CONNECTED ||
+      this.connectionState === ConnectionState.CONNECTING
+    ) {
       console.log('Already connected or connecting')
       return
     }
@@ -108,33 +124,30 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.isClosingIntentionally = false
 
     try {
-      // Authenticate first
-      console.log('Authenticating with Gemini Live API...')
-      const authResult = await this.authManager.authenticate()
-      
-      if (!authResult.success) {
-        throw new Error(`Authentication failed: ${authResult.error}`)
-      }
-      
-      console.log('Authentication successful, establishing WebSocket connection...')
-      
       // Construct WebSocket URL for Gemini Live API
       const wsUrl = this.buildWebSocketUrl()
-      
+
       console.log('Connecting to Gemini Live API:', wsUrl)
       this.ws = new WebSocket(wsUrl)
 
       // Set up connection timeout
       const timeoutId = setTimeout(() => {
         if (this.connectionState === ConnectionState.CONNECTING) {
-          console.error('Connection timeout')
-          this.handleConnectionError(new Error('Connection timeout'))
+          const timeoutError = this.errorHandler.handleError(
+            new Error('Connection timeout'), 
+            { timeout: this.connectionTimeout }, 
+            { type: ErrorType.TIMEOUT, retryable: true }
+          )
+          this.handleConnectionError(timeoutError)
         }
       }, this.connectionTimeout)
 
       this.ws.onopen = () => {
         clearTimeout(timeoutId)
-        console.log('WebSocket connected to Gemini Live API')
+        logger.info('WebSocket connected to Gemini Live API', {
+          connectionState: this.connectionState,
+          attempts: this.reconnectAttempts
+        })
         this.setConnectionState(ConnectionState.CONNECTED)
         this.reconnectAttempts = 0
         this.startHeartbeat()
@@ -142,24 +155,40 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         this.emit('connected')
       }
 
-      this.ws.onmessage = (event) => {
+      this.ws.onmessage = event => {
         this.handleMessage(event)
       }
 
-      this.ws.onerror = (error) => {
+      this.ws.onerror = error => {
         clearTimeout(timeoutId)
-        console.error('WebSocket error:', error)
-        this.handleConnectionError(new Error('WebSocket connection error'))
+        const geminiError = this.errorHandler.handleError(error, {
+          connectionState: this.connectionState,
+          reconnectAttempts: this.reconnectAttempts
+        }, {
+          type: ErrorType.WEBSOCKET,
+          retryable: true
+        })
+        this.handleConnectionError(geminiError)
       }
 
-      this.ws.onclose = (event) => {
+      this.ws.onclose = event => {
         clearTimeout(timeoutId)
-        console.log('WebSocket closed:', event.code, event.reason)
+        logger.info('WebSocket connection closed', {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          intentional: this.isClosingIntentionally
+        })
         this.handleConnectionClose(event)
       }
-
     } catch (error) {
-      console.error('Failed to establish WebSocket connection:', error)
+      logger.error('Failed to establish WebSocket connection', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        config: {
+          model: this.config.model,
+          reconnectAttempts: this.reconnectAttempts
+        }
+      })
       this.handleConnectionError(error as Error)
     }
   }
@@ -168,12 +197,11 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    * Build WebSocket URL for Gemini Live API
    */
   private buildWebSocketUrl(): string {
-    const baseUrl = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.LiveStreaming'
-    
-    // Get authentication parameters from auth manager
-    const authParams = this.authManager.getWebSocketParams()
-    const params = new URLSearchParams(authParams)
-    
+    const baseUrl =
+      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.LiveStreaming'
+    const params = new URLSearchParams({
+      key: this.config.apiKey
+    })
     return `${baseUrl}?${params.toString()}`
   }
 
@@ -182,38 +210,64 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    */
   async sendRealtimeInput(input: RealtimeInput): Promise<void> {
     if (this.connectionState !== ConnectionState.CONNECTED) {
-      console.log('Connection not ready, queueing message')
+      logger.debug('Connection not ready, queueing message', {
+        connectionState: this.connectionState,
+        queueSize: this.messageQueue.length
+      })
       this.messageQueue.push(input)
       return
     }
 
     if (!this.ws) {
-      console.error('WebSocket not initialized')
-      return
+      const error = this.errorHandler.handleError(
+        new Error('WebSocket not initialized'),
+        { connectionState: this.connectionState },
+        { type: ErrorType.WEBSOCKET, retryable: false }
+      )
+      throw error
     }
 
     try {
       // For now, send directly but also process through message handler for validation
       const message = JSON.stringify({
         client_content: {
-          turns: [{
-            role: 'user',
-            parts: this.buildMessageParts(input)
-          }],
+          turns: [
+            {
+              role: 'user',
+              parts: this.buildMessageParts(input)
+            }
+          ],
           turn_complete: true
         }
       })
 
-      console.log('Sending message to Gemini Live API:', message.substring(0, 200) + '...')
+      logger.debug('Sending message to Gemini Live API', {
+        messageLength: message.length,
+        messagePreview: message.substring(0, 200),
+        inputType: input.audio ? 'audio' : 'text'
+      })
+      
       this.ws.send(message)
       this.emit('messageSent', input)
-      
+
       // Also queue through message handler for future integration
       this.messageHandler.queueMessage(input, MessageType.CLIENT_CONTENT, MessagePriority.HIGH)
-      
     } catch (error) {
-      console.error('Failed to send message:', error)
-      this.emit('error', error)
+      const geminiError = this.errorHandler.handleError(error, {
+        input: {
+          hasAudio: !!input.audio,
+          hasText: !!input.text,
+          textLength: input.text?.length
+        }
+      }, {
+        type: ErrorType.API,
+        retryable: true
+      })
+      logger.error('Failed to send realtime input', {
+        errorId: geminiError.id,
+        message: geminiError.message
+      })
+      throw geminiError
     }
   }
 
@@ -224,7 +278,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     const parts: Array<Record<string, unknown>> = []
 
     if (input.text) {
-      parts.push({ text: input.text })
+      parts.push({text: input.text})
     }
 
     if (input.audio) {
@@ -246,12 +300,17 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     try {
       // Use message handler to process incoming message
       const processed = this.messageHandler.processIncomingMessage(event.data)
-      
-      console.log(`Received message type: ${processed.type}, valid: ${processed.isValid}`)
-      
+
+      logger.debug('Received WebSocket message', {
+        messageType: processed.type,
+        isValid: processed.isValid,
+        messageId: processed.metadata.id,
+        errors: processed.errors
+      })
+
       // Emit the processed message for subscribers
       this.emit('message', processed)
-      
+
       // If the message is valid, emit specific events based on type
       if (processed.isValid) {
         switch (processed.type) {
@@ -281,7 +340,6 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         console.warn('Invalid message received:', processed.errors)
         this.emit('invalidMessage', processed)
       }
-
     } catch (error) {
       console.error('Failed to process message:', error)
       this.emit('error', error)
@@ -312,7 +370,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       if (this.connectionState === ConnectionState.CONNECTED && this.ws) {
         try {
           // Send a ping message to keep connection alive
-          this.ws.send(JSON.stringify({ ping: Date.now() }))
+          this.ws.send(JSON.stringify({ping: Date.now()}))
         } catch (error) {
           console.error('Failed to send heartbeat:', error)
           this.handleConnectionError(error as Error)
@@ -334,13 +392,36 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   /**
    * Handle connection errors
    */
-  private handleConnectionError(error: Error): void {
-    console.error('Connection error:', error)
+  private handleConnectionError(error: Error | GeminiError): void {
+    let geminiError: GeminiError
+    
+    if ('id' in error && 'type' in error) {
+      // Already a GeminiError
+      geminiError = error as GeminiError
+    } else {
+      // Convert Error to GeminiError
+      geminiError = this.errorHandler.handleError(error, {
+        connectionState: this.connectionState,
+        reconnectAttempts: this.reconnectAttempts
+      }, {
+        type: ErrorType.NETWORK,
+        retryable: true
+      })
+    }
+    
+    logger.error('Connection error occurred', {
+      errorId: geminiError.id,
+      type: geminiError.type,
+      message: geminiError.message,
+      retryable: geminiError.retryable,
+      connectionState: this.connectionState
+    })
+    
     this.setConnectionState(ConnectionState.ERROR)
     this.stopHeartbeat()
-    this.emit('error', error)
+    this.emit('error', geminiError)
 
-    if (!this.isClosingIntentionally) {
+    if (!this.isClosingIntentionally && geminiError.retryable) {
       this.attemptReconnection()
     }
   }
@@ -371,7 +452,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000) // Max 30 seconds
     this.reconnectAttempts++
 
-    console.log(`Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`)
+    console.log(
+      `Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`
+    )
     this.setConnectionState(ConnectionState.RECONNECTING)
 
     this.reconnectTimer = setTimeout(() => {
@@ -411,9 +494,13 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    * Gracefully close the WebSocket connection
    */
   async disconnect(): Promise<void> {
-    console.log('Closing WebSocket connection')
-    this.isClosingIntentionally = true
+    logger.info('Closing WebSocket connection', {
+      currentState: this.connectionState,
+      intentional: true
+    })
     
+    this.isClosingIntentionally = true
+
     // Clear timers
     this.stopHeartbeat()
     if (this.reconnectTimer) {
@@ -430,16 +517,45 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Clean up resources
+   * Get error statistics
    */
-  destroy(): void {
-    this.disconnect()
-    this.removeAllListeners()
-    this.messageQueue = []
+  getErrorStats() {
+    return this.errorHandler.getStats()
   }
 
   /**
-   * Set up event listeners for the message handler
+   * Get recent errors
+   */
+  getRecentErrors(limit?: number) {
+    return this.errorHandler.getRecentErrors(limit)
+  }
+
+  /**
+   * Cleanup and destroy all resources
+   */
+  destroy(): void {
+    logger.info('Destroying GeminiLiveWebSocketClient')
+    
+    // Disconnect if connected
+    if (this.isConnected()) {
+      this.disconnect()
+    }
+
+    // Cleanup handlers
+    this.messageHandler.destroy()
+    this.errorHandler.destroy()
+
+    // Clear message queue
+    this.messageQueue.length = 0
+
+    // Remove all listeners
+    this.removeAllListeners()
+    
+    logger.info('GeminiLiveWebSocketClient destroyed')
+  }
+
+  /**
+   * Set up message handler event listeners
    */
   private setupMessageHandlerEvents(): void {
     this.messageHandler.on('message:processed', (processed: ProcessedMessage) => {
@@ -456,49 +572,33 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Create authentication manager based on configuration
+   * Set up error handler event listeners
    */
-  private createAuthManager(): GeminiAuthManager {
-    let authConfig: AuthConfig
-    
-    if (this.config.authConfig) {
-      // Use provided auth configuration
-      authConfig = this.config.authConfig
-    } else if (this.config.apiKey) {
-      // Backward compatibility - create API key auth config
-      authConfig = {
-        method: AuthMethod.API_KEY,
-        apiKey: this.config.apiKey
-      }
-    } else {
-      throw new Error('No authentication configuration provided')
-    }
-    
-    return new GeminiAuthManager(authConfig)
-  }
-
-  /**
-   * Set up authentication event listeners
-   */
-  private setupAuthEvents(): void {
-    this.authManager.on('authenticated', (credentials) => {
-      console.log('Authentication successful')
-      this.emit('authenticated', credentials)
+  private setupErrorHandlerEvents(): void {
+    this.errorHandler.on('error', (error: GeminiError) => {
+      logger.error('WebSocket error occurred', {
+        errorId: error.id,
+        type: error.type,
+        message: error.message,
+        retryable: error.retryable
+      })
+      this.emit('error', error)
     })
     
-    this.authManager.on('authError', (error) => {
-      console.error('Authentication error:', error)
-      this.emit('authError', error)
+    this.errorHandler.on('error:network', (error: GeminiError) => {
+      logger.warn('Network error detected, may trigger reconnection', {
+        errorId: error.id,
+        message: error.message
+      })
+      this.emit('networkError', error)
     })
     
-    this.authManager.on('tokenRefreshed', (credentials) => {
-      console.log('Token refreshed successfully')
-      this.emit('tokenRefreshed', credentials)
-    })
-    
-    this.authManager.on('refreshError', (error) => {
-      console.error('Token refresh error:', error)
-      this.emit('refreshError', error)
+    this.errorHandler.on('error:websocket', (error: GeminiError) => {
+      logger.error('WebSocket-specific error', {
+        errorId: error.id,
+        message: error.message
+      })
+      this.emit('websocketError', error)
     })
   }
 }
