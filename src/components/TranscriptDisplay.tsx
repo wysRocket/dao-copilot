@@ -1,112 +1,174 @@
-import React from 'react';
-import {TranscriptionResult} from '../services/main-stt-transcription';
+import React, {useEffect, useRef, useState} from 'react'
+import {TranscriptionResult} from '../services/main-stt-transcription'
+import GlassBox from './GlassBox'
+import VirtualizedTranscript from './VirtualizedTranscript'
+import {cn} from '../utils/tailwind'
 
 interface TranscriptDisplayProps {
-  transcripts: TranscriptionResult[];
-  isProcessing?: boolean;
-  maxHeight?: string;
-  showConfidence?: boolean;
+  transcripts: TranscriptionResult[]
+  isProcessing?: boolean
+  autoScroll?: boolean
+  showScrollToBottom?: boolean
 }
-
-// Type guard for better type safety
-const isNumber = (value: unknown): value is number => {
-  return typeof value === 'number' && !isNaN(value);
-};
 
 const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
   transcripts,
   isProcessing = false,
-  maxHeight = '400px',
-  showConfidence = true,
+  autoScroll = true,
+  showScrollToBottom = true
 }) => {
-  // Helper function to format timing information
-  const formatTiming = (transcript: TranscriptionResult): string => {
-    const startTime = transcript.startTime;
-    const endTime = transcript.endTime;
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [showScrollButton, setShowScrollButton] = useState(false)
+  const [newMessageIndices, setNewMessageIndices] = useState<Set<number>>(new Set())
+  const prevTranscriptCount = useRef(transcripts.length)
 
-    if (isNumber(startTime) && isNumber(endTime)) {
-      return `${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s`;
+  // Handle auto-scroll and new message detection
+  useEffect(() => {
+    if (transcripts.length > prevTranscriptCount.current) {
+      // Mark new messages for animation
+      const newIndices = new Set<number>()
+      for (let i = prevTranscriptCount.current; i < transcripts.length; i++) {
+        newIndices.add(i)
+      }
+      setNewMessageIndices(newIndices)
+
+      // Auto-scroll to bottom if enabled
+      if (autoScroll && scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }
+
+      // Clear animation flags after animation completes
+      setTimeout(() => {
+        setNewMessageIndices(new Set())
+      }, 500)
     }
 
-    if (isNumber(transcript.duration)) {
-      return `Duration: ${transcript.duration}ms`;
+    prevTranscriptCount.current = transcripts.length
+  }, [transcripts.length, autoScroll])
+
+  // Handle scroll position to show/hide scroll-to-bottom button
+  useEffect(() => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement || !showScrollToBottom) return
+
+    const handleScroll = () => {
+      const {scrollTop, scrollHeight, clientHeight} = scrollElement
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
+      setShowScrollButton(!isNearBottom && transcripts.length > 0)
     }
 
-    return 'Time: N/A';
-  };
+    scrollElement.addEventListener('scroll', handleScroll)
+    handleScroll() // Initial check
 
-  // Helper function to format confidence score
-  const formatConfidence = (transcript: TranscriptionResult): string | null => {
-    const confidence = transcript.confidence;
+    return () => scrollElement.removeEventListener('scroll', handleScroll)
+  }, [transcripts.length, showScrollToBottom])
 
-    if (isNumber(confidence)) {
-      return `Confidence: ${(confidence * 100).toFixed(1)}%`;
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      })
     }
-
-    return null;
-  };
+  }
 
   return (
-    <div className="mt-4 w-full max-w-2xl">
-      <h3 className="mb-2 text-lg font-semibold">Transcription Results</h3>
-      <div
-        className={`bg-background min-h-[200px] overflow-y-auto rounded-lg border p-4 ${
-          maxHeight === '400px' ? 'max-h-[400px]' : 'max-h-[600px]'
-        }`}
-        role="log"
-        aria-live="polite"
-        aria-label="Transcription results"
-      >
-        {transcripts.length === 0 && !isProcessing ? (
-          <p className="text-muted-foreground italic" role="status">
-            No transcriptions yet. Start recording to see results.
-          </p>
-        ) : (
-          <>
-            {transcripts.map((transcript, index) => {
-              const confidence = formatConfidence(transcript);
+    <div className="mx-auto mt-4 w-full max-w-4xl">
+      <h3 className="mb-3 text-center text-lg font-semibold" style={{color: 'var(--text-primary)'}}>
+        Live Transcript
+      </h3>
 
-              return (
-                <div
-                  key={index}
-                  className="bg-muted mb-4 rounded-md p-3"
-                  role="article"
-                  aria-label={`Transcription ${index + 1}`}
-                >
-                  <p className="text-sm leading-relaxed" role="main">
-                    {transcript.text || 'No text available'}
-                  </p>
-                  <div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
-                    <span aria-label="Timing information">
-                      {formatTiming(transcript)}
-                    </span>
-                    {showConfidence && confidence && (
-                      <span aria-label="Confidence score">{confidence}</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {isProcessing && (
-              <div
-                className="flex items-center justify-center p-4"
-                role="status"
-                aria-live="polite"
-              >
-                <div
-                  className="border-primary h-6 w-6 animate-spin rounded-full border-b-2"
-                  aria-hidden="true"
-                ></div>
-                <span className="text-muted-foreground ml-2 text-sm">
-                  Processing audio...
-                </span>
-              </div>
+      <div className="relative">
+        <GlassBox variant="medium" cornerRadius={12} className="overflow-hidden">
+          <div
+            ref={scrollRef}
+            className={cn(
+              'max-h-[400px] min-h-[200px] overflow-y-auto p-4',
+              'transcript-scroll glass-container'
             )}
-          </>
+          >
+            {transcripts.length === 0 && !isProcessing ? (
+              <div className="flex h-full min-h-[150px] flex-col items-center justify-center text-center">
+                <div
+                  className="mb-2 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed"
+                  style={{
+                    borderColor: 'var(--border-secondary)',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  🎤
+                </div>
+                <p className="text-sm italic" style={{color: 'var(--text-muted)'}}>
+                  No transcriptions yet. Start recording to see results.
+                </p>
+              </div>
+            ) : (
+              <>
+                <VirtualizedTranscript
+                  transcripts={transcripts}
+                  newMessageIndices={newMessageIndices}
+                  maxVisibleMessages={100}
+                />
+
+                {isProcessing && (
+                  <div className="flex items-center justify-center p-4">
+                    <GlassBox variant="light" className="px-4 py-2">
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className="h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"
+                          style={{borderColor: 'var(--text-accent)'}}
+                        ></div>
+                        <span className="text-sm" style={{color: 'var(--text-secondary)'}}>
+                          Processing audio...
+                        </span>
+                      </div>
+                    </GlassBox>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </GlassBox>
+
+        {/* Scroll to bottom button */}
+        {showScrollButton && showScrollToBottom && (
+          <button
+            onClick={scrollToBottom}
+            className={cn(
+              'absolute right-4 bottom-4 rounded-full p-2 transition-all duration-200',
+              'hover:scale-110 active:scale-95'
+            )}
+            style={{
+              backgroundColor: 'var(--glass-medium)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-primary)',
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 4px 12px var(--glass-shadow)'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.backgroundColor = 'var(--glass-heavy)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.backgroundColor = 'var(--glass-medium)'
+            }}
+            title="Scroll to bottom"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M7 13l3 3 3-3"></path>
+              <path d="M7 6l3 3 3-3"></path>
+            </svg>
+          </button>
         )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default TranscriptDisplay;
+export default TranscriptDisplay
