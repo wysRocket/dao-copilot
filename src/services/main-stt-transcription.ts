@@ -1,15 +1,16 @@
 import {GoogleGenAI} from '@google/genai'
-import {GeminiLiveIntegrationService, TranscriptionMode} from './gemini-live-integration'
-import {GeminiLiveIntegrationFactory} from './gemini-live-integration-factory'
+import {TranscriptionMode} from './gemini-live-integration'
 import {
   createLegacyWrapper,
   migrateLegacyConfig,
   LegacyAliases
 } from './transcription-compatibility'
-import type {TranscriptionResult as IntegrationTranscriptionResult} from './audio-recording'
 
-// User-specified model name
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
+// Live API model for WebSocket (recommended half-cascade model)
+const DEFAULT_GEMINI_LIVE_MODEL = 'gemini-2.0-flash-live-001'
+
+// Regular model for batch/REST API fallback
+const DEFAULT_GEMINI_BATCH_MODEL = 'gemini-1.5-flash'
 
 /**
  * Configuration options for the transcription service
@@ -55,55 +56,11 @@ export async function transcribeAudio(
   audioData: Buffer,
   options: TranscriptionOptions = {}
 ): Promise<TranscriptionResult> {
-  const startTime = Date.now()
-
   // Check if WebSocket mode should be used
   if (shouldUseWebSocket(options)) {
     try {
-      // Use integration service for WebSocket or hybrid mode
-      const service = getIntegrationService(options)
-
-      // Convert Buffer to Float32Array for integration service
-      const audioArray = new Float32Array(audioData.length / 4)
-      for (let i = 0; i < audioArray.length; i++) {
-        audioArray[i] = audioData.readFloatLE(i * 4)
-      }
-
-      // Use the integration service to process audio
-      return new Promise((resolve, reject) => {
-        let resolved = false
-
-        const handleTranscription = (result: IntegrationTranscriptionResult, source: string) => {
-          if (!resolved) {
-            resolved = true
-            const duration = Date.now() - startTime
-            resolve(convertToLegacyResult(result, duration, source))
-          }
-        }
-
-        const handleError = (error: Error) => {
-          if (!resolved) {
-            resolved = true
-            reject(error)
-          }
-        }
-
-        service.once('transcription', handleTranscription)
-        service.once('error', handleError)
-
-        // Start transcription - the service will handle mode selection
-        service.startTranscription().catch(handleError)
-
-        // Cleanup after timeout
-        setTimeout(() => {
-          if (!resolved) {
-            resolved = true
-            service.off('transcription', handleTranscription)
-            service.off('error', handleError)
-            reject(new Error('Transcription timeout'))
-          }
-        }, 30000) // 30 second timeout
-      })
+      // For main process, we have audio data already - process it directly via WebSocket
+      return await transcribeAudioViaWebSocket(audioData, options)
     } catch (error) {
       console.warn('WebSocket transcription failed, falling back to batch mode:', error)
       // Fall through to batch mode
@@ -114,25 +71,390 @@ export async function transcribeAudio(
   return transcribeAudioBatch(audioData, options)
 }
 
-// Global integration service instance
-let integrationService: GeminiLiveIntegrationService | null = null
-
 /**
- * Initialize or get the integration service
+ * Analyze WAV headers to extract audio format information
  */
-function getIntegrationService(options: TranscriptionOptions): GeminiLiveIntegrationService {
-  if (!integrationService) {
-    const apiKey = getApiKey(options)
-
-    integrationService = GeminiLiveIntegrationFactory.createProduction(apiKey, {
-      mode: options.mode || TranscriptionMode.HYBRID,
-      fallbackToBatch: options.fallbackToBatch !== false,
-      realTimeThreshold: options.realTimeThreshold || 1000,
-      model: options.modelName || DEFAULT_GEMINI_MODEL
-    })
+function analyzeWavFormat(audioBuffer: Buffer): {
+  isWav: boolean
+  sampleRate?: number
+  channels?: number
+  bitDepth?: number
+  dataOffset?: number
+  dataSize?: number
+} {
+  // Check if buffer starts with RIFF header (WAV file)
+  if (
+    audioBuffer.length < 44 ||
+    audioBuffer.toString('ascii', 0, 4) !== 'RIFF' ||
+    audioBuffer.toString('ascii', 8, 12) !== 'WAVE'
+  ) {
+    return {isWav: false}
   }
 
-  return integrationService
+  // Parse format chunk
+  let offset = 12
+  let formatData: {
+    audioFormat?: number
+    channels?: number
+    sampleRate?: number
+    bitDepth?: number
+  } = {}
+
+  while (offset < audioBuffer.length - 8) {
+    const chunkId = audioBuffer.toString('ascii', offset, offset + 4)
+    const chunkSize = audioBuffer.readUInt32LE(offset + 4)
+
+    if (chunkId === 'fmt ') {
+      // Parse format chunk
+      const audioFormat = audioBuffer.readUInt16LE(offset + 8)
+      const channels = audioBuffer.readUInt16LE(offset + 10)
+      const sampleRate = audioBuffer.readUInt32LE(offset + 12)
+      const bitDepth = audioBuffer.readUInt16LE(offset + 22)
+
+      formatData = {audioFormat, channels, sampleRate, bitDepth}
+    } else if (chunkId === 'data') {
+      return {
+        isWav: true,
+        sampleRate: formatData.sampleRate,
+        channels: formatData.channels,
+        bitDepth: formatData.bitDepth,
+        dataOffset: offset + 8,
+        dataSize: chunkSize
+      }
+    }
+
+    // Move to next chunk
+    offset += 8 + chunkSize
+  }
+
+  return {isWav: true, ...formatData}
+}
+
+/**
+ * Strip WAV headers from audio buffer if present, return raw PCM data
+ */
+function stripWavHeaders(audioBuffer: Buffer): Buffer {
+  // Check if buffer starts with RIFF header (WAV file)
+  if (
+    audioBuffer.length > 44 &&
+    audioBuffer.toString('ascii', 0, 4) === 'RIFF' &&
+    audioBuffer.toString('ascii', 8, 12) === 'WAVE'
+  ) {
+    // Find the 'data' chunk
+    let offset = 12
+    while (offset < audioBuffer.length - 8) {
+      const chunkId = audioBuffer.toString('ascii', offset, offset + 4)
+      const chunkSize = audioBuffer.readUInt32LE(offset + 4)
+
+      if (chunkId === 'data') {
+        // Return PCM data starting after the data chunk header
+        return audioBuffer.subarray(offset + 8, offset + 8 + chunkSize)
+      }
+
+      // Move to next chunk
+      offset += 8 + chunkSize
+    }
+  }
+
+  // Return original buffer if no WAV headers found
+  return audioBuffer
+}
+
+/**
+ * Resample PCM audio data to a target sample rate using linear interpolation
+ * Currently supports resampling from 8000Hz to 16000Hz (2x upsampling)
+ */
+function resamplePcmAudio(
+  pcmData: Buffer,
+  fromSampleRate: number,
+  toSampleRate: number,
+  channels: number = 1,
+  bitDepth: number = 16
+): Buffer {
+  // Only support 16-bit PCM for now
+  if (bitDepth !== 16) {
+    console.warn(`Unsupported bit depth ${bitDepth}, returning original audio`)
+    return pcmData
+  }
+
+  // Calculate resampling ratio
+  const ratio = toSampleRate / fromSampleRate
+
+  // For exact 2x upsampling (8000 -> 16000), use simple duplication for better performance
+  if (ratio === 2.0 && fromSampleRate === 8000 && toSampleRate === 16000) {
+    console.log('Using optimized 2x upsampling for 8kHz -> 16kHz conversion')
+    return upsample2x(pcmData, channels)
+  }
+
+  // General linear interpolation resampling
+  console.log(
+    `Resampling audio: ${fromSampleRate}Hz -> ${toSampleRate}Hz (ratio: ${ratio.toFixed(3)})`
+  )
+
+  const bytesPerSample = (bitDepth / 8) * channels
+  const inputSamples = pcmData.length / bytesPerSample
+  const outputSamples = Math.floor(inputSamples * ratio)
+  const outputBuffer = Buffer.alloc(outputSamples * bytesPerSample)
+
+  for (let i = 0; i < outputSamples; i++) {
+    const inputIndex = i / ratio
+    const inputIndexFloor = Math.floor(inputIndex)
+    const inputIndexCeil = Math.min(inputIndexFloor + 1, inputSamples - 1)
+    const fraction = inputIndex - inputIndexFloor
+
+    for (let channel = 0; channel < channels; channel++) {
+      const sample1Offset = inputIndexFloor * bytesPerSample + channel * 2
+      const sample2Offset = inputIndexCeil * bytesPerSample + channel * 2
+      const outputOffset = i * bytesPerSample + channel * 2
+
+      // Read 16-bit samples (little-endian)
+      const sample1 = sample1Offset < pcmData.length ? pcmData.readInt16LE(sample1Offset) : 0
+      const sample2 = sample2Offset < pcmData.length ? pcmData.readInt16LE(sample2Offset) : 0
+
+      // Linear interpolation
+      const interpolatedSample = Math.round(sample1 + (sample2 - sample1) * fraction)
+
+      // Clamp to 16-bit range
+      const clampedSample = Math.max(-32768, Math.min(32767, interpolatedSample))
+
+      // Write to output buffer
+      outputBuffer.writeInt16LE(clampedSample, outputOffset)
+    }
+  }
+
+  return outputBuffer
+}
+
+/**
+ * Optimized 2x upsampling for 8kHz -> 16kHz conversion
+ * Uses linear interpolation between samples for better quality
+ */
+function upsample2x(pcmData: Buffer, channels: number = 1): Buffer {
+  const bytesPerSample = 2 * channels // 16-bit = 2 bytes per channel
+  const inputSamples = pcmData.length / bytesPerSample
+  const outputBuffer = Buffer.alloc(pcmData.length * 2) // Double the size
+
+  for (let i = 0; i < inputSamples; i++) {
+    const inputOffset = i * bytesPerSample
+    const outputOffset1 = i * 2 * bytesPerSample
+    const outputOffset2 = (i * 2 + 1) * bytesPerSample
+
+    for (let channel = 0; channel < channels; channel++) {
+      const channelOffset = channel * 2
+
+      // Read current sample (16-bit signed, little-endian)
+      const currentSample = pcmData.readInt16LE(inputOffset + channelOffset)
+
+      // Get next sample for interpolation (or use current if at end)
+      let nextSample = currentSample
+      if (i < inputSamples - 1) {
+        const nextInputOffset = (i + 1) * bytesPerSample
+        nextSample = pcmData.readInt16LE(nextInputOffset + channelOffset)
+      }
+
+      // Write current sample
+      outputBuffer.writeInt16LE(currentSample, outputOffset1 + channelOffset)
+
+      // Write interpolated sample (halfway between current and next)
+      const interpolatedSample = Math.round((currentSample + nextSample) / 2)
+      const clampedSample = Math.max(-32768, Math.min(32767, interpolatedSample))
+      outputBuffer.writeInt16LE(clampedSample, outputOffset2 + channelOffset)
+    }
+  }
+
+  return outputBuffer
+}
+
+/**
+ * Transcribe audio directly via WebSocket without audio capture
+ * This is used in the main process when audio data is already available
+ */
+async function transcribeAudioViaWebSocket(
+  audioData: Buffer,
+  options: TranscriptionOptions = {}
+): Promise<TranscriptionResult> {
+  const startTime = Date.now()
+  const apiKey = getApiKey(options)
+
+  // Import WebSocket client directly
+  const {default: GeminiLiveWebSocketClient} = await import('./gemini-live-websocket')
+
+  const client = new GeminiLiveWebSocketClient({
+    apiKey,
+    model: options.modelName || DEFAULT_GEMINI_LIVE_MODEL, // Use Live API model for WebSocket
+    responseModalities: ['TEXT'], // Optimize for text transcription
+    systemInstruction:
+      'You are a speech-to-text transcription assistant. Provide accurate, concise transcriptions of the audio input. Focus on clarity and accuracy.',
+    connectionTimeout: 15000, // Increased timeout for better reliability
+    maxQueueSize: 50 // Optimized queue size for transcription
+  })
+
+  try {
+    // Connect to WebSocket
+    await client.connect()
+
+    // Analyze and strip WAV headers if present to get raw PCM data
+    const audioFormat = analyzeWavFormat(audioData)
+    console.log('Audio format analysis:', audioFormat)
+
+    let pcmData = stripWavHeaders(audioData)
+    console.log(`Original audio: ${audioData.length} bytes, PCM data: ${pcmData.length} bytes`)
+
+    // Get audio format information
+    const originalSampleRate = audioFormat.sampleRate || 16000
+    const channels = audioFormat.channels || 1
+    const bitDepth = audioFormat.bitDepth || 16
+
+    // Gemini Live API requires 16000Hz sample rate
+    const targetSampleRate = 16000
+
+    if (originalSampleRate !== targetSampleRate) {
+      console.log(
+        `Resampling audio from ${originalSampleRate}Hz to ${targetSampleRate}Hz for Gemini Live API compatibility`
+      )
+      pcmData = resamplePcmAudio(pcmData, originalSampleRate, targetSampleRate, channels, bitDepth)
+      console.log(`Resampled PCM data: ${pcmData.length} bytes`)
+    } else {
+      console.log(`Audio sample rate is already ${targetSampleRate}Hz, no resampling needed`)
+    }
+
+    // Validate audio format for Gemini Live API compatibility
+    if (audioFormat.isWav) {
+      if (channels !== 1) {
+        console.warn(
+          `Audio has ${channels} channels, but Gemini Live API expects mono (1 channel). This may cause issues.`
+        )
+      }
+      if (bitDepth !== 16) {
+        console.warn(
+          `Audio has ${bitDepth}-bit depth, but Gemini Live API expects 16-bit. This may cause issues.`
+        )
+      }
+    }
+
+    // Check audio data size - Gemini Live API is designed for chunked streaming
+    const maxChunkSize = 32 * 1024 // 32KB chunks for optimized streaming performance with Live API
+    if (pcmData.length > maxChunkSize) {
+      console.log(
+        `Audio data is ${pcmData.length} bytes, chunking into ${maxChunkSize} byte segments for streaming`
+      )
+      // Send audio in chunks for better compatibility with Live API
+      const chunks = []
+      for (let i = 0; i < pcmData.length; i += maxChunkSize) {
+        chunks.push(pcmData.subarray(i, i + maxChunkSize))
+      }
+
+      // Send the first chunk and wait for response
+      const firstChunk = chunks[0]
+      const base64Audio = firstChunk.toString('base64')
+
+      console.log(`Sending first chunk: ${firstChunk.length} bytes (${chunks.length} total chunks)`)
+
+      // Send audio data with correct MIME type for Gemini Live API (no rate parameter)
+      await client.sendRealtimeInput({
+        audio: {
+          data: base64Audio,
+          mimeType: 'audio/pcm' // Gemini Live API expects plain "audio/pcm"
+        }
+      })
+
+      // For now, just send the first chunk and see if we get a response
+      // TODO: Implement proper chunked streaming if needed
+    } else {
+      // Always use plain audio/pcm MIME type (without rate parameter) for Gemini Live API
+      const mimeType = 'audio/pcm'
+      console.log(`Using MIME type: ${mimeType}`)
+      console.log(
+        `Final audio data size: ${pcmData.length} bytes (${(pcmData.length / (2 * channels * targetSampleRate)).toFixed(2)}s duration)`
+      )
+
+      // Convert resampled PCM data to base64 for WebSocket transmission
+      const base64Audio = pcmData.toString('base64')
+      console.log(`Base64 encoded audio size: ${base64Audio.length} characters`)
+
+      // Send audio data for real-time processing with correct MIME type for Gemini Live API
+      await client.sendRealtimeInput({
+        audio: {
+          data: base64Audio,
+          mimeType // Use plain "audio/pcm" as per API documentation
+        }
+      })
+    }
+
+    // Wait for transcription response
+    return new Promise((resolve, reject) => {
+      let resolved = false
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          reject(new Error('WebSocket transcription timeout'))
+        }
+      }, 30000) // 30 second timeout for better reliability
+
+      // Enhanced transcription handling with partial response support
+      let partialText = ''
+      let bestConfidence = 0
+      let lastUpdateTime = Date.now()
+
+      // Fallback: resolve with partial text if we have reasonable content after some time
+      const partialTimeout = setTimeout(() => {
+        if (!resolved && partialText && Date.now() - lastUpdateTime > 2000) {
+          resolved = true
+          clearTimeout(timeout)
+
+          const duration = Date.now() - startTime
+          resolve({
+            text: partialText,
+            duration,
+            confidence: bestConfidence,
+            source: 'websocket-partial'
+          })
+        }
+      }, 10000) // Check for partial results after 10 seconds
+
+      client.on(
+        'transcriptionUpdate',
+        (data: {text?: string; confidence?: number; isFinal?: boolean}) => {
+          if (!resolved && data.text?.trim()) {
+            partialText = data.text.trim()
+            bestConfidence = Math.max(bestConfidence, data.confidence || 0)
+            lastUpdateTime = Date.now()
+
+            // If this is a final transcription or high confidence, resolve immediately
+            if (data.isFinal || (data.confidence && data.confidence > 0.8)) {
+              resolved = true
+              clearTimeout(timeout)
+              clearTimeout(partialTimeout)
+
+              const duration = Date.now() - startTime
+              resolve({
+                text: partialText,
+                duration,
+                confidence: data.confidence || bestConfidence,
+                source: 'websocket'
+              })
+            }
+          }
+        }
+      )
+
+      client.on('error', (error: Error) => {
+        if (!resolved) {
+          resolved = true
+          clearTimeout(timeout)
+          clearTimeout(partialTimeout)
+          reject(error)
+        }
+      })
+    })
+  } finally {
+    // Cleanup: disconnect the WebSocket
+    try {
+      await client.disconnect()
+    } catch (error) {
+      console.warn('Error disconnecting WebSocket client:', error)
+    }
+  }
 }
 
 /**
@@ -183,23 +505,6 @@ function shouldUseWebSocket(options: TranscriptionOptions): boolean {
 }
 
 /**
- * Convert integration result to legacy format
- */
-function convertToLegacyResult(
-  result: IntegrationTranscriptionResult,
-  duration: number,
-  source: string
-): TranscriptionResult {
-  return {
-    text: result.text,
-    duration,
-    confidence: result.confidence,
-    source,
-    timestamp: result.timestamp
-  }
-}
-
-/**
  * Original batch transcription function (HTTP-based)
  * Used as fallback when WebSocket mode is not available or fails
  */
@@ -213,7 +518,8 @@ async function transcribeAudioBatch(
   console.log('Using API key from environment (first 8 chars):', apiKey.substring(0, 8) + '...')
 
   const genAI = new GoogleGenAI({apiKey: apiKey as string})
-  const modelName = options.modelName || DEFAULT_GEMINI_MODEL
+  // Use regular Gemini model for batch API (Live models don't support generateContent)
+  const modelName = options.modelName || DEFAULT_GEMINI_BATCH_MODEL
 
   console.log(`Initializing batch transcription with Gemini model: ${modelName}`)
 

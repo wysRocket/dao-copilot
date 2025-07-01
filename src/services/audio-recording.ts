@@ -1,6 +1,6 @@
 import {Subject, Subscription, interval} from 'rxjs'
-import {buffer, takeUntil} from 'rxjs/operators'
-import {audio_stream} from './audio_capture'
+import {takeUntil} from 'rxjs/operators'
+import {getAudioCapture, type AudioChunkData} from './audio-capture-factory'
 import {renderWavFile} from './wav'
 
 // Constants
@@ -123,10 +123,10 @@ export class AudioRecordingService {
   }
 
   /**
-   * Processes a chunk of audio data by converting it to WAV and sending for transcription
+   * Processes audio chunks from the new audio capture system
    */
-  async processAudioChunk(
-    chunks: number[][],
+  async processAudioChunks(
+    chunks: AudioChunkData[],
     onTranscription?: (result: TranscriptionResult) => void
   ): Promise<TranscriptionResult | null> {
     try {
@@ -140,20 +140,27 @@ export class AudioRecordingService {
         return null
       }
 
-      // Combine all chunks into a single array
-      const combinedAudio = chunks.flat()
+      // Combine all audio buffers from chunks
+      const combinedAudio = chunks.reduce((acc, chunk) => {
+        acc.push(...chunk.buffer)
+        return acc
+      }, [] as number[])
+
       if (combinedAudio.length === 0) {
         console.log('Combined audio is empty')
         return null
       }
 
-      console.log(`Processing ${combinedAudio.length} audio samples`)
+      console.log(`Processing ${combinedAudio.length} audio samples from ${chunks.length} chunks`)
 
       // Convert to Float32Array for processing
       const audioData = new Float32Array(combinedAudio)
 
-      // Resample from device sample rate to target sample rate
-      const resampledAudio = resampleAudio(audioData, DEVICE_SAMPLE_RATE, TARGET_SAMPLE_RATE)
+      // Use the sample rate from the first chunk, or default to device sample rate
+      const sourceSampleRate = chunks[0]?.sampleRate || DEVICE_SAMPLE_RATE
+
+      // Resample from source sample rate to target sample rate
+      const resampledAudio = resampleAudio(audioData, sourceSampleRate, TARGET_SAMPLE_RATE)
 
       console.log(`Resampled audio from ${audioData.length} to ${resampledAudio.length} samples`)
 
@@ -176,7 +183,7 @@ export class AudioRecordingService {
         return null
       }
     } catch (error) {
-      console.error('Error processing audio chunk:', error)
+      console.error('Error processing audio chunks:', error)
       this.updateState({status: 'Error processing audio'})
       return null
     } finally {
@@ -190,9 +197,30 @@ export class AudioRecordingService {
   }
 
   /**
-   * Starts recording audio in intervals
+   * Processes a chunk of audio data by converting it to WAV and sending for transcription
+   * (Legacy method - kept for backward compatibility)
    */
-  startIntervalRecording(onTranscription?: (result: TranscriptionResult) => void): void {
+  async processAudioChunk(
+    chunks: number[][],
+    onTranscription?: (result: TranscriptionResult) => void
+  ): Promise<TranscriptionResult | null> {
+    // Convert legacy format to new format
+    const audioChunks: AudioChunkData[] = chunks.map((chunk, index) => ({
+      buffer: chunk,
+      timestamp: Date.now() + index,
+      sampleRate: DEVICE_SAMPLE_RATE,
+      channels: 1
+    }))
+
+    return this.processAudioChunks(audioChunks, onTranscription)
+  }
+
+  /**
+   * Starts recording audio in intervals using the new audio capture system
+   */
+  async startIntervalRecording(
+    onTranscription?: (result: TranscriptionResult) => void
+  ): Promise<void> {
     if (this.state.isRecording) {
       console.log('Recording already in progress')
       return
@@ -215,36 +243,60 @@ export class AudioRecordingService {
     const stopSubject = new Subject<void>()
     this.stopSubject = stopSubject
 
-    // Create an interval observable that emits every INTERVAL_SECONDS
-    const intervalObservable = interval(INTERVAL_SECONDS * 1000)
+    try {
+      // Get the audio capture service
+      const audioCapture = await getAudioCapture({
+        sampleRate: DEVICE_SAMPLE_RATE,
+        channels: 1,
+        bufferSize: 4096,
+        intervalSeconds: INTERVAL_SECONDS
+      })
 
-    // Start the audio stream
-    const audioObservable = audio_stream()
+      // Set up audio chunk collection
+      const audioChunks: AudioChunkData[] = []
+      audioCapture.on('audioChunk', (chunkData: AudioChunkData) => {
+        audioChunks.push(chunkData)
+      })
 
-    // Subscribe to the audio stream and process chunks at intervals
-    this.recordingSubscription = audioObservable
-      .pipe(buffer(intervalObservable), takeUntil(stopSubject))
-      .subscribe({
-        next: async chunks => {
-          console.log(`Received ${chunks.length} audio chunks for processing`)
-          await this.processAudioChunk(chunks, onTranscription)
+      // Set up interval processing
+      const intervalObservable = interval(INTERVAL_SECONDS * 1000)
+
+      this.recordingSubscription = intervalObservable.pipe(takeUntil(stopSubject)).subscribe({
+        next: async () => {
+          if (audioChunks.length > 0) {
+            console.log(`Processing ${audioChunks.length} audio chunks for interval transcription`)
+            await this.processAudioChunks(audioChunks.splice(0), onTranscription)
+          }
         },
         error: err => {
-          console.error('Recording error:', err)
+          console.error('Interval recording error:', err)
           this.updateState({
             status: `Recording error: ${err.message}`,
             isRecording: false
           })
+          audioCapture.destroy()
           this.cleanup()
         },
         complete: () => {
-          console.log('Recording stream completed')
+          console.log('Interval recording completed')
+          audioCapture.destroy()
           this.updateState({
             isRecording: false,
             status: 'Ready to record'
           })
         }
       })
+
+      // Start the audio capture
+      await audioCapture.startCapture()
+    } catch (error) {
+      console.error('Failed to start audio recording:', error)
+      this.updateState({
+        status: `Failed to start recording: ${error.message}`,
+        isRecording: false
+      })
+      this.cleanup()
+    }
   }
 
   /**
@@ -273,11 +325,11 @@ export class AudioRecordingService {
   /**
    * Toggle recording state
    */
-  toggleRecording(onTranscription?: (result: TranscriptionResult) => void): void {
+  async toggleRecording(onTranscription?: (result: TranscriptionResult) => void): Promise<void> {
     if (this.state.isRecording) {
       this.stopIntervalRecording()
     } else {
-      this.startIntervalRecording(onTranscription)
+      await this.startIntervalRecording(onTranscription)
     }
   }
 
