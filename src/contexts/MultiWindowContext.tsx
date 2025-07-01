@@ -182,8 +182,26 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
   // Transcription-specific helpers
   const addTranscript = useCallback(
     (transcript: {text: string; confidence?: number}) => {
+      // Generate cryptographically secure ID
+      let secureId: string
+      try {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          secureId = crypto.randomUUID()
+        } else if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+          const array = new Uint8Array(6)
+          crypto.getRandomValues(array)
+          secureId = Array.from(array, byte => byte.toString(36)).join('')
+        } else {
+          // Fallback using high-resolution timestamp
+          secureId = `${Date.now()}_${performance.now().toString(36).replace('.', '')}`
+        }
+      } catch {
+        // Final fallback using timestamp
+        secureId = `${Date.now()}_${performance.now().toString(36).replace('.', '')}`
+      }
+
       const newTranscript = {
-        id: `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `transcript-${Date.now()}-${secureId}`,
         text: transcript.text,
         timestamp: Date.now(),
         confidence: transcript.confidence

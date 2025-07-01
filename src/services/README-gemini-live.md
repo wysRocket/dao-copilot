@@ -1,6 +1,54 @@
 # Gemini Live API WebSocket Implementation
 
-This directory contains the implementation of the WebSocket client for Google's Gemini Live API, enabling real-time bidirectional communication for transcription services.
+This directory contains the implementation of the WebSocket client for Google's Gemini Live API, enabling real-time bidirectional communication for transcription services with the `gemini-2.0-flash-live-001` model.
+
+## ✨ Enhanced Features (v2.0)
+
+- **Priority-Based Message Queue**: HIGH, NORMAL, LOW, CRITICAL priority levels for optimal message handling
+- **Advanced Retry Mechanisms**: Exponential backoff with configurable retry limits and timeout management
+- **Circuit Breaker Pattern**: Automatic failure detection and service protection
+- **Enhanced Session Management**: Persistent session tracking with resumption capabilities
+- **Comprehensive Statistics**: Queue metrics, circuit breaker status, and performance monitoring
+- **WebSocket Lifecycle Events**: Complete event handling for connection management and reliability
+
+## Configuration
+
+### Enhanced Message Options
+
+```typescript
+interface MessageSendOptions {
+  priority?: QueuePriority      // LOW, NORMAL, HIGH, CRITICAL
+  maxRetries?: number          // Number of retry attempts (default: 3)
+  timeout?: number             // Message timeout in milliseconds (default: 30000)
+  expectResponse?: boolean     // Whether to expect a response (default: false)
+}
+```
+
+### Updated Endpoint Configuration
+
+```typescript
+const config: GeminiLiveConfig = {
+  apiKey: 'your-api-key',
+  model: 'gemini-2.0-flash-live-001',  // Updated model
+  responseModalities: ['TEXT', 'AUDIO'],
+  websocketBaseUrl: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent', // New endpoint
+  maxQueueSize: 100,                    // Message queue size limit
+  reconnectAttempts: 5,
+  heartbeatInterval: 30000
+}
+```
+
+### Queue Statistics
+
+```typescript
+const stats = client.getQueueStatistics()
+console.log('Queue Statistics:', {
+  totalQueuedMessages: stats.totalQueuedMessages,
+  messagesByPriority: stats.messagesByPriority,
+  circuitBreakerState: stats.circuitBreakerState,
+  errorStatistics: stats.errorStatistics
+})
+```
 
 ## Files Overview
 
