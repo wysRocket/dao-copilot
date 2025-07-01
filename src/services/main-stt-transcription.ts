@@ -1,5 +1,6 @@
 import {GoogleGenAI} from '@google/genai'
 import {TranscriptionMode} from './gemini-live-integration'
+import {ResponseModality} from './gemini-live-websocket'
 import {
   createLegacyWrapper,
   migrateLegacyConfig,
@@ -106,13 +107,17 @@ function analyzeWavFormat(audioBuffer: Buffer): {
     const chunkSize = audioBuffer.readUInt32LE(offset + 4)
 
     if (chunkId === 'fmt ') {
-      // Parse format chunk
-      const audioFormat = audioBuffer.readUInt16LE(offset + 8)
-      const channels = audioBuffer.readUInt16LE(offset + 10)
-      const sampleRate = audioBuffer.readUInt32LE(offset + 12)
-      const bitDepth = audioBuffer.readUInt16LE(offset + 22)
+      // Parse format chunk with bounds checking
+      if (offset + 24 <= audioBuffer.length) {
+        const audioFormat = audioBuffer.readUInt16LE(offset + 8)
+        const channels = audioBuffer.readUInt16LE(offset + 10)
+        const sampleRate = audioBuffer.readUInt32LE(offset + 12)
+        const bitDepth = audioBuffer.readUInt16LE(offset + 22)
 
-      formatData = {audioFormat, channels, sampleRate, bitDepth}
+        formatData = {audioFormat, channels, sampleRate, bitDepth}
+      } else {
+        console.warn('Incomplete fmt chunk: buffer too short')
+      }
     } else if (chunkId === 'data') {
       return {
         isWav: true,
@@ -283,7 +288,7 @@ async function transcribeAudioViaWebSocket(
   const client = new GeminiLiveWebSocketClient({
     apiKey,
     model: options.modelName || DEFAULT_GEMINI_LIVE_MODEL, // Use Live API model for WebSocket
-    responseModalities: ['TEXT'], // Optimize for text transcription
+    responseModalities: [ResponseModality.TEXT], // Optimize for text transcription
     systemInstruction:
       'You are a speech-to-text transcription assistant. Provide accurate, concise transcriptions of the audio input. Focus on clarity and accuracy.',
     connectionTimeout: 15000, // Increased timeout for better reliability
@@ -345,22 +350,27 @@ async function transcribeAudioViaWebSocket(
         chunks.push(pcmData.subarray(i, i + maxChunkSize))
       }
 
-      // Send the first chunk and wait for response
-      const firstChunk = chunks[0]
-      const base64Audio = firstChunk.toString('base64')
+      console.log(`Chunked audio data into ${chunks.length} chunks of ${maxChunkSize} bytes each`)
 
-      console.log(`Sending first chunk: ${firstChunk.length} bytes (${chunks.length} total chunks)`)
+      // Send audio chunks sequentially
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]
+        const base64Audio = chunk.toString('base64')
 
-      // Send audio data with correct MIME type for Gemini Live API (no rate parameter)
-      await client.sendRealtimeInput({
-        audio: {
-          data: base64Audio,
-          mimeType: 'audio/pcm' // Gemini Live API expects plain "audio/pcm"
-        }
-      })
+        console.log(`Sending chunk ${i + 1}/${chunks.length}: ${chunk.length} bytes`)
 
-      // For now, just send the first chunk and see if we get a response
-      // TODO: Implement proper chunked streaming if needed
+        await client.sendRealtimeInput({
+          audio: {
+            data: base64Audio,
+            mimeType: 'audio/pcm' // Gemini Live API expects plain "audio/pcm"
+          }
+        })
+
+        // Optional: Add a small delay between chunks to prevent overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      console.log(`Finished sending all ${chunks.length} audio chunks`)
     } else {
       // Always use plain audio/pcm MIME type (without rate parameter) for Gemini Live API
       const mimeType = 'audio/pcm'

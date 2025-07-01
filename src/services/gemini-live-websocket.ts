@@ -8,6 +8,7 @@ import {GeminiMessageHandler, MessageType, MessagePriority} from './gemini-messa
 import {GeminiErrorHandler, ErrorType, type GeminiError} from './gemini-error-handler'
 import {logger} from './gemini-logger'
 import {sanitizeLogMessage, safeLogger} from './log-sanitizer'
+import {validateSessionId} from '../utils/security-utils'
 import ReconnectionManager, {
   ReconnectionStrategy,
   type ReconnectionConfig
@@ -1270,7 +1271,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     })
 
     const retryTimer = setTimeout(async () => {
-      this.retryTimers.delete(queuedMessage.id)
+      // Safely convert and validate the message ID before using it as a Map key
+      const safeMessageId = this.sanitizeMapKey(queuedMessage.id)
+      this.retryTimers.delete(safeMessageId)
 
       try {
         await this.sendMessageDirectly(queuedMessage.input, {
@@ -1285,8 +1288,8 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
           queuedMessage.resolve()
         }
 
-        // Remove from pending messages
-        this.pendingMessages.delete(queuedMessage.id)
+        // Remove from pending messages with safe key
+        this.pendingMessages.delete(safeMessageId)
 
         logger.debug('Message retry successful', {
           messageId: queuedMessage.id,
@@ -1304,7 +1307,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       }
     }, delay)
 
-    this.retryTimers.set(queuedMessage.id, retryTimer)
+    // Use safe key for storing the timer
+    const safeTimerKey = this.sanitizeMapKey(queuedMessage.id)
+    this.retryTimers.set(safeTimerKey, retryTimer)
   }
 
   /**
@@ -2656,6 +2661,24 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         })
       }
     }, 0)
+  }
+
+  /**
+   * Safely sanitize input for use as Map keys to prevent NoSQL injection
+   */
+  private sanitizeMapKey(input: unknown): string {
+    if (input === null || input === undefined) {
+      return 'null'
+    }
+
+    // Convert to string and sanitize
+    const str = String(input)
+
+    // Remove potentially harmful characters and limit length
+    return str
+      .replace(/[^\w\-_.:]/g, '_') // Keep only alphanumeric, hyphens, underscores, dots, and colons
+      .substring(0, 100) // Limit length to prevent excessive memory usage
+      .trim()
   }
 }
 

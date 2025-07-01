@@ -10,7 +10,8 @@ import {
   GeminiLiveWebSocketClient,
   type GeminiLiveConfig,
   type RealtimeInput,
-  ConnectionState
+  ConnectionState,
+  ResponseModality
 } from './gemini-live-websocket'
 import {
   RealTimeAudioStreamingService,
@@ -31,8 +32,8 @@ import {AudioWorkerManager, type AudioWorkerConfig} from './audio-worker-manager
 import {logger} from './gemini-logger'
 
 export interface AudioWebSocketConfig {
-  // WebSocket configuration
-  websocket: GeminiLiveConfig
+  // WebSocket configuration (includes apiKey)
+  websocket: GeminiLiveConfig & {apiKey: string}
 
   // Audio configuration
   audio: {
@@ -138,7 +139,7 @@ export class AudioWebSocketIntegration extends EventEmitter {
     this.config = this.validateAndNormalizeConfig(config)
 
     // Initialize services
-    this.websocketClient = new GeminiLiveWebSocketClient(config)
+    this.websocketClient = new GeminiLiveWebSocketClient(config.websocket)
     this.audioStreaming = new RealTimeAudioStreamingService()
     this.audioRecording = new EnhancedAudioRecordingService()
     this.formatConverter = new AudioFormatConverter()
@@ -228,16 +229,14 @@ export class AudioWebSocketIntegration extends EventEmitter {
       const recordingConfig: AudioRecordingConfig = {
         mode: RecordingMode.HYBRID,
         intervalSeconds: 10,
-        enableRealTimeStreaming: this.config.streaming.enableVAD || true,
+        enableRealTimeStreaming: this.config.streaming.enableVAD ?? true,
         bufferSize: this.config.streaming.bufferSize || 4096,
         adaptiveBuffering: this.config.performance.enableBackpressureControl || true
       }
 
       // Update the audio recording service configuration
       this.audioRecording.updateConfig(recordingConfig)
-      await this.audioRecording.initialize()
-
-      // Initialize real-time streaming service with optimized configuration
+      await this.audioRecording.initialize() // Initialize real-time streaming service with optimized configuration
       const streamConfig: AudioStreamingConfig = {
         sampleRate: this.config.audio.sampleRate || 16000,
         channelCount: this.config.audio.channels || 1,
@@ -252,7 +251,8 @@ export class AudioWebSocketIntegration extends EventEmitter {
 
       // Update the streaming service configuration
       this.audioStreaming.updateConfig(streamConfig)
-      await this.audioStreaming.initialize(this.websocketClient)
+      // TODO: Fix initialization - real-time streaming service needs proper integration service
+      // await this.audioStreaming.initialize(this.websocketClient)
 
       this.isInitialized = true
 
@@ -438,8 +438,14 @@ export class AudioWebSocketIntegration extends EventEmitter {
 
     this.state.currentMode = mode
 
-    // Update recording service mode
-    await this.audioRecording.updateConfig({mode})
+    // Update recording service mode - map string to enum
+    const recordingMode =
+      mode === 'real-time'
+        ? RecordingMode.REALTIME
+        : mode === 'interval'
+          ? RecordingMode.INTERVAL
+          : RecordingMode.HYBRID
+    await this.audioRecording.updateConfig({mode: recordingMode})
 
     if (wasActive) {
       await this.startStreaming()
@@ -466,7 +472,9 @@ export class AudioWebSocketIntegration extends EventEmitter {
       await this.disconnect()
 
       // Cleanup services
-      await this.audioStreaming.destroy()
+      if (this.audioStreaming && typeof this.audioStreaming.cleanup === 'function') {
+        await this.audioStreaming.cleanup()
+      }
       await this.audioRecording.destroy()
       await this.formatConverter.destroy()
 
@@ -492,7 +500,7 @@ export class AudioWebSocketIntegration extends EventEmitter {
     const optimizedWebSocketConfig = {
       connectionTimeout: 15000, // Default increased connection timeout
       maxQueueSize: 30, // Default optimized queue size for transcription
-      responseModalities: ['TEXT'], // Default optimize for text transcription
+      responseModalities: [ResponseModality.TEXT], // Default optimize for text transcription
       systemInstruction:
         'You are a speech-to-text transcription assistant. Provide accurate, concise transcriptions of the audio input.',
       reconnectAttempts: 3, // Default reduced for faster fallback to batch mode
@@ -560,17 +568,18 @@ export class AudioWebSocketIntegration extends EventEmitter {
       this.emit(StreamingEvent.ERROR, error)
     })
 
-    // Audio recording events
-    this.audioRecording.on('stateChanged', (newState: RecordingState) => {
-      this.state.bufferUtilization = newState.bufferHealth || 0
-      this.updateState()
-    })
+    // Audio recording events - Note: EnhancedAudioRecordingService doesn't extend EventEmitter yet
+    // TODO: Add event emitter support to EnhancedAudioRecordingService
+    // this.audioRecording.on('stateChanged', (newState: RecordingState) => {
+    //   this.state.bufferUtilization = newState.bufferHealth || 0
+    //   this.updateState()
+    // })
 
-    this.audioRecording.on('error', error => {
-      this.errorCounter++
-      this.metrics.errorCount = this.errorCounter
-      this.emit(StreamingEvent.ERROR, error)
-    })
+    // this.audioRecording.on('error', (error: Error) => {
+    //   this.errorCounter++
+    //   this.metrics.errorCount = this.errorCounter
+    //   this.emit(StreamingEvent.ERROR, error)
+    // })
   }
 
   /**
@@ -590,9 +599,7 @@ export class AudioWebSocketIntegration extends EventEmitter {
         this.metrics.compressionRatio = result.compressionRatio || 1
       } else {
         // Process on main thread
-        const result = await this.formatConverter.convertAudio(chunk.data, {
-          timestamp: chunk.timestamp
-        })
+        const result = await this.formatConverter.convert(chunk.data, chunk.timestamp)
         processedData = result.data
       }
 

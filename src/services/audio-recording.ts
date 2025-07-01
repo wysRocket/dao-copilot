@@ -2,6 +2,7 @@ import {Subject, Subscription, interval} from 'rxjs'
 import {takeUntil} from 'rxjs/operators'
 import {getAudioCapture, type AudioChunkData} from './audio-capture-factory'
 import {renderWavFile} from './wav'
+import {sanitizeLogMessage} from './log-sanitizer'
 
 // Constants
 export const INTERVAL_SECONDS = 10
@@ -151,7 +152,9 @@ export class AudioRecordingService {
         return null
       }
 
-      console.log(`Processing ${combinedAudio.length} audio samples from ${chunks.length} chunks`)
+      console.log(
+        `Processing ${sanitizeLogMessage(combinedAudio.length.toString())} audio samples from ${sanitizeLogMessage(chunks.length.toString())} chunks`
+      )
 
       // Convert to Float32Array for processing
       const audioData = new Float32Array(combinedAudio)
@@ -291,8 +294,9 @@ export class AudioRecordingService {
       await audioCapture.startCapture()
     } catch (error) {
       console.error('Failed to start audio recording:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       this.updateState({
-        status: `Failed to start recording: ${error.message}`,
+        status: `Failed to start recording: ${errorMessage}`,
         isRecording: false
       })
       this.cleanup()

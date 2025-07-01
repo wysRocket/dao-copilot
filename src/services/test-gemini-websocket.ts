@@ -3,7 +3,7 @@
  * This script verifies that the fixes for GitHub issue #161 work correctly
  */
 
-import GeminiLiveWebSocketClient, {ConnectionState} from './gemini-live-websocket'
+import GeminiLiveWebSocketClient, {ConnectionState, ResponseModality} from './gemini-live-websocket'
 
 async function testGeminiWebSocket() {
   const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY
@@ -21,7 +21,7 @@ async function testGeminiWebSocket() {
   const client = new GeminiLiveWebSocketClient({
     apiKey,
     model: 'gemini-2.0-flash-live-001',
-    responseModalities: ['TEXT'],
+    responseModalities: [ResponseModality.TEXT],
     systemInstruction: 'You are a helpful AI assistant. Please respond briefly.',
     reconnectAttempts: 3,
     heartbeatInterval: 30000,

@@ -19,12 +19,12 @@ export interface UniversalAudioCapture {
   isCapturing: () => boolean
   updateConfig: (config: Partial<AudioCaptureConfig>) => void
   getConfig: () => AudioCaptureConfig
-  on: (event: 'audioChunk', listener: AudioEventListener) => void
-  on: (event: 'error', listener: ErrorEventListener) => void
-  on: (event: 'stateChange', listener: StateEventListener) => void
-  off: (event: 'audioChunk', listener: AudioEventListener) => void
-  off: (event: 'error', listener: ErrorEventListener) => void
-  off: (event: 'stateChange', listener: StateEventListener) => void
+  on(event: 'audioChunk', listener: AudioEventListener): void
+  on(event: 'error', listener: ErrorEventListener): void
+  on(event: 'stateChange', listener: StateEventListener): void
+  off(event: 'audioChunk', listener: AudioEventListener): void
+  off(event: 'error', listener: ErrorEventListener): void
+  off(event: 'stateChange', listener: StateEventListener): void
   destroy: () => void
 }
 
