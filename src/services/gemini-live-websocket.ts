@@ -4,12 +4,7 @@
  */
 
 import {EventEmitter} from 'events'
-import {
-  GeminiMessageHandler,
-  MessageType,
-  MessagePriority,
-  type ProcessedMessage
-} from './gemini-message-handler'
+import {GeminiMessageHandler, MessageType, MessagePriority} from './gemini-message-handler'
 import {GeminiErrorHandler, ErrorType, type GeminiError} from './gemini-error-handler'
 import {logger} from './gemini-logger'
 import {sanitizeLogMessage, safeLogger} from './log-sanitizer'
@@ -18,6 +13,7 @@ import ReconnectionManager, {
   type ReconnectionConfig
 } from './gemini-reconnection-manager'
 import {WebSocketHeartbeatMonitor, HeartbeatStatus} from './websocket-heartbeat-monitor'
+import GeminiSessionManager, {type SessionData} from './gemini-session-manager'
 
 export enum ConnectionState {
   DISCONNECTED = 'disconnected',
@@ -27,10 +23,76 @@ export enum ConnectionState {
   ERROR = 'error'
 }
 
+export enum ResponseModality {
+  TEXT = 'TEXT',
+  AUDIO = 'AUDIO'
+}
+
+// Server error interface for proper typing
+interface ServerErrorData {
+  code?: string | number
+  message?: string
+  details?: unknown
+  type?: string
+}
+
+// Enhanced data models for gemini-2.0-flash-live-001 responses
+export interface ParsedGeminiResponse {
+  type: 'text' | 'audio' | 'tool_call' | 'error' | 'setup_complete' | 'turn_complete'
+  content: string | ArrayBuffer | null
+  metadata: {
+    messageId?: string
+    timestamp: number
+    confidence?: number
+    isPartial?: boolean
+    modelTurn?: boolean
+    turnId?: string
+  }
+  toolCall?: {
+    name: string
+    parameters: Record<string, unknown>
+    id: string
+  }
+  error?: {
+    code: string
+    message: string
+    details?: Record<string, unknown>
+  }
+}
+
+export interface AudioResponseData {
+  data: string // Base64 encoded audio
+  format: string
+  sampleRate?: number
+  channels?: number
+}
+
+export interface TextResponseData {
+  text: string
+  isPartial?: boolean
+  partIndex?: number
+  totalParts?: number
+}
+
+export interface ToolCallResponseData {
+  functionCall: {
+    name: string
+    args: Record<string, unknown>
+  }
+  id: string
+}
+
+export interface TurnCompleteData {
+  turnId?: string
+  modelTurn?: boolean
+  inputTokens?: number
+  outputTokens?: number
+}
+
 export interface GeminiLiveConfig {
   apiKey: string
   model?: string
-  responseModalities?: string[]
+  responseModalities?: ResponseModality[]
   systemInstruction?: string
   reconnectAttempts?: number
   heartbeatInterval?: number
@@ -51,6 +113,34 @@ export interface RealtimeInput {
   text?: string
 }
 
+// Enhanced message queue system for reliability
+export interface QueuedMessage {
+  id: string
+  input: RealtimeInput
+  timestamp: number
+  retryCount: number
+  maxRetries: number
+  priority: QueuePriority
+  timeout: number
+  resolve?: (value?: void) => void
+  reject?: (error: Error) => void
+}
+
+export interface MessageSendOptions {
+  priority?: QueuePriority
+  maxRetries?: number
+  timeout?: number
+  expectResponse?: boolean
+}
+
+// Message priorities for queue management
+export enum QueuePriority {
+  LOW = 0,
+  NORMAL = 1,
+  HIGH = 2,
+  CRITICAL = 3
+}
+
 export interface GeminiMessage {
   serverContent?: {
     turnComplete?: boolean
@@ -67,6 +157,356 @@ export interface GeminiMessage {
   data?: string
 }
 
+export interface SetupMessage {
+  setup: {
+    model: string
+    generationConfig?: {
+      responseModalities?: ResponseModality[]
+      speechConfig?: {
+        voiceConfig?: {
+          prebuiltVoiceConfig?: {
+            voiceName?: string
+          }
+        }
+      }
+    }
+    systemInstruction?: {
+      parts: Array<{
+        text: string
+      }>
+    }
+  }
+}
+
+export interface GeminiLiveApiResponse {
+  text?: string
+  // Other potential fields based on Gemini Live API documentation
+}
+
+/**
+ * Enhanced message parser for gemini-2.0-flash-live-001 model
+ * Handles various response formats including text, audio, and tool calls
+ */
+export class Gemini2FlashMessageParser {
+  /**
+   * Parse a raw message from the Gemini Live API
+   */
+  static parseResponse(rawMessage: unknown): ParsedGeminiResponse {
+    const timestamp = Date.now()
+
+    // Handle string messages (likely JSON)
+    if (typeof rawMessage === 'string') {
+      try {
+        return this.parseResponse(JSON.parse(rawMessage))
+      } catch {
+        return {
+          type: 'error',
+          content: null,
+          metadata: {timestamp},
+          error: {
+            code: 'PARSE_ERROR',
+            message: 'Failed to parse JSON message',
+            details: {originalMessage: rawMessage}
+          }
+        }
+      }
+    }
+
+    // Handle non-object messages
+    if (!rawMessage || typeof rawMessage !== 'object') {
+      return {
+        type: 'error',
+        content: null,
+        metadata: {timestamp},
+        error: {
+          code: 'INVALID_MESSAGE',
+          message: 'Message must be a valid object',
+          details: {receivedType: typeof rawMessage}
+        }
+      }
+    }
+
+    const message = rawMessage as Record<string, unknown>
+
+    // Handle server content (text responses)
+    if (message.serverContent && typeof message.serverContent === 'object') {
+      return this.parseServerContent(message.serverContent as Record<string, unknown>, timestamp)
+    }
+
+    // Handle model turn responses
+    if (message.modelTurn && typeof message.modelTurn === 'object') {
+      return this.parseModelTurn(message.modelTurn as Record<string, unknown>, timestamp)
+    }
+
+    // Handle audio data responses
+    if (message.realtimeInput && typeof message.realtimeInput === 'object') {
+      return this.parseRealtimeInput(message.realtimeInput as Record<string, unknown>, timestamp)
+    }
+
+    // Handle turn complete responses
+    if (message.turnComplete !== undefined) {
+      return this.parseTurnComplete(message.turnComplete, timestamp)
+    }
+
+    // Handle setup complete responses
+    if (message.setupComplete && typeof message.setupComplete === 'object') {
+      return this.parseSetupComplete(message.setupComplete as Record<string, unknown>, timestamp)
+    }
+
+    // Handle tool call responses
+    if (message.toolCall && typeof message.toolCall === 'object') {
+      return this.parseToolCall(message.toolCall as Record<string, unknown>, timestamp)
+    }
+
+    // Handle error responses
+    if (message.error && typeof message.error === 'object') {
+      return this.parseError(message.error as Record<string, unknown>, timestamp)
+    }
+
+    // Default fallback for unknown message types
+    return {
+      type: 'text',
+      content: JSON.stringify(message),
+      metadata: {
+        timestamp,
+        messageId: (message.id as string) || undefined
+      }
+    }
+  }
+
+  /**
+   * Parse server content messages (text responses)
+   */
+  private static parseServerContent(
+    serverContent: Record<string, unknown>,
+    timestamp: number
+  ): ParsedGeminiResponse {
+    const modelTurn = serverContent.modelTurn as Record<string, unknown> | undefined
+    const turnComplete = serverContent.turnComplete as boolean | undefined
+
+    if (modelTurn && Array.isArray(modelTurn.parts)) {
+      // Extract text from parts
+      const textParts = modelTurn.parts
+        .map((part: Record<string, unknown>) => part.text)
+        .filter((text: unknown): text is string => typeof text === 'string')
+
+      const content = textParts.join(' ')
+
+      return {
+        type: 'text',
+        content,
+        metadata: {
+          timestamp,
+          modelTurn: true,
+          isPartial: !turnComplete,
+          turnId: (modelTurn.turnId as string) || undefined
+        }
+      }
+    }
+
+    return {
+      type: 'text',
+      content: '',
+      metadata: {timestamp, modelTurn: true}
+    }
+  }
+
+  /**
+   * Parse model turn messages
+   */
+  private static parseModelTurn(
+    modelTurn: Record<string, unknown>,
+    timestamp: number
+  ): ParsedGeminiResponse {
+    if (Array.isArray(modelTurn.parts)) {
+      const textContent = modelTurn.parts
+        .map((part: Record<string, unknown>) => part.text)
+        .filter((text: unknown): text is string => typeof text === 'string')
+        .join(' ')
+
+      return {
+        type: 'text',
+        content: textContent,
+        metadata: {
+          timestamp,
+          modelTurn: true,
+          turnId: (modelTurn.turnId as string) || undefined
+        }
+      }
+    }
+
+    return {
+      type: 'text',
+      content: '',
+      metadata: {timestamp, modelTurn: true}
+    }
+  }
+
+  /**
+   * Parse realtime input messages (audio)
+   */
+  private static parseRealtimeInput(
+    realtimeInput: Record<string, unknown>,
+    timestamp: number
+  ): ParsedGeminiResponse {
+    if (Array.isArray(realtimeInput.mediaChunks)) {
+      for (const chunk of realtimeInput.mediaChunks) {
+        if (chunk.mimeType && chunk.mimeType.startsWith('audio/')) {
+          return {
+            type: 'audio',
+            content: (chunk.data as string) || null,
+            metadata: {
+              timestamp,
+              messageId: (realtimeInput.id as string) || undefined
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      type: 'audio',
+      content: null,
+      metadata: {timestamp}
+    }
+  }
+
+  /**
+   * Parse turn complete messages
+   */
+  private static parseTurnComplete(turnComplete: unknown, timestamp: number): ParsedGeminiResponse {
+    return {
+      type: 'turn_complete',
+      content: null,
+      metadata: {
+        timestamp,
+        turnId:
+          typeof turnComplete === 'object' && turnComplete
+            ? ((turnComplete as Record<string, unknown>).turnId as string) || undefined
+            : undefined
+      }
+    }
+  }
+
+  /**
+   * Parse setup complete messages
+   */
+  private static parseSetupComplete(
+    setupComplete: Record<string, unknown>,
+    timestamp: number
+  ): ParsedGeminiResponse {
+    return {
+      type: 'setup_complete',
+      content: null,
+      metadata: {
+        timestamp,
+        messageId: (setupComplete.id as string) || undefined
+      }
+    }
+  }
+
+  /**
+   * Parse tool call messages
+   */
+  private static parseToolCall(
+    toolCall: Record<string, unknown>,
+    timestamp: number
+  ): ParsedGeminiResponse {
+    const functionCall = toolCall.functionCall as Record<string, unknown> | undefined
+
+    if (functionCall) {
+      return {
+        type: 'tool_call',
+        content: null,
+        metadata: {timestamp},
+        toolCall: {
+          name: (functionCall.name as string) || '',
+          parameters: (functionCall.args as Record<string, unknown>) || {},
+          id: (toolCall.id as string) || ''
+        }
+      }
+    }
+
+    return {
+      type: 'tool_call',
+      content: null,
+      metadata: {timestamp},
+      toolCall: {
+        name: '',
+        parameters: {},
+        id: ''
+      }
+    }
+  }
+
+  /**
+   * Parse error messages
+   */
+  private static parseError(
+    error: Record<string, unknown>,
+    timestamp: number
+  ): ParsedGeminiResponse {
+    return {
+      type: 'error',
+      content: null,
+      metadata: {timestamp},
+      error: {
+        code: (error.code as string) || 'UNKNOWN_ERROR',
+        message: (error.message as string) || 'An unknown error occurred',
+        details: (error.details as Record<string, unknown>) || {}
+      }
+    }
+  }
+
+  /**
+   * Validate that a parsed response is well-formed
+   */
+  static validateResponse(response: ParsedGeminiResponse): {isValid: boolean; errors: string[]} {
+    const errors: string[] = []
+
+    // Check required fields
+    if (!response.type) {
+      errors.push('Response must have a type')
+    }
+
+    if (!response.metadata || !response.metadata.timestamp) {
+      errors.push('Response must have metadata with timestamp')
+    }
+
+    // Type-specific validation
+    switch (response.type) {
+      case 'text':
+        if (typeof response.content !== 'string') {
+          errors.push('Text response must have string content')
+        }
+        break
+
+      case 'audio':
+        if (response.content !== null && typeof response.content !== 'string') {
+          errors.push('Audio response content must be string (base64) or null')
+        }
+        break
+
+      case 'tool_call':
+        if (!response.toolCall || !response.toolCall.name) {
+          errors.push('Tool call response must have toolCall with name')
+        }
+        break
+
+      case 'error':
+        if (!response.error || !response.error.code || !response.error.message) {
+          errors.push('Error response must have error object with code and message')
+        }
+        break
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    }
+  }
+}
+
 /**
  * WebSocket Connection Management for Gemini Live API
  */
@@ -79,19 +519,25 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private heartbeatInterval: number
   private connectionTimeout: number
   private reconnectTimer: NodeJS.Timeout | null = null
-  private messageQueue: RealtimeInput[] = []
+  private messageQueue: Map<QueuePriority, QueuedMessage[]> = new Map()
+  private pendingMessages: Map<string, QueuedMessage> = new Map()
   private maxQueueSize: number
+  private messageIdCounter = 0
+  private retryTimers: Map<string, NodeJS.Timeout> = new Map()
   private isClosingIntentionally = false
   private messageHandler: GeminiMessageHandler
   private errorHandler: GeminiErrorHandler
   private reconnectionManager: ReconnectionManager
   private heartbeatMonitor: WebSocketHeartbeatMonitor
+  private sessionManager: GeminiSessionManager
+  private currentSession: SessionData | null = null
+  private isSetupComplete = false // Track setup completion to prevent audio before acknowledgment
 
   constructor(config: GeminiLiveConfig) {
     super()
     this.config = {
       model: 'gemini-2.0-flash-live-001',
-      responseModalities: ['AUDIO'],
+      responseModalities: [ResponseModality.TEXT],
       systemInstruction: 'You are a helpful assistant and answer in a friendly tone.',
       reconnectAttempts: 5,
       heartbeatInterval: 30000, // 30 seconds
@@ -104,9 +550,16 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.connectionTimeout = this.config.connectionTimeout!
     this.maxQueueSize = this.config.maxQueueSize!
 
+    // Initialize priority-based message queues
+    Object.values(QueuePriority).forEach(priority => {
+      if (typeof priority === 'number') {
+        this.messageQueue.set(priority, [])
+      }
+    })
+
     // Initialize message handler
     this.messageHandler = new GeminiMessageHandler()
-    this.setupMessageHandlerEvents()
+    this.setupMessageHandler()
 
     // Initialize error handler
     this.errorHandler = new GeminiErrorHandler({
@@ -114,6 +567,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       logLevel: process.env.NODE_ENV === 'development' ? 4 : 2 // DEBUG in dev, INFO in prod
     })
     this.setupErrorHandlerEvents()
+    this.setupEnhancedEventHandling()
 
     // Initialize reconnection manager
     this.reconnectionManager = new ReconnectionManager(
@@ -143,6 +597,16 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       customPingMessage: {ping: true}
     })
     this.setupHeartbeatMonitorEvents()
+
+    // Initialize session manager
+    this.sessionManager = new GeminiSessionManager({
+      sessionTimeout: 24 * 60 * 60 * 1000, // 24 hours
+      maxInactiveDuration: 30 * 60 * 1000, // 30 minutes
+      persistenceEnabled: true,
+      cleanupInterval: 5 * 60 * 1000, // 5 minutes
+      maxSessionHistory: 10
+    })
+    this.setupSessionManagerEvents()
 
     logger.info('GeminiLiveWebSocketClient initialized', {
       model: this.config.model,
@@ -196,8 +660,21 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
           })
           this.setConnectionState(ConnectionState.CONNECTED)
           this.reconnectAttempts = 0
-          this.startHeartbeat()
-          this.processMessageQueue()
+
+          // Reset setup completion flag for new connection
+          this.isSetupComplete = false
+
+          // Don't start heartbeat for Gemini Live API (it doesn't support custom ping messages)
+          // this.startHeartbeat()
+
+          // Don't process message queue until setup is complete
+          // this.processMessageQueue()
+
+          // Create or resume session
+          this.handleSessionConnection()
+
+          // Send initial setup message
+          this.sendSetupMessage()
 
           // Notify reconnection manager of successful connection
           this.reconnectionManager.onConnectionEstablished()
@@ -245,7 +722,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private buildWebSocketUrl(): string {
     const baseUrl =
       this.config.websocketBaseUrl ||
-      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.LiveStreaming'
+      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent'
     const params = new URLSearchParams({
       key: this.config.apiKey
     })
@@ -253,28 +730,111 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Send realtime input (audio or text) to the API
+   * Send realtime input (audio or text) to the API with enhanced queueing and retry
    */
-  async sendRealtimeInput(input: RealtimeInput): Promise<void> {
+  async sendRealtimeInput(input: RealtimeInput, options: MessageSendOptions = {}): Promise<void> {
+    // Check circuit breaker before attempting to send
+    if (!this.errorHandler.canProceed()) {
+      const circuitBreakerState = this.errorHandler.getCircuitBreakerStatus()
+      logger.warn('Circuit breaker is open, blocking message send', {
+        state: circuitBreakerState.state,
+        failureCount: circuitBreakerState.failureCount
+      })
+
+      const error = this.errorHandler.handleError(
+        new Error('Circuit breaker is open - too many recent failures'),
+        {
+          connectionState: this.connectionState,
+          circuitBreakerState: circuitBreakerState.state
+        },
+        {
+          type: ErrorType.CIRCUIT_BREAKER,
+          retryable: false
+        }
+      )
+      throw error
+    }
+
+    // If not connected, queue the message with priority
     if (this.connectionState !== ConnectionState.CONNECTED) {
-      logger.debug('Connection not ready, queueing message', {
+      return this.queueMessage(input, options)
+    }
+
+    return this.sendMessageDirectly(input, options)
+  }
+
+  /**
+   * Queue a message with priority-based system
+   */
+  private queueMessage(input: RealtimeInput, options: MessageSendOptions = {}): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const priority = options.priority || QueuePriority.NORMAL
+      const messageId = this.generateMessageId()
+
+      const queuedMessage: QueuedMessage = {
+        id: messageId,
+        input,
+        timestamp: Date.now(),
+        retryCount: 0,
+        maxRetries: options.maxRetries || 3,
+        priority,
+        timeout: options.timeout || 30000,
+        resolve: options.expectResponse ? resolve : undefined,
+        reject
+      }
+
+      // Check total queue size across all priorities
+      const totalQueueSize = this.getTotalQueueSize()
+
+      logger.debug('Queueing message due to connection state', {
         connectionState: this.connectionState,
-        queueSize: this.messageQueue.length
+        totalQueueSize,
+        priority,
+        messageId
       })
 
       // Implement queue size limit to prevent memory issues
-      if (this.messageQueue.length >= this.maxQueueSize) {
-        logger.warn('Message queue full, dropping oldest message', {
-          queueSize: this.messageQueue.length,
+      if (totalQueueSize >= this.maxQueueSize) {
+        logger.warn('Message queue full, dropping oldest low-priority message', {
+          totalQueueSize,
           maxQueueSize: this.maxQueueSize
         })
-        this.messageQueue.shift() // Remove oldest message
+        this.dropOldestMessage()
       }
 
-      this.messageQueue.push(input)
-      return
-    }
+      // Add to appropriate priority queue
+      const queue = this.messageQueue.get(priority)
+      if (queue) {
+        queue.push(queuedMessage)
 
+        // Store for tracking if expecting response
+        if (options.expectResponse) {
+          this.pendingMessages.set(messageId, queuedMessage)
+        }
+
+        this.emit('messageQueued', {
+          messageId,
+          priority,
+          totalQueueSize: this.getTotalQueueSize(),
+          inputType: input.audio ? 'audio' : 'text'
+        })
+
+        if (!options.expectResponse) {
+          resolve()
+        }
+      } else {
+        reject(new Error(`Invalid priority: ${priority}`))
+      }
+    })
+  }
+
+  /**
+   * Send message directly over WebSocket
+   */
+  private async sendMessageDirectly(
+    input: RealtimeInput,
+    options: MessageSendOptions = {}
+  ): Promise<void> {
     if (!this.ws) {
       const error = this.errorHandler.handleError(
         new Error('WebSocket not initialized'),
@@ -284,32 +844,48 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       throw error
     }
 
+    // CRITICAL: Prevent audio messages from being sent before setup is complete
+    if (input.audio && !this.isSetupComplete) {
+      const error = this.errorHandler.handleError(
+        new Error('Cannot send audio data before setup response is received from Gemini Live API'),
+        {setupComplete: this.isSetupComplete, hasAudio: !!input.audio},
+        {type: ErrorType.API, retryable: false}
+      )
+      throw error
+    }
+
     try {
-      // For now, send directly but also process through message handler for validation
+      // Build the correct Gemini Live API message format (using snake_case as per API docs)
       const message = JSON.stringify({
-        client_content: {
-          turns: [
-            {
-              role: 'user',
-              parts: this.buildMessageParts(input)
-            }
-          ],
-          turn_complete: true
+        realtime_input: {
+          media_chunks: this.buildMediaChunks(input)
         }
       })
 
       logger.debug('Sending message to Gemini Live API', {
         messageLength: message.length,
-        messagePreview: sanitizeLogMessage(message.substring(0, 200)),
-        inputType: input.audio ? 'audio' : 'text'
+        inputType: input.audio ? 'audio' : 'text',
+        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
       })
 
       this.ws.send(message)
       this.emit('messageSent', input)
 
+      // Record successful operation for circuit breaker
+      this.errorHandler.recordSuccess()
+
+      // Track message in session
+      if (this.currentSession) {
+        this.sessionManager.recordMessage('sent', this.currentSession.sessionId)
+        this.sessionManager.updateActivity(this.currentSession.sessionId)
+      }
+
       // Also queue through message handler for future integration
       this.messageHandler.queueMessage(input, MessageType.CLIENT_CONTENT, MessagePriority.HIGH)
     } catch (error) {
+      // Record failure for circuit breaker
+      this.errorHandler.recordFailure()
+
       const geminiError = this.errorHandler.handleError(
         error,
         {
@@ -317,41 +893,98 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
             hasAudio: !!input.audio,
             hasText: !!input.text,
             textLength: input.text?.length
-          }
+          },
+          connectionState: this.connectionState,
+          timestamp: new Date(),
+          sessionId: this.currentSession?.sessionId
         },
         {
           type: ErrorType.API,
           retryable: true
         }
       )
+
       logger.error('Failed to send realtime input', {
         errorId: geminiError.id,
-        message: geminiError.message
+        message: geminiError.message,
+        errorType: geminiError.type,
+        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
       })
+
+      // Attempt automatic recovery for retryable errors
+      if (geminiError.retryable && this.errorHandler.canProceed()) {
+        try {
+          logger.info('Attempting automatic retry for failed message send', {
+            errorType: geminiError.type,
+            retryAttempt: 1
+          })
+
+          // Simple retry after short delay
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          await this.sendMessageDirectly(input, options)
+
+          logger.info('Automatic retry successful')
+          return
+        } catch (retryError) {
+          logger.error('Automatic retry failed', {
+            originalError: geminiError.type,
+            retryError: retryError instanceof Error ? retryError.message : String(retryError)
+          })
+
+          // If we have options for queued message retry, use that mechanism
+          if (options.maxRetries && options.maxRetries > 1) {
+            const messageId = this.generateMessageId()
+            const queuedMessage: QueuedMessage = {
+              id: messageId,
+              input,
+              timestamp: Date.now(),
+              retryCount: 1, // Already attempted once
+              maxRetries: options.maxRetries,
+              priority: options.priority || QueuePriority.NORMAL,
+              timeout: options.timeout || 30000,
+              resolve: undefined,
+              reject: error => {
+                throw error
+              }
+            }
+
+            logger.info('Initiating enhanced retry mechanism', {
+              messageId,
+              maxRetries: options.maxRetries,
+              currentAttempt: 1
+            })
+
+            await this.retryMessage(queuedMessage)
+            return
+          }
+        }
+      }
+
       throw geminiError
     }
   }
 
   /**
-   * Build message parts from realtime input
+   * Build media chunks from realtime input for Gemini Live API (using snake_case field names)
    */
-  private buildMessageParts(input: RealtimeInput): Array<Record<string, unknown>> {
-    const parts: Array<Record<string, unknown>> = []
+  private buildMediaChunks(input: RealtimeInput): Array<Record<string, unknown>> {
+    const chunks: Array<Record<string, unknown>> = []
 
     if (input.text) {
-      parts.push({text: input.text})
-    }
-
-    if (input.audio) {
-      parts.push({
-        inline_data: {
-          mime_type: input.audio.mimeType,
-          data: input.audio.data
-        }
+      chunks.push({
+        data: input.text,
+        mime_type: 'text/plain' // Use snake_case as per API docs
       })
     }
 
-    return parts
+    if (input.audio) {
+      chunks.push({
+        data: input.audio.data,
+        mime_type: input.audio.mimeType // Use snake_case as per API docs
+      })
+    }
+
+    return chunks
   }
 
   /**
@@ -359,13 +992,200 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    */
   private handleMessage(event: MessageEvent): void {
     try {
-      // Validate that we have string data before parsing
-      if (typeof event.data !== 'string') {
-        throw new Error('Received non-string message data')
+      // Record successful message receipt for circuit breaker
+      this.errorHandler.recordSuccess()
+
+      // Handle both string and binary data
+      let messageData: string
+      if (typeof event.data === 'string') {
+        messageData = event.data
+      } else if (event.data instanceof ArrayBuffer) {
+        // Convert ArrayBuffer to string
+        messageData = new TextDecoder().decode(event.data)
+      } else if (event.data instanceof Blob) {
+        // For Blob data, convert to text asynchronously
+        event.data
+          .text()
+          .then(text => {
+            try {
+              const rawMessage = JSON.parse(text)
+
+              // Check if heartbeat monitor can handle this message
+              if (this.heartbeatMonitor.handleMessage(rawMessage)) {
+                logger.debug('Message handled by heartbeat monitor (from Blob)')
+                return
+              }
+
+              // Use enhanced message parser for gemini-2.0-flash-live-001
+              const geminiResponse = Gemini2FlashMessageParser.parseResponse(rawMessage)
+              const validation = Gemini2FlashMessageParser.validateResponse(geminiResponse)
+
+              logger.debug('Received and parsed WebSocket message from Blob', {
+                messageType: geminiResponse.type,
+                isValid: validation.isValid,
+                messageId: geminiResponse.metadata.messageId,
+                errors: validation.errors,
+                isPartial: geminiResponse.metadata.isPartial,
+                modelTurn: geminiResponse.metadata.modelTurn,
+                turnId: geminiResponse.metadata.turnId
+              })
+
+              // Process the parsed response (copied from main handleMessage method)
+              logger.debug('Received and parsed WebSocket message from Blob', {
+                messageType: geminiResponse.type,
+                isValid: validation.isValid,
+                messageId: geminiResponse.metadata.messageId,
+                errors: validation.errors,
+                isPartial: geminiResponse.metadata.isPartial,
+                modelTurn: geminiResponse.metadata.modelTurn,
+                circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
+              })
+
+              // Handle validation errors
+              if (!validation.isValid) {
+                const parseError = this.errorHandler.handleError(
+                  new Error(`Message validation failed: ${validation.errors.join(', ')}`),
+                  {
+                    messageType: geminiResponse.type,
+                    validationErrors: validation.errors,
+                    rawMessage: JSON.stringify(rawMessage).substring(0, 500)
+                  },
+                  {
+                    type: ErrorType.PARSE_ERROR,
+                    retryable: false
+                  }
+                )
+
+                logger.warn('Invalid message received from Gemini Live API (from Blob)', {
+                  errorId: parseError.id,
+                  errors: validation.errors,
+                  messageType: geminiResponse.type
+                })
+
+                this.emit('invalidGeminiMessage', {
+                  response: geminiResponse,
+                  validation,
+                  error: parseError
+                })
+                return
+              }
+
+              // Check for server-side errors in the message
+              if (geminiResponse.type === 'error' && geminiResponse.error) {
+                const serverError = this.errorHandler.handleError(
+                  new Error(
+                    `Server error: ${geminiResponse.error.message || 'Unknown server error'}`
+                  ),
+                  {
+                    serverErrorCode: geminiResponse.error.code,
+                    serverErrorDetails: geminiResponse.error.details,
+                    sessionId: this.currentSession?.sessionId
+                  },
+                  {
+                    type: this.classifyServerError(geminiResponse.error),
+                    retryable: this.isServerErrorRetryable(geminiResponse.error)
+                  }
+                )
+
+                logger.error('Received server error from Gemini Live API (from Blob)', {
+                  errorId: serverError.id,
+                  serverError: geminiResponse.error,
+                  sessionId: this.currentSession?.sessionId
+                })
+
+                this.emit('geminiError', {
+                  ...geminiResponse.error,
+                  handledError: serverError
+                })
+
+                if (this.shouldReconnectOnServerError(geminiResponse.error)) {
+                  this.handleServerErrorRecovery(serverError)
+                }
+                return
+              }
+
+              // Also use the original message handler for backwards compatibility
+              const processed = this.messageHandler.processIncomingMessage(text)
+
+              // Emit both formats for different consumers
+              this.emit('message', processed)
+              this.emit('geminiResponse', geminiResponse)
+
+              // Track message received in session
+              if (this.currentSession) {
+                this.sessionManager.recordMessage('received', this.currentSession.sessionId)
+                this.sessionManager.updateActivity(this.currentSession.sessionId)
+
+                if (geminiResponse.type === 'turn_complete') {
+                  this.sessionManager.recordTurn(this.currentSession.sessionId)
+                }
+              }
+
+              // Emit specific events based on enhanced message type
+              switch (geminiResponse.type) {
+                case 'text':
+                  this.emit('textResponse', {
+                    content: geminiResponse.content,
+                    metadata: geminiResponse.metadata,
+                    isPartial: geminiResponse.metadata.isPartial
+                  })
+                  break
+                case 'audio':
+                  this.emit('audioResponse', {
+                    content: geminiResponse.content,
+                    metadata: geminiResponse.metadata
+                  })
+                  break
+                case 'tool_call':
+                  this.emit('toolCall', geminiResponse.toolCall)
+                  break
+                case 'turn_complete':
+                  this.emit('turnComplete', {
+                    turnId: geminiResponse.metadata.turnId,
+                    metadata: geminiResponse.metadata
+                  })
+                  break
+                case 'setup_complete':
+                  this.emit('setupComplete', {
+                    metadata: geminiResponse.metadata
+                  })
+                  break
+                default:
+                  logger.debug('Unhandled enhanced message type from Blob', {
+                    type: geminiResponse.type,
+                    messageId: geminiResponse.metadata.messageId
+                  })
+              }
+            } catch (error) {
+              const geminiError = this.errorHandler.handleError(
+                error,
+                {eventData: 'Blob data', connectionState: this.connectionState},
+                {type: ErrorType.PARSE_ERROR, retryable: false}
+              )
+              logger.error('Error parsing Blob message', geminiError)
+              this.emit('error', geminiError)
+            }
+          })
+          .catch(error => {
+            const geminiError = this.errorHandler.handleError(
+              error,
+              {eventData: 'Blob read error', connectionState: this.connectionState},
+              {type: ErrorType.PARSE_ERROR, retryable: false}
+            )
+            logger.error('Error reading Blob message', geminiError)
+            this.emit('error', geminiError)
+          })
+        return // Early return for async Blob handling
+      } else {
+        logger.error('Received unsupported message data type', {
+          dataType: typeof event.data,
+          constructor: event.data.constructor.name
+        })
+        throw new Error(`Unsupported message data type: ${typeof event.data}`)
       }
 
       // Parse the raw message first with additional safety
-      const rawMessage = JSON.parse(event.data as string)
+      const rawMessage = JSON.parse(messageData)
 
       // Check if heartbeat monitor can handle this message
       if (this.heartbeatMonitor.handleMessage(rawMessage)) {
@@ -374,20 +1194,130 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         return
       }
 
-      // Use message handler to process incoming message
-      const processed = this.messageHandler.processIncomingMessage(event.data)
+      // Use enhanced message parser for gemini-2.0-flash-live-001
+      const geminiResponse = Gemini2FlashMessageParser.parseResponse(rawMessage)
+      const validation = Gemini2FlashMessageParser.validateResponse(geminiResponse)
 
-      logger.debug('Received WebSocket message', {
-        messageType: processed.type,
-        isValid: processed.isValid,
-        messageId: processed.metadata.id,
-        errors: processed.errors
+      logger.debug('Received and parsed WebSocket message', {
+        messageType: geminiResponse.type,
+        isValid: validation.isValid,
+        messageId: geminiResponse.metadata.messageId,
+        errors: validation.errors,
+        isPartial: geminiResponse.metadata.isPartial,
+        modelTurn: geminiResponse.metadata.modelTurn,
+        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
       })
 
-      // Emit the processed message for subscribers
-      this.emit('message', processed)
+      // Handle validation errors
+      if (!validation.isValid) {
+        const parseError = this.errorHandler.handleError(
+          new Error(`Message validation failed: ${validation.errors.join(', ')}`),
+          {
+            messageType: geminiResponse.type,
+            validationErrors: validation.errors,
+            rawMessage: JSON.stringify(rawMessage).substring(0, 500) // Truncate for logging
+          },
+          {
+            type: ErrorType.PARSE_ERROR,
+            retryable: false
+          }
+        )
 
-      // If the message is valid, emit specific events based on type
+        logger.warn('Invalid message received from Gemini Live API', {
+          errorId: parseError.id,
+          errors: validation.errors,
+          messageType: geminiResponse.type
+        })
+
+        this.emit('invalidGeminiMessage', {
+          response: geminiResponse,
+          validation,
+          error: parseError
+        })
+
+        // Don't continue processing invalid messages
+        return
+      }
+
+      // Check for server-side errors in the message
+      if (geminiResponse.type === 'error' && geminiResponse.error) {
+        const serverError = this.errorHandler.handleError(
+          new Error(`Server error: ${geminiResponse.error.message || 'Unknown server error'}`),
+          {
+            serverErrorCode: geminiResponse.error.code,
+            serverErrorDetails: geminiResponse.error.details,
+            sessionId: this.currentSession?.sessionId
+          },
+          {
+            type: this.classifyServerError(geminiResponse.error),
+            retryable: this.isServerErrorRetryable(geminiResponse.error)
+          }
+        )
+
+        logger.error('Received server error from Gemini Live API', {
+          errorId: serverError.id,
+          serverError: geminiResponse.error,
+          sessionId: this.currentSession?.sessionId
+        })
+
+        this.emit('geminiError', {
+          ...geminiResponse.error,
+          handledError: serverError
+        })
+
+        // Handle server errors that might require reconnection
+        if (this.shouldReconnectOnServerError(geminiResponse.error)) {
+          this.handleServerErrorRecovery(serverError)
+        }
+
+        return
+      }
+
+      // Also use the original message handler for backwards compatibility
+      const processed = this.messageHandler.processIncomingMessage(event.data)
+
+      // Emit both formats for different consumers
+      this.emit('message', processed) // Original format
+      this.emit('geminiResponse', geminiResponse) // Enhanced format
+
+      // Track message received in session
+      if (this.currentSession) {
+        this.sessionManager.recordMessage('received', this.currentSession.sessionId)
+        this.sessionManager.updateActivity(this.currentSession.sessionId)
+
+        // Record turn completion for conversation tracking
+        if (geminiResponse.type === 'turn_complete') {
+          this.sessionManager.recordTurn(this.currentSession.sessionId)
+        }
+      }
+
+      // Emit specific events based on enhanced message type
+      switch (geminiResponse.type) {
+        case 'text':
+          this.emit('textResponse', {
+            content: geminiResponse.content,
+            metadata: geminiResponse.metadata,
+            isPartial: geminiResponse.metadata.isPartial
+          })
+          break
+        case 'audio':
+          this.emit('audioResponse', {
+            content: geminiResponse.content,
+            metadata: geminiResponse.metadata
+          })
+          break
+        case 'tool_call':
+          this.emit('toolCall', geminiResponse.toolCall)
+          break
+        case 'turn_complete':
+          this.emit('turnComplete', geminiResponse.metadata)
+          break
+        case 'setup_complete':
+          this.emit('setupComplete', geminiResponse.metadata)
+          break
+      }
+
+      // Maintain backwards compatibility with original events
       if (processed.isValid) {
         switch (processed.type) {
           case MessageType.SERVER_CONTENT:
@@ -413,26 +1343,282 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
             break
         }
       } else {
-        safeLogger.warn('Invalid message received', processed.errors)
+        safeLogger.warn('Invalid message received (legacy format)', processed.errors)
         this.emit('invalidMessage', processed)
       }
     } catch (error) {
-      safeLogger.error(
-        'Failed to process message',
-        error instanceof Error ? error.message : 'Unknown error'
+      // Record failure for circuit breaker
+      this.errorHandler.recordFailure()
+
+      const handledError = this.errorHandler.handleError(
+        error,
+        {
+          eventData:
+            typeof event.data === 'string' ? event.data.substring(0, 500) : 'Non-string data',
+          connectionState: this.connectionState,
+          sessionId: this.currentSession?.sessionId,
+          timestamp: new Date()
+        },
+        {
+          type: ErrorType.PARSE_ERROR,
+          retryable: false
+        }
       )
-      this.emit('error', error)
+
+      safeLogger.error('Failed to process message', {
+        errorId: handledError.id,
+        message: handledError.message,
+        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
+      })
+
+      this.emit('error', handledError)
+      this.emit('messageProcessingError', {
+        originalEvent: event,
+        error: handledError
+      })
+    }
+  }
+
+  // Helper methods for enhanced message queue management
+  private generateMessageId(): string {
+    return `msg_${++this.messageIdCounter}_${Date.now()}`
+  }
+
+  private getTotalQueueSize(): number {
+    let total = 0
+    for (const queue of this.messageQueue.values()) {
+      total += queue.length
+    }
+    return total
+  }
+
+  private dropOldestMessage(): void {
+    // Find the oldest message across all priority queues
+    let oldestMessage: QueuedMessage | null = null
+    let oldestPriority: QueuePriority = QueuePriority.LOW
+    let oldestIndex = -1
+
+    for (const [priority, queue] of this.messageQueue.entries()) {
+      if (queue.length > 0) {
+        const message = queue[0]
+        if (!oldestMessage || message.timestamp < oldestMessage.timestamp) {
+          oldestMessage = message
+          oldestPriority = priority
+          oldestIndex = 0
+        }
+      }
+    }
+
+    if (oldestMessage) {
+      const queue = this.messageQueue.get(oldestPriority)
+      if (queue) {
+        queue.splice(oldestIndex, 1)
+        logger.debug('Dropped oldest message from queue', {
+          messageId: oldestMessage.id,
+          priority: oldestPriority,
+          messageAge: Date.now() - oldestMessage.timestamp
+        })
+      }
     }
   }
 
   /**
-   * Process queued messages when connection is established
+   * Retry failed message with exponential backoff
+   */
+  private async retryMessage(queuedMessage: QueuedMessage): Promise<void> {
+    if (queuedMessage.retryCount >= queuedMessage.maxRetries) {
+      logger.warn('Message retry limit exceeded', {
+        messageId: queuedMessage.id,
+        retryCount: queuedMessage.retryCount,
+        maxRetries: queuedMessage.maxRetries
+      })
+
+      if (queuedMessage.reject) {
+        queuedMessage.reject(
+          new Error(`Message retry limit exceeded after ${queuedMessage.retryCount} attempts`)
+        )
+      }
+      return
+    }
+
+    queuedMessage.retryCount++
+
+    // Exponential backoff: 1s, 2s, 4s, 8s, etc.
+    const delay = Math.min(1000 * Math.pow(2, queuedMessage.retryCount - 1), 30000) // Max 30s
+
+    logger.debug('Scheduling message retry', {
+      messageId: queuedMessage.id,
+      retryCount: queuedMessage.retryCount,
+      delayMs: delay
+    })
+
+    const retryTimer = setTimeout(async () => {
+      this.retryTimers.delete(queuedMessage.id)
+
+      try {
+        await this.sendMessageDirectly(queuedMessage.input, {
+          priority: queuedMessage.priority,
+          maxRetries: queuedMessage.maxRetries,
+          timeout: queuedMessage.timeout,
+          expectResponse: !!queuedMessage.resolve
+        })
+
+        // Success - resolve original promise
+        if (queuedMessage.resolve) {
+          queuedMessage.resolve()
+        }
+
+        // Remove from pending messages
+        this.pendingMessages.delete(queuedMessage.id)
+
+        logger.debug('Message retry successful', {
+          messageId: queuedMessage.id,
+          retryCount: queuedMessage.retryCount
+        })
+      } catch (error) {
+        logger.warn('Message retry failed', {
+          messageId: queuedMessage.id,
+          retryCount: queuedMessage.retryCount,
+          error: error instanceof Error ? error.message : String(error)
+        })
+
+        // Try again if we haven't hit the limit
+        await this.retryMessage(queuedMessage)
+      }
+    }, delay)
+
+    this.retryTimers.set(queuedMessage.id, retryTimer)
+  }
+
+  /**
+   * Enhanced WebSocket lifecycle event handling
+   */
+  private setupEnhancedEventHandling(): void {
+    // Connection opened event
+    this.on('connected', () => {
+      logger.info(
+        'WebSocket connection established, waiting for setup before processing queued messages',
+        {
+          totalQueueSize: this.getTotalQueueSize(),
+          circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
+        }
+      )
+
+      // Don't process messages here - wait for setup complete
+      // this.processMessageQueue()
+
+      // Reset circuit breaker on successful connection
+      this.errorHandler.recordSuccess()
+    })
+
+    // Connection closed event
+    this.on('disconnected', (reason: string) => {
+      logger.warn('WebSocket connection closed', {
+        reason,
+        totalQueueSize: this.getTotalQueueSize(),
+        pendingMessages: this.pendingMessages.size
+      })
+
+      // Cancel all pending retry timers
+      for (const [messageId, timer] of this.retryTimers.entries()) {
+        clearTimeout(timer)
+        logger.debug('Cancelled retry timer for message', {messageId})
+      }
+      this.retryTimers.clear()
+    })
+
+    // Error event
+    this.on('error', (error: GeminiError) => {
+      logger.error('WebSocket error occurred', {
+        errorId: error.id,
+        errorType: error.type,
+        retryable: error.retryable,
+        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
+      })
+    })
+
+    // Message sent event
+    this.on('messageSent', (input: RealtimeInput) => {
+      this.emit('queueUpdate', {
+        action: 'sent',
+        totalQueueSize: this.getTotalQueueSize(),
+        pendingMessages: this.pendingMessages.size,
+        inputType: input.audio ? 'audio' : 'text'
+      })
+    })
+
+    // Message queued event
+    this.on(
+      'messageQueued',
+      (data: {
+        messageId: string
+        priority: QueuePriority
+        totalQueueSize: number
+        inputType: string
+      }) => {
+        this.emit('queueUpdate', {
+          action: 'queued',
+          ...data
+        })
+      }
+    )
+
+    // Circuit breaker state change event
+    this.errorHandler.on('circuitBreakerStateChange', (state: string) => {
+      logger.info('Circuit breaker state changed', {
+        newState: state,
+        statistics: this.errorHandler.getStatistics()
+      })
+
+      this.emit('circuitBreakerStateChange', state)
+    })
+  }
+
+  /**
+   * Process queued messages when connection is established with priority-based handling
    */
   private processMessageQueue(): void {
-    while (this.messageQueue.length > 0) {
-      const message = this.messageQueue.shift()
-      if (message) {
-        this.sendRealtimeInput(message)
+    const priorities = [
+      QueuePriority.CRITICAL,
+      QueuePriority.HIGH,
+      QueuePriority.NORMAL,
+      QueuePriority.LOW
+    ]
+
+    for (const priority of priorities) {
+      const queue = this.messageQueue.get(priority)
+      if (!queue) continue
+
+      while (queue.length > 0) {
+        const queuedMessage = queue.shift()
+        if (queuedMessage) {
+          logger.debug('Processing queued message', {
+            messageId: queuedMessage.id,
+            priority,
+            retryCount: queuedMessage.retryCount,
+            queueAge: Date.now() - queuedMessage.timestamp
+          })
+
+          // Send the message directly, bypassing queue logic since we're already processing
+          this.sendMessageDirectly(queuedMessage.input, {
+            priority: queuedMessage.priority,
+            maxRetries: queuedMessage.maxRetries,
+            timeout: queuedMessage.timeout,
+            expectResponse: !!queuedMessage.resolve
+          })
+            .then(() => {
+              // Resolve the original promise if it was expecting a response
+              if (queuedMessage.resolve) {
+                queuedMessage.resolve(undefined)
+              }
+            })
+            .catch(error => {
+              // Reject the original promise
+              if (queuedMessage.reject) {
+                queuedMessage.reject(error)
+              }
+            })
+        }
       }
     }
   }
@@ -520,12 +1706,14 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       // Already a GeminiError
       geminiError = error as GeminiError
     } else {
-      // Convert Error to GeminiError
+      // Convert Error to GeminiError with enhanced classification
       geminiError = this.errorHandler.handleError(
         error,
         {
           connectionState: this.connectionState,
-          reconnectAttempts: this.reconnectAttempts
+          reconnectAttempts: this.reconnectAttempts,
+          timestamp: new Date(),
+          sessionId: this.currentSession?.sessionId
         },
         {
           type: ErrorType.NETWORK,
@@ -539,17 +1727,108 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       type: geminiError.type,
       message: geminiError.message,
       retryable: geminiError.retryable,
-      connectionState: this.connectionState
+      connectionState: this.connectionState,
+      circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state,
+      canProceed: this.errorHandler.canProceed()
     })
+
+    // Track error in session if we have one
+    if (this.currentSession) {
+      this.sessionManager.markSessionError(
+        `${geminiError.type}: ${geminiError.message}`,
+        this.currentSession.sessionId
+      )
+    }
 
     this.setConnectionState(ConnectionState.ERROR)
     this.stopHeartbeat()
     this.emit('error', geminiError)
 
-    if (!this.isClosingIntentionally && geminiError.retryable) {
-      // Let reconnection manager decide if we should reconnect
+    // Check circuit breaker before attempting recovery
+    if (!this.isClosingIntentionally && this.errorHandler.canProceed()) {
+      this.handleErrorRecovery(geminiError)
+    } else if (!this.errorHandler.canProceed()) {
+      logger.warn('Circuit breaker is open, blocking recovery attempts', {
+        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state,
+        errorType: geminiError.type
+      })
+      this.emit('circuitBreakerOpen', {
+        state: this.errorHandler.getCircuitBreakerStatus().state,
+        lastError: geminiError
+      })
+    }
+  }
+
+  /**
+   * Handle error recovery with enhanced strategies
+   */
+  private async handleErrorRecovery(error: GeminiError): Promise<void> {
+    try {
+      // Record the failure in circuit breaker
+      this.errorHandler.recordFailure()
+
+      // Attempt recovery based on error type and configured strategy
+      if (error.retryable) {
+        const recoveryResult = await this.errorHandler.handleErrorWithRecovery(
+          error,
+          {
+            connectionState: this.connectionState,
+            reconnectAttempts: this.reconnectAttempts,
+            timestamp: new Date(),
+            sessionId: this.currentSession?.sessionId
+          },
+          {
+            type: error.type,
+            retryable: true,
+            attemptRecovery: true,
+            maxRetries: 3
+          }
+        )
+
+        if (recoveryResult.recovered) {
+          logger.info('Error recovery successful', {
+            errorType: error.type,
+            recoveryStats: this.errorHandler.getStatistics()
+          })
+          this.errorHandler.recordSuccess()
+
+          // Attempt to reconnect after successful recovery
+          try {
+            await this.connect()
+            logger.info('Reconnection successful after recovery')
+          } catch (connectError) {
+            logger.error('Reconnection failed after recovery', {
+              error: connectError instanceof Error ? connectError.message : String(connectError)
+            })
+            throw connectError
+          }
+        } else {
+          // Recovery failed, let reconnection manager handle it
+          const shouldReconnect = this.reconnectionManager.onConnectionLost(
+            `Error: ${error.message}`
+          )
+
+          if (shouldReconnect) {
+            this.setConnectionState(ConnectionState.RECONNECTING)
+            this.reconnectionManager.startReconnection(() => this.connect())
+          }
+        }
+      } else {
+        logger.error('Error is not retryable, no recovery attempted', {
+          errorType: error.type,
+          message: error.message
+        })
+      }
+    } catch (recoveryError) {
+      logger.error('Error during recovery process', {
+        originalError: error.type,
+        recoveryError:
+          recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
+      })
+
+      // Fall back to basic reconnection logic
       const shouldReconnect = this.reconnectionManager.onConnectionLost(
-        `Error: ${geminiError.message}`
+        `Recovery failed: ${error.message}`
       )
 
       if (shouldReconnect) {
@@ -560,11 +1839,170 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
+   * Handle session connection - create new session or resume existing one
+   */
+  private handleSessionConnection(): void {
+    try {
+      // Try to resume most recent session first if this is a reconnection
+      const resumableSessions = this.sessionManager.getResumableSessions()
+
+      if (resumableSessions.length > 0 && this.reconnectAttempts > 0) {
+        // This is a reconnection, try to resume the most recent session
+        const latestSession = resumableSessions[0]
+
+        // Validate session before resumption
+        if (this.validateSessionForResumption(latestSession)) {
+          const resumedSession = this.sessionManager.resumeSession(latestSession.sessionId)
+
+          if (resumedSession) {
+            this.currentSession = resumedSession
+            this.sessionManager.recordConnectionEvent('resumed', 'websocket_reconnected')
+
+            logger.info('Resumed previous session successfully', {
+              sessionId: resumedSession.sessionId,
+              messageCount: resumedSession.messageCount,
+              turnCount: resumedSession.turnCount,
+              lastActivity: resumedSession.lastActivity,
+              connectionAttempt: this.reconnectAttempts
+            })
+
+            // Emit session resumed event
+            this.emit('sessionResumed', resumedSession)
+            return
+          }
+        } else {
+          logger.warn('Latest session failed validation for resumption', {
+            sessionId: latestSession.sessionId,
+            status: latestSession.status,
+            lastActivity: latestSession.lastActivity
+          })
+        }
+      }
+
+      // Create new session if no resumable session or resumption failed
+      const sessionConfig = {
+        model: this.config.model || 'gemini-2.0-flash-live-001',
+        responseModalities: this.config.responseModalities || [ResponseModality.TEXT],
+        systemInstruction: this.config.systemInstruction
+      }
+
+      this.currentSession = this.sessionManager.createSession(
+        this.config.model || 'gemini-2.0-flash-live-001',
+        sessionConfig
+      )
+
+      logger.info('Created new session', {
+        sessionId: this.currentSession.sessionId,
+        modelId: this.currentSession.modelId
+      })
+    } catch (error) {
+      logger.error('Failed to handle session connection', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      // Continue without session management - don't fail the connection
+    }
+  }
+
+  /**
+   * Validate session for resumption
+   */
+  private validateSessionForResumption(session: SessionData): boolean {
+    try {
+      // Check if session is in a resumable state
+      if (session.status !== 'suspended') {
+        logger.debug('Session not in suspended state', {
+          sessionId: session.sessionId,
+          status: session.status
+        })
+        return false
+      }
+
+      // Check if session model matches current config
+      if (session.modelId !== this.config.model) {
+        logger.debug('Session model mismatch', {
+          sessionId: session.sessionId,
+          sessionModel: session.modelId,
+          currentModel: this.config.model
+        })
+        return false
+      }
+
+      // Check if session is not too old (within last 24 hours)
+      const now = Date.now()
+      const sessionAge = now - session.createdAt.getTime()
+      const maxAge = 24 * 60 * 60 * 1000 // 24 hours
+
+      if (sessionAge > maxAge) {
+        logger.debug('Session too old for resumption', {
+          sessionId: session.sessionId,
+          sessionAge: sessionAge,
+          maxAge: maxAge
+        })
+        return false
+      }
+
+      // Check if session was not inactive for too long (within last 30 minutes)
+      const inactivityTime = now - session.lastActivity.getTime()
+      const maxInactivity = 30 * 60 * 1000 // 30 minutes
+
+      if (inactivityTime > maxInactivity) {
+        logger.debug('Session inactive too long for resumption', {
+          sessionId: session.sessionId,
+          inactivityTime: inactivityTime,
+          maxInactivity: maxInactivity
+        })
+        return false
+      }
+
+      logger.debug('Session validation passed for resumption', {
+        sessionId: session.sessionId,
+        sessionAge: sessionAge,
+        inactivityTime: inactivityTime
+      })
+
+      return true
+    } catch (error) {
+      logger.error('Error validating session for resumption', {
+        sessionId: session.sessionId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      return false
+    }
+  }
+
+  /**
+   * Handle session disconnection - suspend current session
+   */
+  private handleSessionDisconnection(reason: string): void {
+    if (this.currentSession) {
+      try {
+        this.sessionManager.suspendSession(reason, this.currentSession.sessionId)
+        this.sessionManager.recordConnectionEvent('disconnected', reason)
+
+        logger.info('Session suspended due to disconnection', {
+          sessionId: this.currentSession.sessionId,
+          reason
+        })
+      } catch (error) {
+        logger.error('Failed to handle session disconnection', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          sessionId: this.currentSession?.sessionId
+        })
+      }
+    }
+  }
+
+  /**
    * Handle connection close events
    */
   private handleConnectionClose(event: CloseEvent): void {
     this.setConnectionState(ConnectionState.DISCONNECTED)
     this.stopHeartbeat()
+
+    // Handle session disconnection
+    const reason = `WebSocket closed: ${event.code} - ${event.reason}`
+    this.handleSessionDisconnection(reason)
+
     this.emit('disconnected', event)
 
     if (!this.isClosingIntentionally) {
@@ -774,6 +2212,61 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
+   * Get current session information
+   */
+  getCurrentSession(): SessionData | null {
+    return this.currentSession
+  }
+
+  /**
+   * Get session statistics
+   */
+  getSessionStats() {
+    return this.sessionManager.getSessionStats()
+  }
+
+  /**
+   * Get resumable sessions
+   */
+  getResumableSessions(): SessionData[] {
+    return this.sessionManager.getResumableSessions()
+  }
+
+  /**
+   * Manually suspend current session
+   */
+  suspendCurrentSession(reason: string = 'manual'): void {
+    if (this.currentSession) {
+      this.sessionManager.suspendSession(reason, this.currentSession.sessionId)
+    }
+  }
+
+  /**
+   * Manually resume a specific session
+   */
+  resumeSpecificSession(sessionId: string): boolean {
+    const resumedSession = this.sessionManager.resumeSession(sessionId)
+    if (resumedSession) {
+      this.currentSession = resumedSession
+      logger.info('Manually resumed session', {
+        sessionId: resumedSession.sessionId,
+        messageCount: resumedSession.messageCount,
+        turnCount: resumedSession.turnCount
+      })
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Clear all sessions
+   */
+  clearAllSessions(): void {
+    this.sessionManager.clearAllSessions()
+    this.currentSession = null
+  }
+
+  /**
    * Cleanup and destroy all resources
    */
   async destroy(): Promise<void> {
@@ -789,22 +2282,60 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.errorHandler.destroy()
     this.reconnectionManager.destroy()
     this.heartbeatMonitor.stop()
+    this.sessionManager.destroy()
 
-    // Clear message queue
-    this.messageQueue.length = 0
+    // Clear message queues
+    for (const queue of this.messageQueue.values()) {
+      queue.length = 0
+    }
+
+    // Clear pending messages and retry timers
+    for (const timer of this.retryTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.retryTimers.clear()
+    this.pendingMessages.clear()
+
+    // Clear current session reference
+    this.currentSession = null
 
     // Remove all listeners
     this.removeAllListeners()
+  }
 
-    logger.info('GeminiLiveWebSocketClient destroyed')
+  /**
+   * Get comprehensive queue and connection statistics
+   */
+  getQueueStatistics() {
+    const queueStats: Record<string, number> = {}
+    for (const [priority, queue] of this.messageQueue.entries()) {
+      queueStats[priority] = queue.length
+    }
+
+    return {
+      connectionState: this.connectionState,
+      totalQueuedMessages: this.getTotalQueueSize(),
+      messagesByPriority: queueStats,
+      pendingMessages: this.pendingMessages.size,
+      activeRetryTimers: this.retryTimers.size,
+      circuitBreakerState: this.errorHandler.getCircuitBreakerStatus(),
+      errorStatistics: this.errorHandler.getStatistics(),
+      sessionInfo: this.currentSession
+        ? {
+            sessionId: this.currentSession.sessionId,
+            createdAt: this.currentSession.createdAt,
+            lastActivity: this.currentSession.lastActivity
+          }
+        : null
+    }
   }
 
   /**
    * Set up message handler event listeners
    */
-  private setupMessageHandlerEvents(): void {
-    this.messageHandler.on('message:processed', (processed: ProcessedMessage) => {
-      this.emit('transcription', processed)
+  private setupMessageHandler(): void {
+    this.messageHandler.on('message:received', (message: GeminiLiveApiResponse) => {
+      this.emit('serverContent', message)
     })
 
     this.messageHandler.on('message:error', (error: Error) => {
@@ -845,6 +2376,469 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       })
       this.emit('websocketError', error)
     })
+  }
+
+  /**
+   * Set up session manager event listeners
+   */
+  private setupSessionManagerEvents(): void {
+    this.sessionManager.on('sessionCreated', (session: SessionData) => {
+      logger.info('Session created', {
+        sessionId: session.sessionId,
+        modelId: session.modelId
+      })
+      this.emit('sessionCreated', session)
+    })
+
+    this.sessionManager.on('sessionResumed', (session: SessionData) => {
+      logger.info('Session resumed', {
+        sessionId: session.sessionId,
+        messageCount: session.messageCount,
+        turnCount: session.turnCount
+      })
+      this.emit('sessionResumed', session)
+    })
+
+    this.sessionManager.on('sessionSuspended', (session: SessionData) => {
+      logger.info('Session suspended', {
+        sessionId: session.sessionId
+      })
+      this.emit('sessionSuspended', session)
+    })
+
+    this.sessionManager.on('sessionError', (data: {session: SessionData; error: string}) => {
+      logger.error('Session error occurred', {
+        sessionId: data.session.sessionId,
+        error: data.error
+      })
+      this.emit('sessionError', data)
+    })
+  }
+
+  /**
+   * Send initial setup message to Gemini Live API
+   */
+  private async sendSetupMessage(): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket not connected')
+    }
+
+    const setupMessage: SetupMessage = {
+      setup: {
+        model: `models/${this.config.model}`,
+        generationConfig: {
+          responseModalities: this.config.responseModalities || [ResponseModality.TEXT]
+        }
+      }
+    }
+
+    // Add system instruction if provided
+    if (this.config.systemInstruction) {
+      setupMessage.setup.systemInstruction = {
+        parts: [{text: this.config.systemInstruction}]
+      }
+    }
+
+    // Include session ID if we have a current session (for resumption)
+    if (this.currentSession) {
+      // Add session context to the setup message
+      logger.info('Including session context in setup message', {
+        sessionId: this.currentSession.sessionId,
+        messageCount: this.currentSession.messageCount,
+        turnCount: this.currentSession.turnCount
+      })
+
+      // Note: The Gemini Live API doesn't have a direct session ID field in setup,
+      // but we track this internally for session continuity
+      this.sessionManager.recordConnectionEvent('connected', 'setup_message_sent')
+    }
+
+    // Validate setup message structure and content
+    this.validateSetupMessage(setupMessage)
+
+    try {
+      const message = JSON.stringify(setupMessage)
+
+      logger.info('Sending setup message to Gemini Live API', {
+        model: this.config.model,
+        responseModalities: this.config.responseModalities,
+        hasSystemInstruction: !!this.config.systemInstruction,
+        hasActiveSession: !!this.currentSession,
+        sessionId: this.currentSession?.sessionId
+      })
+
+      this.ws.send(message)
+      this.emit('setupMessageSent', setupMessage)
+
+      // CRITICAL: Wait for setup response before allowing audio messages
+      await this.waitForSetupResponse()
+
+      // Update session with setup message sent
+      if (this.currentSession) {
+        this.sessionManager.updateActivity(this.currentSession.sessionId)
+      }
+    } catch (error) {
+      const geminiError = this.errorHandler.handleError(
+        error,
+        {setupMessage},
+        {type: ErrorType.API, retryable: false}
+      )
+      logger.error('Failed to send setup message', {
+        errorId: geminiError.id,
+        message: geminiError.message,
+        sessionId: this.currentSession?.sessionId
+      })
+
+      // Mark session as having an error if setup fails
+      if (this.currentSession) {
+        this.sessionManager.markSessionError(`Setup message failed: ${geminiError.message}`)
+      }
+
+      throw geminiError
+    }
+  }
+
+  /**
+   * Validate setup message configuration
+   */
+  private validateSetupMessage(setupMessage: SetupMessage): void {
+    if (!setupMessage.setup.model) {
+      throw new Error('Setup message must include a model specification')
+    }
+
+    if (!setupMessage.setup.model.startsWith('models/')) {
+      throw new Error('Model specification must start with "models/"')
+    }
+
+    if (!setupMessage.setup.generationConfig?.responseModalities?.length) {
+      throw new Error('Setup message must specify at least one response modality')
+    }
+
+    const validModalities = Object.values(ResponseModality)
+    const invalidModalities = setupMessage.setup.generationConfig.responseModalities.filter(
+      (modality: string) => !validModalities.includes(modality as ResponseModality)
+    )
+
+    if (invalidModalities.length > 0) {
+      throw new Error(
+        `Invalid response modalities: ${invalidModalities.join(', ')}. Valid options: ${validModalities.join(', ')}`
+      )
+    }
+  }
+
+  /**
+   * Wait for setup response from Gemini Live API before sending audio
+   * This is critical for proper protocol flow - must wait for server acknowledgment
+   */
+  private async waitForSetupResponse(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout waiting for setup response from Gemini Live API'))
+      }, 10000) // 10 second timeout
+
+      // Listen for the setupComplete event from the main message handler
+      const onSetupComplete = () => {
+        logger.info('Setup complete event received - audio can now be sent')
+        this.isSetupComplete = true
+
+        // Now that setup is complete, process any queued messages
+        this.processMessageQueue()
+
+        clearTimeout(timeout)
+        this.off('setupComplete', onSetupComplete)
+        this.off('error', onError)
+        resolve()
+      }
+
+      const onError = () => {
+        clearTimeout(timeout)
+        this.off('setupComplete', onSetupComplete)
+        this.off('error', onError)
+        reject(new Error('WebSocket error while waiting for setup response'))
+      }
+
+      const onClose = () => {
+        clearTimeout(timeout)
+        this.off('setupComplete', onSetupComplete)
+        this.off('close', onClose)
+        reject(new Error('WebSocket closed while waiting for setup response'))
+      }
+
+      // Listen for events instead of parsing messages directly
+      this.on('setupComplete', onSetupComplete)
+      this.on('error', onError)
+      this.on('close', onClose)
+    })
+  }
+
+  // ===== Response Modality Configuration Methods =====
+
+  /**
+   * Configure response modalities for the WebSocket connection
+   */
+  configureResponseModalities(modalities: ResponseModality[]): void {
+    if (!modalities || modalities.length === 0) {
+      throw new Error('At least one response modality must be specified')
+    }
+
+    // Validate modalities
+    const validModalities = Object.values(ResponseModality)
+    const invalidModalities = modalities.filter(modality => !validModalities.includes(modality))
+
+    if (invalidModalities.length > 0) {
+      throw new Error(
+        `Invalid response modalities: ${invalidModalities.join(', ')}. Valid options: ${validModalities.join(', ')}`
+      )
+    }
+
+    this.config.responseModalities = modalities
+
+    logger.info('Response modalities configured', {
+      modalities: modalities,
+      previousModalities: this.config.responseModalities
+    })
+  }
+
+  /**
+   * Get currently configured response modalities
+   */
+  getResponseModalities(): ResponseModality[] {
+    return this.config.responseModalities || [ResponseModality.TEXT]
+  }
+
+  /**
+   * Check if a specific response modality is enabled
+   */
+  isModalityEnabled(modality: ResponseModality): boolean {
+    const currentModalities = this.getResponseModalities()
+    return currentModalities.includes(modality)
+  }
+
+  /**
+   * Enable audio response modality (adds AUDIO to existing modalities)
+   */
+  enableAudioModality(): void {
+    const currentModalities = this.getResponseModalities()
+    if (!currentModalities.includes(ResponseModality.AUDIO)) {
+      this.configureResponseModalities([...currentModalities, ResponseModality.AUDIO])
+    }
+  }
+
+  /**
+   * Disable audio response modality (removes AUDIO from modalities)
+   */
+  disableAudioModality(): void {
+    const currentModalities = this.getResponseModalities()
+    const filteredModalities = currentModalities.filter(
+      modality => modality !== ResponseModality.AUDIO
+    )
+
+    // Ensure at least TEXT remains
+    if (filteredModalities.length === 0) {
+      this.configureResponseModalities([ResponseModality.TEXT])
+    } else {
+      this.configureResponseModalities(filteredModalities)
+    }
+  }
+
+  /**
+   * Reset to text-only modality
+   */
+  resetToTextOnly(): void {
+    this.configureResponseModalities([ResponseModality.TEXT])
+  }
+
+  /**
+   * Enable multimodal responses (both TEXT and AUDIO)
+   */
+  enableMultimodalResponses(): void {
+    this.configureResponseModalities([ResponseModality.TEXT, ResponseModality.AUDIO])
+  }
+
+  /**
+   * Get response modality configuration summary
+   */
+  getModalityConfiguration(): {
+    enabled: ResponseModality[]
+    textEnabled: boolean
+    audioEnabled: boolean
+    isMultimodal: boolean
+  } {
+    const enabled = this.getResponseModalities()
+    return {
+      enabled,
+      textEnabled: enabled.includes(ResponseModality.TEXT),
+      audioEnabled: enabled.includes(ResponseModality.AUDIO),
+      isMultimodal: enabled.length > 1
+    }
+  }
+
+  // ===== Enhanced Message Parsing Methods =====
+
+  /**
+   * Parse a response using the enhanced gemini-2.0-flash-live-001 parser
+   */
+  parseGeminiResponse(rawMessage: unknown): ParsedGeminiResponse {
+    return Gemini2FlashMessageParser.parseResponse(rawMessage)
+  }
+
+  /**
+   * Validate a parsed Gemini response
+   */
+  validateGeminiResponse(response: ParsedGeminiResponse): {isValid: boolean; errors: string[]} {
+    return Gemini2FlashMessageParser.validateResponse(response)
+  }
+
+  /**
+   * Get parsing statistics and metrics
+   */
+  getParsingMetrics(): {
+    totalMessagesParsed: number
+    validMessages: number
+    invalidMessages: number
+    messageTypeDistribution: Record<string, number>
+    errorDistribution: Record<string, number>
+  } {
+    // This would need to be tracked over time - for now return basic structure
+    return {
+      totalMessagesParsed: 0,
+      validMessages: 0,
+      invalidMessages: 0,
+      messageTypeDistribution: {},
+      errorDistribution: {}
+    }
+  }
+
+  // ===== Server Error Classification and Recovery Methods =====
+
+  /**
+   * Classify server errors to appropriate ErrorType
+   */
+  private classifyServerError(serverError: ServerErrorData): ErrorType {
+    if (!serverError || !serverError.code) {
+      return ErrorType.API
+    }
+
+    const errorCode = String(serverError.code).toLowerCase()
+    const errorMessage = String(serverError.message || '').toLowerCase()
+
+    // Authentication errors
+    if (
+      errorCode.includes('auth') ||
+      errorMessage.includes('unauthorized') ||
+      errorCode === '401'
+    ) {
+      return ErrorType.AUTHENTICATION
+    }
+
+    // Rate limiting
+    if (errorCode.includes('rate') || errorMessage.includes('rate limit') || errorCode === '429') {
+      return ErrorType.RATE_LIMIT
+    }
+
+    // Quota exceeded
+    if (
+      errorCode.includes('quota') ||
+      errorMessage.includes('quota exceeded') ||
+      errorCode === '403'
+    ) {
+      return ErrorType.QUOTA_EXCEEDED
+    }
+
+    // Service unavailable
+    if (
+      errorCode.includes('unavailable') ||
+      errorMessage.includes('unavailable') ||
+      errorCode === '503'
+    ) {
+      return ErrorType.SERVICE_UNAVAILABLE
+    }
+
+    // Model-specific errors
+    if (
+      errorCode.includes('model') ||
+      errorMessage.includes('model') ||
+      errorMessage.includes('invalid model')
+    ) {
+      return ErrorType.MODEL_ERROR
+    }
+
+    // Session errors
+    if (errorCode.includes('session') || errorMessage.includes('session')) {
+      return ErrorType.SESSION_ERROR
+    }
+
+    // Validation errors
+    if (
+      errorCode.includes('validation') ||
+      errorMessage.includes('invalid') ||
+      errorCode === '400'
+    ) {
+      return ErrorType.VALIDATION
+    }
+
+    // Default to API error
+    return ErrorType.API
+  }
+
+  /**
+   * Determine if a server error is retryable
+   */
+  private isServerErrorRetryable(serverError: ServerErrorData): boolean {
+    if (!serverError) {
+      return false
+    }
+
+    const errorType = this.classifyServerError(serverError)
+
+    // Non-retryable error types
+    const nonRetryableTypes = [
+      ErrorType.AUTHENTICATION,
+      ErrorType.VALIDATION,
+      ErrorType.MODEL_ERROR,
+      ErrorType.QUOTA_EXCEEDED // Usually permanent until quota resets
+    ]
+
+    return !nonRetryableTypes.includes(errorType)
+  }
+
+  /**
+   * Determine if we should attempt reconnection for a server error
+   */
+  private shouldReconnectOnServerError(serverError: ServerErrorData): boolean {
+    if (!serverError) {
+      return false
+    }
+
+    const errorType = this.classifyServerError(serverError)
+
+    // Reconnect for network-related and temporary service errors
+    const reconnectableTypes = [
+      ErrorType.NETWORK,
+      ErrorType.SERVICE_UNAVAILABLE,
+      ErrorType.SESSION_ERROR,
+      ErrorType.WEBSOCKET
+    ]
+
+    return reconnectableTypes.includes(errorType)
+  }
+
+  /**
+   * Handle server error recovery without async in handleMessage
+   */
+  private handleServerErrorRecovery(serverError: GeminiError): void {
+    // Use setTimeout to avoid async issues in handleMessage
+    setTimeout(async () => {
+      try {
+        await this.handleErrorRecovery(serverError)
+      } catch (recoveryError) {
+        logger.error('Server error recovery failed', {
+          originalError: serverError.type,
+          recoveryError:
+            recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
+        })
+      }
+    }, 0)
   }
 }
 

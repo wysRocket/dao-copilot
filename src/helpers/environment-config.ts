@@ -10,14 +10,12 @@ export async function loadEnvironmentConfig(): Promise<void> {
   // In development, you might want to load from a .env file
   try {
     // Try to load dotenv if available (for development)
-    const dotenv = await import('dotenv');
-    dotenv.config();
-    console.log('Environment variables loaded from .env file');
+    const dotenv = await import('dotenv')
+    dotenv.config()
+    console.log('Environment variables loaded from .env file')
   } catch {
     // dotenv is not installed or .env file doesn't exist
-    console.log(
-      'No .env file found or dotenv not installed, using system environment variables',
-    );
+    console.log('No .env file found or dotenv not installed, using system environment variables')
   }
 
   // Log available API key sources (without revealing the actual keys)
@@ -25,18 +23,18 @@ export async function loadEnvironmentConfig(): Promise<void> {
     'GOOGLE_API_KEY',
     'VITE_GOOGLE_API_KEY',
     'GOOGLE_GENERATIVE_AI_API_KEY',
-    'GEMINI_API_KEY',
-  ];
+    'GEMINI_API_KEY'
+  ]
 
-  console.log('Checking for API keys in environment:');
-  apiKeySources.forEach((key) => {
-    const value = process.env[key];
+  console.log('Checking for API keys in environment:')
+  apiKeySources.forEach(key => {
+    const value = process.env[key]
     if (value) {
-      console.log(`✓ ${key}: ${value.substring(0, 8)}...`);
+      console.log(`✓ ${key}: ${value.substring(0, 8)}...`)
     } else {
-      console.log(`✗ ${key}: not found`);
+      console.log(`✗ ${key}: not found`)
     }
-  });
+  })
 }
 
 /**
@@ -48,27 +46,71 @@ export function getGoogleApiKey(): string | undefined {
     process.env.VITE_GOOGLE_API_KEY ||
     process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
     process.env.GEMINI_API_KEY
-  );
+  )
+}
+
+/**
+ * Check if we're running in a browser environment (renderer process)
+ */
+export function isBrowserEnvironment(): boolean {
+  return typeof window !== 'undefined' && typeof window.navigator !== 'undefined'
+}
+
+/**
+ * Check if we're running in Node.js environment (main process)
+ */
+export function isNodeEnvironment(): boolean {
+  return typeof process !== 'undefined' && !!process.versions?.node
+}
+
+/**
+ * Check if Web Audio API is available
+ */
+export function isWebAudioAvailable(): boolean {
+  if (typeof window === 'undefined') return false
+
+  return (
+    typeof window.AudioContext !== 'undefined' ||
+    typeof (window as {webkitAudioContext?: unknown}).webkitAudioContext !== 'undefined'
+  )
+}
+
+/**
+ * Check if MediaDevices API is available
+ */
+export function isMediaDevicesAvailable(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.mediaDevices !== 'undefined' &&
+    typeof navigator.mediaDevices.getUserMedia !== 'undefined'
+  )
+}
+
+/**
+ * Check if audio capture is supported in current environment
+ */
+export function isAudioCaptureSupported(): boolean {
+  return isBrowserEnvironment() && isWebAudioAvailable() && isMediaDevicesAvailable()
 }
 
 /**
  * Validate that required environment variables are present
  */
 export function validateEnvironmentConfig(): boolean {
-  const apiKey = getGoogleApiKey();
+  const apiKey = getGoogleApiKey()
 
   if (!apiKey) {
-    console.error('❌ Google API Key is missing!');
-    console.error('Please set one of these environment variables:');
-    console.error('  - GOOGLE_API_KEY');
-    console.error('  - VITE_GOOGLE_API_KEY');
-    console.error('  - GOOGLE_GENERATIVE_AI_API_KEY');
-    console.error('  - GEMINI_API_KEY');
-    console.error('');
-    console.error('Example: export GOOGLE_API_KEY="your-api-key-here"');
-    return false;
+    console.error('❌ Google API Key is missing!')
+    console.error('Please set one of these environment variables:')
+    console.error('  - GOOGLE_API_KEY')
+    console.error('  - VITE_GOOGLE_API_KEY')
+    console.error('  - GOOGLE_GENERATIVE_AI_API_KEY')
+    console.error('  - GEMINI_API_KEY')
+    console.error('')
+    console.error('Example: export GOOGLE_API_KEY="your-api-key-here"')
+    return false
   }
 
-  console.log('✅ Google API Key found and loaded');
-  return true;
+  console.log('✅ Google API Key found and loaded')
+  return true
 }
