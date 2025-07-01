@@ -5,6 +5,7 @@
 
 import {EventEmitter} from 'events'
 import {LogLevel, LogEntry} from './gemini-error-handler'
+import * as crypto from 'crypto'
 
 export interface LoggerConfig {
   level: LogLevel
@@ -231,7 +232,7 @@ export class GeminiLogger extends EventEmitter {
     }
 
     const entry: LogEntry = {
-      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: this.generateSecureLogId(),
       level,
       message,
       timestamp: Date.now(),
@@ -363,6 +364,26 @@ export class GeminiLogger extends EventEmitter {
 
     this.outputs.length = 0
     this.removeAllListeners()
+  }
+
+  /**
+   * Generate secure log entry ID using crypto APIs
+   */
+  private generateSecureLogId(): string {
+    try {
+      if (crypto.randomUUID) {
+        return `log_${Date.now()}_${crypto.randomUUID()}`
+      } else {
+        return `log_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`
+      }
+    } catch {
+      // Fallback using high-resolution timestamp
+      const hrtime =
+        typeof process !== 'undefined' && process.hrtime
+          ? process.hrtime.bigint()
+          : BigInt(Date.now() * 1000)
+      return `log_${Date.now()}_${hrtime.toString(36)}`
+    }
   }
 }
 

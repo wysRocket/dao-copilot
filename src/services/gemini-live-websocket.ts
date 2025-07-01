@@ -996,186 +996,25 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       this.errorHandler.recordSuccess()
 
       // Handle both string and binary data
-      let messageData: string
       if (typeof event.data === 'string') {
-        messageData = event.data
+        this.processMessageData(event.data)
       } else if (event.data instanceof ArrayBuffer) {
         // Convert ArrayBuffer to string
-        messageData = new TextDecoder().decode(event.data)
+        const messageData = new TextDecoder().decode(event.data)
+        this.processMessageData(messageData)
       } else if (event.data instanceof Blob) {
         // For Blob data, convert to text asynchronously
         event.data
           .text()
           .then(text => {
-            try {
-              const rawMessage = JSON.parse(text)
-
-              // Check if heartbeat monitor can handle this message
-              if (this.heartbeatMonitor.handleMessage(rawMessage)) {
-                logger.debug('Message handled by heartbeat monitor (from Blob)')
-                return
-              }
-
-              // Use enhanced message parser for gemini-2.0-flash-live-001
-              const geminiResponse = Gemini2FlashMessageParser.parseResponse(rawMessage)
-              const validation = Gemini2FlashMessageParser.validateResponse(geminiResponse)
-
-              logger.debug('Received and parsed WebSocket message from Blob', {
-                messageType: geminiResponse.type,
-                isValid: validation.isValid,
-                messageId: geminiResponse.metadata.messageId,
-                errors: validation.errors,
-                isPartial: geminiResponse.metadata.isPartial,
-                modelTurn: geminiResponse.metadata.modelTurn,
-                turnId: geminiResponse.metadata.turnId
-              })
-
-              // Process the parsed response (copied from main handleMessage method)
-              logger.debug('Received and parsed WebSocket message from Blob', {
-                messageType: geminiResponse.type,
-                isValid: validation.isValid,
-                messageId: geminiResponse.metadata.messageId,
-                errors: validation.errors,
-                isPartial: geminiResponse.metadata.isPartial,
-                modelTurn: geminiResponse.metadata.modelTurn,
-                circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
-              })
-
-              // Handle validation errors
-              if (!validation.isValid) {
-                const parseError = this.errorHandler.handleError(
-                  new Error(`Message validation failed: ${validation.errors.join(', ')}`),
-                  {
-                    messageType: geminiResponse.type,
-                    validationErrors: validation.errors,
-                    rawMessage: JSON.stringify(rawMessage).substring(0, 500)
-                  },
-                  {
-                    type: ErrorType.PARSE_ERROR,
-                    retryable: false
-                  }
-                )
-
-                logger.warn('Invalid message received from Gemini Live API (from Blob)', {
-                  errorId: parseError.id,
-                  errors: validation.errors,
-                  messageType: geminiResponse.type
-                })
-
-                this.emit('invalidGeminiMessage', {
-                  response: geminiResponse,
-                  validation,
-                  error: parseError
-                })
-                return
-              }
-
-              // Check for server-side errors in the message
-              if (geminiResponse.type === 'error' && geminiResponse.error) {
-                const serverError = this.errorHandler.handleError(
-                  new Error(
-                    `Server error: ${geminiResponse.error.message || 'Unknown server error'}`
-                  ),
-                  {
-                    serverErrorCode: geminiResponse.error.code,
-                    serverErrorDetails: geminiResponse.error.details,
-                    sessionId: this.currentSession?.sessionId
-                  },
-                  {
-                    type: this.classifyServerError(geminiResponse.error),
-                    retryable: this.isServerErrorRetryable(geminiResponse.error)
-                  }
-                )
-
-                logger.error('Received server error from Gemini Live API (from Blob)', {
-                  errorId: serverError.id,
-                  serverError: geminiResponse.error,
-                  sessionId: this.currentSession?.sessionId
-                })
-
-                this.emit('geminiError', {
-                  ...geminiResponse.error,
-                  handledError: serverError
-                })
-
-                if (this.shouldReconnectOnServerError(geminiResponse.error)) {
-                  this.handleServerErrorRecovery(serverError)
-                }
-                return
-              }
-
-              // Also use the original message handler for backwards compatibility
-              const processed = this.messageHandler.processIncomingMessage(text)
-
-              // Emit both formats for different consumers
-              this.emit('message', processed)
-              this.emit('geminiResponse', geminiResponse)
-
-              // Track message received in session
-              if (this.currentSession) {
-                this.sessionManager.recordMessage('received', this.currentSession.sessionId)
-                this.sessionManager.updateActivity(this.currentSession.sessionId)
-
-                if (geminiResponse.type === 'turn_complete') {
-                  this.sessionManager.recordTurn(this.currentSession.sessionId)
-                }
-              }
-
-              // Emit specific events based on enhanced message type
-              switch (geminiResponse.type) {
-                case 'text':
-                  this.emit('textResponse', {
-                    content: geminiResponse.content,
-                    metadata: geminiResponse.metadata,
-                    isPartial: geminiResponse.metadata.isPartial
-                  })
-                  break
-                case 'audio':
-                  this.emit('audioResponse', {
-                    content: geminiResponse.content,
-                    metadata: geminiResponse.metadata
-                  })
-                  break
-                case 'tool_call':
-                  this.emit('toolCall', geminiResponse.toolCall)
-                  break
-                case 'turn_complete':
-                  this.emit('turnComplete', {
-                    turnId: geminiResponse.metadata.turnId,
-                    metadata: geminiResponse.metadata
-                  })
-                  break
-                case 'setup_complete':
-                  this.emit('setupComplete', {
-                    metadata: geminiResponse.metadata
-                  })
-                  break
-                default:
-                  logger.debug('Unhandled enhanced message type from Blob', {
-                    type: geminiResponse.type,
-                    messageId: geminiResponse.metadata.messageId
-                  })
-              }
-            } catch (error) {
-              const geminiError = this.errorHandler.handleError(
-                error,
-                {eventData: 'Blob data', connectionState: this.connectionState},
-                {type: ErrorType.PARSE_ERROR, retryable: false}
-              )
-              logger.error('Error parsing Blob message', geminiError)
-              this.emit('error', geminiError)
-            }
+            this.processMessageData(text)
           })
           .catch(error => {
-            const geminiError = this.errorHandler.handleError(
-              error,
-              {eventData: 'Blob read error', connectionState: this.connectionState},
-              {type: ErrorType.PARSE_ERROR, retryable: false}
-            )
-            logger.error('Error reading Blob message', geminiError)
-            this.emit('error', geminiError)
+            logger.error('Failed to convert Blob message to text', {
+              error: error instanceof Error ? error.message : 'Unknown error'
+            })
           })
-        return // Early return for async Blob handling
+        return
       } else {
         logger.error('Received unsupported message data type', {
           dataType: typeof event.data,
@@ -1183,7 +1022,25 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         })
         throw new Error(`Unsupported message data type: ${typeof event.data}`)
       }
+    } catch (error) {
+      const parseError = this.errorHandler.handleError(
+        error instanceof Error ? error : new Error('Unknown message parsing error'),
+        {error: error instanceof Error ? error.message : 'Unknown error'},
+        {type: ErrorType.PARSE_ERROR, retryable: false}
+      )
 
+      logger.error('Failed to handle WebSocket message', {
+        errorId: parseError.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  }
+
+  /**
+   * Consolidated message processing logic
+   */
+  private processMessageData(messageData: string): void {
+    try {
       // Parse the raw message first with additional safety
       const rawMessage = JSON.parse(messageData)
 
@@ -1229,153 +1086,113 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
           messageType: geminiResponse.type
         })
 
-        this.emit('invalidGeminiMessage', {
-          response: geminiResponse,
-          validation,
-          error: parseError
-        })
-
-        // Don't continue processing invalid messages
         return
       }
 
-      // Check for server-side errors in the message
-      if (geminiResponse.type === 'error' && geminiResponse.error) {
-        const serverError = this.errorHandler.handleError(
-          new Error(`Server error: ${geminiResponse.error.message || 'Unknown server error'}`),
-          {
-            serverErrorCode: geminiResponse.error.code,
-            serverErrorDetails: geminiResponse.error.details,
-            sessionId: this.currentSession?.sessionId
-          },
-          {
-            type: this.classifyServerError(geminiResponse.error),
-            retryable: this.isServerErrorRetryable(geminiResponse.error)
-          }
-        )
-
-        logger.error('Received server error from Gemini Live API', {
-          errorId: serverError.id,
-          serverError: geminiResponse.error,
-          sessionId: this.currentSession?.sessionId
-        })
-
-        this.emit('geminiError', {
-          ...geminiResponse.error,
-          handledError: serverError
-        })
-
-        // Handle server errors that might require reconnection
-        if (this.shouldReconnectOnServerError(geminiResponse.error)) {
-          this.handleServerErrorRecovery(serverError)
-        }
-
-        return
-      }
-
-      // Also use the original message handler for backwards compatibility
-      const processed = this.messageHandler.processIncomingMessage(event.data)
-
-      // Emit both formats for different consumers
-      this.emit('message', processed) // Original format
-      this.emit('geminiResponse', geminiResponse) // Enhanced format
-
-      // Track message received in session
-      if (this.currentSession) {
-        this.sessionManager.recordMessage('received', this.currentSession.sessionId)
-        this.sessionManager.updateActivity(this.currentSession.sessionId)
-
-        // Record turn completion for conversation tracking
-        if (geminiResponse.type === 'turn_complete') {
-          this.sessionManager.recordTurn(this.currentSession.sessionId)
-        }
-      }
-
-      // Emit specific events based on enhanced message type
-      switch (geminiResponse.type) {
-        case 'text':
-          this.emit('textResponse', {
-            content: geminiResponse.content,
-            metadata: geminiResponse.metadata,
-            isPartial: geminiResponse.metadata.isPartial
-          })
-          break
-        case 'audio':
-          this.emit('audioResponse', {
-            content: geminiResponse.content,
-            metadata: geminiResponse.metadata
-          })
-          break
-        case 'tool_call':
-          this.emit('toolCall', geminiResponse.toolCall)
-          break
-        case 'turn_complete':
-          this.emit('turnComplete', geminiResponse.metadata)
-          break
-        case 'setup_complete':
-          this.emit('setupComplete', geminiResponse.metadata)
-          break
-      }
-
-      // Maintain backwards compatibility with original events
-      if (processed.isValid) {
-        switch (processed.type) {
-          case MessageType.SERVER_CONTENT:
-            this.emit('serverContent', processed.payload)
-            break
-          case MessageType.MODEL_TURN:
-            this.emit('modelTurn', processed.payload)
-            break
-          case MessageType.TURN_COMPLETE:
-            this.emit('turnComplete', processed.payload)
-            break
-          case MessageType.AUDIO_DATA:
-            this.emit('audioData', processed.payload)
-            break
-          case MessageType.PONG:
-            this.emit('pong', processed.payload)
-            break
-          case MessageType.SETUP_COMPLETE:
-            this.emit('setupComplete', processed.payload)
-            break
-          case MessageType.ERROR:
-            this.emit('apiError', processed.payload)
-            break
-        }
-      } else {
-        safeLogger.warn('Invalid message received (legacy format)', processed.errors)
-        this.emit('invalidMessage', processed)
-      }
+      // Process the valid response
+      this.handleValidResponse(geminiResponse)
     } catch (error) {
-      // Record failure for circuit breaker
-      this.errorHandler.recordFailure()
+      const parseError = this.errorHandler.handleError(
+        error instanceof Error ? error : new Error('Unknown message processing error'),
+        {error: error instanceof Error ? error.message : 'Unknown error'},
+        {type: ErrorType.PARSE_ERROR, retryable: false}
+      )
 
-      const handledError = this.errorHandler.handleError(
-        error,
+      logger.error('Failed to process message data', {
+        errorId: parseError.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  }
+
+  /**
+   * Handle valid parsed response
+   */
+  private handleValidResponse(geminiResponse: ParsedGeminiResponse): void {
+    // Check for server-side errors in the message
+    if (geminiResponse.type === 'error' && geminiResponse.error) {
+      const serverError = this.errorHandler.handleError(
+        new Error(`Server error: ${geminiResponse.error.message || 'Unknown server error'}`),
         {
-          eventData:
-            typeof event.data === 'string' ? event.data.substring(0, 500) : 'Non-string data',
-          connectionState: this.connectionState,
-          sessionId: this.currentSession?.sessionId,
-          timestamp: new Date()
+          serverErrorCode: geminiResponse.error.code,
+          serverErrorDetails: geminiResponse.error.details,
+          sessionId: this.currentSession?.sessionId
         },
         {
-          type: ErrorType.PARSE_ERROR,
-          retryable: false
+          type: this.classifyServerError(geminiResponse.error),
+          retryable: this.isServerErrorRetryable(geminiResponse.error)
         }
       )
 
-      safeLogger.error('Failed to process message', {
-        errorId: handledError.id,
-        message: handledError.message,
-        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
+      logger.error('Received server error from Gemini Live API', {
+        errorId: serverError.id,
+        serverError: geminiResponse.error,
+        sessionId: this.currentSession?.sessionId
       })
 
-      this.emit('error', handledError)
-      this.emit('messageProcessingError', {
-        originalEvent: event,
-        error: handledError
+      this.emit('geminiError', {
+        ...geminiResponse.error,
+        handledError: serverError
       })
+
+      if (this.shouldReconnectOnServerError(geminiResponse.error)) {
+        this.handleServerErrorRecovery(serverError)
+      }
+      return
+    }
+
+    // Process the message with the original handler for backwards compatibility
+    const messageText = JSON.stringify(geminiResponse)
+    const processed = this.messageHandler.processIncomingMessage(messageText)
+
+    // Emit both formats for different consumers
+    this.emit('message', processed)
+    this.emit('geminiResponse', geminiResponse)
+
+    // Track message received in session
+    if (this.currentSession) {
+      this.sessionManager.recordMessage('received', this.currentSession.sessionId)
+      this.sessionManager.updateActivity(this.currentSession.sessionId)
+
+      if (geminiResponse.type === 'turn_complete') {
+        this.sessionManager.recordTurn(this.currentSession.sessionId)
+      }
+    }
+
+    // Emit specific events based on enhanced message type
+    switch (geminiResponse.type) {
+      case 'text':
+        this.emit('textResponse', {
+          content: geminiResponse.content,
+          metadata: geminiResponse.metadata,
+          isPartial: geminiResponse.metadata.isPartial
+        })
+        break
+      case 'audio':
+        this.emit('audioResponse', {
+          content: geminiResponse.content,
+          metadata: geminiResponse.metadata
+        })
+        break
+      case 'tool_call':
+        this.emit('toolCall', geminiResponse.toolCall)
+        break
+      case 'turn_complete':
+        this.emit('turnComplete', {
+          turnId: geminiResponse.metadata.turnId,
+          metadata: geminiResponse.metadata
+        })
+        break
+      case 'setup_complete':
+        this.emit('setupComplete', {
+          metadata: geminiResponse.metadata
+        })
+        break
+      default:
+        logger.debug('Unhandled enhanced message type', {
+          type: geminiResponse.type,
+          messageId: geminiResponse.metadata.messageId
+        })
     }
   }
 

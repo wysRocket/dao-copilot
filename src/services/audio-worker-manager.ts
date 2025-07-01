@@ -13,6 +13,7 @@ import {
   type ProcessChunkPayload,
   type ConversionResult
 } from './workers/audio-processing-worker'
+import * as crypto from 'crypto'
 
 // Response types
 export interface WorkerResponse {
@@ -49,6 +50,8 @@ interface WorkerPoolItem {
   busy: boolean
   lastUsed: number
   id: string
+  messageHandler?: (event: MessageEvent<AudioWorkerMessage>) => void
+  errorHandler?: (error: ErrorEvent) => void
 }
 
 // Pending request tracking
@@ -209,13 +212,26 @@ export class AudioWorkerManager {
       this.cleanupInterval = null
     }
 
-    // Terminate all workers
-    const destroyPromises = this.workerPool.map(
-      workerItem =>
-        this.sendWorkerMessage(workerItem, AudioWorkerMessageType.DESTROY, {})
-          .then(() => workerItem.worker.terminate())
-          .catch(() => workerItem.worker.terminate()) // Force terminate on error
-    )
+    // Terminate all workers with proper cleanup
+    const destroyPromises = this.workerPool.map(async workerItem => {
+      try {
+        // Clean up event listeners before terminating
+        if (workerItem.messageHandler) {
+          workerItem.worker.removeEventListener('message', workerItem.messageHandler)
+        }
+        if (workerItem.errorHandler) {
+          workerItem.worker.removeEventListener('error', workerItem.errorHandler)
+        }
+
+        // Send destroy message
+        await this.sendWorkerMessage(workerItem, AudioWorkerMessageType.DESTROY, {})
+      } catch {
+        // If destroy message fails, proceed with termination
+      } finally {
+        // Force terminate the worker
+        workerItem.worker.terminate()
+      }
+    })
 
     await Promise.all(destroyPromises)
 
@@ -241,7 +257,7 @@ export class AudioWorkerManager {
       type: 'module'
     })
 
-    const workerId = `worker-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const workerId = this.generateSecureWorkerId()
 
     const workerItem: WorkerPoolItem = {
       worker,
@@ -250,14 +266,22 @@ export class AudioWorkerManager {
       id: workerId
     }
 
-    // Set up worker message handling
-    worker.addEventListener('message', (event: MessageEvent<AudioWorkerMessage>) => {
+    // Create bound event handlers for proper cleanup
+    const messageHandler = (event: MessageEvent<AudioWorkerMessage>) => {
       this.handleWorkerMessage(workerItem, event.data)
-    })
+    }
 
-    worker.addEventListener('error', error => {
+    const errorHandler = (error: ErrorEvent) => {
       this.handleWorkerError(workerItem, error)
-    })
+    }
+
+    // Store handlers for cleanup
+    workerItem.messageHandler = messageHandler
+    workerItem.errorHandler = errorHandler
+
+    // Set up worker message handling
+    worker.addEventListener('message', messageHandler)
+    worker.addEventListener('error', errorHandler)
 
     // Initialize the worker
     await this.sendWorkerMessage(workerItem, AudioWorkerMessageType.INITIALIZE, {
@@ -468,6 +492,26 @@ export class AudioWorkerManager {
   private log(message: string): void {
     if (this.config.enableLogging) {
       console.log(`[AudioWorkerManager]`, message)
+    }
+  }
+
+  /**
+   * Generate secure worker ID using crypto APIs
+   */
+  private generateSecureWorkerId(): string {
+    try {
+      if (crypto.randomUUID) {
+        return `worker-${Date.now()}-${crypto.randomUUID()}`
+      } else {
+        return `worker-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`
+      }
+    } catch {
+      // Fallback using high-resolution timestamp
+      const hrtime =
+        typeof process !== 'undefined' && process.hrtime
+          ? process.hrtime.bigint()
+          : BigInt(Date.now() * 1000)
+      return `worker-${Date.now()}-${hrtime.toString(36)}`
     }
   }
 }

@@ -488,15 +488,16 @@ export class AudioWebSocketIntegration extends EventEmitter {
    */
   private setupServices(): void {
     // Enhanced WebSocket configuration for optimal transcription performance
+    // Merge with user-provided config, allowing overrides for flexibility
     const optimizedWebSocketConfig = {
-      ...this.config.websocket,
-      connectionTimeout: 15000, // Increased connection timeout
-      maxQueueSize: 30, // Optimized queue size for transcription
-      responseModalities: ['TEXT'], // Optimize for text transcription
+      connectionTimeout: 15000, // Default increased connection timeout
+      maxQueueSize: 30, // Default optimized queue size for transcription
+      responseModalities: ['TEXT'], // Default optimize for text transcription
       systemInstruction:
         'You are a speech-to-text transcription assistant. Provide accurate, concise transcriptions of the audio input.',
-      reconnectAttempts: 3, // Reduced for faster fallback to batch mode
-      heartbeatInterval: 60000 // Longer interval to reduce overhead
+      reconnectAttempts: 3, // Default reduced for faster fallback to batch mode
+      heartbeatInterval: 60000, // Default longer interval to reduce overhead
+      ...this.config.websocket // User config overrides defaults
     }
 
     this.websocketClient = new GeminiLiveWebSocketClient(optimizedWebSocketConfig)
