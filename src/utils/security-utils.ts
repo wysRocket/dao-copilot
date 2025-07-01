@@ -18,6 +18,7 @@ export function sanitizeForLogging(input: unknown): string {
     .replace(/\${[^}]*}/g, '[TEMPLATE]') // Remove potential template injection
     .replace(/javascript:/gi, '[JS:]') // Remove javascript: URLs
     .replace(/data:/gi, '[DATA:]') // Remove data: URLs
+    .replace(/vbscript:/gi, '[VBS:]') // Remove vbscript: URLs
     .trim()
 
   // Remove ANSI escape sequences manually
