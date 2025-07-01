@@ -14,6 +14,7 @@ import {
   type StreamingMetrics
 } from './real-time-audio-streaming'
 import {GeminiLiveIntegrationService} from './gemini-live-integration'
+import {sanitizeLogMessage} from './log-sanitizer'
 import type {TranscriptionResult} from './audio-recording'
 
 // Re-export existing types for compatibility
@@ -179,8 +180,8 @@ export class EnhancedAudioRecordingService {
   /**
    * Initialize the enhanced recording service
    */
-  async initialize(integrationService?: GeminiLiveIntegrationService): Promise<void> {
-    this.integrationService = integrationService
+  async initialize(integrationService?: GeminiLiveIntegrationService | null): Promise<void> {
+    this.integrationService = integrationService || null
 
     // Initialize real-time streaming if enabled
     if (this.config.enableRealTimeStreaming) {
@@ -330,9 +331,10 @@ export class EnhancedAudioRecordingService {
       }
     } catch (error) {
       console.error('Failed to start recording:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       this.updateState({
         isRecording: false,
-        status: `Recording error: ${error.message}`
+        status: `Recording error: ${errorMessage}`
       })
       this.cleanup()
     }
@@ -470,7 +472,9 @@ export class EnhancedAudioRecordingService {
         return null
       }
 
-      console.log(`Processing ${combinedAudio.length} audio samples from ${chunks.length} chunks`)
+      console.log(
+        `Processing ${sanitizeLogMessage(combinedAudio.length.toString())} audio samples from ${sanitizeLogMessage(chunks.length.toString())} chunks`
+      )
 
       // Convert to Float32Array for processing
       const audioData = new Float32Array(combinedAudio)
@@ -483,14 +487,20 @@ export class EnhancedAudioRecordingService {
       let processedAudio = audioData
       if (sourceSampleRate !== targetSampleRate) {
         const {resampleAudio} = await import('./audio-recording')
-        processedAudio = resampleAudio(audioData, sourceSampleRate, targetSampleRate)
-        console.log(`Resampled audio from ${audioData.length} to ${processedAudio.length} samples`)
+        processedAudio = resampleAudio(
+          audioData,
+          sourceSampleRate,
+          targetSampleRate
+        ) as Float32Array
+        console.log(
+          `Resampled audio from ${sanitizeLogMessage(audioData.length.toString())} to ${sanitizeLogMessage(processedAudio.length.toString())} samples`
+        )
       }
 
       // Convert to WAV format
       const {renderAudioToWav} = await import('./audio-recording')
       const wavData = await renderAudioToWav(processedAudio)
-      console.log(`Generated WAV file: ${wavData.length} bytes`)
+      console.log(`Generated WAV file: ${sanitizeLogMessage(wavData.length.toString())} bytes`)
 
       // Send for transcription via IPC
       if (window.transcriptionAPI?.transcribeAudio) {

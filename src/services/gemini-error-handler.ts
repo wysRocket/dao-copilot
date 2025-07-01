@@ -4,6 +4,7 @@
  */
 
 import {EventEmitter} from 'events'
+import {sanitizeForLogging} from '../utils/security-utils'
 
 export enum ErrorType {
   NETWORK = 'network',
@@ -354,11 +355,15 @@ export class GeminiErrorHandler extends EventEmitter {
         this.emit('recovery:failed', {error, recovery})
       }
 
-      this.activeRecoveries.delete(error.id)
+      // Sanitize the error.id before using it in the delete operation
+      const sanitizedErrorId = this.sanitizeMapKey(error.id)
+      this.activeRecoveries.delete(sanitizedErrorId)
       return recovered
     } catch (recoveryError) {
       this.error(`Recovery process failed for error ${error.id}`, {recoveryError})
-      this.activeRecoveries.delete(error.id)
+      // Sanitize the error.id before using it in the delete operation
+      const sanitizedErrorId = this.sanitizeMapKey(error.id)
+      this.activeRecoveries.delete(sanitizedErrorId)
       return false
     }
   }
@@ -1145,9 +1150,11 @@ export class GeminiErrorHandler extends EventEmitter {
    * Cancel recovery process for a specific error
    */
   cancelRecovery(errorId: string): boolean {
-    if (this.activeRecoveries.has(errorId)) {
-      this.activeRecoveries.delete(errorId)
-      this.info(`Recovery cancelled for error ${errorId}`)
+    // Sanitize the errorId before using it as a Map key
+    const sanitizedErrorId = this.sanitizeMapKey(errorId)
+    if (this.activeRecoveries.has(sanitizedErrorId)) {
+      this.activeRecoveries.delete(sanitizedErrorId)
+      this.info(`Recovery cancelled for error ${sanitizedErrorId}`)
       return true
     }
     return false
@@ -1314,6 +1321,24 @@ export class GeminiErrorHandler extends EventEmitter {
     this.clearErrors()
     this.clearLogs()
     this.removeAllListeners()
+  }
+
+  /**
+   * Safely sanitize input for use as Map keys to prevent NoSQL injection
+   */
+  private sanitizeMapKey(input: unknown): string {
+    if (input === null || input === undefined) {
+      return 'null'
+    }
+
+    // Convert to string and sanitize
+    const str = String(input)
+
+    // Remove potentially harmful characters and limit length
+    return str
+      .replace(/[^\w\-_.:]/g, '_') // Keep only alphanumeric, hyphens, underscores, dots, and colons
+      .substring(0, 100) // Limit length to prevent excessive memory usage
+      .trim()
   }
 }
 
