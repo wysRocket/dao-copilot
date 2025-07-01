@@ -6,6 +6,7 @@
 
 import {EventEmitter} from 'events'
 import {logger} from './gemini-logger'
+import * as crypto from 'crypto'
 
 export interface HeartbeatConfig {
   /** Interval between heartbeat pings (ms) */
@@ -451,10 +452,23 @@ export class WebSocketHeartbeatMonitor extends EventEmitter {
   }
 
   /**
-   * Generate unique ping ID
+   * Generate unique ping ID using secure random values
    */
   private generatePingId(): string {
-    return `ping_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    try {
+      if (crypto.randomUUID) {
+        return `ping_${Date.now()}_${crypto.randomUUID()}`
+      } else {
+        return `ping_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`
+      }
+    } catch {
+      // Fallback using high-resolution timestamp
+      const hrtime =
+        typeof process !== 'undefined' && process.hrtime
+          ? process.hrtime.bigint()
+          : BigInt(Date.now() * 1000)
+      return `ping_${Date.now()}_${hrtime.toString(36)}`
+    }
   }
 
   /**

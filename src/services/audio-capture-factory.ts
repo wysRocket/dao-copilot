@@ -40,12 +40,16 @@ function getElectronProcessType(): 'main' | 'renderer' | 'unknown' {
     }
   }
 
-  // Fallback detection
+  // Enhanced fallback detection with process.type check
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     return 'renderer'
   }
 
   if (typeof require !== 'undefined' && typeof process !== 'undefined') {
+    // Check process.type explicitly to distinguish main vs. renderer in Electron
+    if ('type' in process) {
+      return process.type === 'renderer' ? 'renderer' : 'main'
+    }
     return 'main'
   }
 

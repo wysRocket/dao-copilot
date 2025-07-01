@@ -26,15 +26,15 @@ export enum ErrorType {
 }
 
 export enum CircuitBreakerState {
-  CLOSED = 'closed',     // Normal operation
-  OPEN = 'open',         // Circuit is open, requests are blocked
+  CLOSED = 'closed', // Normal operation
+  OPEN = 'open', // Circuit is open, requests are blocked
   HALF_OPEN = 'half_open' // Testing if service has recovered
 }
 
 export interface CircuitBreakerConfig {
   failureThreshold: number // Number of failures before opening circuit
   successThreshold: number // Number of successes needed to close circuit
-  timeout: number          // How long to wait before trying again (ms)
+  timeout: number // How long to wait before trying again (ms)
   monitoringPeriod: number // Period to monitor for failures (ms)
 }
 
@@ -286,7 +286,7 @@ export class GeminiErrorHandler extends EventEmitter {
   recordSuccess(): void {
     if (this.circuitBreaker.state === CircuitBreakerState.HALF_OPEN) {
       this.circuitBreaker.successCount++
-      
+
       if (this.circuitBreaker.successCount >= this.circuitBreaker.config.successThreshold) {
         this.circuitBreaker.state = CircuitBreakerState.CLOSED
         this.circuitBreaker.failureCount = 0
@@ -323,7 +323,7 @@ export class GeminiErrorHandler extends EventEmitter {
    */
   async startRecovery(error: GeminiError): Promise<boolean> {
     const config = this.recoveryConfigs.get(error.type)
-    
+
     if (!config || config.strategy === RecoveryStrategy.NONE) {
       this.debug(`No recovery strategy for error type ${error.type}`)
       return false
@@ -344,20 +344,20 @@ export class GeminiErrorHandler extends EventEmitter {
 
     try {
       const recovered = await this.executeRecoveryStrategy(recovery, config)
-      
+
       if (recovered) {
         this.stats.recovered++
         this.info(`Successfully recovered from error ${error.id}`)
-        this.emit('recovery:success', { error, recovery })
+        this.emit('recovery:success', {error, recovery})
       } else {
         this.warn(`Failed to recover from error ${error.id}`)
-        this.emit('recovery:failed', { error, recovery })
+        this.emit('recovery:failed', {error, recovery})
       }
 
       this.activeRecoveries.delete(error.id)
       return recovered
     } catch (recoveryError) {
-      this.error(`Recovery process failed for error ${error.id}`, { recoveryError })
+      this.error(`Recovery process failed for error ${error.id}`, {recoveryError})
       this.activeRecoveries.delete(error.id)
       return false
     }
@@ -366,7 +366,10 @@ export class GeminiErrorHandler extends EventEmitter {
   /**
    * Execute recovery strategy
    */
-  private async executeRecoveryStrategy(recovery: ErrorRecovery, config: RecoveryConfig): Promise<boolean> {
+  private async executeRecoveryStrategy(
+    recovery: ErrorRecovery,
+    config: RecoveryConfig
+  ): Promise<boolean> {
     switch (config.strategy) {
       case RecoveryStrategy.IMMEDIATE:
         return this.immediateRecovery(recovery, config)
@@ -391,7 +394,10 @@ export class GeminiErrorHandler extends EventEmitter {
   /**
    * Immediate recovery attempt
    */
-  private async immediateRecovery(recovery: ErrorRecovery, config: RecoveryConfig): Promise<boolean> {
+  private async immediateRecovery(
+    recovery: ErrorRecovery,
+    config: RecoveryConfig
+  ): Promise<boolean> {
     recovery.attempt++
     recovery.lastAttemptTime = Date.now()
 
@@ -400,7 +406,7 @@ export class GeminiErrorHandler extends EventEmitter {
     }
 
     // Emit recovery attempt event
-    this.emit('recovery:attempt', { recovery, attempt: recovery.attempt })
+    this.emit('recovery:attempt', {recovery, attempt: recovery.attempt})
 
     // For immediate recovery, we just signal that retry can happen
     return true
@@ -409,7 +415,10 @@ export class GeminiErrorHandler extends EventEmitter {
   /**
    * Exponential backoff recovery
    */
-  private async exponentialBackoffRecovery(recovery: ErrorRecovery, config: RecoveryConfig): Promise<boolean> {
+  private async exponentialBackoffRecovery(
+    recovery: ErrorRecovery,
+    config: RecoveryConfig
+  ): Promise<boolean> {
     for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
       recovery.attempt = attempt
       recovery.lastAttemptTime = Date.now()
@@ -420,15 +429,15 @@ export class GeminiErrorHandler extends EventEmitter {
       )
 
       this.debug(`Recovery attempt ${attempt} for ${recovery.errorId}, waiting ${delay}ms`)
-      
+
       await this.sleep(delay)
 
       // Emit recovery attempt event
-      this.emit('recovery:attempt', { recovery, attempt, delay })
+      this.emit('recovery:attempt', {recovery, attempt, delay})
 
       // Test if service is available (this would be implemented by the calling service)
       const testResult = await this.testServiceAvailability()
-      
+
       if (testResult) {
         recovery.recovered = true
         return true
@@ -441,25 +450,25 @@ export class GeminiErrorHandler extends EventEmitter {
   /**
    * Linear backoff recovery
    */
-  private async linearBackoffRecovery(recovery: ErrorRecovery, config: RecoveryConfig): Promise<boolean> {
+  private async linearBackoffRecovery(
+    recovery: ErrorRecovery,
+    config: RecoveryConfig
+  ): Promise<boolean> {
     for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
       recovery.attempt = attempt
       recovery.lastAttemptTime = Date.now()
 
-      const delay = Math.min(
-        config.baseDelay * attempt,
-        config.maxDelay
-      )
+      const delay = Math.min(config.baseDelay * attempt, config.maxDelay)
 
       this.debug(`Linear recovery attempt ${attempt} for ${recovery.errorId}, waiting ${delay}ms`)
-      
+
       await this.sleep(delay)
 
       // Emit recovery attempt event
-      this.emit('recovery:attempt', { recovery, attempt, delay })
+      this.emit('recovery:attempt', {recovery, attempt, delay})
 
       const testResult = await this.testServiceAvailability()
-      
+
       if (testResult) {
         recovery.recovered = true
         return true
@@ -472,10 +481,13 @@ export class GeminiErrorHandler extends EventEmitter {
   /**
    * Circuit breaker recovery
    */
-  private async circuitBreakerRecovery(recovery: ErrorRecovery, config: RecoveryConfig): Promise<boolean> {
+  private async circuitBreakerRecovery(
+    recovery: ErrorRecovery,
+    config: RecoveryConfig
+  ): Promise<boolean> {
     // Circuit breaker recovery is handled by the canProceed/recordSuccess/recordFailure methods
     // This method just waits for the circuit to allow operations again
-    
+
     const maxWaitTime = config.maxDelay
     const startTime = Date.now()
 
@@ -494,7 +506,10 @@ export class GeminiErrorHandler extends EventEmitter {
   /**
    * Fallback recovery using provided function
    */
-  private async fallbackRecovery(recovery: ErrorRecovery, config: RecoveryConfig): Promise<boolean> {
+  private async fallbackRecovery(
+    recovery: ErrorRecovery,
+    config: RecoveryConfig
+  ): Promise<boolean> {
     if (!config.fallbackFunction) {
       return false
     }
@@ -507,18 +522,58 @@ export class GeminiErrorHandler extends EventEmitter {
       recovery.recovered = true
       return true
     } catch (error) {
-      this.debug(`Fallback recovery failed for ${recovery.errorId}`, { error })
+      this.debug(`Fallback recovery failed for ${recovery.errorId}`, {error})
       return false
     }
   }
 
   /**
-   * Test service availability (to be overridden by implementing classes)
+   * Test service availability with actual health check
    */
   private async testServiceAvailability(): Promise<boolean> {
-    // This is a placeholder - actual implementation would test the specific service
-    // For now, return true to allow recovery to complete
-    return true
+    try {
+      // Test with a minimal API call to check if the service is actually available
+      const testTimeout = 5000 // 5 second timeout for health check
+
+      // Create a basic test request to verify service availability
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), testTimeout)
+
+      try {
+        // Use a simple HTTP HEAD request to check if the API endpoint is responding
+        const testUrl = 'https://generativelanguage.googleapis.com/v1beta/models'
+        const response = await fetch(testUrl, {
+          method: 'HEAD',
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'dao-copilot-health-check/1.0'
+          }
+        })
+
+        clearTimeout(timeoutId)
+
+        // Consider the service available if we get any response (even 401/403 indicates service is up)
+        return response.status < 500
+      } catch (fetchError) {
+        clearTimeout(timeoutId)
+
+        // If it's an abort error due to timeout, service is likely down
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          return false
+        }
+
+        // Network errors suggest service unavailability
+        if (fetchError instanceof TypeError) {
+          return false
+        }
+
+        // Other errors might still indicate the service is reachable
+        return true
+      }
+    } catch {
+      // If we can't even make the test request, assume service is down
+      return false
+    }
   }
 
   /**
@@ -775,13 +830,15 @@ export class GeminiErrorHandler extends EventEmitter {
     const message = error.message.toLowerCase()
 
     // Non-retryable error types
-    if ([
-      ErrorType.AUTHENTICATION,
-      ErrorType.VALIDATION,
-      ErrorType.PARSE_ERROR,
-      ErrorType.MODEL_ERROR,
-      ErrorType.QUOTA_EXCEEDED
-    ].includes(type)) {
+    if (
+      [
+        ErrorType.AUTHENTICATION,
+        ErrorType.VALIDATION,
+        ErrorType.PARSE_ERROR,
+        ErrorType.MODEL_ERROR,
+        ErrorType.QUOTA_EXCEEDED
+      ].includes(type)
+    ) {
       return false
     }
 
@@ -1042,7 +1099,7 @@ export class GeminiErrorHandler extends EventEmitter {
     lastFailureTime: number
     config: CircuitBreakerConfig
   } {
-    return { ...this.circuitBreaker }
+    return {...this.circuitBreaker}
   }
 
   /**
@@ -1064,7 +1121,7 @@ export class GeminiErrorHandler extends EventEmitter {
       ...this.circuitBreaker.config,
       ...config
     }
-    this.info('Circuit breaker configuration updated', { config: this.circuitBreaker.config })
+    this.info('Circuit breaker configuration updated', {config: this.circuitBreaker.config})
   }
 
   // ===== Recovery Management Public API =====
@@ -1074,7 +1131,7 @@ export class GeminiErrorHandler extends EventEmitter {
    */
   configureRecoveryStrategy(errorType: ErrorType, config: RecoveryConfig): void {
     this.recoveryConfigs.set(errorType, config)
-    this.info(`Recovery strategy configured for ${errorType}`, { config })
+    this.info(`Recovery strategy configured for ${errorType}`, {config})
   }
 
   /**
@@ -1146,7 +1203,7 @@ export class GeminiErrorHandler extends EventEmitter {
       maxRetries?: number
       attemptRecovery?: boolean
     }
-  ): Promise<{ error: GeminiError; recovered: boolean }> {
+  ): Promise<{error: GeminiError; recovered: boolean}> {
     // First, handle the error normally
     this.recordFailure() // Update circuit breaker
     const geminiError = this.handleError(error, context, options)
@@ -1157,19 +1214,19 @@ export class GeminiErrorHandler extends EventEmitter {
     if (options?.attemptRecovery !== false && geminiError.retryable) {
       try {
         recovered = await this.startRecovery(geminiError)
-        
+
         if (recovered) {
           this.recordSuccess() // Update circuit breaker
         }
       } catch (recoveryError) {
-        this.error('Recovery attempt failed', { 
-          originalError: geminiError, 
-          recoveryError 
+        this.error('Recovery attempt failed', {
+          originalError: geminiError,
+          recoveryError
         })
       }
     }
 
-    return { error: geminiError, recovered }
+    return {error: geminiError, recovered}
   }
 
   /**
@@ -1234,7 +1291,7 @@ export class GeminiErrorHandler extends EventEmitter {
     activeRecoveries: number
   } {
     const errorsByType: Record<string, number> = {}
-    
+
     // Count errors by type
     this.errors.forEach(error => {
       errorsByType[error.type] = (errorsByType[error.type] || 0) + 1

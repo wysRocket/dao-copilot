@@ -8,6 +8,7 @@
 import {EventEmitter} from 'events'
 import {logger} from './gemini-logger'
 import {GeminiErrorHandler, ErrorType} from './gemini-error-handler'
+import * as crypto from 'crypto'
 
 interface ConnectionOptions {
   protocols?: string[]
@@ -646,10 +647,23 @@ export class WebSocketConnectionEstablisher extends EventEmitter {
   }
 
   /**
-   * Generate unique connection ID
+   * Generate unique connection ID using secure random values
    */
   private generateConnectionId(): string {
-    return `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    try {
+      if (crypto.randomUUID) {
+        return `ws_${Date.now()}_${crypto.randomUUID()}`
+      } else {
+        return `ws_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`
+      }
+    } catch {
+      // Fallback using high-resolution timestamp
+      const hrtime =
+        typeof process !== 'undefined' && process.hrtime
+          ? process.hrtime.bigint()
+          : BigInt(Date.now() * 1000)
+      return `ws_${Date.now()}_${hrtime.toString(36)}`
+    }
   }
 
   /**

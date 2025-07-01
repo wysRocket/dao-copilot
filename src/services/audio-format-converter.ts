@@ -126,6 +126,27 @@ export class AudioFormatConverter {
       await this.initialize()
     }
 
+    // Security validation: Check buffer size and bounds
+    if (!audioData || audioData.length === 0) {
+      throw new Error('Invalid audio data: empty or null buffer')
+    }
+
+    // Check buffer size (Float32Array uses 4 bytes per element)
+    const bufferSizeInBytes = audioData.length * 4
+    if (bufferSizeInBytes > 50 * 1024 * 1024) {
+      // 50MB max
+      throw new Error('Audio buffer size exceeds maximum allowed limit')
+    }
+
+    // Validate sample rate to prevent buffer calculations issues
+    if (this.config.inputFormat.sampleRate <= 0 || this.config.inputFormat.sampleRate > 192000) {
+      throw new Error(`Invalid input sample rate: ${this.config.inputFormat.sampleRate}`)
+    }
+
+    if (this.config.outputFormat.sampleRate <= 0 || this.config.outputFormat.sampleRate > 192000) {
+      throw new Error(`Invalid output sample rate: ${this.config.outputFormat.sampleRate}`)
+    }
+
     let processedData = audioData
     let currentSampleRate = this.config.inputFormat.sampleRate
 
@@ -219,16 +240,47 @@ export class AudioFormatConverter {
   }
 
   /**
-   * Convert typed array to ArrayBuffer
+   * Convert typed array to ArrayBuffer with bounds checking
    */
   private floatArrayToArrayBuffer(data: Float32Array | Int16Array): ArrayBuffer {
-    if (data.buffer instanceof ArrayBuffer) {
-      return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+    if (!data || data.length === 0) {
+      throw new Error('Cannot convert empty or null data to ArrayBuffer')
     }
-    // Fallback for SharedArrayBuffer
-    const arrayBuffer = new ArrayBuffer(data.byteLength)
-    new Uint8Array(arrayBuffer).set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
-    return arrayBuffer
+
+    // Bounds checking and safe buffer conversion
+    try {
+      if (!data || data.length === 0) {
+        throw new Error('Cannot convert empty data')
+      }
+
+      // Check for reasonable buffer size
+      if (data.byteLength > 100 * 1024 * 1024) {
+        // 100MB max
+        throw new Error('Buffer too large for safe conversion')
+      }
+
+      if (data.buffer instanceof ArrayBuffer) {
+        // Validate offset and length to prevent buffer overrun
+        if (data.byteOffset < 0 || data.byteLength < 0) {
+          throw new Error('Invalid buffer offset or length')
+        }
+        if (data.byteOffset + data.byteLength > data.buffer.byteLength) {
+          throw new Error('Buffer access out of bounds')
+        }
+        return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+      }
+
+      // Fallback for SharedArrayBuffer or other cases
+      const arrayBuffer = new ArrayBuffer(data.byteLength)
+      const view = new Uint8Array(arrayBuffer)
+      const sourceView = new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+      view.set(sourceView)
+      return arrayBuffer
+    } catch (error) {
+      throw new Error(
+        `Buffer conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
   }
 
   /**

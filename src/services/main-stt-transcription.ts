@@ -5,6 +5,7 @@ import {
   migrateLegacyConfig,
   LegacyAliases
 } from './transcription-compatibility'
+import {sanitizeLogMessage} from './log-sanitizer'
 
 // Live API model for WebSocket (recommended half-cascade model)
 const DEFAULT_GEMINI_LIVE_MODEL = 'gemini-2.0-flash-live-001'
@@ -370,7 +371,9 @@ async function transcribeAudioViaWebSocket(
 
       // Convert resampled PCM data to base64 for WebSocket transmission
       const base64Audio = pcmData.toString('base64')
-      console.log(`Base64 encoded audio size: ${base64Audio.length} characters`)
+      console.log(
+        `Base64 encoded audio size: ${sanitizeLogMessage(base64Audio.length.toString())} characters`
+      )
 
       // Send audio data for real-time processing with correct MIME type for Gemini Live API
       await client.sendRealtimeInput({

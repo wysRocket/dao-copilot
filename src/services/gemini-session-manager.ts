@@ -3,9 +3,9 @@
  * Handles session tracking, persistence, and resumption for WebSocket connections
  */
 
-import { EventEmitter } from 'events'
-import { logger } from './gemini-logger'
-import { sanitizeLogMessage } from './log-sanitizer'
+import {EventEmitter} from 'events'
+import {logger} from './gemini-logger'
+import {sanitizeLogMessage} from './log-sanitizer'
 
 export interface SessionData {
   sessionId: string
@@ -57,7 +57,7 @@ export class GeminiSessionManager extends EventEmitter {
 
   constructor(config: Partial<SessionConfig> = {}) {
     super()
-    
+
     this.config = {
       sessionTimeout: 24 * 60 * 60 * 1000, // 24 hours
       maxInactiveDuration: 30 * 60 * 1000, // 30 minutes
@@ -76,7 +76,7 @@ export class GeminiSessionManager extends EventEmitter {
    */
   createSession(modelId: string, sessionConfig: SessionData['config']): SessionData {
     const sessionId = this.generateSessionId()
-    
+
     const session: SessionData = {
       sessionId,
       modelId,
@@ -84,10 +84,12 @@ export class GeminiSessionManager extends EventEmitter {
       lastActivity: new Date(),
       status: SessionStatus.ACTIVE,
       config: sessionConfig,
-      connectionHistory: [{
-        timestamp: new Date(),
-        event: 'connected'
-      }],
+      connectionHistory: [
+        {
+          timestamp: new Date(),
+          event: 'connected'
+        }
+      ],
       messageCount: 0,
       turnCount: 0
     }
@@ -103,7 +105,7 @@ export class GeminiSessionManager extends EventEmitter {
 
     this.persistSessions()
     this.emit('sessionCreated', session)
-    
+
     return session
   }
 
@@ -126,7 +128,7 @@ export class GeminiSessionManager extends EventEmitter {
    */
   resumeSession(sessionId: string): SessionData | null {
     const session = this.sessions.get(sessionId)
-    
+
     if (!session) {
       logger.warn('Attempted to resume non-existent session', {
         sessionId: sanitizeLogMessage(sessionId)
@@ -164,7 +166,7 @@ export class GeminiSessionManager extends EventEmitter {
 
     this.persistSessions()
     this.emit('sessionResumed', session)
-    
+
     return session
   }
 
@@ -173,7 +175,7 @@ export class GeminiSessionManager extends EventEmitter {
    */
   updateActivity(sessionId?: string): void {
     const session = sessionId ? this.sessions.get(sessionId) : this.currentSession
-    
+
     if (session) {
       session.lastActivity = new Date()
       this.persistSessions()
@@ -185,12 +187,12 @@ export class GeminiSessionManager extends EventEmitter {
    */
   recordMessage(type: 'sent' | 'received', sessionId?: string): void {
     const session = sessionId ? this.sessions.get(sessionId) : this.currentSession
-    
+
     if (session) {
       session.messageCount++
       session.lastActivity = new Date()
       this.persistSessions()
-      
+
       this.emit('messageRecorded', {
         sessionId: session.sessionId,
         type,
@@ -204,12 +206,12 @@ export class GeminiSessionManager extends EventEmitter {
    */
   recordTurn(sessionId?: string): void {
     const session = sessionId ? this.sessions.get(sessionId) : this.currentSession
-    
+
     if (session) {
       session.turnCount++
       session.lastActivity = new Date()
       this.persistSessions()
-      
+
       this.emit('turnRecorded', {
         sessionId: session.sessionId,
         turnCount: session.turnCount
@@ -221,13 +223,13 @@ export class GeminiSessionManager extends EventEmitter {
    * Record a connection event
    */
   recordConnectionEvent(
-    event: ConnectionEvent['event'], 
-    reason?: string, 
+    event: ConnectionEvent['event'],
+    reason?: string,
     duration?: number,
     sessionId?: string
   ): void {
     const session = sessionId ? this.sessions.get(sessionId) : this.currentSession
-    
+
     if (session) {
       session.connectionHistory.push({
         timestamp: new Date(),
@@ -250,7 +252,7 @@ export class GeminiSessionManager extends EventEmitter {
 
       session.lastActivity = new Date()
       this.persistSessions()
-      
+
       this.emit('connectionEventRecorded', {
         sessionId: session.sessionId,
         event,
@@ -265,11 +267,11 @@ export class GeminiSessionManager extends EventEmitter {
    */
   suspendSession(reason?: string, sessionId?: string): void {
     const session = sessionId ? this.sessions.get(sessionId) : this.currentSession
-    
+
     if (session) {
       session.status = SessionStatus.SUSPENDED
       this.recordConnectionEvent('disconnected', reason, undefined, sessionId)
-      
+
       logger.info('Session suspended', {
         sessionId: sanitizeLogMessage(session.sessionId),
         reason: sanitizeLogMessage(reason || 'manual')
@@ -284,17 +286,17 @@ export class GeminiSessionManager extends EventEmitter {
    */
   markSessionError(error: string, sessionId?: string): void {
     const session = sessionId ? this.sessions.get(sessionId) : this.currentSession
-    
+
     if (session) {
       session.status = SessionStatus.ERROR
       this.recordConnectionEvent('error', error, undefined, sessionId)
-      
+
       logger.error('Session marked with error', {
         sessionId: sanitizeLogMessage(session.sessionId),
         error: sanitizeLogMessage(error)
       })
 
-      this.emit('sessionError', { session, error })
+      this.emit('sessionError', {session, error})
     }
   }
 
@@ -303,13 +305,13 @@ export class GeminiSessionManager extends EventEmitter {
    */
   getResumableSessions(): SessionData[] {
     const resumable: SessionData[] = []
-    
+
     for (const session of this.sessions.values()) {
       if (session.status === SessionStatus.SUSPENDED && !this.isSessionExpired(session)) {
         resumable.push(session)
       }
     }
-    
+
     return resumable.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
   }
 
@@ -318,13 +320,13 @@ export class GeminiSessionManager extends EventEmitter {
    */
   cleanupExpiredSessions(): number {
     let cleanedCount = 0
-    
+
     for (const [sessionId, session] of this.sessions.entries()) {
       if (this.isSessionExpired(session)) {
         session.status = SessionStatus.EXPIRED
         this.sessions.delete(sessionId)
         cleanedCount++
-        
+
         logger.debug('Expired session cleaned up', {
           sessionId: sanitizeLogMessage(sessionId),
           lastActivity: session.lastActivity
@@ -334,9 +336,10 @@ export class GeminiSessionManager extends EventEmitter {
 
     // Also limit the number of sessions we keep
     if (this.sessions.size > this.config.maxSessionHistory) {
-      const sessionArray = Array.from(this.sessions.entries())
-        .sort(([, a], [, b]) => b.lastActivity.getTime() - a.lastActivity.getTime())
-      
+      const sessionArray = Array.from(this.sessions.entries()).sort(
+        ([, a], [, b]) => b.lastActivity.getTime() - a.lastActivity.getTime()
+      )
+
       const toRemove = sessionArray.slice(this.config.maxSessionHistory)
       toRemove.forEach(([sessionId]) => {
         this.sessions.delete(sessionId)
@@ -348,7 +351,7 @@ export class GeminiSessionManager extends EventEmitter {
       this.persistSessions()
       this.emit('sessionsCleanedUp', cleanedCount)
     }
-    
+
     return cleanedCount
   }
 
@@ -403,8 +406,8 @@ export class GeminiSessionManager extends EventEmitter {
     this.sessions.clear()
     this.currentSession = null
     this.persistSessions()
-    
-    logger.info('All sessions cleared', { count })
+
+    logger.info('All sessions cleared', {count})
     this.emit('allSessionsCleared', count)
   }
 
@@ -416,10 +419,10 @@ export class GeminiSessionManager extends EventEmitter {
       clearInterval(this.cleanupTimer)
       this.cleanupTimer = null
     }
-    
+
     this.clearAllSessions()
     this.removeAllListeners()
-    
+
     logger.debug('Session manager destroyed')
   }
 
@@ -430,19 +433,39 @@ export class GeminiSessionManager extends EventEmitter {
     const now = Date.now()
     const sessionAge = now - session.createdAt.getTime()
     const inactivityTime = now - session.lastActivity.getTime()
-    
+
     return (
-      sessionAge > this.config.sessionTimeout ||
-      inactivityTime > this.config.maxInactiveDuration
+      sessionAge > this.config.sessionTimeout || inactivityTime > this.config.maxInactiveDuration
     )
   }
 
   /**
-   * Generate a unique session ID
+   * Generate a unique session ID using cryptographically secure random values
    */
   private generateSessionId(): string {
     const timestamp = Date.now().toString(36)
-    const random = Math.random().toString(36).substr(2, 9)
+
+    // Use cryptographically secure random generation
+    let random: string
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      // Browser environment
+      const array = new Uint8Array(6)
+      crypto.getRandomValues(array)
+      random = Array.from(array, byte => byte.toString(36)).join('')
+    } else if (typeof require !== 'undefined') {
+      // Node.js environment
+      try {
+        const cryptoNode = require('crypto')
+        random = cryptoNode.randomBytes(6).toString('hex')
+      } catch {
+        // Fallback for environments without crypto module
+        random = Date.now().toString(36) + '_' + process.hrtime.bigint().toString(36)
+      }
+    } else {
+      // Fallback using high-resolution timestamp
+      random = Date.now().toString(36) + '_' + performance.now().toString(36).replace('.', '')
+    }
+
     return `gemini_${timestamp}_${random}`
   }
 
@@ -465,20 +488,75 @@ export class GeminiSessionManager extends EventEmitter {
       if (typeof localStorage !== 'undefined') {
         const stored = localStorage.getItem(this.storageKey)
         if (stored) {
-          const data = JSON.parse(stored)
-          for (const sessionData of data) {
-            // Convert date strings back to Date objects
-            sessionData.createdAt = new Date(sessionData.createdAt)
-            sessionData.lastActivity = new Date(sessionData.lastActivity)
-            sessionData.connectionHistory = sessionData.connectionHistory.map((event: {timestamp: string; event: string; reason?: string; duration?: number}) => ({
-              ...event,
-              timestamp: new Date(event.timestamp)
-            }))
-            
-            this.sessions.set(sessionData.sessionId, sessionData)
+          let data: SessionData[]
+
+          try {
+            data = JSON.parse(stored)
+          } catch (parseError) {
+            logger.error(
+              'Failed to parse persisted sessions from localStorage. Data might be corrupted.',
+              {
+                error: parseError instanceof Error ? parseError.message : 'Unknown parse error',
+                storageKey: this.storageKey
+              }
+            )
+            // Clear the corrupted data
+            localStorage.removeItem(this.storageKey)
+            return
           }
-          
-          logger.debug('Loaded persisted sessions', { count: data.length })
+
+          // Validate that data is an array
+          if (!Array.isArray(data)) {
+            logger.warn('Persisted session data is not an array, clearing corrupted data', {
+              dataType: typeof data,
+              storageKey: this.storageKey
+            })
+            localStorage.removeItem(this.storageKey)
+            return
+          }
+
+          for (const sessionData of data) {
+            try {
+              // Validate session data structure
+              if (!sessionData || typeof sessionData !== 'object' || !sessionData.sessionId) {
+                logger.warn('Skipping invalid session data', {sessionData})
+                continue
+              }
+
+              // Convert date strings back to Date objects
+              sessionData.createdAt = new Date(sessionData.createdAt)
+              sessionData.lastActivity = new Date(sessionData.lastActivity)
+
+              // Process connection history with proper type checking
+              if (Array.isArray(sessionData.connectionHistory)) {
+                sessionData.connectionHistory = sessionData.connectionHistory.map(
+                  (event: unknown) => {
+                    if (typeof event === 'object' && event !== null) {
+                      const eventObj = event as Record<string, unknown>
+                      return {
+                        timestamp: new Date(eventObj.timestamp as string),
+                        event: eventObj.event as ConnectionEvent['event'],
+                        reason: eventObj.reason as string | undefined,
+                        duration: eventObj.duration as number | undefined
+                      }
+                    }
+                    return event
+                  }
+                ) as ConnectionEvent[]
+              } else {
+                sessionData.connectionHistory = []
+              }
+
+              this.sessions.set(sessionData.sessionId, sessionData)
+            } catch (sessionError) {
+              logger.warn('Error processing persisted session, skipping', {
+                sessionId: sessionData?.sessionId,
+                error: sessionError instanceof Error ? sessionError.message : 'Unknown error'
+              })
+            }
+          }
+
+          logger.debug('Loaded persisted sessions', {count: this.sessions.size})
         }
       }
     } catch (error) {

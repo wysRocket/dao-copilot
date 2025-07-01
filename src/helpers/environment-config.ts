@@ -101,13 +101,10 @@ export function validateEnvironmentConfig(): boolean {
 
   if (!apiKey) {
     console.error('❌ Google API Key is missing!')
-    console.error('Please set one of these environment variables:')
-    console.error('  - GOOGLE_API_KEY')
-    console.error('  - VITE_GOOGLE_API_KEY')
-    console.error('  - GOOGLE_GENERATIVE_AI_API_KEY')
-    console.error('  - GEMINI_API_KEY')
+    console.error('Please set the required API key as an environment variable.')
+    console.error('Refer to the documentation for the list of supported variable names.')
     console.error('')
-    console.error('Example: export GOOGLE_API_KEY="your-api-key-here"')
+    console.error('Example: export API_KEY="your-api-key-here"')
     return false
   }
 
