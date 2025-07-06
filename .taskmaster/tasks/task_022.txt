@@ -1,0 +1,161 @@
+# Task ID: 22
+# Title: Implement Proper Setup Message Structure for Gemini Live API
+# Status: pending
+# Dependencies: 13, 16, 20, 21
+# Priority: high
+# Description: Create and implement the correct setup message structure for the Gemini Live API WebSocket connection, supporting configurable response modalities and session resumption.
+# Details:
+1. Create a dedicated setup message formatter function in the WebSocket client:
+   ```typescript
+   function createSetupMessage(config: GeminiSetupConfig): SetupMessage {
+     return {
+       setup: {
+         model: config.model || "models/gemini-2.0-flash-live-001",
+         generationConfig: {
+           responseModalities: config.responseModalities || ["TEXT"]
+         },
+         sessionResumption: config.sessionResumption ?? true
+       }
+     };
+   }
+   ```
+
+2. Implement a validation function to ensure the setup message format is correct:
+   ```typescript
+   function validateSetupConfig(config: GeminiSetupConfig): boolean {
+     // Validate model name
+     if (!config.model || typeof config.model !== 'string') {
+       console.error('Invalid model configuration');
+       return false;
+     }
+     
+     // Validate response modalities
+     if (config.responseModalities && 
+         (!Array.isArray(config.responseModalities) || 
+          !config.responseModalities.every(m => ['TEXT', 'AUDIO'].includes(m)))) {
+       console.error('Invalid response modalities');
+       return false;
+     }
+     
+     return true;
+   }
+   ```
+
+3. Update the WebSocket connection initialization to send the setup message:
+   ```typescript
+   function initializeGeminiLiveConnection(config: GeminiSetupConfig): void {
+     if (!validateSetupConfig(config)) {
+       throw new Error('Invalid Gemini Live API configuration');
+     }
+     
+     const setupMessage = createSetupMessage(config);
+     
+     // Send setup message immediately after connection is established
+     ws.addEventListener('open', () => {
+       ws.send(JSON.stringify(setupMessage));
+     });
+     
+     // Handle setup response from server
+     setupResponseHandler();
+   }
+   ```
+
+4. Implement a handler for setup message responses:
+   ```typescript
+   function setupResponseHandler(): void {
+     ws.addEventListener('message', (event) => {
+       const response = JSON.parse(event.data);
+       
+       if (response.setupResponse) {
+         // Handle successful setup
+         console.log('Gemini Live API setup successful');
+         // Store session information if provided
+         if (response.setupResponse.sessionInfo) {
+           sessionStorage.setItem('geminiSessionInfo', JSON.stringify(response.setupResponse.sessionInfo));
+         }
+       } else if (response.error && response.error.setupFailure) {
+         // Handle setup failure
+         console.error('Gemini Live API setup failed:', response.error.setupFailure);
+         // Implement retry logic or fallback options
+       }
+     });
+   }
+   ```
+
+5. Create a configuration interface for setup options:
+   ```typescript
+   interface GeminiSetupConfig {
+     model: string;
+     responseModalities?: ('TEXT' | 'AUDIO')[];
+     sessionResumption?: boolean;
+   }
+   ```
+
+6. Implement error handling for invalid setup configurations:
+   ```typescript
+   function handleSetupError(error: any): void {
+     // Log the error
+     console.error('Gemini Live API setup error:', error);
+     
+     // Notify the user
+     emitEvent('gemini-setup-error', { 
+       message: 'Failed to connect to Gemini Live API', 
+       details: error.message 
+     });
+     
+     // Attempt reconnection with default configuration
+     if (error.type === 'invalid-config') {
+       console.log('Attempting reconnection with default configuration');
+       const defaultConfig: GeminiSetupConfig = {
+         model: "models/gemini-2.0-flash-live-001",
+         responseModalities: ["TEXT"],
+         sessionResumption: true
+       };
+       initializeGeminiLiveConnection(defaultConfig);
+     }
+   }
+   ```
+
+7. Update the existing WebSocket client implementation to incorporate the new setup message structure, ensuring backward compatibility with the current implementation.
+
+# Test Strategy:
+1. Unit Testing:
+   a. Write unit tests for the setup message formatter function:
+      - Test with default configuration
+      - Test with custom model name
+      - Test with different response modality configurations
+      - Test with session resumption enabled and disabled
+   
+   b. Test the validation function:
+      - Verify it correctly identifies valid configurations
+      - Verify it rejects invalid model names
+      - Verify it rejects invalid response modalities
+      - Test edge cases like empty arrays or null values
+   
+   c. Test the setup response handler:
+      - Mock successful setup responses
+      - Mock setup failure responses
+      - Verify correct handling of session information
+
+2. Integration Testing:
+   a. Test the complete WebSocket connection flow with the Gemini Live API:
+      - Verify successful connection and setup message exchange
+      - Confirm the API accepts the setup message format
+      - Test with different configuration options
+   
+   b. Test error scenarios:
+      - Test with invalid API keys
+      - Test with unavailable models
+      - Test with network interruptions during setup
+      - Verify reconnection behavior works as expected
+
+3. End-to-End Testing:
+   a. Create a test script that establishes a connection to the Gemini Live API
+   b. Verify the entire flow from connection to setup to message exchange
+   c. Test session resumption functionality by disconnecting and reconnecting
+   d. Validate that response modalities configuration works correctly
+
+4. Manual Testing:
+   a. Use browser developer tools to inspect WebSocket traffic
+   b. Verify the setup message format matches the API documentation
+   c. Test different configuration combinations to ensure compatibility

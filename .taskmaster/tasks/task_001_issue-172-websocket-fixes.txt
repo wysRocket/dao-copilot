@@ -1,0 +1,140 @@
+# Task ID: 1
+# Title: Update WebSocket Configuration
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Update all WebSocket configurations to use the gemini-live-2.5-flash-preview model and ensure reliable connection establishment, leveraging the newly implemented diagnostics system.
+# Details:
+1. Modify src/services/gemini-live-websocket.ts:
+   - Update model configuration to use 'gemini-live-2.5-flash-preview'
+   - Implement robust error handling using try-catch blocks with diagnostic integration
+   - Use the latest version of the WebSocket library (e.g., 'ws' v8.x.x)
+2. Update src/helpers/gemini-websocket-config.ts:
+   - Set default model to 'gemini-live-2.5-flash-preview'
+   - Add configuration options for reconnection attempts and timeouts
+   - Integrate with diagnostic monitoring system
+3. Implement connection pooling to manage multiple WebSocket connections efficiently with diagnostic tracking
+4. Use exponential backoff strategy for reconnection attempts with diagnostics logging
+
+Leverage the new diagnostic infrastructure:
+- WebSocket Diagnostics Logger (websocket-diagnostics.ts)
+- Enhanced Log Sanitizer (log-sanitizer.ts)
+- Enhanced WebSocket Client (enhanced-gemini-websocket.ts)
+
+Example code snippet for integration with diagnostics:
+```typescript
+import WebSocket from 'ws';
+import { exponentialBackoff } from './utils';
+import { WebSocketDiagnostics } from './websocket-diagnostics';
+
+const WS_CONFIG = {
+  model: 'gemini-live-2.5-flash-preview',
+  maxRetries: 5,
+  initialDelay: 1000,
+};
+
+class GeminiWebSocket {
+  private ws: WebSocket | null = null;
+  private retryCount = 0;
+  private diagnostics = new WebSocketDiagnostics();
+
+  async connect() {
+    try {
+      this.diagnostics.logEvent('connection_attempt', { retryCount: this.retryCount });
+      this.ws = new WebSocket(WS_CONFIG.url);
+      this.ws.on('open', this.onOpen.bind(this));
+      this.ws.on('error', this.onError.bind(this));
+    } catch (error) {
+      this.diagnostics.logEvent('connection_error', { error, retryCount: this.retryCount });
+      await this.handleReconnection(error);
+    }
+  }
+
+  private async handleReconnection(error: Error) {
+    if (this.retryCount < WS_CONFIG.maxRetries) {
+      const delay = exponentialBackoff(WS_CONFIG.initialDelay, this.retryCount);
+      this.diagnostics.logEvent('reconnection_scheduled', { delay, retryCount: this.retryCount });
+      await new Promise(resolve => setTimeout(resolve, delay));
+      this.retryCount++;
+      await this.connect();
+    } else {
+      this.diagnostics.logEvent('max_retries_reached', { maxRetries: WS_CONFIG.maxRetries });
+      throw new Error('Max retries reached. Unable to establish WebSocket connection.');
+    }
+  }
+
+  getConnectionHealth() {
+    return this.diagnostics.getConnectionStatus();
+  }
+
+  // ... other methods
+}
+```
+
+# Test Strategy:
+1. Unit test the GeminiWebSocket class:
+   - Test successful connection establishment
+   - Test error handling and reconnection logic
+   - Mock WebSocket to simulate various error scenarios
+   - Verify diagnostic events are properly logged
+2. Integration test with actual WebSocket server:
+   - Verify correct model usage
+   - Test connection stability under different network conditions
+   - Validate diagnostic metrics accuracy
+3. Load test to ensure multiple connections can be handled efficiently
+4. End-to-end test in the context of the dao-copilot application
+5. Diagnostic-specific tests:
+   - Verify health scoring accuracy under various conditions
+   - Test log sanitization for security compliance
+   - Validate performance metrics collection
+   - Test alert triggering for critical connection issues
+
+# Subtasks:
+## 1. Implement WebSocket Diagnostics Logger [done]
+### Dependencies: None
+### Description: Create websocket-diagnostics.ts with real-time event tracking, health assessment, performance metrics, and automatic issue detection.
+### Details:
+
+
+## 2. Implement Enhanced Log Sanitizer [done]
+### Dependencies: None
+### Description: Create log-sanitizer.ts with auto-redaction of sensitive data, protection against log injection attacks, and configurable depth and size limits.
+### Details:
+
+
+## 3. Implement Enhanced WebSocket Client [done]
+### Dependencies: None
+### Description: Create enhanced-gemini-websocket.ts as a non-intrusive wrapper for existing WebSocket client with real-time monitoring and type-safe event forwarding.
+### Details:
+
+
+## 4. Update model configuration in gemini-live-websocket.ts [done]
+### Dependencies: None
+### Description: Modify the WebSocket configuration to use 'gemini-live-2.5-flash-preview' model and integrate with the diagnostic system.
+### Details:
+
+
+## 5. Implement robust error handling with diagnostic integration [done]
+### Dependencies: None
+### Description: Add try-catch blocks with diagnostic event logging for comprehensive error tracking and analysis.
+### Details:
+
+
+## 6. Update gemini-websocket-config.ts with new model defaults [done]
+### Dependencies: None
+### Description: Set default model to 'gemini-live-2.5-flash-preview' and add configuration options for reconnection with diagnostic hooks.
+### Details:
+
+
+## 7. Implement connection pooling with diagnostic monitoring [done]
+### Dependencies: None
+### Description: Create a connection pool manager that efficiently handles multiple WebSocket connections with integrated diagnostic tracking.
+### Details:
+
+
+## 8. Implement exponential backoff with diagnostics tracking [done]
+### Dependencies: None
+### Description: Add exponential backoff strategy for reconnection attempts with detailed diagnostic logging of retry patterns.
+### Details:
+
+

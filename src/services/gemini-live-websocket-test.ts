@@ -8,7 +8,7 @@ import GeminiLiveWebSocketClient, {RealtimeInput, ResponseModality} from './gemi
 // Test configuration
 const config = {
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '',
-  model: 'gemini-2.0-flash-live-001',
+  model: 'gemini-live-2.5-flash-preview',
   responseModalities: [ResponseModality.AUDIO],
   systemInstruction: 'You are a helpful assistant for transcription tasks.',
   reconnectAttempts: 3,

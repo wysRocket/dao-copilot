@@ -8,6 +8,8 @@
 import {EventEmitter} from 'events'
 import {logger} from './gemini-logger'
 import {GeminiErrorHandler, ErrorType} from './gemini-error-handler'
+import {WebSocketConfigManager, WebSocketConfig} from './websocket-config'
+import {WebSocketHealthMonitor} from './websocket-health-monitor'
 import * as crypto from 'crypto'
 
 interface ConnectionOptions {
@@ -126,33 +128,42 @@ export interface ConnectionResult {
  */
 export class WebSocketConnectionEstablisher extends EventEmitter {
   private config: ConnectionConfig
+  private wsConfig: WebSocketConfigManager
   private errorHandler: GeminiErrorHandler
+  private healthMonitor: WebSocketHealthMonitor
   private activeConnections = new Map<string, WebSocket>()
   private connectionMetrics = new Map<string, ConnectionMetrics>()
+  private connectionHealthMonitors = new Map<string, WebSocketHealthMonitor>()
 
-  constructor(config: ConnectionConfig, errorHandler?: GeminiErrorHandler) {
+  constructor(
+    config: ConnectionConfig,
+    errorHandler?: GeminiErrorHandler,
+    wsConfig?: WebSocketConfigManager
+  ) {
     super()
 
+    this.wsConfig = wsConfig || new WebSocketConfigManager()
+    const defaultConfig = this.wsConfig.getConfig()
+
     this.config = {
-      endpoint:
-        'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.LiveStreaming',
-      model: 'gemini-2.0-flash-live-001',
-      connectionTimeout: 10000,
-      handshakeTimeout: 5000,
-      retryAttempts: 3,
-      retryDelay: 1000,
+      endpoint: defaultConfig.endpoint,
+      model: defaultConfig.model,
+      connectionTimeout: defaultConfig.connectionTimeout,
+      handshakeTimeout: defaultConfig.handshakeTimeout,
+      retryAttempts: defaultConfig.maxRetryAttempts,
+      retryDelay: defaultConfig.initialRetryDelay,
       protocols: [],
       authConfig: {
         method: 'api_key',
         queryParams: {}
       },
       tlsConfig: {
-        rejectUnauthorized: true,
-        checkServerIdentity: true
+        rejectUnauthorized: defaultConfig.validateSSL,
+        checkServerIdentity: defaultConfig.validateSSL
       },
       validation: {
-        validateCertificate: true,
-        allowSelfSigned: false,
+        validateCertificate: defaultConfig.validateSSL,
+        allowSelfSigned: defaultConfig.allowSelfSignedCerts,
         maxRedirects: 3
       },
       performance: {
@@ -165,6 +176,7 @@ export class WebSocketConnectionEstablisher extends EventEmitter {
     }
 
     this.errorHandler = errorHandler || new GeminiErrorHandler()
+    this.healthMonitor = new WebSocketHealthMonitor()
 
     logger.info('WebSocket Connection Establisher initialized', {
       endpoint: this.config.endpoint,
@@ -221,6 +233,46 @@ export class WebSocketConnectionEstablisher extends EventEmitter {
       // Step 7: Calculate connection quality
       this.calculateConnectionQuality(metrics)
 
+      // Step 8: Start health monitoring
+      const connectionHealthMonitor = new WebSocketHealthMonitor()
+      connectionHealthMonitor.startMonitoring(websocket, {
+        healthCheckInterval: this.wsConfig.get('heartbeatInterval'),
+        monitoringInterval: this.wsConfig.get('queueCheckInterval'),
+        thresholds: {
+          latency: {
+            warning: 500,
+            critical: 2000
+          },
+          errorRate: {
+            warning: 5,
+            critical: 15
+          },
+          connectionStability: {
+            warning: 95,
+            critical: 85
+          },
+          queueSize: {
+            warning: this.wsConfig.get('maxQueueSize') * 0.8,
+            critical: this.wsConfig.get('maxQueueSize')
+          },
+          memoryUsage: {
+            warning: 100,
+            critical: 200
+          }
+        }
+      })
+
+      this.connectionHealthMonitors.set(id, connectionHealthMonitor)
+
+      // Forward health monitoring events
+      connectionHealthMonitor.on('healthAlert', alert => {
+        this.emit('healthAlert', {connectionId: id, alert})
+      })
+
+      connectionHealthMonitor.on('healthCheck', result => {
+        this.emit('healthCheck', {connectionId: id, result})
+      })
+
       metrics.connectionEndTime = Date.now()
       metrics.totalConnectionTime = metrics.connectionEndTime - metrics.connectionStartTime
 
@@ -230,13 +282,15 @@ export class WebSocketConnectionEstablisher extends EventEmitter {
         connectionId: id,
         totalTime: metrics.totalConnectionTime,
         quality: metrics.quality,
-        qualityScore: metrics.qualityScore
+        qualityScore: metrics.qualityScore,
+        healthMonitoringEnabled: true
       })
 
       this.emit('connectionEstablished', {
         connectionId: id,
         websocket,
-        metrics: {...metrics}
+        metrics: {...metrics},
+        healthMonitor: connectionHealthMonitor
       })
 
       return {
@@ -678,6 +732,8 @@ export class WebSocketConnectionEstablisher extends EventEmitter {
    */
   async closeConnection(connectionId: string, code?: number, reason?: string): Promise<void> {
     const websocket = this.activeConnections.get(connectionId)
+    const healthMonitor = this.connectionHealthMonitors.get(connectionId)
+
     if (websocket) {
       websocket.close(code, reason)
       this.activeConnections.delete(connectionId)
@@ -689,6 +745,49 @@ export class WebSocketConnectionEstablisher extends EventEmitter {
         reason
       })
     }
+
+    if (healthMonitor) {
+      healthMonitor.cleanup()
+      this.connectionHealthMonitors.delete(connectionId)
+
+      logger.debug('Health monitor cleaned up for connection', {connectionId})
+    }
+  }
+
+  /**
+   * Get health status for a specific connection
+   */
+  getConnectionHealth(connectionId: string) {
+    const healthMonitor = this.connectionHealthMonitors.get(connectionId)
+    return healthMonitor?.getHealthStatus()
+  }
+
+  /**
+   * Get all active health monitors
+   */
+  getAllConnectionHealth() {
+    const health = new Map()
+    this.connectionHealthMonitors.forEach((monitor, connectionId) => {
+      health.set(connectionId, monitor.getHealthStatus())
+    })
+    return health
+  }
+
+  /**
+   * Update WebSocket configuration
+   */
+  updateConfiguration(config: Partial<WebSocketConfig>): void {
+    this.wsConfig.updateConfig(config)
+    logger.info('WebSocket configuration updated', {
+      updatedFields: Object.keys(config)
+    })
+  }
+
+  /**
+   * Get current WebSocket configuration
+   */
+  getConfiguration(): WebSocketConfig {
+    return this.wsConfig.getConfig()
   }
 
   /**
@@ -704,6 +803,9 @@ export class WebSocketConnectionEstablisher extends EventEmitter {
   async cleanup(): Promise<void> {
     const connectionIds = Array.from(this.activeConnections.keys())
     await Promise.all(connectionIds.map(id => this.closeConnection(id, 1000, 'Service shutdown')))
+
+    // Clean up main health monitor
+    this.healthMonitor.cleanup()
 
     this.removeAllListeners()
 

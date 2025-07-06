@@ -1,0 +1,275 @@
+groups:
+  - name: dao-copilot-websocket-alerts
+    interval: 30s
+    rules:
+      # Connection Health Alerts
+      - alert: WebSocketConnectionsHigh
+        expr: sum(dao_copilot_websocket_active_connections) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: websocket
+          category: capacity
+        annotations:
+          summary: "High number of WebSocket connections"
+          description: "WebSocket connections ({{ $value }}) have exceeded the warning threshold of 100 for more than 5 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/websocket-high-connections"
+
+      - alert: WebSocketConnectionsCritical
+        expr: sum(dao_copilot_websocket_active_connections) > 200
+        for: 2m
+        labels:
+          severity: critical
+          component: websocket
+          category: capacity
+        annotations:
+          summary: "Critical number of WebSocket connections"
+          description: "WebSocket connections ({{ $value }}) have exceeded the critical threshold of 200 for more than 2 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/websocket-critical-connections"
+
+      - alert: WebSocketConnectionFailureRate
+        expr: rate(dao_copilot_websocket_connection_attempts_total{result="failure"}[5m]) / rate(dao_copilot_websocket_connection_attempts_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          component: websocket
+          category: reliability
+        annotations:
+          summary: "High WebSocket connection failure rate"
+          description: "WebSocket connection failure rate ({{ $value | humanizePercentage }}) has exceeded 10% for more than 3 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/websocket-connection-failures"
+
+      - alert: WebSocketConnectionFailureRateCritical
+        expr: rate(dao_copilot_websocket_connection_attempts_total{result="failure"}[5m]) / rate(dao_copilot_websocket_connection_attempts_total[5m]) > 0.25
+        for: 1m
+        labels:
+          severity: critical
+          component: websocket
+          category: reliability
+        annotations:
+          summary: "Critical WebSocket connection failure rate"
+          description: "WebSocket connection failure rate ({{ $value | humanizePercentage }}) has exceeded 25% for more than 1 minute."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/websocket-critical-failures"
+
+      # Latency Alerts
+      - alert: WebSocketHighLatency
+        expr: histogram_quantile(0.95, rate(dao_copilot_websocket_connection_latency_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: websocket
+          category: performance
+        annotations:
+          summary: "High WebSocket connection latency"
+          description: "WebSocket connection latency p95 ({{ $value | humanizeDuration }}) has exceeded 5 seconds for more than 5 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/websocket-high-latency"
+
+      - alert: WebSocketCriticalLatency
+        expr: histogram_quantile(0.95, rate(dao_copilot_websocket_connection_latency_seconds_bucket[5m])) > 15
+        for: 2m
+        labels:
+          severity: critical
+          component: websocket
+          category: performance
+        annotations:
+          summary: "Critical WebSocket connection latency"
+          description: "WebSocket connection latency p95 ({{ $value | humanizeDuration }}) has exceeded 15 seconds for more than 2 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/websocket-critical-latency"
+
+      # Message Processing Alerts
+      - alert: MessageQueueBacklog
+        expr: sum(dao_copilot_websocket_message_queue_size) > 100
+        for: 3m
+        labels:
+          severity: warning
+          component: websocket
+          category: performance
+        annotations:
+          summary: "Large message queue backlog"
+          description: "Message queue size ({{ $value }}) has exceeded 100 messages for more than 3 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/message-queue-backlog"
+
+      - alert: MessageQueueBacklogCritical
+        expr: sum(dao_copilot_websocket_message_queue_size) > 500
+        for: 1m
+        labels:
+          severity: critical
+          component: websocket
+          category: performance
+        annotations:
+          summary: "Critical message queue backlog"
+          description: "Message queue size ({{ $value }}) has exceeded 500 messages for more than 1 minute."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/message-queue-critical"
+
+      - alert: SlowMessageProcessing
+        expr: histogram_quantile(0.95, rate(dao_copilot_websocket_message_processing_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: websocket
+          category: performance
+        annotations:
+          summary: "Slow message processing"
+          description: "Message processing time p95 ({{ $value | humanizeDuration }}) has exceeded 2 seconds for more than 5 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/slow-message-processing"
+
+      # Transcription Alerts
+      - alert: TranscriptionHighLatency
+        expr: histogram_quantile(0.95, rate(dao_copilot_transcription_latency_seconds_bucket[5m])) > 10
+        for: 3m
+        labels:
+          severity: warning
+          component: transcription
+          category: performance
+        annotations:
+          summary: "High transcription latency"
+          description: "Transcription latency p95 ({{ $value | humanizeDuration }}) has exceeded 10 seconds for more than 3 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/transcription-high-latency"
+
+      - alert: TranscriptionFailureRate
+        expr: rate(dao_copilot_transcription_requests_total{result="failure"}[5m]) / rate(dao_copilot_transcription_requests_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          component: transcription
+          category: reliability
+        annotations:
+          summary: "High transcription failure rate"
+          description: "Transcription failure rate ({{ $value | humanizePercentage }}) has exceeded 10% for more than 3 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/transcription-failures"
+
+      # Error Rate Alerts
+      - alert: HighErrorRate
+        expr: rate(dao_copilot_errors_total[5m]) > 1
+        for: 3m
+        labels:
+          severity: warning
+          component: application
+          category: reliability
+        annotations:
+          summary: "High application error rate"
+          description: "Application error rate ({{ $value }} errors/sec) has exceeded 1 error per second for more than 3 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/high-error-rate"
+
+      - alert: CriticalErrorRate
+        expr: rate(dao_copilot_errors_total{severity="error"}[5m]) > 0.5
+        for: 1m
+        labels:
+          severity: critical
+          component: application
+          category: reliability
+        annotations:
+          summary: "Critical application error rate"
+          description: "Critical error rate ({{ $value }} errors/sec) has exceeded 0.5 errors per second for more than 1 minute."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/critical-errors"
+
+      # Health Check Alerts
+      - alert: ComponentHealthLow
+        expr: dao_copilot_health_check_score < 70
+        for: 2m
+        labels:
+          severity: warning
+          component: "{{ $labels.component }}"
+          category: health
+        annotations:
+          summary: "Low component health score"
+          description: "Component {{ $labels.component }} health score ({{ $value }}%) has dropped below 70% for more than 2 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/component-health-low"
+
+      - alert: ComponentHealthCritical
+        expr: dao_copilot_health_check_score < 30
+        for: 30s
+        labels:
+          severity: critical
+          component: "{{ $labels.component }}"
+          category: health
+        annotations:
+          summary: "Critical component health score"
+          description: "Component {{ $labels.component }} health score ({{ $value }}%) has dropped below 30% for more than 30 seconds."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/component-health-critical"
+
+      # Circuit Breaker Alerts
+      - alert: CircuitBreakerOpen
+        expr: dao_copilot_circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: warning
+          component: "{{ $labels.service }}"
+          category: reliability
+        annotations:
+          summary: "Circuit breaker opened"
+          description: "Circuit breaker for service {{ $labels.service }} has been open for more than 1 minute."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/circuit-breaker-open"
+
+      # System Resource Alerts
+      - alert: HighMemoryUsage
+        expr: dao_copilot_memory_usage_bytes{type="used"} / dao_copilot_memory_usage_bytes{type="total"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+          category: resources
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage ({{ $value | humanizePercentage }}) has exceeded 85% for more than 5 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/high-memory-usage"
+
+      - alert: CriticalMemoryUsage
+        expr: dao_copilot_memory_usage_bytes{type="used"} / dao_copilot_memory_usage_bytes{type="total"} > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+          category: resources
+        annotations:
+          summary: "Critical memory usage"
+          description: "Memory usage ({{ $value | humanizePercentage }}) has exceeded 95% for more than 2 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/critical-memory-usage"
+
+      - alert: HighCPUUsage
+        expr: dao_copilot_cpu_usage_percent > 80
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+          category: resources
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage ({{ $value }}%) has exceeded 80% for more than 10 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/high-cpu-usage"
+
+      - alert: CriticalCPUUsage
+        expr: dao_copilot_cpu_usage_percent > 95
+        for: 3m
+        labels:
+          severity: critical
+          component: system
+          category: resources
+        annotations:
+          summary: "Critical CPU usage"
+          description: "CPU usage ({{ $value }}%) has exceeded 95% for more than 3 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/critical-cpu-usage"
+
+      - alert: HighEventLoopLag
+        expr: histogram_quantile(0.95, rate(dao_copilot_event_loop_lag_seconds_bucket[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: nodejs
+          category: performance
+        annotations:
+          summary: "High Node.js event loop lag"
+          description: "Event loop lag p95 ({{ $value | humanizeDuration }}) has exceeded 100ms for more than 5 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/high-event-loop-lag"
+
+      - alert: CriticalEventLoopLag
+        expr: histogram_quantile(0.95, rate(dao_copilot_event_loop_lag_seconds_bucket[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          component: nodejs
+          category: performance
+        annotations:
+          summary: "Critical Node.js event loop lag"
+          description: "Event loop lag p95 ({{ $value | humanizeDuration }}) has exceeded 500ms for more than 2 minutes."
+          runbook_url: "https://github.com/dao-copilot/wiki/runbooks/critical-event-loop-lag"

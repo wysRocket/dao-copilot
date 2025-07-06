@@ -20,7 +20,7 @@ async function testGeminiWebSocket() {
 
   const client = new GeminiLiveWebSocketClient({
     apiKey,
-    model: 'gemini-2.0-flash-live-001',
+    model: 'gemini-live-2.5-flash-preview',
     responseModalities: [ResponseModality.TEXT],
     systemInstruction: 'You are a helpful AI assistant. Please respond briefly.',
     reconnectAttempts: 3,

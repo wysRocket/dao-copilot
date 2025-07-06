@@ -1,0 +1,77 @@
+# Task ID: 3
+# Title: Optimize Audio Streaming Pipeline
+# Status: done
+# Dependencies: 1, 2
+# Priority: high
+# Description: Enhance the audio-streaming-pipeline.ts to use the correct model configuration and improve overall performance.
+# Details:
+1. Update src/services/audio-streaming-pipeline.ts:
+   - Ensure use of 'gemini-live-2.5-flash-preview' model
+   - Implement efficient audio chunking and streaming
+   - Optimize memory usage for large audio files
+2. Implement backpressure handling to prevent memory overflow
+3. Use Web Audio API for client-side audio processing
+4. Implement proper error handling and recovery mechanisms
+
+Example code snippet:
+```typescript
+import { GeminiWebSocket } from './gemini-live-websocket';
+import { AudioChunker } from './audio-chunker';
+
+class AudioStreamingPipeline {
+  private ws: GeminiWebSocket;
+  private chunker: AudioChunker;
+
+  constructor() {
+    this.ws = new GeminiWebSocket();
+    this.chunker = new AudioChunker({ chunkSize: 4096 }); // 4KB chunks
+  }
+
+  async streamAudio(audioBuffer: ArrayBuffer) {
+    await this.ws.connect();
+    
+    for await (const chunk of this.chunker.chunk(audioBuffer)) {
+      await this.sendChunk(chunk);
+    }
+
+    await this.ws.sendEOS(); // End of stream
+  }
+
+  private async sendChunk(chunk: ArrayBuffer) {
+    if (this.ws.getBufferedAmount() > 1024 * 1024) { // 1MB threshold
+      await new Promise(resolve => setTimeout(resolve, 100)); // Wait for buffer to clear
+    }
+    await this.ws.send(chunk);
+  }
+
+  // ... other methods
+}
+
+// Client-side audio processing
+class AudioProcessor {
+  private audioContext: AudioContext;
+
+  constructor() {
+    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  async processAudio(audioFile: File) {
+    const arrayBuffer = await audioFile.arrayBuffer();
+    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+    // Further processing...
+  }
+}
+```
+
+# Test Strategy:
+1. Unit test AudioStreamingPipeline and AudioProcessor classes:
+   - Test chunking logic
+   - Verify backpressure handling
+   - Test error scenarios
+2. Integration test with WebSocket:
+   - Verify end-to-end audio streaming
+   - Test with various audio file sizes and formats
+3. Performance test:
+   - Measure memory usage during streaming
+   - Verify low latency for real-time applications
+4. Browser compatibility test for Web Audio API usage

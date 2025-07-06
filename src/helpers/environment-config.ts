@@ -1,5 +1,8 @@
 // Environment configuration helper for the main process
 // This file helps ensure API keys are properly loaded in Electron's main process
+// Uses the centralized configuration system for consistency
+
+import {CONFIG, validateConfigOnStartup, getConfigSummary} from './centralized-config'
 
 /**
  * Load environment variables from various sources
@@ -7,46 +10,21 @@
  * might not be automatically loaded in the main process
  */
 export async function loadEnvironmentConfig(): Promise<void> {
-  // In development, you might want to load from a .env file
   try {
-    // Try to load dotenv if available (for development)
-    const dotenv = await import('dotenv')
-    dotenv.config()
-    console.log('Environment variables loaded from .env file')
-  } catch {
-    // dotenv is not installed or .env file doesn't exist
-    console.log('No .env file found or dotenv not installed, using system environment variables')
+    // Validate configuration on startup
+    validateConfigOnStartup()
+    console.log('✅ Environment configuration loaded successfully')
+  } catch (error) {
+    console.error('❌ Failed to load environment configuration:', error)
+    throw error
   }
-
-  // Log available API key sources (without revealing the actual keys)
-  const apiKeySources = [
-    'GOOGLE_API_KEY',
-    'VITE_GOOGLE_API_KEY',
-    'GOOGLE_GENERATIVE_AI_API_KEY',
-    'GEMINI_API_KEY'
-  ]
-
-  console.log('Checking for API keys in environment:')
-  apiKeySources.forEach(key => {
-    const value = process.env[key]
-    if (value) {
-      console.log(`✓ ${key}: ${value.substring(0, 8)}...`)
-    } else {
-      console.log(`✗ ${key}: not found`)
-    }
-  })
 }
 
 /**
- * Get the Google API key from various possible environment variables
+ * Get the Google API key from the centralized configuration
  */
 export function getGoogleApiKey(): string | undefined {
-  return (
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    process.env.GEMINI_API_KEY
-  )
+  return CONFIG.gemini.apiKey
 }
 
 /**
@@ -97,17 +75,31 @@ export function isAudioCaptureSupported(): boolean {
  * Validate that required environment variables are present
  */
 export function validateEnvironmentConfig(): boolean {
-  const apiKey = getGoogleApiKey()
+  try {
+    const apiKey = getGoogleApiKey()
 
-  if (!apiKey) {
-    console.error('❌ Google API Key is missing!')
-    console.error('Please set the required API key as an environment variable.')
-    console.error('Refer to the documentation for the list of supported variable names.')
-    console.error('')
-    console.error('Example: export API_KEY="your-api-key-here"')
+    if (!apiKey) {
+      console.error('❌ Google API Key is missing!')
+      console.error('Please set the required API key as an environment variable.')
+      console.error('Refer to the documentation for the list of supported variable names.')
+      console.error('')
+      console.error('Example: export GEMINI_API_KEY="your-api-key-here"')
+      return false
+    }
+
+    console.log('✅ Google API Key found and loaded')
+
+    // Log configuration summary if in debug mode
+    if (CONFIG.features.enableDebugMode) {
+      console.log('\n' + getConfigSummary())
+    }
+
+    return true
+  } catch (error) {
+    console.error('❌ Configuration validation failed:', error)
     return false
   }
-
-  console.log('✅ Google API Key found and loaded')
-  return true
 }
+
+// Re-export centralized configuration for backwards compatibility
+export {CONFIG} from './centralized-config'

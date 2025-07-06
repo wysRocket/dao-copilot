@@ -4,7 +4,6 @@
  */
 
 import {EventEmitter} from 'events'
-import {sanitizeForLogging} from '../utils/security-utils'
 
 export enum ErrorType {
   NETWORK = 'network',
