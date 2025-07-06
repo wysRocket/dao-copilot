@@ -1,0 +1,78 @@
+# Task ID: 2
+# Title: Enhance WebSocket Connection Establishment
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Improve the websocket-connection-establisher.ts to handle connections more reliably and implement better session management.
+# Details:
+1. Refactor src/services/websocket-connection-establisher.ts:
+   - Implement a state machine for connection lifecycle management
+   - Use async/await for asynchronous operations
+   - Implement proper error handling and logging
+2. Integrate with updated GeminiWebSocket class from Task 1
+3. Implement session management:
+   - Use UUID for session identification
+   - Store session information in a distributed cache (e.g., Redis)
+4. Implement graceful shutdown and reconnection procedures
+
+Example code snippet:
+```typescript
+import { v4 as uuidv4 } from 'uuid';
+import { GeminiWebSocket } from './gemini-live-websocket';
+import { RedisClient } from './redis-client';
+
+enum ConnectionState {
+  DISCONNECTED,
+  CONNECTING,
+  CONNECTED,
+  RECONNECTING,
+}
+
+class WebSocketConnectionEstablisher {
+  private state: ConnectionState = ConnectionState.DISCONNECTED;
+  private sessionId: string;
+  private ws: GeminiWebSocket;
+  private redisClient: RedisClient;
+
+  constructor() {
+    this.sessionId = uuidv4();
+    this.ws = new GeminiWebSocket();
+    this.redisClient = new RedisClient();
+  }
+
+  async connect() {
+    this.state = ConnectionState.CONNECTING;
+    try {
+      await this.ws.connect();
+      this.state = ConnectionState.CONNECTED;
+      await this.redisClient.setSession(this.sessionId, { connected: true });
+    } catch (error) {
+      this.state = ConnectionState.RECONNECTING;
+      await this.handleReconnection(error);
+    }
+  }
+
+  private async handleReconnection(error: Error) {
+    // Implement reconnection logic
+  }
+
+  async disconnect() {
+    // Implement graceful shutdown
+  }
+
+  // ... other methods
+}
+```
+
+# Test Strategy:
+1. Unit test the WebSocketConnectionEstablisher class:
+   - Test all state transitions
+   - Verify session management with Redis
+   - Test reconnection scenarios
+2. Integration test with GeminiWebSocket:
+   - Ensure proper interaction between classes
+   - Verify error propagation and handling
+3. Stress test reconnection logic:
+   - Simulate network interruptions
+   - Verify system stability under frequent disconnects
+4. End-to-end test in dao-copilot application context

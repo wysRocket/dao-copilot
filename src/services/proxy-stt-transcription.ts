@@ -31,7 +31,7 @@ export interface ProxyTranscriptionResult {
   [key: string]: unknown
 }
 
-const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash' // Regular model for batch API
+const DEFAULT_GEMINI_MODEL = 'gemini-live-2.5-flash-preview' // Updated model for batch API
 const DEFAULT_PROXY_URL = 'http://localhost:8001'
 
 interface GeminiProxyResponse {

@@ -1,0 +1,333 @@
+# Task ID: 23
+# Title: Implement Session Management and Resumption Support
+# Status: pending
+# Dependencies: 13, 16, 20, 21, 22
+# Priority: medium
+# Description: Add comprehensive session management capabilities to handle server resets and maintain conversation continuity for the Gemini Live API WebSocket connection.
+# Details:
+1. Session State Management:
+   a. Create a SessionManager class to handle session lifecycle:
+   ```typescript
+   class SessionManager {
+     private sessionId: string | null = null;
+     private sessionState: SessionState = {};
+     private sessionTimeout: number = 30 * 60 * 1000; // 30 minutes default
+     private lastActivityTimestamp: number = Date.now();
+     
+     // Methods to implement
+     public createSession(): string { ... }
+     public getSessionId(): string | null { ... }
+     public updateSessionState(state: Partial<SessionState>): void { ... }
+     public getSessionState(): SessionState { ... }
+     public isSessionActive(): boolean { ... }
+     public refreshSession(): void { ... }
+     public endSession(): void { ... }
+     public persistSession(): void { ... }
+     public restoreSession(sessionId: string): boolean { ... }
+   }
+   ```
+
+2. Session Persistence Implementation:
+   a. Implement localStorage-based persistence for web:
+   ```typescript
+   private persistSession(): void {
+     if (!this.sessionId) return;
+     
+     const sessionData = {
+       id: this.sessionId,
+       state: this.sessionState,
+       timestamp: this.lastActivityTimestamp
+     };
+     
+     localStorage.setItem(`gemini_session_${this.sessionId}`, JSON.stringify(sessionData));
+   }
+   ```
+   
+   b. Implement electron-store based persistence for desktop:
+   ```typescript
+   private persistSession(): void {
+     if (!this.sessionId || !this.electronStore) return;
+     
+     this.electronStore.set(`sessions.${this.sessionId}`, {
+       state: this.sessionState,
+       timestamp: this.lastActivityTimestamp
+     });
+   }
+   ```
+
+3. Session Resumption Logic:
+   a. Implement detection of disconnection and reconnection:
+   ```typescript
+   function handleWebSocketClose(event: CloseEvent) {
+     logger.info(`WebSocket closed with code ${event.code}, reason: ${event.reason}`);
+     
+     if (shouldAttemptReconnection(event.code)) {
+       const sessionId = sessionManager.getSessionId();
+       if (sessionId && sessionManager.isSessionActive()) {
+         reconnectWithSession(sessionId);
+       } else {
+         reconnectWithNewSession();
+       }
+     }
+   }
+   ```
+   
+   b. Implement session resumption in WebSocket setup message:
+   ```typescript
+   function createSetupMessageWithResumption(config: GeminiSetupConfig): SetupMessage {
+     const sessionId = sessionManager.getSessionId();
+     const sessionActive = sessionId && sessionManager.isSessionActive();
+     
+     return {
+       setup: {
+         model: config.model || "models/gemini-2.0-flash-live-001",
+         generationConfig: {
+           responseModalities: config.responseModalities || ["TEXT"]
+         },
+         sessionResumption: sessionActive ? {
+           sessionId: sessionId,
+           resumptionState: sessionManager.getSessionState()
+         } : null
+       }
+     };
+   }
+   ```
+
+4. Session Timeout Handling:
+   a. Implement automatic session timeout detection:
+   ```typescript
+   public isSessionActive(): boolean {
+     if (!this.sessionId) return false;
+     
+     const currentTime = Date.now();
+     const elapsed = currentTime - this.lastActivityTimestamp;
+     
+     if (elapsed > this.sessionTimeout) {
+       this.handleSessionTimeout();
+       return false;
+     }
+     
+     return true;
+   }
+   
+   private handleSessionTimeout(): void {
+     logger.info(`Session ${this.sessionId} timed out after ${this.sessionTimeout/1000} seconds of inactivity`);
+     this.endSession();
+     // Notify application of session timeout
+     this.eventEmitter.emit('session:timeout', this.sessionId);
+   }
+   ```
+
+5. Session Cleanup Procedures:
+   a. Implement session cleanup on explicit end:
+   ```typescript
+   public endSession(): void {
+     if (!this.sessionId) return;
+     
+     logger.info(`Ending session ${this.sessionId}`);
+     
+     // Clean up resources
+     this.cleanupSessionResources();
+     
+     // Remove from storage
+     if (isElectron()) {
+       this.electronStore.delete(`sessions.${this.sessionId}`);
+     } else {
+       localStorage.removeItem(`gemini_session_${this.sessionId}`);
+     }
+     
+     this.sessionId = null;
+     this.sessionState = {};
+     this.lastActivityTimestamp = 0;
+     
+     // Notify application of session end
+     this.eventEmitter.emit('session:end', this.sessionId);
+   }
+   ```
+   
+   b. Implement periodic cleanup of expired sessions:
+   ```typescript
+   public static cleanupExpiredSessions(): void {
+     if (isElectron()) {
+       const store = new ElectronStore();
+       const sessions = store.get('sessions', {});
+       
+       Object.keys(sessions).forEach(sessionId => {
+         const session = sessions[sessionId];
+         const elapsed = Date.now() - session.timestamp;
+         
+         if (elapsed > SESSION_MAX_AGE) {
+           store.delete(`sessions.${sessionId}`);
+           logger.info(`Cleaned up expired session ${sessionId}`);
+         }
+       });
+     } else {
+       // Browser localStorage cleanup
+       for (let i = 0; i < localStorage.length; i++) {
+         const key = localStorage.key(i);
+         if (key && key.startsWith('gemini_session_')) {
+           try {
+             const sessionData = JSON.parse(localStorage.getItem(key) || '{}');
+             const elapsed = Date.now() - sessionData.timestamp;
+             
+             if (elapsed > SESSION_MAX_AGE) {
+               localStorage.removeItem(key);
+               logger.info(`Cleaned up expired session ${key.replace('gemini_session_', '')}`);
+             }
+           } catch (e) {
+             logger.error(`Error parsing session data for key ${key}`, e);
+           }
+         }
+       }
+     }
+   }
+   ```
+
+6. Session Context Restoration:
+   a. Implement context restoration when resuming a session:
+   ```typescript
+   public restoreSession(sessionId: string): boolean {
+     let sessionData;
+     
+     if (isElectron()) {
+       sessionData = this.electronStore.get(`sessions.${sessionId}`);
+     } else {
+       const rawData = localStorage.getItem(`gemini_session_${sessionId}`);
+       if (rawData) {
+         try {
+           sessionData = JSON.parse(rawData);
+         } catch (e) {
+           logger.error(`Failed to parse session data for ${sessionId}`, e);
+           return false;
+         }
+       }
+     }
+     
+     if (!sessionData) {
+       logger.warn(`Session ${sessionId} not found in storage`);
+       return false;
+     }
+     
+     // Check if session is expired
+     const elapsed = Date.now() - sessionData.timestamp;
+     if (elapsed > this.sessionTimeout) {
+       logger.warn(`Session ${sessionId} has expired`);
+       return false;
+     }
+     
+     // Restore session state
+     this.sessionId = sessionId;
+     this.sessionState = sessionData.state || {};
+     this.lastActivityTimestamp = Date.now(); // Reset activity timestamp on restoration
+     
+     logger.info(`Successfully restored session ${sessionId}`);
+     this.eventEmitter.emit('session:restored', this.sessionId);
+     
+     return true;
+   }
+   ```
+
+7. Session Lifecycle Logging:
+   a. Implement comprehensive logging for session events:
+   ```typescript
+   // Add to appropriate methods
+   logger.info(`Created new session with ID ${this.sessionId}`);
+   logger.info(`Updated state for session ${this.sessionId}`);
+   logger.info(`Session ${this.sessionId} refreshed`);
+   logger.info(`Session ${this.sessionId} persisted to storage`);
+   logger.warn(`Failed to restore session ${sessionId}`);
+   logger.error(`Error during session ${this.sessionId} operation: ${error.message}`);
+   ```
+
+8. Integration with WebSocket Client:
+   a. Update the WebSocket client to use the SessionManager:
+   ```typescript
+   class GeminiWebSocketClient {
+     private ws: WebSocket | null = null;
+     private sessionManager: SessionManager;
+     
+     constructor() {
+       this.sessionManager = new SessionManager();
+     }
+     
+     public connect(config: GeminiConnectionConfig): void {
+       // Check for existing session
+       const sessionId = this.sessionManager.getSessionId();
+       const hasActiveSession = sessionId && this.sessionManager.isSessionActive();
+       
+       // Create WebSocket connection
+       this.ws = new WebSocket(config.endpoint);
+       
+       this.ws.onopen = () => {
+         // Send setup message with session resumption if available
+         const setupMessage = createSetupMessageWithResumption(config);
+         this.ws.send(JSON.stringify(setupMessage));
+       };
+       
+       // Handle other WebSocket events...
+     }
+     
+     // Other methods...
+   }
+   ```
+
+# Test Strategy:
+1. Unit Testing:
+   a. Test SessionManager class:
+      - Test session creation and ID generation
+      - Test session state updates and retrieval
+      - Test session timeout detection
+      - Test session persistence and restoration
+      - Test session cleanup procedures
+      - Verify proper event emission for session lifecycle events
+   
+   b. Test WebSocket integration:
+      - Test setup message creation with and without session resumption
+      - Test session resumption detection logic
+      - Test reconnection with session ID
+      - Test graceful handling of failed resumption
+
+2. Integration Testing:
+   a. Test end-to-end session management:
+      - Create a session and verify persistence
+      - Simulate a server disconnect and verify reconnection with session resumption
+      - Verify conversation context is maintained after reconnection
+      - Test session timeout and cleanup
+   
+   b. Test with Gemini Live API:
+      - Verify session resumption works with the actual API
+      - Test various disconnection scenarios (network issues, server resets)
+      - Measure reconnection time and success rate
+
+3. Stress Testing:
+   a. Test session management under load:
+      - Test with multiple concurrent sessions
+      - Test with large session state objects
+      - Test rapid connection/disconnection cycles
+   
+   b. Test timeout and cleanup mechanisms:
+      - Verify proper cleanup of expired sessions
+      - Test with artificially aged sessions
+
+4. Error Handling Testing:
+   a. Test recovery from various error conditions:
+      - Invalid session IDs
+      - Corrupted session data
+      - Server rejection of session resumption
+      - Network failures during reconnection
+   
+   b. Verify logging of all error conditions
+
+5. Performance Testing:
+   a. Measure impact of session management on:
+      - Connection establishment time
+      - Memory usage
+      - Storage requirements
+   
+   b. Optimize if necessary based on findings
+
+6. Cross-platform Testing:
+   a. Verify session management works correctly on:
+      - Web browsers (Chrome, Firefox, Safari)
+      - Electron desktop app (Windows, macOS, Linux)
+      - Different devices (desktop, mobile)

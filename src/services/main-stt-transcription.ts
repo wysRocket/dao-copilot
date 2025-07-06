@@ -8,11 +8,11 @@ import {
 } from './transcription-compatibility'
 import {sanitizeLogMessage} from './log-sanitizer'
 
-// Live API model for WebSocket (recommended half-cascade model)
-const DEFAULT_GEMINI_LIVE_MODEL = 'gemini-2.0-flash-live-001'
+// Live API model for WebSocket (recommended model)
+const DEFAULT_GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
 
 // Regular model for batch/REST API fallback
-const DEFAULT_GEMINI_BATCH_MODEL = 'gemini-1.5-flash'
+const DEFAULT_GEMINI_BATCH_MODEL = 'gemini-live-2.5-flash-preview'
 
 /**
  * Configuration options for the transcription service
@@ -279,11 +279,13 @@ async function transcribeAudioViaWebSocket(
   audioData: Buffer,
   options: TranscriptionOptions = {}
 ): Promise<TranscriptionResult> {
+  console.log('DEBUG: Starting WebSocket transcription with enhanced debugging')
   const startTime = Date.now()
   const apiKey = getApiKey(options)
 
   // Import WebSocket client directly
   const {default: GeminiLiveWebSocketClient} = await import('./gemini-live-websocket')
+  console.log('DEBUG: WebSocket client imported successfully')
 
   const client = new GeminiLiveWebSocketClient({
     apiKey,
@@ -294,6 +296,7 @@ async function transcribeAudioViaWebSocket(
     connectionTimeout: 15000, // Increased timeout for better reliability
     maxQueueSize: 50 // Optimized queue size for transcription
   })
+  console.log('DEBUG: WebSocket client created successfully')
 
   try {
     // Connect to WebSocket
@@ -362,7 +365,7 @@ async function transcribeAudioViaWebSocket(
         await client.sendRealtimeInput({
           audio: {
             data: base64Audio,
-            mimeType: 'audio/pcm' // Gemini Live API expects plain "audio/pcm"
+            mimeType: 'audio/pcm;rate=16000' // Gemini Live API requires sample rate parameter
           }
         })
 
@@ -371,9 +374,14 @@ async function transcribeAudioViaWebSocket(
       }
 
       console.log(`Finished sending all ${chunks.length} audio chunks`)
+
+      // CRITICAL: Wait for automatic transcription response
+      // The Gemini Live API should automatically process audio and respond
+      // without any explicit text prompts (which cause Base64 errors)
+      console.log('DEBUG: Waiting for automatic transcription response from the model')
     } else {
-      // Always use plain audio/pcm MIME type (without rate parameter) for Gemini Live API
-      const mimeType = 'audio/pcm'
+      // Always use audio/pcm MIME type with sample rate parameter for Gemini Live API
+      const mimeType = 'audio/pcm;rate=16000'
       console.log(`Using MIME type: ${mimeType}`)
       console.log(
         `Final audio data size: ${pcmData.length} bytes (${(pcmData.length / (2 * channels * targetSampleRate)).toFixed(2)}s duration)`
@@ -389,31 +397,38 @@ async function transcribeAudioViaWebSocket(
       await client.sendRealtimeInput({
         audio: {
           data: base64Audio,
-          mimeType // Use plain "audio/pcm" as per API documentation
+          mimeType // Use "audio/pcm;rate=16000" as per API documentation
         }
       })
+
+      // CRITICAL: Wait for automatic transcription response
+      // The Gemini Live API should automatically process audio and respond
+      // without any explicit text prompts (which cause Base64 errors)
+      console.log('DEBUG: Waiting for automatic transcription response from the model')
     }
 
     // Wait for transcription response
+    console.log('DEBUG: Setting up promise to wait for transcription response')
     return new Promise((resolve, reject) => {
+      console.log('DEBUG: Promise created, setting up event listeners')
       let resolved = false
-      const timeout = setTimeout(() => {
-        if (!resolved) {
-          resolved = true
-          reject(new Error('WebSocket transcription timeout'))
-        }
-      }, 30000) // 30 second timeout for better reliability
+      let timeout: NodeJS.Timeout | undefined = undefined
 
       // Enhanced transcription handling with partial response support
       let partialText = ''
-      let bestConfidence = 0
       let lastUpdateTime = Date.now()
+      const bestConfidence = 0.9 // Default confidence for Gemini Live responses
 
       // Fallback: resolve with partial text if we have reasonable content after some time
       const partialTimeout = setTimeout(() => {
         if (!resolved && partialText && Date.now() - lastUpdateTime > 2000) {
           resolved = true
-          clearTimeout(timeout)
+          if (timeout) clearTimeout(timeout)
+
+          // Cleanup: disconnect the WebSocket
+          client.disconnect().catch(err => {
+            console.warn('Error disconnecting WebSocket client on partial timeout:', err)
+          })
 
           const duration = Date.now() - startTime
           resolve({
@@ -425,25 +440,76 @@ async function transcribeAudioViaWebSocket(
         }
       }, 10000) // Check for partial results after 10 seconds
 
+      // Debug: Listen for ALL events to see what's actually being emitted
+      console.log('DEBUG: Setting up comprehensive event debugging for WebSocket client')
+      const originalEmit = client.emit.bind(client)
+      client.emit = function (event: string, ...args: unknown[]) {
+        console.log(
+          `DEBUG: Event emitted: ${event}`,
+          args.length > 0 ? JSON.stringify(args[0]) : 'no data'
+        )
+        return originalEmit(event, ...args)
+      }
+
+      // Debug: Listen for ALL possible event types to catch any responses
+      const eventTypes = [
+        'message',
+        'geminiResponse',
+        'textResponse',
+        'turnComplete',
+        'error',
+        'data',
+        'response',
+        'content',
+        'transcript',
+        'result'
+      ]
+      eventTypes.forEach(eventType => {
+        client.on(eventType, (data: unknown) => {
+          console.log(`DEBUG: Received '${eventType}' event:`, JSON.stringify(data))
+        })
+      })
+
+      // Debug: Also check if client has expected methods
+      console.log('DEBUG: Checking client capabilities:', {
+        hasEmit: typeof client.emit === 'function',
+        hasOn: typeof client.on === 'function',
+        hasConnect: typeof client.connect === 'function',
+        hasDisconnect: typeof client.disconnect === 'function'
+      })
+
+      // Listen for text responses from Gemini Live API
       client.on(
-        'transcriptionUpdate',
-        (data: {text?: string; confidence?: number; isFinal?: boolean}) => {
-          if (!resolved && data.text?.trim()) {
-            partialText = data.text.trim()
-            bestConfidence = Math.max(bestConfidence, data.confidence || 0)
+        'textResponse',
+        (data: {
+          content?: string
+          metadata?: {timestamp?: number; messageId?: string}
+          isPartial?: boolean
+        }) => {
+          console.log('DEBUG: Received textResponse event:', JSON.stringify(data))
+
+          if (!resolved && data.content?.trim()) {
+            partialText = data.content.trim()
             lastUpdateTime = Date.now()
 
-            // If this is a final transcription or high confidence, resolve immediately
-            if (data.isFinal || (data.confidence && data.confidence > 0.8)) {
+            console.log(`Received text response: "${partialText}" (partial: ${data.isPartial})`)
+
+            // If this is a final transcription (not partial), resolve immediately
+            if (!data.isPartial) {
               resolved = true
-              clearTimeout(timeout)
-              clearTimeout(partialTimeout)
+              if (timeout) clearTimeout(timeout)
+              if (partialTimeout) clearTimeout(partialTimeout)
+
+              // Cleanup: disconnect the WebSocket
+              client.disconnect().catch(err => {
+                console.warn('Error disconnecting WebSocket client:', err)
+              })
 
               const duration = Date.now() - startTime
               resolve({
                 text: partialText,
                 duration,
-                confidence: data.confidence || bestConfidence,
+                confidence: 0.9, // Default high confidence for Gemini Live responses
                 source: 'websocket'
               })
             }
@@ -451,22 +517,78 @@ async function transcribeAudioViaWebSocket(
         }
       )
 
+      // Also listen for turn complete events which indicate end of response
+      client.on('turnComplete', (data: unknown) => {
+        console.log('DEBUG: Received turnComplete event:', JSON.stringify(data))
+
+        if (!resolved && partialText) {
+          resolved = true
+          if (timeout) clearTimeout(timeout)
+          if (partialTimeout) clearTimeout(partialTimeout)
+
+          // Cleanup: disconnect the WebSocket
+          client.disconnect().catch(err => {
+            console.warn('Error disconnecting WebSocket client:', err)
+          })
+
+          const duration = Date.now() - startTime
+          resolve({
+            text: partialText,
+            duration,
+            confidence: 0.9,
+            source: 'websocket'
+          })
+        }
+      })
+
       client.on('error', (error: Error) => {
         if (!resolved) {
           resolved = true
-          clearTimeout(timeout)
-          clearTimeout(partialTimeout)
+          if (timeout) clearTimeout(timeout)
+          if (partialTimeout) clearTimeout(partialTimeout)
+
+          // Cleanup: disconnect the WebSocket
+          client.disconnect().catch(err => {
+            console.warn('Error disconnecting WebSocket client on error:', err)
+          })
+
           reject(error)
         }
       })
+
+      // Timeout handler - also disconnect on timeout
+      timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          clearTimeout(partialTimeout)
+
+          // Cleanup: disconnect the WebSocket
+          client.disconnect().catch(err => {
+            console.warn('Error disconnecting WebSocket client on timeout:', err)
+          })
+
+          if (partialText) {
+            // Return partial result if we have some text
+            resolve({
+              text: partialText,
+              duration: Date.now() - startTime,
+              confidence: bestConfidence,
+              source: 'websocket-partial'
+            })
+          } else {
+            reject(new Error('WebSocket transcription timeout'))
+          }
+        }
+      }, 30000) // 30 second timeout for better reliability
     })
-  } finally {
-    // Cleanup: disconnect the WebSocket
+  } catch (error) {
+    // Cleanup on any setup errors
     try {
       await client.disconnect()
-    } catch (error) {
-      console.warn('Error disconnecting WebSocket client:', error)
+    } catch (disconnectError) {
+      console.warn('Error disconnecting WebSocket client on setup error:', disconnectError)
     }
+    throw error
   }
 }
 

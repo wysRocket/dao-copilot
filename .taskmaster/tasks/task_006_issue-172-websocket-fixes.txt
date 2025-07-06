@@ -1,0 +1,109 @@
+# Task ID: 6
+# Title: Update Configuration Management
+# Status: done
+# Dependencies: 1, 4
+# Priority: medium
+# Description: Ensure all configuration files and environment settings use the correct model and API endpoints across the entire application.
+# Details:
+1. Update .env.example with correct model and API configurations
+2. Implement a centralized configuration management system
+3. Ensure test configurations match production settings
+4. Implement configuration validation on application startup
+
+Example code snippet:
+```typescript
+import dotenv from 'dotenv';
+import Joi from 'joi';
+
+dotenv.config();
+
+const configSchema = Joi.object({
+  NODE_ENV: Joi.string().valid('development', 'production', 'test').required(),
+  GEMINI_API_KEY: Joi.string().required(),
+  GEMINI_MODEL: Joi.string().valid('gemini-live-2.5-flash-preview').required(),
+  GEMINI_API_ENDPOINT: Joi.string().uri().required(),
+  FALLBACK_API_KEY: Joi.string().required(),
+  FALLBACK_API_ENDPOINT: Joi.string().uri().required(),
+  // Add other configuration variables
+}).unknown();
+
+
+const { error, value: validatedConfig } = configSchema.validate(process.env);
+
+
+if (error) {
+  throw new Error(`Config validation error: ${error.message}`);
+}
+
+export const CONFIG = {
+  nodeEnv: validatedConfig.NODE_ENV,
+  gemini: {
+    apiKey: validatedConfig.GEMINI_API_KEY,
+    model: validatedConfig.GEMINI_MODEL,
+    apiEndpoint: validatedConfig.GEMINI_API_ENDPOINT,
+  },
+  fallback: {
+    apiKey: validatedConfig.FALLBACK_API_KEY,
+    apiEndpoint: validatedConfig.FALLBACK_API_ENDPOINT,
+  },
+  // Add other configuration properties
+} as const;
+
+
+// Usage
+import { CONFIG } from './config';
+
+
+console.log(`Using Gemini model: ${CONFIG.gemini.model}`);
+```
+
+# Test Strategy:
+1. Unit test configuration validation:
+   - Test with valid and invalid configurations
+   - Verify error messages for invalid configs
+2. Integration test with application services:
+   - Verify correct config usage across services
+   - Test config updates propagation
+3. Environment-specific tests:
+   - Verify correct config loading for different environments
+4. Security audit:
+   - Ensure sensitive information is not exposed
+   - Verify proper handling of API keys
+
+# Subtasks:
+## 1. Implement startup configuration validator [done]
+### Dependencies: None
+### Description: Created comprehensive validation logic for application startup that validates all configuration properties against the ApplicationConfig interface.
+### Details:
+
+
+## 2. Fix TypeScript compilation errors [done]
+### Dependencies: None
+### Description: Aligned validation checks with the actual ApplicationConfig interface to resolve all TypeScript compilation errors.
+### Details:
+
+
+## 3. Implement detailed configuration validation [done]
+### Dependencies: None
+### Description: Added detailed validation checks for API keys, model configurations, network settings, and feature flags using available configuration properties.
+### Details:
+
+
+## 4. Update .env.example with correct configurations [done]
+### Dependencies: None
+### Description: Update the example environment file to include all required configuration variables with appropriate example values.
+### Details:
+
+
+## 5. Create environment-specific configuration presets [done]
+### Dependencies: None
+### Description: Develop configuration presets for development, testing, and production environments to ensure consistent settings.
+### Details:
+
+
+## 6. Document configuration system [done]
+### Dependencies: None
+### Description: Create comprehensive documentation for the configuration system, including all available options and their usage.
+### Details:
+
+

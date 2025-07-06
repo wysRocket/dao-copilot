@@ -249,7 +249,7 @@ export class GeminiMessageHandler extends EventEmitter {
       case MessageType.SETUP:
         return {
           setup: {
-            model: safeData.model || 'gemini-2.0-flash-live-001',
+            model: safeData.model || 'gemini-live-2.5-flash-preview',
             response_modalities: safeData.responseModalities || ['AUDIO'],
             system_instruction: safeData.systemInstruction
           }

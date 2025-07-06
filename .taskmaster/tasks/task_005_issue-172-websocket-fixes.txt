@@ -1,0 +1,69 @@
+# Task ID: 5
+# Title: Implement Robust Fallback Strategies
+# Status: done
+# Dependencies: 2, 4
+# Priority: medium
+# Description: Develop and implement fallback mechanisms for both WebSocket and batch transcription services to handle failures gracefully.
+# Details:
+1. Implement a fallback service using a different STT provider (e.g., Google Cloud Speech-to-Text)
+2. Create a service orchestrator to manage primary and fallback services
+3. Implement circuit breaker pattern to prevent cascading failures
+4. Develop a strategy for data consistency during fallbacks
+
+Example code snippet:
+```typescript
+import { CircuitBreaker } from 'opossum';
+import { GeminiAPI } from './gemini-api';
+import { GoogleCloudSTT } from './google-cloud-stt';
+
+class TranscriptionOrchestrator {
+  private primaryService: GeminiAPI;
+  private fallbackService: GoogleCloudSTT;
+  private circuitBreaker: CircuitBreaker;
+
+  constructor() {
+    this.primaryService = new GeminiAPI('gemini-live-2.5-flash-preview');
+    this.fallbackService = new GoogleCloudSTT();
+    this.circuitBreaker = new CircuitBreaker(this.primaryService.transcribe, {
+      timeout: 10000, // 10 seconds
+      errorThresholdPercentage: 50,
+      resetTimeout: 30000 // 30 seconds
+    });
+  }
+
+  async transcribe(audio: ArrayBuffer): Promise<string> {
+    try {
+      return await this.circuitBreaker.fire(audio);
+    } catch (error) {
+      console.warn('Primary service failed, using fallback:', error);
+      return this.fallbackService.transcribe(audio);
+    }
+  }
+
+  async healthCheck() {
+    if (this.circuitBreaker.opened) {
+      console.log('Circuit is open. Attempting to reset...');
+      await this.circuitBreaker.reset();
+    }
+    // Perform health check on primary and fallback services
+  }
+}
+
+// Usage
+const orchestrator = new TranscriptionOrchestrator();
+setInterval(() => orchestrator.healthCheck(), 60000); // Check every minute
+```
+
+# Test Strategy:
+1. Unit test TranscriptionOrchestrator:
+   - Test circuit breaker behavior
+   - Verify fallback to secondary service
+   - Test health check functionality
+2. Integration test with both primary and fallback services:
+   - Simulate various failure scenarios
+   - Verify seamless switching between services
+3. Stress test:
+   - Induce high failure rates and verify system stability
+   - Test recovery after prolonged downtime
+4. End-to-end test in dao-copilot application:
+   - Verify transcription continuity during service disruptions

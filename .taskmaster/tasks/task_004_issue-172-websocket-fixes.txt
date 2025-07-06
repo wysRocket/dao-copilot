@@ -1,0 +1,80 @@
+# Task ID: 4
+# Title: Update Batch Transcription Services
+# Status: done
+# Dependencies: 3
+# Priority: high
+# Description: Modify main-stt-transcription.ts and proxy-stt-transcription.ts to use the gemini-live-2.5-flash-preview model and implement performance optimizations.
+# Details:
+1. Update src/services/main-stt-transcription.ts and src/services/proxy-stt-transcription.ts:
+   - Ensure both services use 'gemini-live-2.5-flash-preview' model
+   - Implement parallel processing for batch transcriptions
+   - Use streams for efficient memory management
+2. Implement robust error handling and retries
+3. Optimize audio file handling:
+   - Use audio compression techniques
+   - Implement audio normalization
+4. Add caching layer for frequently transcribed audio
+
+Example code snippet:
+```typescript
+import { pipeline } from 'stream/promises';
+import { createReadStream } from 'fs';
+import { GeminiAPI } from './gemini-api';
+import { AudioNormalizer } from './audio-normalizer';
+import { TranscriptionCache } from './transcription-cache';
+
+class BatchTranscriptionService {
+  private geminiAPI: GeminiAPI;
+  private cache: TranscriptionCache;
+
+  constructor() {
+    this.geminiAPI = new GeminiAPI('gemini-live-2.5-flash-preview');
+    this.cache = new TranscriptionCache();
+  }
+
+  async transcribeBatch(audioFiles: string[]) {
+    const results = await Promise.all(audioFiles.map(file => this.transcribeFile(file)));
+    return results;
+  }
+
+  private async transcribeFile(filePath: string) {
+    const cacheKey = await this.generateCacheKey(filePath);
+    const cachedResult = await this.cache.get(cacheKey);
+    if (cachedResult) return cachedResult;
+
+    try {
+      const normalizer = new AudioNormalizer();
+      await pipeline(
+        createReadStream(filePath),
+        normalizer,
+        this.geminiAPI.createTranscriptionStream()
+      );
+      const result = await this.geminiAPI.getTranscriptionResult();
+      await this.cache.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      console.error(`Transcription failed for ${filePath}:`, error);
+      throw error;
+    }
+  }
+
+  private async generateCacheKey(filePath: string) {
+    // Implement cache key generation logic
+  }
+}
+```
+
+# Test Strategy:
+1. Unit test BatchTranscriptionService:
+   - Test caching mechanism
+   - Verify parallel processing of multiple files
+   - Test error handling and retries
+2. Integration test with GeminiAPI:
+   - Verify correct model usage
+   - Test with various audio file types and durations
+3. Performance test:
+   - Measure transcription speed improvements
+   - Verify memory usage optimization
+4. End-to-end test in dao-copilot application:
+   - Test batch transcription feature
+   - Verify results accuracy

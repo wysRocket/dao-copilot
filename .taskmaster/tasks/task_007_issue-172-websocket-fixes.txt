@@ -1,0 +1,139 @@
+# Task ID: 7
+# Title: Implement Comprehensive Logging and Monitoring
+# Status: in-progress
+# Dependencies: 2, 4, 5
+# Priority: medium
+# Description: Develop a robust logging and monitoring system to track WebSocket connections, transcription processes, and overall system health.
+# Details:
+1. Implement structured logging using a library like Winston
+2. Set up distributed tracing with OpenTelemetry
+3. Integrate with a monitoring service (e.g., Prometheus, Grafana)
+4. Implement custom metrics for WebSocket connections and transcription processes
+
+Example code snippet:
+```typescript
+import winston from 'winston';
+import { trace, context, SpanStatusCode } from '@opentelemetry/api';
+import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
+import { MeterProvider } from '@opentelemetry/sdk-metrics-base';
+
+// Logging setup
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  defaultMeta: { service: 'dao-copilot' },
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
+// Metrics setup
+const meterProvider = new MeterProvider();
+const exporter = new PrometheusExporter();
+meterProvider.addMetricReader(exporter);
+
+const meter = meterProvider.getMeter('dao-copilot-metrics');
+const wsConnectionsGauge = meter.createObservableGauge('ws_connections', {
+  description: 'Number of active WebSocket connections',
+});
+
+// Tracing setup
+const tracer = trace.getTracer('dao-copilot-tracer');
+
+// Usage in WebSocket service
+class EnhancedWebSocketService {
+  private activeConnections = 0;
+
+  constructor() {
+    wsConnectionsGauge.addCallback(result => {
+      result.observe(this.activeConnections);
+    });
+  }
+
+  async handleConnection(ws: WebSocket) {
+    const span = tracer.startSpan('handle_ws_connection');
+    context.with(trace.setSpan(context.active(), span), () => {
+      try {
+        this.activeConnections++;
+        logger.info('New WebSocket connection established', { connections: this.activeConnections });
+        // Handle connection...
+      } catch (error) {
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        logger.error('Error handling WebSocket connection', { error });
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  // ... other methods
+}
+```
+
+# Test Strategy:
+1. Unit test logging functionality:
+   - Verify log levels and formats
+   - Test error logging scenarios
+2. Integration test with monitoring systems:
+   - Verify metrics collection and reporting
+   - Test alerting based on custom metrics
+3. End-to-end tracing test:
+   - Verify distributed tracing across services
+   - Test trace propagation in WebSocket scenarios
+4. Performance impact assessment:
+   - Measure overhead of logging and monitoring
+   - Optimize for minimal performance impact
+
+# Subtasks:
+## 1. Set up Winston for structured logging [done]
+### Dependencies: None
+### Description: Implement structured logging using Winston library with appropriate log levels, formats, and transport configurations for different environments.
+### Details:
+Create a logging module that exports a configurable logger instance. Configure Winston with JSON format for production and colorized console output for development. Set up multiple transports including console, file (for errors and combined logs), and potentially a service like Loggly or Elasticsearch for production. Implement log rotation to manage log file sizes. Create helper functions for common logging patterns used throughout the application.
+<info added on 2025-07-05T18:33:54.873Z>
+Completed Winston logging setup with comprehensive structured logging system. Created logger-config.ts with environment-specific configurations (JSON format for production, colorized console for development). Implemented AppLogger class in logger.ts with specialized logging methods for websocket communications, transcription processes, API requests, security events, and performance metrics. Added helper functions for performance measurement and request middleware integration. Set up multiple transports including console and file with rotation for managing log sizes. The system supports structured JSON logging with context management and provides specialized logging patterns tailored to different application components. All functionality is verified through a comprehensive test suite.
+</info added on 2025-07-05T18:33:54.873Z>
+
+## 2. Integrate Winston logging into WebSocket infrastructure [done]
+### Dependencies: None
+### Description: Integrate Winston logging system into the existing WebSocket infrastructure, specifically the EnhancedGeminiLiveWebSocketClient and related services.
+### Details:
+Replace console.log statements and basic logging with structured Winston logging throughout the WebSocket services. Add comprehensive logging for connection events, message flow, errors, performance metrics, and diagnostic information. Ensure logging context includes connection IDs, session information, and relevant metadata for debugging and monitoring.
+<info added on 2025-07-06T06:24:02.357Z>
+Implementation of Winston structured logging has been completed across the WebSocket services. The enhanced-gemini-websocket.ts client now features comprehensive logging throughout all key components:
+
+- Connection management (connect/disconnect) with connection IDs, timestamps, and error context
+- Message operations (sendRealtimeInput/sendClientContent) with message metadata and performance metrics
+- Event listeners for all connection, session, message, and heartbeat events
+- Error handling with sanitized messages and diagnostic context
+- Monitoring methods with full Winston integration
+
+The implementation includes environment-specific configurations, connection traceability through IDs and metadata, performance measurement, protection against log injection attacks, and specialized logging methods for different event types. All console.log statements have been replaced with appropriate Winston logging levels, structured data formats, and proper error handling, resulting in a fully instrumented WebSocket infrastructure.
+</info added on 2025-07-06T06:24:02.357Z>
+
+## 3. Set up OpenTelemetry for distributed tracing [pending]
+### Dependencies: None
+### Description: Implement distributed tracing using OpenTelemetry to track requests and operations across the WebSocket and transcription services.
+### Details:
+Install and configure OpenTelemetry SDK with appropriate instrumentation for Node.js and browser environments. Set up trace providers, exporters (OTLP, Jaeger, or Zipkin), and automatic instrumentation for HTTP requests, database operations, and custom spans for WebSocket operations. Create custom spans for key operations like connection establishment, message processing, transcription requests, and error handling. Implement context propagation across service boundaries and async operations. Configure sampling strategies for production environments to balance observability with performance.
+
+## 4. Implement Prometheus metrics collection [pending]
+### Dependencies: None
+### Description: Implement custom metrics collection using Prometheus format for monitoring WebSocket connections, transcription performance, and system health.
+### Details:
+Set up Prometheus metrics collection with custom gauges, counters, and histograms for tracking: active WebSocket connections, connection duration, message throughput, transcription latency, error rates, and system resource usage. Create metric labels for categorizing by connection type, transcription mode, and error categories. Implement metric aggregation and alerting rules for production monitoring. Set up Prometheus scraping endpoints and configure retention policies for different metric types.
+
+## 5. Create Grafana monitoring dashboards [pending]
+### Dependencies: None
+### Description: Set up Grafana dashboards for visualizing WebSocket performance, connection health, and system metrics in real-time.
+### Details:
+Create comprehensive Grafana dashboards with panels for: WebSocket connection status, real-time connection count, message throughput over time, transcription latency histograms, error rate trends, and system resource utilization. Set up alerting rules for critical thresholds like connection failures, high latency, or resource exhaustion. Configure dashboard templates for different environments (development, staging, production) and implement automated dashboard provisioning. Include drill-down capabilities for troubleshooting specific connection or transcription issues.
+
+## 6. Implement health checks and service monitoring [pending]
+### Dependencies: None
+### Description: Implement health check endpoints and service monitoring to ensure system reliability and enable automated recovery.
+### Details:
+Create health check endpoints for monitoring WebSocket service health, transcription service availability, and system dependencies. Implement readiness and liveness probes compatible with container orchestration platforms. Set up circuit breaker patterns with health-based triggering for automatic service recovery. Create service status dashboards and implement automated alerting for service degradation. Include dependency health checks for external services like Gemini API, audio processing services, and database connections.
+

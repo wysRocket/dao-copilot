@@ -14,6 +14,7 @@ import {
 export interface GeminiWebSocketConfig {
   // Core Configuration
   apiKey: string
+  model: string
   websocketEnabled: boolean
   transcriptionMode: TranscriptionMode
   websocketUrl: string
@@ -46,6 +47,7 @@ export interface ConfigValidationResult {
  * Default configuration values
  */
 export const DEFAULT_CONFIG: Partial<GeminiWebSocketConfig> = {
+  model: 'gemini-live-2.5-flash-preview',
   websocketEnabled: true,
   transcriptionMode: TranscriptionMode.HYBRID,
   websocketUrl:
@@ -87,6 +89,7 @@ export function loadConfigFromEnvironment(): GeminiWebSocketConfig {
   const config: GeminiWebSocketConfig = {
     // Core Configuration
     apiKey: getApiKey(),
+    model: process.env.GEMINI_MODEL || DEFAULT_CONFIG.model!,
     websocketEnabled: process.env.GEMINI_WEBSOCKET_ENABLED !== 'false',
     transcriptionMode: parseTranscriptionMode(process.env.GEMINI_TRANSCRIPTION_MODE),
     websocketUrl: process.env.GEMINI_WEBSOCKET_URL || DEFAULT_CONFIG.websocketUrl!,
@@ -160,6 +163,23 @@ export function validateConfig(config: GeminiWebSocketConfig): ConfigValidationR
     errors.push('API key is required. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.')
   } else if (config.apiKey.length < 20) {
     warnings.push('API key appears to be too short. Please verify it is correct.')
+  }
+
+  // Validate Model
+  if (!config.model) {
+    errors.push('Model is required. Set GEMINI_MODEL environment variable.')
+  } else {
+    const supportedModels = ['gemini-live-2.5-flash-preview', 'gemini-1.5-flash', 'gemini-1.5-pro']
+    if (!supportedModels.includes(config.model)) {
+      warnings.push(
+        `Unknown model: ${config.model}. Supported models: ${supportedModels.join(', ')}`
+      )
+    }
+    if (config.model !== 'gemini-live-2.5-flash-preview') {
+      recommendations.push(
+        'Consider using gemini-live-2.5-flash-preview for best real-time performance.'
+      )
+    }
   }
 
   // Validate WebSocket URL
@@ -266,6 +286,7 @@ export function getValidatedConfig(): {
 export function setupDevelopmentEnvironment(): void {
   // Set default development values if not already set
   const devDefaults = {
+    GEMINI_MODEL: 'gemini-live-2.5-flash-preview',
     GEMINI_WEBSOCKET_ENABLED: 'true',
     GEMINI_TRANSCRIPTION_MODE: 'hybrid',
     GEMINI_FALLBACK_TO_BATCH: 'true',
@@ -290,6 +311,7 @@ export function getConfigSummary(config: GeminiWebSocketConfig): string {
 Gemini Live API Configuration Summary:
 =====================================
 ✓ API Key: ${config.apiKey ? '***' + config.apiKey.slice(-4) : 'NOT SET'}
+✓ Model: ${config.model}
 ✓ WebSocket Enabled: ${config.websocketEnabled}
 ✓ Transcription Mode: ${config.transcriptionMode}
 ✓ WebSocket URL: ${config.websocketUrl}

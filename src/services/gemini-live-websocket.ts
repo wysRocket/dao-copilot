@@ -8,7 +8,8 @@ import {GeminiMessageHandler, MessageType, MessagePriority} from './gemini-messa
 import {GeminiErrorHandler, ErrorType, type GeminiError} from './gemini-error-handler'
 import {logger} from './gemini-logger'
 import {sanitizeLogMessage, safeLogger} from './log-sanitizer'
-import {validateSessionId} from '../utils/security-utils'
+import {WebSocketDiagnosticsLogger, ConnectionStatusInfo} from './websocket-diagnostics'
+
 import ReconnectionManager, {
   ReconnectionStrategy,
   type ReconnectionConfig
@@ -37,7 +38,7 @@ interface ServerErrorData {
   type?: string
 }
 
-// Enhanced data models for gemini-2.0-flash-live-001 responses
+// Enhanced data models for gemini-live-2.5-flash-preview responses
 export interface ParsedGeminiResponse {
   type: 'text' | 'audio' | 'tool_call' | 'error' | 'setup_complete' | 'turn_complete'
   content: string | ArrayBuffer | null
@@ -185,7 +186,7 @@ export interface GeminiLiveApiResponse {
 }
 
 /**
- * Enhanced message parser for gemini-2.0-flash-live-001 model
+ * Enhanced message parser for gemini-live-2.5-flash-preview model
  * Handles various response formats including text, audio, and tool calls
  */
 export class Gemini2FlashMessageParser {
@@ -533,11 +534,12 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private sessionManager: GeminiSessionManager
   private currentSession: SessionData | null = null
   private isSetupComplete = false // Track setup completion to prevent audio before acknowledgment
+  private diagnostics: WebSocketDiagnosticsLogger // Enhanced diagnostics and monitoring
 
   constructor(config: GeminiLiveConfig) {
     super()
     this.config = {
-      model: 'gemini-2.0-flash-live-001',
+      model: 'gemini-live-2.5-flash-preview',
       responseModalities: [ResponseModality.TEXT],
       systemInstruction: 'You are a helpful assistant and answer in a friendly tone.',
       reconnectAttempts: 5,
@@ -609,11 +611,16 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     })
     this.setupSessionManagerEvents()
 
+    // Initialize diagnostics logger
+    this.diagnostics = new WebSocketDiagnosticsLogger()
+    this.setupDiagnosticsIntegration()
+
     logger.info('GeminiLiveWebSocketClient initialized', {
       model: this.config.model,
       heartbeatInterval: this.heartbeatInterval,
       maxReconnectAttempts: this.maxReconnectAttempts,
-      reconnectionStrategy: this.config.reconnectionStrategy || ReconnectionStrategy.EXPONENTIAL
+      reconnectionStrategy: this.config.reconnectionStrategy || ReconnectionStrategy.EXPONENTIAL,
+      diagnosticsEnabled: true
     })
   }
 
@@ -632,89 +639,136 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.setConnectionState(ConnectionState.CONNECTING)
     this.isClosingIntentionally = false
 
-    try {
-      // Construct WebSocket URL for Gemini Live API
-      const wsUrl = this.buildWebSocketUrl()
+    // Log connection attempt with diagnostics
+    this.diagnostics.onConnectionStart()
 
-      safeLogger.log('Connecting to Gemini Live API')
+    return new Promise((resolve, reject) => {
+      try {
+        // Construct WebSocket URL for Gemini Live API
+        const wsUrl = this.buildWebSocketUrl()
 
-      this.ws = new WebSocket(wsUrl)
+        safeLogger.log('Connecting to Gemini Live API')
+        this.diagnostics.logEvent('websocket_connecting', 'connection', 'info', {
+          url: wsUrl ? 'wss://generativelanguage.googleapis.com/...' : 'invalid', // Sanitize URL
+          model: this.config.model
+        })
 
-      // Set up connection timeout
-      const timeoutId = setTimeout(() => {
-        if (this.connectionState === ConnectionState.CONNECTING) {
-          const timeoutError = this.errorHandler.handleError(
-            new Error('Connection timeout'),
-            {timeout: this.connectionTimeout},
-            {type: ErrorType.TIMEOUT, retryable: true}
-          )
-          this.handleConnectionError(timeoutError)
+        this.ws = new WebSocket(wsUrl)
+
+        // Set up connection timeout
+        const timeoutId = setTimeout(() => {
+          if (this.connectionState === ConnectionState.CONNECTING) {
+            const timeoutError = this.errorHandler.handleError(
+              new Error('Connection timeout'),
+              {timeout: this.connectionTimeout},
+              {type: ErrorType.TIMEOUT, retryable: true}
+            )
+            this.handleConnectionError(timeoutError)
+            reject(timeoutError)
+          }
+        }, this.connectionTimeout)
+
+        if (this.ws) {
+          this.ws.onopen = async () => {
+            clearTimeout(timeoutId)
+            const connectionLatency = Date.now() - this.diagnostics.getMetrics().startTime
+
+            logger.info('WebSocket connected to Gemini Live API', {
+              connectionState: this.connectionState,
+              attempts: this.reconnectAttempts,
+              latency: connectionLatency
+            })
+
+            // Log successful connection with diagnostics
+            this.diagnostics.onConnectionEstablished(connectionLatency)
+
+            this.setConnectionState(ConnectionState.CONNECTED)
+            this.reconnectAttempts = 0
+
+            // Reset setup completion flag for new connection
+            this.isSetupComplete = false
+
+            // Don't start heartbeat for Gemini Live API (it doesn't support custom ping messages)
+            // this.startHeartbeat()
+
+            // Don't process message queue until setup is complete
+            // this.processMessageQueue()
+
+            try {
+              // Create or resume session
+              this.handleSessionConnection()
+
+              // Send initial setup message and wait for completion
+              await this.sendSetupMessage()
+
+              // Notify reconnection manager of successful connection
+              this.reconnectionManager.onConnectionEstablished()
+
+              this.emit('connected')
+              resolve() // Only resolve after setup is complete
+            } catch (setupError) {
+              logger.error('Setup failed after WebSocket connection', {
+                error: setupError instanceof Error ? setupError.message : 'Unknown error'
+              })
+              // Connection established but setup failed - emit error
+              this.handleConnectionError(
+                setupError instanceof Error ? setupError : new Error('Setup failed')
+              )
+              reject(setupError)
+            }
+          }
+
+          this.ws.onmessage = event => {
+            this.handleMessage(event)
+          }
+
+          this.ws.onerror = () => {
+            clearTimeout(timeoutId)
+            // Use generic error message to prevent log injection
+            safeLogger.error('WebSocket error occurred')
+            const error = new Error('WebSocket connection error')
+
+            // Log error with diagnostics
+            this.diagnostics.onConnectionFailed(error)
+
+            this.handleConnectionError(error)
+            reject(error)
+          }
+
+          this.ws.onclose = event => {
+            clearTimeout(timeoutId)
+            logger.info('WebSocket connection closed', {
+              code: event.code,
+              reason: sanitizeLogMessage(event.reason),
+              wasClean: event.wasClean,
+              intentional: this.isClosingIntentionally
+            })
+
+            // Log connection close with diagnostics
+            this.diagnostics.onConnectionClosed(event.code, event.reason, event.wasClean)
+
+            this.handleConnectionClose(event)
+            if (this.connectionState === ConnectionState.CONNECTING) {
+              reject(new Error('WebSocket closed during connection attempt'))
+            }
+          }
         }
-      }, this.connectionTimeout)
+      } catch (error) {
+        logger.error('Failed to establish WebSocket connection', {
+          error: error instanceof Error ? sanitizeLogMessage(error.message) : 'Unknown error',
+          config: {
+            model: this.config.model,
+            reconnectAttempts: this.reconnectAttempts
+          }
+        })
 
-      if (this.ws) {
-        this.ws.onopen = () => {
-          clearTimeout(timeoutId)
-          logger.info('WebSocket connected to Gemini Live API', {
-            connectionState: this.connectionState,
-            attempts: this.reconnectAttempts
-          })
-          this.setConnectionState(ConnectionState.CONNECTED)
-          this.reconnectAttempts = 0
+        // Log connection failure with diagnostics
+        this.diagnostics.onConnectionFailed(error as Error)
 
-          // Reset setup completion flag for new connection
-          this.isSetupComplete = false
-
-          // Don't start heartbeat for Gemini Live API (it doesn't support custom ping messages)
-          // this.startHeartbeat()
-
-          // Don't process message queue until setup is complete
-          // this.processMessageQueue()
-
-          // Create or resume session
-          this.handleSessionConnection()
-
-          // Send initial setup message
-          this.sendSetupMessage()
-
-          // Notify reconnection manager of successful connection
-          this.reconnectionManager.onConnectionEstablished()
-
-          this.emit('connected')
-        }
-
-        this.ws.onmessage = event => {
-          this.handleMessage(event)
-        }
-
-        this.ws.onerror = () => {
-          clearTimeout(timeoutId)
-          // Use generic error message to prevent log injection
-          safeLogger.error('WebSocket error occurred')
-          this.handleConnectionError(new Error('WebSocket connection error'))
-        }
-
-        this.ws.onclose = event => {
-          clearTimeout(timeoutId)
-          logger.info('WebSocket connection closed', {
-            code: event.code,
-            reason: sanitizeLogMessage(event.reason),
-            wasClean: event.wasClean,
-            intentional: this.isClosingIntentionally
-          })
-          this.handleConnectionClose(event)
-        }
+        this.handleConnectionError(error as Error)
+        reject(error as Error)
       }
-    } catch (error) {
-      logger.error('Failed to establish WebSocket connection', {
-        error: error instanceof Error ? sanitizeLogMessage(error.message) : 'Unknown error',
-        config: {
-          model: this.config.model,
-          reconnectAttempts: this.reconnectAttempts
-        }
-      })
-      this.handleConnectionError(error as Error)
-    }
+    })
   }
 
   /**
@@ -762,6 +816,81 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     }
 
     return this.sendMessageDirectly(input, options)
+  }
+
+  /**
+   * Send client content message (for turn completion, etc.)
+   */
+  async sendClientContent(content: {turnComplete?: boolean; text?: string}): Promise<void> {
+    if (!this.ws) {
+      throw new Error('WebSocket not initialized')
+    }
+
+    if (this.connectionState !== ConnectionState.CONNECTED) {
+      throw new Error('WebSocket not connected')
+    }
+
+    try {
+      // Send clientContent message in correct format for Gemini Live API
+      const message = JSON.stringify({
+        clientContent: {
+          turnComplete: content.turnComplete || false,
+          ...(content.text && {
+            turns: [
+              {
+                role: 'user',
+                parts: [{text: content.text}]
+              }
+            ]
+          })
+        }
+      })
+
+      logger.debug('Sending client content to Gemini Live API', {
+        messageLength: message.length,
+        turnComplete: content.turnComplete,
+        hasText: !!content.text
+      })
+
+      this.ws.send(message)
+      this.emit('clientContentSent', content)
+
+      // Record successful operation for circuit breaker
+      this.errorHandler.recordSuccess()
+
+      // Track message in session
+      if (this.currentSession) {
+        this.sessionManager.recordMessage('sent', this.currentSession.sessionId)
+        this.sessionManager.updateActivity(this.currentSession.sessionId)
+
+        if (content.turnComplete) {
+          this.sessionManager.recordTurn(this.currentSession.sessionId)
+        }
+      }
+    } catch (error) {
+      this.errorHandler.recordFailure()
+
+      const geminiError = this.errorHandler.handleError(
+        error instanceof Error ? error : new Error('Failed to send client content'),
+        {
+          content,
+          connectionState: this.connectionState,
+          timestamp: new Date(),
+          sessionId: this.currentSession?.sessionId
+        },
+        {
+          type: ErrorType.API,
+          retryable: true
+        }
+      )
+
+      logger.error('Failed to send client content', {
+        errorId: geminiError.id,
+        message: geminiError.message
+      })
+
+      throw geminiError
+    }
   }
 
   /**
@@ -868,6 +997,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         inputType: input.audio ? 'audio' : 'text',
         circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
       })
+
+      // Log message sending with diagnostics
+      this.diagnostics.onMessageSent(input, message.length)
 
       this.ws.send(message)
       this.emit('messageSent', input)
@@ -996,6 +1128,20 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       // Record successful message receipt for circuit breaker
       this.errorHandler.recordSuccess()
 
+      // Calculate message size for diagnostics
+      const messageSize = event.data
+        ? typeof event.data === 'string'
+          ? event.data.length
+          : event.data instanceof ArrayBuffer
+            ? event.data.byteLength
+            : event.data instanceof Blob
+              ? event.data.size
+              : 0
+        : 0
+
+      // Log message received with diagnostics
+      this.diagnostics.onMessageReceived(event.data, messageSize)
+
       // Handle both string and binary data
       if (typeof event.data === 'string') {
         this.processMessageData(event.data)
@@ -1014,6 +1160,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
             logger.error('Failed to convert Blob message to text', {
               error: error instanceof Error ? error.message : 'Unknown error'
             })
+            this.diagnostics.onMessageError(error, {messageType: 'blob_conversion'})
           })
         return
       } else {
@@ -1021,7 +1168,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
           dataType: typeof event.data,
           constructor: event.data.constructor.name
         })
-        throw new Error(`Unsupported message data type: ${typeof event.data}`)
+        const error = new Error(`Unsupported message data type: ${typeof event.data}`)
+        this.diagnostics.onMessageError(error, {messageType: 'unsupported_data_type'})
+        throw error
       }
     } catch (error) {
       const parseError = this.errorHandler.handleError(
@@ -1052,7 +1201,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         return
       }
 
-      // Use enhanced message parser for gemini-2.0-flash-live-001
+      // Use enhanced message parser for gemini-live-2.5-flash-preview
       const geminiResponse = Gemini2FlashMessageParser.parseResponse(rawMessage)
       const validation = Gemini2FlashMessageParser.validateResponse(geminiResponse)
 
@@ -1703,13 +1852,13 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
 
       // Create new session if no resumable session or resumption failed
       const sessionConfig = {
-        model: this.config.model || 'gemini-2.0-flash-live-001',
+        model: this.config.model || 'gemini-live-2.5-flash-preview',
         responseModalities: this.config.responseModalities || [ResponseModality.TEXT],
         systemInstruction: this.config.systemInstruction
       }
 
       this.currentSession = this.sessionManager.createSession(
-        this.config.model || 'gemini-2.0-flash-live-001',
+        this.config.model || 'gemini-live-2.5-flash-preview',
         sessionConfig
       )
 
@@ -2354,9 +2503,25 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    */
   private async waitForSetupResponse(): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Check if setup is already complete
+      if (this.isSetupComplete) {
+        logger.debug('Setup already complete, resolving immediately')
+        resolve()
+        return
+      }
+
       const timeout = setTimeout(() => {
+        cleanup()
         reject(new Error('Timeout waiting for setup response from Gemini Live API'))
       }, 10000) // 10 second timeout
+
+      // Cleanup function to remove all listeners and clear timeout
+      const cleanup = () => {
+        clearTimeout(timeout)
+        this.off('setupComplete', onSetupComplete)
+        this.off('error', onError)
+        this.off('close', onClose)
+      }
 
       // Listen for the setupComplete event from the main message handler
       const onSetupComplete = () => {
@@ -2366,30 +2531,28 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         // Now that setup is complete, process any queued messages
         this.processMessageQueue()
 
-        clearTimeout(timeout)
-        this.off('setupComplete', onSetupComplete)
-        this.off('error', onError)
+        cleanup()
         resolve()
       }
 
-      const onError = () => {
-        clearTimeout(timeout)
-        this.off('setupComplete', onSetupComplete)
-        this.off('error', onError)
-        reject(new Error('WebSocket error while waiting for setup response'))
+      const onError = (error: Error | unknown) => {
+        logger.warn('Error event received while waiting for setup response', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        cleanup()
+        // Don't reject immediately - let the timeout handle it if no setup response comes
+        // This prevents double error handling when the error is already being processed elsewhere
       }
 
       const onClose = () => {
-        clearTimeout(timeout)
-        this.off('setupComplete', onSetupComplete)
-        this.off('close', onClose)
+        cleanup()
         reject(new Error('WebSocket closed while waiting for setup response'))
       }
 
       // Listen for events instead of parsing messages directly
-      this.on('setupComplete', onSetupComplete)
-      this.on('error', onError)
-      this.on('close', onClose)
+      this.once('setupComplete', onSetupComplete)
+      this.once('error', onError)
+      this.once('close', onClose)
     })
   }
 
@@ -2498,7 +2661,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   // ===== Enhanced Message Parsing Methods =====
 
   /**
-   * Parse a response using the enhanced gemini-2.0-flash-live-001 parser
+   * Parse a response using the enhanced gemini-live-2.5-flash-preview parser
    */
   parseGeminiResponse(rawMessage: unknown): ParsedGeminiResponse {
     return Gemini2FlashMessageParser.parseResponse(rawMessage)
@@ -2679,6 +2842,54 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       .replace(/[^\w\-_.:]/g, '_') // Keep only alphanumeric, hyphens, underscores, dots, and colons
       .substring(0, 100) // Limit length to prevent excessive memory usage
       .trim()
+  }
+
+  /**
+   * Setup diagnostics integration to monitor WebSocket events
+   */
+  private setupDiagnosticsIntegration(): void {
+    // Log client initialization
+    this.diagnostics.logEvent('client_initialized', 'custom', 'info', {
+      model: this.config.model,
+      reconnectAttempts: this.maxReconnectAttempts,
+      heartbeatInterval: this.heartbeatInterval,
+      connectionTimeout: this.connectionTimeout
+    })
+
+    // Monitor connection state changes
+    this.on('connectionStateChanged', (newState: ConnectionState, oldState: ConnectionState) => {
+      this.diagnostics.logEvent('connection_state_changed', 'connection', 'info', {
+        from: oldState,
+        to: newState
+      })
+    })
+  }
+
+  /**
+   * Get current connection status with diagnostics
+   */
+  getConnectionStatusWithDiagnostics(): ConnectionStatusInfo {
+    const status = this.diagnostics.getConnectionStatus()
+
+    // Update status with current client state
+    status.state = this.connectionState
+    status.connected = this.connectionState === ConnectionState.CONNECTED
+
+    return status
+  }
+
+  /**
+   * Get diagnostic metrics for monitoring
+   */
+  getDiagnosticMetrics() {
+    return this.diagnostics.getMetrics()
+  }
+
+  /**
+   * Export diagnostic data for analysis
+   */
+  exportDiagnostics() {
+    return this.diagnostics.exportDiagnostics()
   }
 }
 
