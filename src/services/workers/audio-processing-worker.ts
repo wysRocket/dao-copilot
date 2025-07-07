@@ -84,12 +84,19 @@ class AudioProcessingWorker {
   private sequenceCounter = 0
 
   constructor() {
-    // Listen for messages from main thread
-    self.addEventListener('message', this.handleMessage.bind(this))
+    // Only initialize in worker context, not in Node.js main thread
+    if (
+      typeof self !== 'undefined' &&
+      typeof window === 'undefined' &&
+      typeof document === 'undefined'
+    ) {
+      // Listen for messages from main thread
+      self.addEventListener('message', this.handleMessage.bind(this))
 
-    // Don't log in test environment
-    if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
-      this.log('Audio processing worker started')
+      // Don't log in test environment
+      if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+        this.log('Audio processing worker started')
+      }
     }
   }
 
@@ -477,7 +484,14 @@ class AudioResampler {
   }
 }
 
-// Initialize the worker
-new AudioProcessingWorker()
+// Initialize the worker only in Web Worker context
+if (
+  typeof self !== 'undefined' &&
+  typeof window === 'undefined' &&
+  typeof document === 'undefined'
+) {
+  new AudioProcessingWorker()
+}
 
-// Remove duplicate exports
+// Export for potential use in main thread (testing, etc.)
+export default AudioProcessingWorker

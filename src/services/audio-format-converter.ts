@@ -101,10 +101,23 @@ export class AudioFormatConverter {
       }
 
       // Initialize Web Worker for intensive operations if not in low latency mode
-      if (!this.config.lowLatencyMode) {
-        this.conversionWorker = new Worker(
-          new URL('./workers/audio-conversion-worker.js', import.meta.url)
-        )
+      // Only create worker in browser environment, not in Node.js/Electron main process
+      if (
+        !this.config.lowLatencyMode &&
+        typeof Worker !== 'undefined' &&
+        typeof window !== 'undefined'
+      ) {
+        try {
+          this.conversionWorker = new Worker(
+            new URL('./workers/audio-processing-worker.js', import.meta.url)
+          )
+        } catch (error) {
+          console.warn(
+            'Failed to create audio processing worker, falling back to main thread processing:',
+            error
+          )
+          this.conversionWorker = null
+        }
       }
 
       this.isInitialized = true

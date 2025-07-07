@@ -1,22 +1,49 @@
 # Task ID: 4
-# Title: Implement Real-time Transcription Processing
+# Title: Implement Message Handling and Queueing
 # Status: pending
-# Dependencies: 3
+# Dependencies: 2, 3
 # Priority: high
-# Description: Process incoming transcription results from the Gemini Live API and update the UI components for real-time display.
+# Description: Create a robust message handling system with queueing for bidirectional communication.
 # Details:
-1. Create a TranscriptionProcessor class to handle incoming WebSocket messages.
-2. Parse JSON responses from Gemini Live API (refer to API documentation for exact format).
-3. Implement partial result handling for incremental updates.
-4. Use a state management solution like Redux (version 4.x) or MobX (version 6.x) for managing transcription state.
-5. Create action creators and reducers for updating transcription state.
-6. Optimize rendering performance using React's useMemo and useCallback hooks.
-7. Implement debouncing (use lodash.debounce version 4.x) for UI updates to prevent excessive re-renders.
-8. Use Web Workers for heavy processing if needed to keep UI responsive.
+1. Create a `MessageHandler` class in `src/services/MessageHandler.ts`:
+   ```typescript
+   import { v4 as uuidv4 } from 'uuid';
+
+   class MessageHandler {
+     private messageQueue: Array<{ id: string, message: any }> = [];
+     private processing: boolean = false;
+
+     enqueue(message: any) {
+       const id = uuidv4();
+       this.messageQueue.push({ id, message });
+       this.processQueue();
+       return id;
+     }
+
+     private async processQueue() {
+       if (this.processing || this.messageQueue.length === 0) return;
+       this.processing = true;
+       while (this.messageQueue.length > 0) {
+         const { id, message } = this.messageQueue.shift()!;
+         await this.sendMessage(id, message);
+       }
+       this.processing = false;
+     }
+
+     private async sendMessage(id: string, message: any) {
+       // Implement sending logic
+     }
+   }
+   ```
+2. Integrate `MessageHandler` with `WebSocketManager`
+3. Implement message serialization and deserialization
+4. Add support for different message types (text, audio)
+5. Implement response processing logic
+6. Add error handling for message sending and receiving
 
 # Test Strategy:
-1. Unit test TranscriptionProcessor methods.
-2. Test state management logic with various input scenarios.
-3. Performance test UI updates with large volumes of transcription data.
-4. Integration test with mock Gemini Live API responses.
-5. User acceptance testing for real-time display responsiveness.
+1. Unit tests for MessageHandler class
+2. Test message queueing and processing
+3. Integration tests with WebSocketManager
+4. Test different message types
+5. Verify error handling for various scenarios

@@ -18,6 +18,13 @@ import ReconnectionManager, {
   type ReconnectionConfig
 } from './gemini-reconnection-manager'
 import {WebSocketHeartbeatMonitor, HeartbeatStatus} from './websocket-heartbeat-monitor'
+import {
+  SessionManager,
+  type SessionConfig,
+  type SessionError,
+  type ConversationTurn,
+  type SessionStats
+} from './gemini-session-manager'
 
 export enum ConnectionState {
   DISCONNECTED = 'disconnected',
@@ -67,6 +74,19 @@ export interface GeminiMessage {
   data?: string
 }
 
+export interface SetupMessage {
+  setup: {
+    model: string
+    generationConfig: {
+      responseModalities: string[]
+    }
+    sessionResumption: boolean
+    systemInstruction?: {
+      parts: Array<{text: string}>
+    }
+  }
+}
+
 /**
  * WebSocket Connection Management for Gemini Live API
  */
@@ -86,12 +106,13 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private errorHandler: GeminiErrorHandler
   private reconnectionManager: ReconnectionManager
   private heartbeatMonitor: WebSocketHeartbeatMonitor
+  private sessionManager: SessionManager | null = null
 
   constructor(config: GeminiLiveConfig) {
     super()
     this.config = {
-      model: 'gemini-2.0-flash-live-001',
-      responseModalities: ['AUDIO'],
+      model: 'gemini-live-2.5-flash-preview', // Updated to use the correct model for Live API
+      responseModalities: ['TEXT', 'AUDIO'], // Support both text and audio responses
       systemInstruction: 'You are a helpful assistant and answer in a friendly tone.',
       reconnectAttempts: 5,
       heartbeatInterval: 30000, // 30 seconds
@@ -144,11 +165,80 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     })
     this.setupHeartbeatMonitorEvents()
 
+    // Initialize session manager
+    this.initializeSessionManager()
+
     logger.info('GeminiLiveWebSocketClient initialized', {
       model: this.config.model,
       heartbeatInterval: this.heartbeatInterval,
       maxReconnectAttempts: this.maxReconnectAttempts,
       reconnectionStrategy: this.config.reconnectionStrategy || ReconnectionStrategy.EXPONENTIAL
+    })
+  }
+
+  /**
+   * Initialize the session manager with proper configuration
+   */
+  private initializeSessionManager(): void {
+    const sessionConfig: SessionConfig = {
+      model: this.config.model || 'gemini-live-2.5-flash-preview',
+      systemInstruction:
+        this.config.systemInstruction ||
+        'You are a helpful assistant and answer in a friendly tone.',
+      responseModalities: this.config.responseModalities || ['TEXT', 'AUDIO'],
+      resumptionEnabled: true,
+      sessionTimeout: 300000, // 5 minutes
+      maxConversationHistory: 100,
+      generateSessionId: true,
+      audioSettings: {
+        sampleRate: 24000,
+        encoding: 'pcm16',
+        channels: 1,
+        bitDepth: 16,
+        enableVAD: true,
+        silenceThreshold: 0.5
+      }
+    }
+
+    this.sessionManager = new SessionManager(sessionConfig, this.errorHandler)
+    this.setupSessionManagerEvents()
+
+    logger.info('Session manager initialized', {
+      model: sessionConfig.model,
+      hasSystemInstruction: !!sessionConfig.systemInstruction,
+      responseModalities: sessionConfig.responseModalities
+    })
+  }
+
+  /**
+   * Set up event handlers for the session manager
+   */
+  private setupSessionManagerEvents(): void {
+    if (!this.sessionManager) return
+
+    this.sessionManager.on('sessionCreated', (sessionId: string) => {
+      logger.info('Session created', {sessionId})
+      this.emit('sessionCreated', sessionId)
+    })
+
+    this.sessionManager.on('sessionResumed', (sessionId: string) => {
+      logger.info('Session resumed', {sessionId})
+      this.emit('sessionResumed', sessionId)
+    })
+
+    this.sessionManager.on('sessionTerminated', (sessionId: string) => {
+      logger.info('Session terminated', {sessionId})
+      this.emit('sessionTerminated', sessionId)
+    })
+
+    this.sessionManager.on('sessionError', (error: SessionError) => {
+      logger.error('Session error occurred', {error: error.message})
+      this.emit('sessionError', error)
+    })
+
+    this.sessionManager.on('conversationTurnAdded', (turn: ConversationTurn) => {
+      logger.debug('Conversation turn added', {turnId: turn.id, role: turn.role})
+      this.emit('conversationTurnAdded', turn)
     })
   }
 
@@ -188,14 +278,24 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       }, this.connectionTimeout)
 
       if (this.ws) {
-        this.ws.onopen = () => {
+        this.ws.onopen = async () => {
           clearTimeout(timeoutId)
           logger.info('WebSocket connected to Gemini Live API', {
             connectionState: this.connectionState,
-            attempts: this.reconnectAttempts
+            attempts: this.reconnectAttempts,
+            model: this.config.model
           })
           this.setConnectionState(ConnectionState.CONNECTED)
           this.reconnectAttempts = 0
+
+          // Handle session resumption or new session creation
+          if (this.sessionManager?.needsResumption()) {
+            await this.handleSessionResumption()
+          } else {
+            // Send setup message to configure the model and session
+            await this.sendSetupMessage()
+          }
+
           this.startHeartbeat()
           this.processMessageQueue()
 
@@ -240,12 +340,89 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
+   * Handle session resumption after reconnection
+   */
+  private async handleSessionResumption(): Promise<void> {
+    if (!this.sessionManager) {
+      logger.error('Cannot handle session resumption: Session manager not available')
+      return
+    }
+
+    try {
+      const resumptionStatus = this.sessionManager.getResumptionStatus()
+
+      if (!resumptionStatus.canResume) {
+        logger.warn('Session resumption not possible, creating new session', {
+          reason: resumptionStatus.reason
+        })
+        await this.sendSetupMessage()
+        return
+      }
+
+      logger.info('Attempting session resumption', {
+        sessionId: this.sessionManager.getSessionId(),
+        reconnectionAttempts: resumptionStatus.context?.reconnectionAttempts || 0
+      })
+
+      const result = await this.sessionManager.resumeSessionWithContext()
+
+      if (result.success) {
+        // Generate setup message for resumed session
+        const setupMessage = this.sessionManager.getSetupMessage()
+
+        if (setupMessage && this.ws) {
+          const messageString = JSON.stringify(setupMessage)
+          this.ws.send(messageString)
+
+          logger.info('Setup message sent for resumed session', {
+            sessionId: result.sessionId,
+            contextRestored: result.contextRestored
+          })
+
+          this.emit('setupMessageSent', setupMessage)
+          this.emit('sessionResumed', result.sessionId)
+        }
+      } else {
+        logger.error('Session resumption failed, creating new session', {
+          error: result.error?.message,
+          sessionId: result.sessionId
+        })
+
+        if (this.sessionManager) {
+          const errorToHandle = result.error
+            ? new Error(result.error.message)
+            : new Error('Resumption failed')
+
+          await this.sessionManager.handleResumptionFailure(errorToHandle, true)
+        }
+
+        // Fall back to creating new session
+        await this.sendSetupMessage()
+      }
+    } catch (error) {
+      logger.error('Exception during session resumption', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+
+      if (this.sessionManager) {
+        await this.sessionManager.handleResumptionFailure(
+          error instanceof Error ? error : new Error('Unknown resumption error'),
+          false
+        )
+      }
+
+      // Fall back to creating new session
+      await this.sendSetupMessage()
+    }
+  }
+
+  /**
    * Build WebSocket URL for Gemini Live API
    */
   private buildWebSocketUrl(): string {
     const baseUrl =
       this.config.websocketBaseUrl ||
-      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.LiveStreaming'
+      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent'
     const params = new URLSearchParams({
       key: this.config.apiKey
     })
@@ -407,6 +584,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
             break
           case MessageType.SETUP_COMPLETE:
             this.emit('setupComplete', processed.payload)
+            this.handleSetupComplete(processed.payload).catch(error => {
+              logger.error('Failed to handle setup completion', {error: error.message})
+            })
             break
           case MessageType.ERROR:
             this.emit('apiError', processed.payload)
@@ -566,6 +746,19 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.setConnectionState(ConnectionState.DISCONNECTED)
     this.stopHeartbeat()
     this.emit('disconnected', event)
+
+    // Handle session disconnection if session manager is available
+    if (this.sessionManager && !this.isClosingIntentionally) {
+      const reason = `WebSocket closed: ${event.code} - ${event.reason}`
+      const resumptionContext = this.sessionManager.handleUnexpectedDisconnection(reason)
+
+      logger.info('Session prepared for resumption after disconnection', {
+        sessionId: this.sessionManager.getSessionId(),
+        reason,
+        canResume: this.sessionManager.needsResumption(),
+        reconnectionAttempts: resumptionContext.reconnectionAttempts
+      })
+    }
 
     if (!this.isClosingIntentionally) {
       // Let reconnection manager decide if we should reconnect
@@ -845,6 +1038,300 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       })
       this.emit('websocketError', error)
     })
+  }
+
+  /**
+   * Handle setup completion from the server
+   */
+  private async handleSetupComplete(_payload: unknown): Promise<void> {
+    if (!this.sessionManager) {
+      logger.warn('Setup complete received but session manager not available')
+      return
+    }
+
+    try {
+      // Configure the session as active since setup is complete
+      const configSuccess = await this.sessionManager.configureSession({})
+
+      if (!configSuccess) {
+        logger.warn('Session configuration was not successful')
+        return
+      }
+
+      // Clear any resumption context since session is now properly active
+      this.sessionManager.clearResumptionContext()
+
+      logger.info('Session setup completed and configured', {
+        sessionId: this.sessionManager.getSessionId(),
+        sessionState: this.sessionManager.getSessionState()
+      })
+
+      this.emit('sessionConfigured', {
+        sessionId: this.sessionManager.getSessionId(),
+        state: this.sessionManager.getSessionState()
+      })
+    } catch (error) {
+      logger.error('Failed to configure session after setup completion', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+
+      const sessionError = this.errorHandler.handleError(
+        error,
+        {context: 'setup_completion'},
+        {type: ErrorType.API, retryable: false}
+      )
+
+      this.emit('sessionError', sessionError)
+    }
+  }
+
+  /**
+   * Send the setup message required by the Gemini Live API
+   * This configures the model and response modalities using the SessionManager
+   */
+  private async sendSetupMessage(): Promise<void> {
+    if (!this.ws || this.connectionState !== ConnectionState.CONNECTED) {
+      logger.warn('Cannot send setup message: WebSocket not connected')
+      return
+    }
+
+    if (!this.sessionManager) {
+      logger.error('Cannot send setup message: Session manager not initialized')
+      return
+    }
+
+    try {
+      // Create a new session using the SessionManager
+      const sessionResult = await this.sessionManager.createSession()
+
+      if (!sessionResult.success) {
+        logger.error('Failed to create session', {
+          error: sessionResult.error?.message,
+          errorId: sessionResult.error?.id
+        })
+        this.emit('sessionCreationFailed', sessionResult.error)
+        return
+      }
+
+      // Generate the setup message through SessionManager
+      const setupMessage = this.sessionManager.getSetupMessage()
+
+      if (!setupMessage) {
+        logger.error('Failed to generate setup message')
+        return
+      }
+
+      const messageString = JSON.stringify(setupMessage)
+      this.ws.send(messageString)
+
+      logger.info('Setup message sent to Gemini Live API', {
+        sessionId: sessionResult.sessionId,
+        model: this.config.model,
+        responseModalities: this.config.responseModalities,
+        hasSystemInstruction: !!this.config.systemInstruction
+      })
+
+      this.emit('setupMessageSent', setupMessage)
+      this.emit('sessionCreated', sessionResult.sessionId)
+    } catch (error) {
+      const geminiError = this.errorHandler.handleError(
+        error,
+        {setupMessageContext: 'session_creation'},
+        {type: ErrorType.API, retryable: true}
+      )
+
+      logger.error('Failed to send setup message with session management', {
+        error: geminiError.message,
+        errorId: geminiError.id
+      })
+
+      this.emit('sessionCreationFailed', geminiError)
+      this.emit('error', geminiError)
+    }
+  }
+
+  /**
+   * Get the current session ID if a session is active
+   */
+  public getSessionId(): string | null {
+    return this.sessionManager?.getSessionId() || null
+  }
+
+  /**
+   * Get the current session state
+   */
+  public getSessionState(): string | null {
+    return this.sessionManager?.getSessionState() || null
+  }
+
+  /**
+   * Resume a previous session by ID
+   */
+  public async resumeSession(sessionId: string): Promise<boolean> {
+    if (!this.sessionManager) {
+      logger.error('Cannot resume session: Session manager not initialized')
+      return false
+    }
+
+    try {
+      const result = await this.sessionManager.resumeSession(sessionId)
+      return result.success
+    } catch (error) {
+      logger.error('Failed to resume session', {
+        sessionId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      return false
+    }
+  }
+
+  /**
+   * Terminate the current session
+   */
+  public async terminateSession(): Promise<boolean> {
+    if (!this.sessionManager) {
+      logger.warn('Cannot terminate session: Session manager not initialized')
+      return false
+    }
+
+    try {
+      return await this.sessionManager.terminateSession()
+    } catch (error) {
+      logger.error('Failed to terminate session', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      return false
+    }
+  }
+
+  /**
+   * Get session statistics
+   */
+  public getSessionStats(): SessionStats | null {
+    return this.sessionManager?.getSessionStats() || null
+  }
+
+  /**
+   * Check if session manager is available
+   */
+  public hasSessionManager(): boolean {
+    return this.sessionManager !== null
+  }
+
+  /**
+   * Validate session integrity and health
+   */
+  public async validateSessionHealth(): Promise<{
+    isHealthy: boolean
+    issues: string[]
+    canResume: boolean
+  }> {
+    const issues: string[] = []
+
+    // Check WebSocket connection
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      issues.push('WebSocket connection not open')
+    }
+
+    // Check session manager
+    if (!this.sessionManager) {
+      issues.push('Session manager not initialized')
+      return {isHealthy: false, issues, canResume: false}
+    }
+
+    // Check session state
+    const sessionState = this.sessionManager.getSessionState()
+    if (!sessionState || sessionState === 'terminated') {
+      issues.push('No active session or session terminated')
+    }
+
+    // Check for resumption needs
+    const needsResumption = this.sessionManager.needsResumption()
+    if (needsResumption) {
+      issues.push('Session requires resumption')
+    }
+
+    // Check connection stability from stats
+    const stats = this.sessionManager.getSessionStats()
+    if (stats && stats.resumptionCount > 3) {
+      issues.push('High resumption count indicates connection instability')
+    }
+
+    const isHealthy = issues.length === 0
+    const canResume = needsResumption // Use needsResumption as indicator for resumability
+
+    return {isHealthy, issues, canResume}
+  }
+
+  /**
+   * Get comprehensive session diagnostics
+   */
+  public getSessionDiagnostics(): {
+    connectionState: string
+    sessionState: string | null
+    sessionId: string | null
+    needsResumption: boolean
+    canResume: boolean
+    lastActivity: Date | null
+    errorCount: number
+    stats: SessionStats | null
+  } {
+    const stats = this.sessionManager?.getSessionStats() || null
+    const needsResumption = this.sessionManager?.needsResumption() || false
+
+    return {
+      connectionState: this.ws
+        ? ['connecting', 'open', 'closing', 'closed'][this.ws.readyState] || 'unknown'
+        : 'no_connection',
+      sessionState: this.sessionManager?.getSessionState() || null,
+      sessionId: this.sessionManager?.getSessionId() || null,
+      needsResumption,
+      canResume: needsResumption, // Use needsResumption as indicator
+      lastActivity: stats?.lastActivityTime || null,
+      errorCount: stats?.errorCount || 0,
+      stats
+    }
+  }
+
+  /**
+   * Force session cleanup and reset
+   */
+  public async forceSessionReset(): Promise<void> {
+    logger.info('Forcing session reset and cleanup')
+
+    try {
+      // Terminate current session if exists
+      if (this.sessionManager) {
+        await this.sessionManager.terminateSession()
+      }
+
+      // Close WebSocket connection
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.close(1000, 'Force reset')
+      }
+
+      // Clear any pending timers or intervals
+      this.clearConnectionHandlers()
+
+      // Emit reset event
+      this.emit('sessionReset')
+
+      logger.info('Session reset completed successfully')
+    } catch (error) {
+      logger.error('Error during forced session reset', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Clear connection handlers and cleanup resources
+   */
+  private clearConnectionHandlers(): void {
+    // Clear any reconnection timers if they exist
+    // Note: Specific timer cleanup would depend on implementation details
+    // This is a placeholder for cleanup logic
   }
 }
 

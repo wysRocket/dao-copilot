@@ -1,4 +1,4 @@
-import React from 'react'
+import React, {useRef, useEffect} from 'react'
 import {TranscriptionResult} from '../services/main-stt-transcription'
 import GlassBox from './GlassBox'
 import {cn} from '../utils/tailwind'
@@ -14,23 +14,43 @@ export const GlassMessage: React.FC<GlassMessageProps> = ({
   className = '',
   isNew = false
 }) => {
+  // Use simplified animation approach with CSS transforms and requestAnimationFrame optimizations
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (isNew && containerRef.current) {
+      // Apply entrance animation using requestAnimationFrame for new messages
+      const element = containerRef.current
+      element.style.opacity = '0'
+      element.style.transform = 'translateY(20px) translateZ(0)'
+
+      requestAnimationFrame(() => {
+        element.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-out'
+        element.style.opacity = '1'
+        element.style.transform = 'translateY(0) translateZ(0)'
+      })
+    }
+  }, [isNew])
+
   return (
     <div
-      className={cn(
-        'mb-3 w-full transition-all duration-500',
-        isNew && 'animate-slide-in-up',
-        className
-      )}
+      ref={containerRef}
+      className={cn('mb-3 w-full', className)}
+      style={{
+        // Hardware acceleration for smooth animations
+        transform: 'translateZ(0)',
+        willChange: isNew ? 'transform, opacity' : 'auto'
+      }}
     >
       <GlassBox
         variant="light"
         cornerRadius={8}
-        className="w-full p-3"
+        className="w-full p-3 transition-transform duration-200 ease-out hover:scale-[1.01]"
         style={{
-          // Add subtle animation on new messages
-          ...(isNew && {
-            animation: 'glass-message-appear 0.5s ease-out'
-          })
+          // Optimize rendering for glass effects
+          transform: 'translateZ(0)',
+          willChange: 'transform',
+          backfaceVisibility: 'hidden'
         }}
       >
         <div className="space-y-2">

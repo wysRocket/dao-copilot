@@ -1,6 +1,7 @@
-import React, {useState} from 'react'
+import React, {useState, useEffect} from 'react'
 import {cn} from '@/utils/tailwind'
 import {usePerformance} from '../hooks/usePerformance'
+import {usePerformanceTracker} from '../utils/performance-monitoring'
 import {WindowStatus} from './ui/window-status'
 import GlassBox from './GlassBox'
 import GlassButton from './GlassButton'
@@ -16,6 +17,9 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
   compact = false
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [showWebVitals, setShowWebVitals] = useState(false)
+
+  // Original performance hook
   const {
     metrics,
     averageMetrics,
@@ -25,8 +29,36 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
     generateReport
   } = usePerformance()
 
+  // New comprehensive performance monitoring
+  const {tracker, metrics: webVitalsMetrics} = usePerformanceTracker({
+    enableTracking: true,
+    enableCoreWebVitals: true,
+    enableGlassMetrics: true,
+    measurementInterval: 5000
+  })
+
   const memoryUsage = getMemoryUsage()
   const suggestions = getOptimizationSuggestions()
+
+  // Generate enhanced performance report
+  const downloadEnhancedReport = () => {
+    const originalReport = generateReport()
+    const enhancedReport = {
+      ...originalReport,
+      webVitals: webVitalsMetrics,
+      glassComponents: tracker.getComponentMetrics(),
+      recommendations: tracker.generateReport(),
+      timestamp: new Date().toISOString()
+    }
+
+    const blob = new Blob([JSON.stringify(enhancedReport, null, 2)], {type: 'application/json'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `enhanced-performance-report-${new Date().toISOString()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B'
@@ -48,16 +80,10 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
     return 'text-red-600 dark:text-red-400'
   }
 
-  const downloadReport = () => {
-    const report = generateReport()
-    const blob = new Blob([JSON.stringify(report, null, 2)], {type: 'application/json'})
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `performance-report-${new Date().toISOString()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  // Use enhanced report generation
+  useEffect(() => {
+    return () => tracker.dispose()
+  }, [tracker])
 
   if (compact) {
     return (
@@ -101,8 +127,24 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
         </button>
 
         {isExpanded && (
-          <div className="absolute top-8 right-0 z-50 min-w-64">
-            <GlassBox variant="medium" cornerRadius={12} className="p-4 shadow-lg">
+          <div
+            className="absolute right-0 top-8 z-50 min-w-64"
+            style={{
+              // Optimize rendering for expanded dashboard
+              transform: 'translateZ(0)',
+              willChange: 'transform, opacity'
+            }}
+          >
+            <GlassBox
+              variant="medium"
+              cornerRadius={12}
+              className="p-4 shadow-lg"
+              style={{
+                // Hardware acceleration for smooth transitions
+                transform: 'translateZ(0)',
+                backfaceVisibility: 'hidden'
+              }}
+            >
               <PerformanceDashboard className="w-full" compact={false} />
             </GlassBox>
           </div>
@@ -116,7 +158,15 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
       variant="light"
       cornerRadius={8}
       className={cn('app-region-no-drag', className)}
-      style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
+      style={
+        {
+          WebkitAppRegion: 'no-drag',
+          // Optimize rendering performance
+          transform: 'translateZ(0)',
+          willChange: 'auto',
+          backfaceVisibility: 'hidden'
+        } as React.CSSProperties
+      }
     >
       <div className="space-y-4 p-3">
         {/* Header */}
@@ -129,12 +179,20 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
               🧹
             </GlassButton>
             <GlassButton
-              onClick={downloadReport}
-              title="Download performance report"
+              onClick={downloadEnhancedReport}
+              title="Download enhanced performance report"
               variant="light"
               size="sm"
             >
               📁
+            </GlassButton>
+            <GlassButton
+              onClick={() => setShowWebVitals(!showWebVitals)}
+              title="Toggle Web Vitals"
+              variant="light"
+              size="sm"
+            >
+              📊
             </GlassButton>
           </div>
         </div>
@@ -188,10 +246,23 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
                     </div>
 
                     <div className="space-y-1">
-                      <div className="bg-muted h-1.5 w-full rounded-full">
+                      <div
+                        className="bg-muted h-1.5 w-full rounded-full"
+                        style={{
+                          // Optimize progress bar container
+                          transform: 'translateZ(0)',
+                          willChange: 'auto'
+                        }}
+                      >
                         <div
-                          className="bg-primary h-1.5 rounded-full transition-all duration-300"
-                          style={{width: `${(memoryUsage.used / memoryUsage.total) * 100}%`}}
+                          className="bg-primary h-1.5 rounded-full"
+                          style={{
+                            width: `${(memoryUsage.used / memoryUsage.total) * 100}%`,
+                            // Use transform instead of width transition for better performance
+                            transform: 'translateZ(0)',
+                            willChange: 'transform',
+                            transition: 'transform 0.3s ease-out'
+                          }}
                         ></div>
                       </div>
                       <div className="text-center text-xs" style={{color: 'var(--text-muted)'}}>
@@ -208,6 +279,88 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
                   </span>
                 </div>
               </GlassBox>
+            </div>
+          </div>
+        )}
+
+        {/* Web Vitals Metrics */}
+        {showWebVitals && (
+          <div className="border-t pt-3">
+            <div className="text-muted-foreground mb-2 text-xs">Core Web Vitals:</div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {webVitalsMetrics.fcp && (
+                <div className="flex justify-between">
+                  <span>FCP:</span>
+                  <span
+                    className={cn(
+                      'font-mono',
+                      getPerformanceColor(webVitalsMetrics.fcp, [1800, 3000])
+                    )}
+                  >
+                    {formatTime(webVitalsMetrics.fcp)}
+                  </span>
+                </div>
+              )}
+              {webVitalsMetrics.lcp && (
+                <div className="flex justify-between">
+                  <span>LCP:</span>
+                  <span
+                    className={cn(
+                      'font-mono',
+                      getPerformanceColor(webVitalsMetrics.lcp, [2500, 4000])
+                    )}
+                  >
+                    {formatTime(webVitalsMetrics.lcp)}
+                  </span>
+                </div>
+              )}
+              {webVitalsMetrics.cls !== undefined && (
+                <div className="flex justify-between">
+                  <span>CLS:</span>
+                  <span
+                    className={cn(
+                      'font-mono',
+                      getPerformanceColor(webVitalsMetrics.cls, [0.1, 0.25])
+                    )}
+                  >
+                    {webVitalsMetrics.cls.toFixed(3)}
+                  </span>
+                </div>
+              )}
+              {webVitalsMetrics.fid && (
+                <div className="flex justify-between">
+                  <span>FID:</span>
+                  <span
+                    className={cn(
+                      'font-mono',
+                      getPerformanceColor(webVitalsMetrics.fid, [100, 300])
+                    )}
+                  >
+                    {formatTime(webVitalsMetrics.fid)}
+                  </span>
+                </div>
+              )}
+              {webVitalsMetrics.glassRenderTime && (
+                <div className="flex justify-between">
+                  <span>Glass Render:</span>
+                  <span
+                    className={cn(
+                      'font-mono',
+                      getPerformanceColor(webVitalsMetrics.glassRenderTime, [16, 33])
+                    )}
+                  >
+                    {formatTime(webVitalsMetrics.glassRenderTime)}
+                  </span>
+                </div>
+              )}
+              {webVitalsMetrics.glassComponentCount && (
+                <div className="flex justify-between">
+                  <span>Glass Components:</span>
+                  <span className="font-mono" style={{color: 'var(--text-primary)'}}>
+                    {webVitalsMetrics.glassComponentCount}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

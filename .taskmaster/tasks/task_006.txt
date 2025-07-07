@@ -1,23 +1,46 @@
 # Task ID: 6
-# Title: Implement Comprehensive Error Handling
+# Title: Implement Model Configuration and Setup Messages
 # Status: pending
-# Dependencies: 3, 4, 5
+# Dependencies: 2, 3, 4
 # Priority: high
-# Description: Develop a robust error handling system including WebSocket failures, API errors, and network interruptions.
+# Description: Configure the gemini-live-2.5-flash-preview model and implement proper setup messages.
 # Details:
-1. Create an ErrorHandler class to centralize error management.
-2. Implement specific error types (e.g., WebSocketError, APIError, NetworkError).
-3. Use TypeScript for creating custom error classes extending the Error class.
-4. Implement error logging using a library like winston (version 3.x).
-5. Create a fallback mechanism to switch to HTTP-based approach when WebSocket fails.
-6. Implement user-friendly error messages and UI components for error display.
-7. Use React Error Boundaries for handling rendering errors.
-8. Implement a retry mechanism for recoverable errors.
-9. Use circuit breaker pattern (e.g., opossum library version 6.x) for handling API failures.
+1. Create a `ModelConfig` class in `src/utils/ModelConfig.ts`:
+   ```typescript
+   class ModelConfig {
+     static getSetupMessage() {
+       return {
+         setup: {
+           model: 'models/gemini-live-2.5-flash-preview',
+           generationConfig: {
+             responseModalities: ['TEXT', 'AUDIO']
+           },
+           sessionResumption: true
+         }
+       };
+     }
+   }
+   ```
+2. Integrate `ModelConfig` with `WebSocketManager`:
+   ```typescript
+   import { ModelConfig } from '../utils/ModelConfig';
+
+   class WebSocketManager {
+     // ...
+
+     private sendSetupMessage() {
+       const setupMessage = ModelConfig.getSetupMessage();
+       this.ws.send(JSON.stringify(setupMessage));
+     }
+   }
+   ```
+3. Ensure model configuration is consistent across all services
+4. Implement logic to handle model-specific responses
+5. Add validation for model-specific parameters
 
 # Test Strategy:
-1. Unit test ErrorHandler class methods.
-2. Test each error scenario and verify correct error handling.
-3. Integration test fallback mechanism to HTTP-based approach.
-4. UI testing for error message display.
-5. Verify logging functionality for various error types.
+1. Unit tests for ModelConfig class
+2. Verify setup message structure and content
+3. Test integration with WebSocketManager
+4. Ensure model consistency across different parts of the application
+5. Test handling of model-specific responses

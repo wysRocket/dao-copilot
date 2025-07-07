@@ -2,6 +2,10 @@ import fetch from 'node-fetch'
 import {getProxyAuthToken} from '../helpers/proxy-server'
 import {TranscriptionMode} from './gemini-live-integration'
 import {
+  TranscriptionPipeline,
+  createProductionTranscriptionPipeline
+} from './transcription-pipeline'
+import {
   createLegacyWrapper,
   migrateLegacyConfig,
   LegacyAliases
@@ -18,6 +22,8 @@ export interface ProxyTranscriptionOptions {
   enableWebSocket?: boolean // Feature flag to enable WebSocket functionality
   fallbackToBatch?: boolean // Whether to fallback to batch mode on WebSocket failure
   realTimeThreshold?: number // Minimum audio length for real-time processing (ms)
+  usePipeline?: boolean // Whether to use the new TranscriptionPipeline through proxy
+  pipelineConfig?: object // Configuration for TranscriptionPipeline
 }
 
 /**
@@ -31,11 +37,134 @@ export interface ProxyTranscriptionResult {
   [key: string]: unknown
 }
 
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
+const DEFAULT_GEMINI_MODEL = 'gemini-live-2.5-flash-preview'
 const DEFAULT_PROXY_URL = 'http://localhost:8001'
+
+// Global pipeline instance for proxy transcription
+let proxyTranscriptionPipeline: TranscriptionPipeline | null = null
 
 interface GeminiProxyResponse {
   candidates?: {content?: {parts?: {text?: string}[]}}[]
+}
+
+interface GeminiProxyResponse {
+  candidates?: {content?: {parts?: {text?: string}[]}}[]
+}
+
+/**
+ * Check if new TranscriptionPipeline should be used for proxy transcription
+ */
+function shouldUseProxyPipeline(options: ProxyTranscriptionOptions): boolean {
+  // Check feature flag
+  const pipelineEnabled = process.env.GEMINI_PIPELINE_ENABLED !== 'false'
+
+  // Check explicit option (default to false for proxy to maintain existing behavior)
+  if (options.usePipeline !== undefined) {
+    return options.usePipeline && pipelineEnabled
+  }
+
+  // Use pipeline for WebSocket and hybrid modes when enabled
+  const mode = options.mode || TranscriptionMode.HYBRID
+  return (
+    pipelineEnabled && (mode === TranscriptionMode.WEBSOCKET || mode === TranscriptionMode.HYBRID)
+  )
+}
+
+/**
+ * Initialize or get the proxy TranscriptionPipeline
+ */
+function getProxyTranscriptionPipeline(options: ProxyTranscriptionOptions): TranscriptionPipeline {
+  if (!proxyTranscriptionPipeline) {
+    const apiKey =
+      options.apiKey ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.VITE_GOOGLE_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GEMINI_API_KEY
+
+    if (!apiKey) {
+      throw new Error('Google API Key is required for proxy pipeline transcription')
+    }
+
+    proxyTranscriptionPipeline = createProductionTranscriptionPipeline(apiKey, {
+      mode: options.mode || TranscriptionMode.HYBRID,
+      fallbackToBatch: options.fallbackToBatch !== false,
+      realTimeThreshold: options.realTimeThreshold || 1000,
+      model: options.modelName || DEFAULT_GEMINI_MODEL,
+      // Note: Proxy support would be added to TranscriptionPipelineConfig in the future
+      ...options.pipelineConfig
+    })
+  }
+
+  return proxyTranscriptionPipeline
+}
+
+/**
+ * Transcribe using the TranscriptionPipeline through proxy
+ */
+async function transcribeViaProxyPipeline(
+  audioData: Buffer,
+  options: ProxyTranscriptionOptions
+): Promise<ProxyTranscriptionResult> {
+  const startTime = Date.now()
+  const pipeline = getProxyTranscriptionPipeline(options)
+
+  // Convert Buffer to Float32Array for pipeline
+  const audioArray = new Float32Array(audioData.length / 4)
+  for (let i = 0; i < audioArray.length; i++) {
+    audioArray[i] = audioData.readFloatLE(i * 4)
+  }
+
+  return new Promise((resolve, reject) => {
+    let resolved = false
+
+    const handleTranscription = (result: {
+      text: string
+      confidence?: number
+      timestamp?: number
+    }) => {
+      if (!resolved) {
+        resolved = true
+        const duration = Date.now() - startTime
+        resolve({
+          text: result.text,
+          duration,
+          confidence: result.confidence,
+          source: 'pipeline-proxy'
+        })
+      }
+    }
+
+    const handleError = (error: Error) => {
+      if (!resolved) {
+        resolved = true
+        reject(error)
+      }
+    }
+
+    pipeline.on('transcription', handleTranscription)
+    pipeline.on('error', handleError)
+
+    // Initialize and start transcription
+    pipeline
+      .initialize()
+      .then(() => pipeline.startTranscription())
+      .then(() => {
+        console.log('Processing audio buffer through proxy pipeline')
+        return Promise.resolve()
+      })
+      .catch(handleError)
+
+    // Cleanup after timeout
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        pipeline.off('transcription', handleTranscription)
+        pipeline.off('error', handleError)
+        reject(new Error('Proxy pipeline transcription timeout'))
+      }
+    }, 30000) // 30 second timeout
+  })
 }
 
 /**
@@ -48,6 +177,16 @@ export async function transcribeAudioViaProxy(
   audioData: Buffer,
   options: ProxyTranscriptionOptions = {}
 ): Promise<ProxyTranscriptionResult> {
+  // Check if pipeline should be used
+  if (shouldUseProxyPipeline(options)) {
+    try {
+      return await transcribeViaProxyPipeline(audioData, options)
+    } catch (error) {
+      console.warn('Proxy pipeline transcription failed, falling back to batch proxy:', error)
+      // Fall through to batch proxy
+    }
+  }
+
   // Maintain backward compatibility by using batch mode
   return transcribeAudioViaBatchProxy(audioData, options)
 }
@@ -249,6 +388,19 @@ export async function transcribeAudioViaProxyEnhanced(
   audioData: Buffer,
   options: ProxyTranscriptionOptions = {}
 ): Promise<ProxyTranscriptionResult> {
+  // Check if pipeline should be used first
+  if (shouldUseProxyPipeline(options)) {
+    try {
+      return await transcribeViaProxyPipeline(audioData, options)
+    } catch (error) {
+      console.warn(
+        'Proxy pipeline transcription failed, falling back to direct proxy methods:',
+        error
+      )
+      // Fall through to direct proxy methods
+    }
+  }
+
   const mode = options.mode || TranscriptionMode.HYBRID
   const enableWebSocket = shouldUseWebSocketProxy(options)
   const fallbackToBatch = options.fallbackToBatch !== false

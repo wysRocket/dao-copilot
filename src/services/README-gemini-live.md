@@ -113,7 +113,7 @@ import GeminiLiveWebSocketClient from './gemini-live-websocket'
 
 const client = new GeminiLiveWebSocketClient({
   apiKey: 'your-api-key',
-  model: 'gemini-2.0-flash-live-001',
+  model: 'gemini-live-2.5-flash-preview',
   responseModalities: ['AUDIO'],
   systemInstruction: 'You are a helpful assistant.',
   reconnectAttempts: 5,
@@ -340,7 +340,7 @@ export GEMINI_API_KEY="your-api-key"
 ```typescript
 interface GeminiLiveConfig {
   apiKey: string // Required: API key for authentication
-  model?: string // Default: 'gemini-2.0-flash-live-001'
+  model?: string // Default: 'gemini-live-2.5-flash-preview'
   responseModalities?: string[] // Default: ['AUDIO']
   systemInstruction?: string // Default: friendly assistant instruction
   reconnectAttempts?: number // Default: 5
@@ -695,13 +695,11 @@ const hybridResult = await transcribeAudio(audioData, {
 ### Common Issues
 
 1. **Connection Failures**
-
    - Check API key validity
    - Verify network connectivity
    - Check firewall settings for WebSocket connections
 
 2. **Audio Processing Issues**
-
    - Ensure audio format meets requirements (16-bit PCM, 16kHz, mono)
    - Check audio device permissions
    - Verify audio input source
@@ -743,7 +741,7 @@ GOOGLE_API_KEY=your-google-api-key
 GEMINI_API_KEY=your-gemini-api-key
 
 # Optional
-GEMINI_MODEL=gemini-2.0-flash-live-001
+GEMINI_MODEL=gemini-live-2.5-flash-preview
 GEMINI_RECONNECT_ATTEMPTS=5
 GEMINI_HEARTBEAT_INTERVAL=30000
 GEMINI_CONNECTION_TIMEOUT=10000

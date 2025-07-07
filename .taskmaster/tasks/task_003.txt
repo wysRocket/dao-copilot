@@ -1,21 +1,43 @@
 # Task ID: 3
-# Title: Integrate WebSocket Client with Audio Streaming
+# Title: Implement Session Management
 # Status: pending
-# Dependencies: 1, 2
+# Dependencies: 2
 # Priority: high
-# Description: Connect the WebSocket client to the audio capture service for real-time streaming of audio data to the Gemini Live API.
+# Description: Add session management capabilities to the WebSocket connection, including session resumption.
 # Details:
-1. Create an AudioStreamingService class to bridge WebSocketClient and AudioCaptureService.
-2. Implement method to start streaming that initializes both WebSocket connection and audio capture.
-3. Convert audio chunks to base64-encoded strings for WebSocket transmission.
-4. Implement flow control to handle backpressure (use a queue with configurable max size).
-5. Use the 'buffer' npm package (version 6.x) for efficient binary data handling.
-6. Implement error handling for both WebSocket and audio capture failures.
-7. Use RxJS (version 7.x) for reactive stream processing if complex stream management is needed.
+1. Extend `WebSocketManager` class with session management:
+   ```typescript
+   import { SessionManager } from '../utils/SessionManager';
+
+   class WebSocketManager {
+     private sessionManager: SessionManager;
+
+     constructor(apiKey: string) {
+       // ...
+       this.sessionManager = new SessionManager();
+     }
+
+     async connect() {
+       // ...
+       const sessionConfig = await this.sessionManager.getSessionConfig();
+       // Use sessionConfig in setup message
+     }
+
+     private async handleSessionResumption(event: WebSocket.MessageEvent) {
+       // Logic to handle session resumption
+     }
+   }
+   ```
+2. Implement `SessionManager` class in `src/utils/SessionManager.ts`:
+   - Store and retrieve session information
+   - Handle session expiration
+   - Implement session resumption logic
+3. Update connection method to include session information in setup message
+4. Implement logic to handle server-initiated session resets
+5. Add method to gracefully terminate sessions
 
 # Test Strategy:
-1. Unit test AudioStreamingService methods.
-2. Integration test with mock WebSocket server and audio input.
-3. Test flow control and backpressure handling.
-4. Verify correct audio data transmission format.
-5. Measure and assert on streaming performance metrics.
+1. Unit tests for SessionManager class
+2. Integration test for session establishment and resumption
+3. Test scenarios for session expiration and reset
+4. Verify graceful session termination

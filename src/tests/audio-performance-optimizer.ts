@@ -114,7 +114,7 @@ export class AudioStreamingOptimizer {
     const optimized: AudioPipelineConfig = {
       websocket: {
         apiKey: baseConfig.websocket?.apiKey || '',
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-live-2.5-flash-preview',
         enableReconnect: true
       },
       audio: {
@@ -419,14 +419,22 @@ export async function runOptimizationSuite(): Promise<void> {
     {
       name: 'Low Latency',
       config: optimizer.createOptimizedConfig({
-        websocket: {apiKey: 'test-key', model: 'gemini-2.0-flash-exp', enableReconnect: true},
+        websocket: {
+          apiKey: 'test-key',
+          model: 'gemini-live-2.5-flash-preview',
+          enableReconnect: true
+        },
         processing: {bufferSize: 2048, enableWorkers: true, enableVAD: true, vadThreshold: 0.01}
       })
     },
     {
       name: 'High Quality',
       config: optimizer.createOptimizedConfig({
-        websocket: {apiKey: 'test-key', model: 'gemini-2.0-flash-exp', enableReconnect: true},
+        websocket: {
+          apiKey: 'test-key',
+          model: 'gemini-live-2.5-flash-preview',
+          enableReconnect: true
+        },
         audio: {sampleRate: 22050, channels: 1, bitDepth: 16},
         processing: {bufferSize: 8192, enableWorkers: true, enableVAD: true, vadThreshold: 0.01}
       })
@@ -434,7 +442,11 @@ export async function runOptimizationSuite(): Promise<void> {
     {
       name: 'Balanced',
       config: optimizer.createOptimizedConfig({
-        websocket: {apiKey: 'test-key', model: 'gemini-2.0-flash-exp', enableReconnect: true},
+        websocket: {
+          apiKey: 'test-key',
+          model: 'gemini-live-2.5-flash-preview',
+          enableReconnect: true
+        },
         processing: {bufferSize: 4096, enableWorkers: true, enableVAD: true, vadThreshold: 0.01}
       })
     }

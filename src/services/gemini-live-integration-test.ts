@@ -13,7 +13,7 @@ import GeminiLiveIntegrationService, {
  */
 const mockConfig: Partial<IntegrationConfig> = {
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || 'test-api-key',
-  model: 'gemini-2.0-flash-live-001',
+  model: 'gemini-live-2.5-flash-preview',
   mode: TranscriptionMode.HYBRID,
   fallbackToBatch: true,
   realTimeThreshold: 1000,

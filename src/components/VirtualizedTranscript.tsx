@@ -6,6 +6,7 @@ interface VirtualizedTranscriptProps {
   transcripts: TranscriptionResult[]
   newMessageIndices: Set<number>
   maxVisibleMessages?: number
+  setItemRef?: (index: number, element: HTMLElement | null) => void
 }
 
 // Memoized transcript message to prevent unnecessary re-renders
@@ -18,7 +19,7 @@ const MemoizedGlassMessage = memo(GlassMessage, (prevProps, nextProps) => {
 })
 
 export const VirtualizedTranscript: React.FC<VirtualizedTranscriptProps> = memo(
-  ({transcripts, newMessageIndices, maxVisibleMessages = 100}) => {
+  ({transcripts, newMessageIndices, maxVisibleMessages = 100, setItemRef}) => {
     // Only render the most recent messages for performance
     const visibleTranscripts = React.useMemo(() => {
       if (transcripts.length <= maxVisibleMessages) {
@@ -34,11 +35,20 @@ export const VirtualizedTranscript: React.FC<VirtualizedTranscriptProps> = memo(
         {visibleTranscripts.map((transcript, index) => {
           const actualIndex = startIndex + index
           return (
-            <MemoizedGlassMessage
+            <div
               key={`transcript-${actualIndex}-${transcript.text.slice(0, 10)}`}
-              transcript={transcript}
-              isNew={newMessageIndices.has(actualIndex)}
-            />
+              ref={setItemRef ? el => setItemRef(actualIndex, el) : undefined}
+              style={{
+                // Enable hardware acceleration for list items
+                transform: 'translateZ(0)',
+                willChange: newMessageIndices.has(actualIndex) ? 'transform, opacity' : 'auto'
+              }}
+            >
+              <MemoizedGlassMessage
+                transcript={transcript}
+                isNew={newMessageIndices.has(actualIndex)}
+              />
+            </div>
           )
         })}
       </>

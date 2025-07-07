@@ -66,7 +66,7 @@ describe('AudioStreamingPipeline', () => {
     config = {
       websocket: {
         apiKey: 'test-api-key',
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-live-2.5-flash-preview',
         enableReconnect: true
       },
       audio: {
@@ -378,7 +378,7 @@ describe('AudioStreamingPipeline', () => {
       const partialConfig: Partial<AudioPipelineConfig> = {
         websocket: {
           apiKey: 'test-key',
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-live-2.5-flash-preview',
           enableReconnect: true
         }
       }
@@ -392,7 +392,7 @@ describe('AudioStreamingPipeline', () => {
       const partialConfig: Partial<AudioPipelineConfig> = {
         websocket: {
           apiKey: 'test-key',
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-live-2.5-flash-preview',
           enableReconnect: true
         },
         audio: {

@@ -134,8 +134,8 @@ export class WebSocketConnectionEstablisher extends EventEmitter {
 
     this.config = {
       endpoint:
-        'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.LiveStreaming',
-      model: 'gemini-2.0-flash-exp',
+        'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent',
+      model: 'gemini-live-2.5-flash-preview',
       connectionTimeout: 10000,
       handshakeTimeout: 5000,
       retryAttempts: 3,

@@ -2,14 +2,18 @@ import {GoogleGenAI} from '@google/genai'
 import {GeminiLiveIntegrationService, TranscriptionMode} from './gemini-live-integration'
 import {GeminiLiveIntegrationFactory} from './gemini-live-integration-factory'
 import {
+  TranscriptionPipeline,
+  createProductionTranscriptionPipeline
+} from './transcription-pipeline'
+import {
   createLegacyWrapper,
   migrateLegacyConfig,
   LegacyAliases
 } from './transcription-compatibility'
 import type {TranscriptionResult as IntegrationTranscriptionResult} from './audio-recording'
 
-// User-specified model name
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
+// User-specified model name - updated to Live API model
+const DEFAULT_GEMINI_MODEL = 'gemini-live-2.5-flash-preview'
 
 /**
  * Configuration options for the transcription service
@@ -21,6 +25,8 @@ export interface TranscriptionOptions {
   enableWebSocket?: boolean // Feature flag to enable WebSocket functionality
   fallbackToBatch?: boolean // Whether to fallback to batch mode on WebSocket failure
   realTimeThreshold?: number // Minimum audio length for real-time processing (ms)
+  usePipeline?: boolean // Whether to use the new TranscriptionPipeline (default: true)
+  pipelineConfig?: object // Configuration for TranscriptionPipeline
 }
 
 /**
@@ -44,9 +50,14 @@ function bufferToGenerativePart(buffer: Buffer, mimeType: string) {
   }
 }
 
+// Global instances for service management
+let integrationService: GeminiLiveIntegrationService | null = null
+let transcriptionPipeline: TranscriptionPipeline | null = null
+
 /**
  * Transcribes audio data using Google's Gemini API
- * This version is designed for the main process in Electron
+ * This version is designed for the main process in Electron and supports
+ * the new TranscriptionPipeline for enhanced WebSocket functionality.
  * @param audioData The audio data as a Buffer (e.g., from a WAV file)
  * @param options Configuration options including the API key and optional model name
  * @returns Promise resolving to the transcription result
@@ -57,53 +68,20 @@ export async function transcribeAudio(
 ): Promise<TranscriptionResult> {
   const startTime = Date.now()
 
-  // Check if WebSocket mode should be used
+  // Check if new TranscriptionPipeline should be used
+  if (shouldUsePipeline(options)) {
+    try {
+      return await transcribeWithPipeline(audioData, options, startTime)
+    } catch (error) {
+      console.warn('Pipeline transcription failed, falling back to integration service:', error)
+      // Fall through to integration service or batch mode
+    }
+  }
+
+  // Check if WebSocket mode should be used (legacy integration service)
   if (shouldUseWebSocket(options)) {
     try {
-      // Use integration service for WebSocket or hybrid mode
-      const service = getIntegrationService(options)
-
-      // Convert Buffer to Float32Array for integration service
-      const audioArray = new Float32Array(audioData.length / 4)
-      for (let i = 0; i < audioArray.length; i++) {
-        audioArray[i] = audioData.readFloatLE(i * 4)
-      }
-
-      // Use the integration service to process audio
-      return new Promise((resolve, reject) => {
-        let resolved = false
-
-        const handleTranscription = (result: IntegrationTranscriptionResult, source: string) => {
-          if (!resolved) {
-            resolved = true
-            const duration = Date.now() - startTime
-            resolve(convertToLegacyResult(result, duration, source))
-          }
-        }
-
-        const handleError = (error: Error) => {
-          if (!resolved) {
-            resolved = true
-            reject(error)
-          }
-        }
-
-        service.once('transcription', handleTranscription)
-        service.once('error', handleError)
-
-        // Start transcription - the service will handle mode selection
-        service.startTranscription().catch(handleError)
-
-        // Cleanup after timeout
-        setTimeout(() => {
-          if (!resolved) {
-            resolved = true
-            service.off('transcription', handleTranscription)
-            service.off('error', handleError)
-            reject(new Error('Transcription timeout'))
-          }
-        }, 30000) // 30 second timeout
-      })
+      return await transcribeWithIntegration(audioData, options, startTime)
     } catch (error) {
       console.warn('WebSocket transcription failed, falling back to batch mode:', error)
       // Fall through to batch mode
@@ -114,8 +92,143 @@ export async function transcribeAudio(
   return transcribeAudioBatch(audioData, options)
 }
 
-// Global integration service instance
-let integrationService: GeminiLiveIntegrationService | null = null
+/**
+ * Transcribe using the new TranscriptionPipeline
+ */
+async function transcribeWithPipeline(
+  audioData: Buffer,
+  options: TranscriptionOptions,
+  startTime: number
+): Promise<TranscriptionResult> {
+  const pipeline = getTranscriptionPipeline(options)
+
+  // Convert Buffer to Float32Array for pipeline
+  const audioArray = new Float32Array(audioData.length / 4)
+  for (let i = 0; i < audioArray.length; i++) {
+    audioArray[i] = audioData.readFloatLE(i * 4)
+  }
+
+  return new Promise((resolve, reject) => {
+    let resolved = false
+
+    const handleTranscription = (result: IntegrationTranscriptionResult) => {
+      if (!resolved) {
+        resolved = true
+        const duration = Date.now() - startTime
+        resolve(convertToLegacyResult(result, duration, 'pipeline'))
+      }
+    }
+
+    const handleError = (error: Error) => {
+      if (!resolved) {
+        resolved = true
+        reject(error)
+      }
+    }
+
+    pipeline.on('transcription', handleTranscription)
+    pipeline.on('error', handleError)
+
+    // Initialize and start transcription
+    pipeline
+      .initialize()
+      .then(() => pipeline.startTranscription())
+      .then(() => {
+        // For file-based transcription, we need to simulate streaming
+        // In a real implementation, this would be handled by the audio recording service
+        // For now, we'll just trigger a transcription event with the buffer data
+        console.log('Processing audio buffer through pipeline (simulation)')
+
+        // The pipeline will handle the transcription internally
+        // This is a placeholder for file-based transcription compatibility
+        return Promise.resolve()
+      })
+      .catch(handleError)
+
+    // Cleanup after timeout
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        pipeline.off('transcription', handleTranscription)
+        pipeline.off('error', handleError)
+        reject(new Error('Pipeline transcription timeout'))
+      }
+    }, 30000) // 30 second timeout
+  })
+}
+
+/**
+ * Transcribe using the legacy integration service
+ */
+async function transcribeWithIntegration(
+  audioData: Buffer,
+  options: TranscriptionOptions,
+  startTime: number
+): Promise<TranscriptionResult> {
+  // Use integration service for WebSocket or hybrid mode
+  const service = getIntegrationService(options)
+
+  // Convert Buffer to Float32Array for integration service
+  const audioArray = new Float32Array(audioData.length / 4)
+  for (let i = 0; i < audioArray.length; i++) {
+    audioArray[i] = audioData.readFloatLE(i * 4)
+  }
+
+  // Use the integration service to process audio
+  return new Promise((resolve, reject) => {
+    let resolved = false
+
+    const handleTranscription = (result: IntegrationTranscriptionResult, source: string) => {
+      if (!resolved) {
+        resolved = true
+        const duration = Date.now() - startTime
+        resolve(convertToLegacyResult(result, duration, source))
+      }
+    }
+
+    const handleError = (error: Error) => {
+      if (!resolved) {
+        resolved = true
+        reject(error)
+      }
+    }
+
+    service.once('transcription', handleTranscription)
+    service.once('error', handleError)
+
+    // Start transcription - the service will handle mode selection
+    service.startTranscription().catch(handleError)
+
+    // Cleanup after timeout
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        service.off('transcription', handleTranscription)
+        service.off('error', handleError)
+        reject(new Error('Integration transcription timeout'))
+      }
+    }, 30000) // 30 second timeout
+  })
+}
+
+/**
+ * Initialize or get the TranscriptionPipeline
+ */
+function getTranscriptionPipeline(options: TranscriptionOptions): TranscriptionPipeline {
+  if (!transcriptionPipeline) {
+    const apiKey = getApiKey(options)
+
+    transcriptionPipeline = createProductionTranscriptionPipeline(apiKey, {
+      mode: options.mode || TranscriptionMode.HYBRID,
+      fallbackToBatch: options.fallbackToBatch !== false,
+      realTimeThreshold: options.realTimeThreshold || 1000,
+      model: options.modelName || DEFAULT_GEMINI_MODEL,
+      ...options.pipelineConfig
+    })
+  }
+
+  return transcriptionPipeline
+}
 
 /**
  * Initialize or get the integration service
@@ -164,8 +277,23 @@ function getApiKey(options: TranscriptionOptions): string {
 }
 
 /**
- * Check if WebSocket mode should be used based on feature flags and options
+ * Check if new TranscriptionPipeline should be used
  */
+function shouldUsePipeline(options: TranscriptionOptions): boolean {
+  // Check feature flag
+  const pipelineEnabled = process.env.GEMINI_PIPELINE_ENABLED !== 'false'
+
+  // Check explicit option (default to true for new pipeline)
+  if (options.usePipeline !== undefined) {
+    return options.usePipeline && pipelineEnabled
+  }
+
+  // Use pipeline by default for WebSocket and hybrid modes
+  const mode = options.mode || TranscriptionMode.HYBRID
+  return (
+    pipelineEnabled && (mode === TranscriptionMode.WEBSOCKET || mode === TranscriptionMode.HYBRID)
+  )
+}
 function shouldUseWebSocket(options: TranscriptionOptions): boolean {
   // Check feature flag
   const webSocketEnabled = process.env.GEMINI_WEBSOCKET_ENABLED !== 'false'

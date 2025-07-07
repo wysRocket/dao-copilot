@@ -96,7 +96,7 @@ describe('WebSocketConnectionEstablisher', () => {
     defaultConfig = {
       apiKey: 'test-api-key',
       endpoint: 'wss://example.com/ws',
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-live-2.5-flash-preview',
       connectionTimeout: 5000,
       handshakeTimeout: 2000
     }

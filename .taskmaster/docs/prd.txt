@@ -1,175 +1,155 @@
-# Product Requirements Document: Gemini Live API WebSocket Integration
+# Google Gemini Live API WebSocket Implementation PRD
 
-## Overview
-Update the DAO Copilot transcribing flow to integrate with Google's Gemini Live API using WebSocket connections for real-time transcription capabilities. This migration from the current batch-based approach will provide better performance, lower latency, and improved accuracy.
+## Project Overview
+Implement a proper WebSocket connection to the Google Gemini Live API using the `gemini-live-2.5-flash-preview` model to replace the current non-functional implementation.
 
 ## Background
-The current implementation uses batch-based transcription where audio is recorded in intervals and sent to the Gemini API via HTTP requests. Google has released the Gemini Live API which provides enhanced real-time transcription features through WebSocket connections, offering better performance and lower latency.
+The current implementation of Google Gemini Live API with WebSockets is not working. This project aims to implement a robust, production-ready WebSocket connection that follows Google's official specifications and best practices.
 
 ## Objectives
-- Replace the current batch-based transcription with real-time WebSocket streaming
-- Implement WebSocket client for Gemini Live API integration
-- Maintain all existing functionality while improving performance
-- Provide seamless user experience with real-time transcription updates
-- Implement robust error handling and reconnection logic
+- Establish reliable WebSocket connection to Gemini Live API
+- Configure the `gemini-live-2.5-flash-preview` model consistently across all services
+- Implement proper session management with resumption capabilities
+- Handle bidirectional communication (text, audio input/output)
+- Add comprehensive error handling and reconnection logic
+- Ensure performance and reliability in production environments
 
 ## Technical Requirements
 
-### 1. WebSocket Implementation
-- Implement WebSocket client for Gemini Live API integration
-- Establish bidirectional communication with the API
-- Handle connection lifecycle (open, close, error events)
-- Implement reconnection logic with exponential backoff
-- Support binary and text message formats
+### Core WebSocket Implementation
+1. **Connection Management**
+   - WebSocket endpoint: `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`
+   - Model: `gemini-live-2.5-flash-preview` (required for all operations)
+   - API Version: `v1alpha` for Live API features
+   - Proper API key authentication
 
-### 2. Real-time Audio Streaming
-- Replace batch audio processing with continuous streaming
-- Implement audio capture using Web Audio API
-- Convert audio data to required format (16-bit PCM)
-- Stream audio chunks in real-time over WebSocket
-- Implement audio buffering and backpressure handling
+2. **Session Management**
+   - Session establishment and configuration
+   - Session resumption to handle server resets
+   - Graceful session termination
+   - Connection state monitoring
 
-### 3. Connection Management
-- Proper WebSocket connection lifecycle management
-- Handle network interruptions gracefully
-- Implement heartbeat mechanism for connection health
-- Support authentication and session management
-- Clean up resources on disconnection
+3. **Message Handling**
+   - Setup message with proper model configuration
+   - Bidirectional message exchange
+   - Support for text and audio input/output
+   - Response modalities configuration (TEXT, AUDIO)
 
-### 4. Error Handling and Recovery
-- Graceful handling of WebSocket connection failures
-- Fallback to HTTP-based approach when WebSocket fails
-- Network interruption recovery
-- API error handling and user feedback
-- Connection state management and status indicators
+4. **Error Handling & Resilience**
+   - Connection timeout handling
+   - Automatic reconnection with exponential backoff
+   - Error classification and appropriate responses
+   - Graceful degradation when WebSocket fails
 
-### 5. UI/UX Updates
-- Real-time transcription display updates
-- Connection status indicators
-- Streaming progress feedback
-- Smooth animations for live transcription
-- Performance optimizations for continuous updates
+### Integration Requirements
+1. **Service Integration**
+   - Update existing WebSocket services to use new implementation
+   - Ensure model consistency across all services
+   - Integrate with existing audio capture and processing pipeline
+   - Maintain compatibility with current UI components
 
-### 6. Performance Optimization
-- Efficient audio data processing
-- Memory management for continuous streaming
-- CPU usage optimization
-- Network bandwidth optimization
-- Responsive UI during streaming operations
+2. **Testing & Validation**
+   - Unit tests for WebSocket connection logic
+   - Integration tests for end-to-end communication
+   - Error scenario testing
+   - Performance testing under load
 
-## Functional Requirements
-
-### Core Functionality
-1. **Real-time Transcription**: Continuous audio capture and transcription
-2. **WebSocket Communication**: Bidirectional communication with Gemini Live API
-3. **Connection Management**: Robust connection handling and recovery
-4. **Audio Streaming**: Efficient real-time audio data streaming
-5. **Error Recovery**: Graceful degradation and fallback mechanisms
-
-### User Experience
-1. **Immediate Feedback**: Real-time transcription results displayed instantly
-2. **Connection Status**: Visual indicators for connection state
-3. **Seamless Operation**: No interruption to existing workflow
-4. **Performance**: No degradation in responsiveness
-5. **Reliability**: Consistent operation under various network conditions
-
-## Non-Functional Requirements
-
-### Performance
-- Latency: < 200ms from audio input to transcription display
-- CPU Usage: No significant increase from current implementation
-- Memory Usage: Efficient memory management for continuous operation
-- Network Usage: Optimized data transmission
-
-### Reliability
-- 99.9% uptime for WebSocket connections
-- Automatic recovery from network failures
-- Fallback mechanism availability
-- Data integrity during transmission
-
-### Scalability
-- Support for extended recording sessions
-- Handle high-frequency audio updates
-- Manage large transcription histories
-- Efficient resource cleanup
-
-## Implementation Phases
-
-### Phase 1: WebSocket Client Foundation
-- Implement basic WebSocket client
-- Establish connection to Gemini Live API
-- Handle basic message exchange
-- Implement connection lifecycle management
-
-### Phase 2: Audio Streaming Integration
-- Update audio recording service for real-time streaming
-- Implement audio format conversion
-- Integrate WebSocket client with audio service
-- Handle audio data transmission
-
-### Phase 3: Real-time Transcription Processing
-- Process incoming transcription results
-- Update UI components for real-time display
-- Implement partial result handling
-- Optimize rendering performance
-
-### Phase 4: Error Handling and Recovery
-- Implement comprehensive error handling
-- Add reconnection logic
-- Create fallback mechanisms
-- Add connection status indicators
-
-### Phase 5: Testing and Optimization
-- Performance testing and optimization
-- End-to-end testing
-- Error scenario testing
-- User acceptance testing
+3. **Documentation & Monitoring**
+   - Comprehensive code documentation
+   - Implementation guide and usage examples
+   - Connection health monitoring
+   - Performance metrics and logging
 
 ## Technical Specifications
 
-### WebSocket Configuration
-- Protocol: WSS (WebSocket Secure)
-- Message Format: JSON and Binary
-- Compression: Optional gzip compression
-- Heartbeat: 30-second intervals
+### Setup Message Structure
+```json
+{
+  "setup": {
+    "model": "models/gemini-live-2.5-flash-preview",
+    "generationConfig": {
+      "responseModalities": ["TEXT", "AUDIO"]
+    },
+    "sessionResumption": true
+  }
+}
+```
 
-### Audio Specifications
-- Format: 16-bit PCM
-- Sample Rate: 16kHz (configurable)
-- Channels: Mono
-- Chunk Size: 100ms buffers
+### Key Configuration Parameters
+- **Model**: `gemini-live-2.5-flash-preview` (half-cascade audio architecture)
+- **Response Modalities**: TEXT and AUDIO support
+- **Session Resumption**: Enabled for reliability
+- **Connection Timeout**: Configurable with sensible defaults
+- **Retry Strategy**: Exponential backoff with maximum attempts
 
-### API Integration
-- Endpoint: Gemini Live API WebSocket endpoint
-- Authentication: API key-based
-- Session Management: Connection-based sessions
-- Rate Limiting: Respect API limits
-
-## Dependencies
-- Existing audio capture service (audio-recording.ts)
-- Current transcription infrastructure
-- WebSocket library (ws or native WebSocket API)
-- Electron IPC system
-- React UI components
-
-## Risks and Mitigation
-1. **WebSocket Connectivity**: Implement fallback to HTTP-based approach
-2. **Performance Impact**: Thorough performance testing and optimization
-3. **API Changes**: Monitor API documentation and implement version handling
-4. **Network Issues**: Robust reconnection and error handling
-5. **Browser Compatibility**: Test across different Electron versions
+### Performance Requirements
+- Connection establishment within 5 seconds
+- Message round-trip latency under 500ms
+- Support for concurrent sessions
+- Graceful handling of network interruptions
+- Memory efficient message buffering
 
 ## Success Criteria
-- Successful WebSocket connection to Gemini Live API
-- Real-time transcription functionality working
-- No degradation in existing features
-- Improved latency compared to batch approach
-- Robust error handling and recovery
-- Comprehensive test coverage
-- Updated documentation
+1. **Functional Requirements**
+   - [ ] Successful WebSocket connection establishment
+   - [ ] Proper `gemini-live-2.5-flash-preview` model configuration
+   - [ ] Bidirectional text communication working
+   - [ ] Audio input/output functionality (if applicable)
+   - [ ] Session resumption working correctly
 
-## References
-- [Gemini Live API Documentation](https://ai.google.dev/gemini-api/docs/live#javascript)
-- [Gemini Live API Reference](https://ai.google.dev/api/live)
-- Current implementation in src/services/
-- Existing audio capture system
+2. **Non-Functional Requirements**
+   - [ ] Connection reliability > 99% uptime
+   - [ ] Error recovery within 30 seconds
+   - [ ] Comprehensive test coverage > 80%
+   - [ ] Zero memory leaks in long-running sessions
+   - [ ] Proper logging and monitoring
+
+3. **Integration Requirements**
+   - [ ] All existing WebSocket services updated
+   - [ ] Model consistency maintained across application
+   - [ ] Backward compatibility with existing features
+   - [ ] UI components work seamlessly with new implementation
+
+## Implementation Phases
+
+### Phase 1: Core WebSocket Implementation
+- Basic WebSocket connection establishment
+- Authentication and API key handling
+- Model configuration and setup messages
+
+### Phase 2: Session Management
+- Session resumption capabilities
+- Connection state management
+- Graceful session termination
+
+### Phase 3: Message Handling
+- Bidirectional communication
+- Message queuing and buffering
+- Response processing
+
+### Phase 4: Error Handling & Resilience
+- Comprehensive error handling
+- Automatic reconnection logic
+- Graceful degradation strategies
+
+### Phase 5: Integration & Testing
+- Service integration and updates
+- Comprehensive testing suite
+- Performance optimization
+
+### Phase 6: Documentation & Monitoring
+- Code documentation
+- Usage guides
+- Monitoring and metrics
+
+## Dependencies
+- Google Gemini Live API access
+- WebSocket library compatibility
+- Existing audio processing pipeline
+- Current UI components and state management
+
+## Risk Mitigation
+- Fallback mechanisms for connection failures
+- Incremental rollout strategy
+- Comprehensive testing before production
+- Monitoring and alerting for connection issues

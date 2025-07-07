@@ -1,23 +1,34 @@
 # Task ID: 11
-# Title: Implement Comprehensive Logging and Monitoring
+# Title: Implement Documentation and Usage Examples
 # Status: pending
-# Dependencies: 5, 6, 8
-# Priority: low
-# Description: Develop a logging and monitoring system for tracking WebSocket connections, performance metrics, and error rates.
+# Dependencies: 1, 2, 3, 4, 5, 6, 7, 8, 9
+# Priority: medium
+# Description: Create comprehensive documentation and usage examples for the WebSocket implementation.
 # Details:
-1. Implement application-wide logging using winston (version 3.x).
-2. Create custom log transports for different environments (development, production).
-3. Implement log rotation and archiving for production logs.
-4. Use Prometheus client library (prom-client version 14.x) for metrics collection.
-5. Implement custom metrics for WebSocket connection status, latency, and error rates.
-6. Create a dashboard using Grafana for visualizing metrics.
-7. Implement distributed tracing using OpenTelemetry (version 1.x) for request flow tracking.
-8. Use Sentry (version 7.x) for error tracking and crash reporting.
-9. Implement log aggregation using the ELK stack (Elasticsearch, Logstash, Kibana) or a cloud-based solution.
+1. Create a `README.md` file with project overview and setup instructions
+2. Generate API documentation using TypeDoc:
+   ```bash
+   npm install --save-dev typedoc
+   npx typedoc --out docs src
+   ```
+3. Write usage examples for common scenarios:
+   ```typescript
+   import { GeminiService } from './services/GeminiService';
+
+   async function example() {
+     const gemini = new GeminiService();
+     await gemini.initialize();
+
+     const response = await gemini.sendMessage('Hello, Gemini!');
+     console.log(response);
+   }
+   ```
+4. Create a troubleshooting guide
+5. Document performance best practices and optimization tips
+6. Provide examples for integrating with different frameworks (Express, React, etc.)
 
 # Test Strategy:
-1. Verify logging output for various application scenarios.
-2. Test log rotation and archiving functionality.
-3. Validate metrics collection and accuracy.
-4. Test integration with monitoring and alerting systems.
-5. Perform end-to-end testing of the logging and monitoring pipeline.
+1. Verify all public APIs are documented
+2. Ensure README contains all necessary information for setup
+3. Test run all usage examples
+4. Peer review documentation for clarity and completeness

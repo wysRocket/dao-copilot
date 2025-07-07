@@ -3,6 +3,11 @@ import {TranscriptionResult} from '../services/main-stt-transcription'
 import GlassBox from './GlassBox'
 import VirtualizedTranscript from './VirtualizedTranscript'
 import {cn} from '../utils/tailwind'
+import {
+  useGlassEntrance,
+  useGlassInteractive,
+  useGlassListAnimation
+} from '../hooks/useGlassAnimations'
 
 interface TranscriptDisplayProps {
   transcripts: TranscriptionResult[]
@@ -22,7 +27,73 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
   const [newMessageIndices, setNewMessageIndices] = useState<Set<number>>(new Set())
   const prevTranscriptCount = useRef(transcripts.length)
 
-  // Handle auto-scroll and new message detection
+  // Animation hooks
+  const containerAnimation = useGlassEntrance({
+    direction: 'up',
+    distance: 30,
+    duration: 500,
+    delay: 100
+  })
+
+  const scrollButtonAnimation = useGlassInteractive({
+    scaleOnHover: true,
+    hoverScale: 1.1,
+    duration: 200
+  })
+
+  const {setItemRef} = useGlassListAnimation(transcripts, {
+    staggerDelay: 100,
+    maxConcurrent: 3
+  })
+
+  // Create a properly typed ref for the container
+  const containerRef = useRef<HTMLDivElement>(null)
+  const scrollButtonRef = useRef<HTMLButtonElement>(null)
+
+  // Apply container animation
+  useEffect(() => {
+    if (containerRef.current && containerAnimation.ref.current !== containerRef.current) {
+      containerAnimation.ref.current = containerRef.current
+    }
+  }, [])
+
+  // Apply scroll button animation
+  useEffect(() => {
+    if (scrollButtonRef.current && scrollButtonAnimation.ref.current !== scrollButtonRef.current) {
+      scrollButtonAnimation.ref.current = scrollButtonRef.current
+    }
+  }, [])
+
+  // Optimized scroll function using requestAnimationFrame
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      const scrollElement = scrollRef.current
+      const targetScrollTop = scrollElement.scrollHeight - scrollElement.clientHeight
+      const startScrollTop = scrollElement.scrollTop
+      const distance = targetScrollTop - startScrollTop
+      const duration = 400
+      let startTime: number | null = null
+
+      const animateScroll = (currentTime: number) => {
+        if (startTime === null) startTime = currentTime
+        const timeElapsed = currentTime - startTime
+        const progress = Math.min(timeElapsed / duration, 1)
+
+        // Use easing for smooth animation
+        const easeProgress = 1 - Math.pow(1 - progress, 3) // easeOutCubic
+
+        scrollElement.scrollTop = startScrollTop + distance * easeProgress
+
+        if (progress < 1) {
+          requestAnimationFrame(animateScroll)
+        }
+      }
+
+      requestAnimationFrame(animateScroll)
+    }
+  }
+
+  // Handle auto-scroll and new message detection with animation
   useEffect(() => {
     if (transcripts.length > prevTranscriptCount.current) {
       // Mark new messages for animation
@@ -32,9 +103,12 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
       }
       setNewMessageIndices(newIndices)
 
-      // Auto-scroll to bottom if enabled
-      if (autoScroll && scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      // Auto-scroll to bottom if enabled using optimized animation
+      if (autoScroll) {
+        // Small delay to ensure DOM has updated
+        requestAnimationFrame(() => {
+          scrollToBottom()
+        })
       }
 
       // Clear animation flags after animation completes
@@ -46,34 +120,33 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
     prevTranscriptCount.current = transcripts.length
   }, [transcripts.length, autoScroll])
 
-  // Handle scroll position to show/hide scroll-to-bottom button
+  // Handle scroll position to show/hide scroll-to-bottom button with throttling
   useEffect(() => {
     const scrollElement = scrollRef.current
     if (!scrollElement || !showScrollToBottom) return
 
+    let ticking = false
+
     const handleScroll = () => {
-      const {scrollTop, scrollHeight, clientHeight} = scrollElement
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
-      setShowScrollButton(!isNearBottom && transcripts.length > 0)
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const {scrollTop, scrollHeight, clientHeight} = scrollElement
+          const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
+          setShowScrollButton(!isNearBottom && transcripts.length > 0)
+          ticking = false
+        })
+        ticking = true
+      }
     }
 
-    scrollElement.addEventListener('scroll', handleScroll)
+    scrollElement.addEventListener('scroll', handleScroll, {passive: true})
     handleScroll() // Initial check
 
     return () => scrollElement.removeEventListener('scroll', handleScroll)
   }, [transcripts.length, showScrollToBottom])
 
-  const scrollToBottom = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth'
-      })
-    }
-  }
-
   return (
-    <div className="mx-auto mt-4 w-full max-w-4xl">
+    <div className="mx-auto mt-4 w-full max-w-4xl" ref={containerRef}>
       <h3 className="mb-3 text-center text-lg font-semibold" style={{color: 'var(--text-primary)'}}>
         Live Transcript
       </h3>
@@ -86,6 +159,11 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
               'max-h-[400px] min-h-[200px] overflow-y-auto p-4',
               'transcript-scroll glass-container'
             )}
+            style={{
+              // Enable hardware acceleration
+              transform: 'translateZ(0)',
+              willChange: 'scroll-position'
+            }}
           >
             {transcripts.length === 0 && !isProcessing ? (
               <div className="flex h-full min-h-[150px] flex-col items-center justify-center text-center">
@@ -108,6 +186,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
                   transcripts={transcripts}
                   newMessageIndices={newMessageIndices}
                   maxVisibleMessages={100}
+                  setItemRef={setItemRef}
                 />
 
                 {isProcessing && (
@@ -133,9 +212,10 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
         {/* Scroll to bottom button */}
         {showScrollButton && showScrollToBottom && (
           <button
+            ref={scrollButtonRef}
             onClick={scrollToBottom}
             className={cn(
-              'absolute right-4 bottom-4 rounded-full p-2 transition-all duration-200',
+              'absolute bottom-4 right-4 rounded-full p-2 transition-all duration-200',
               'hover:scale-110 active:scale-95'
             )}
             style={{
@@ -143,7 +223,10 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
               border: '1px solid var(--glass-border)',
               color: 'var(--text-primary)',
               backdropFilter: 'blur(10px)',
-              boxShadow: '0 4px 12px var(--glass-shadow)'
+              boxShadow: '0 4px 12px var(--glass-shadow)',
+              // Hardware acceleration for smooth interactions
+              transform: 'translateZ(0)',
+              willChange: 'transform'
             }}
             onMouseEnter={e => {
               e.currentTarget.style.backgroundColor = 'var(--glass-heavy)'

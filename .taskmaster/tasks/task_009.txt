@@ -1,22 +1,44 @@
 # Task ID: 9
-# Title: Implement Fallback Mechanism
+# Title: Implement Service Integration
 # Status: pending
-# Dependencies: 3, 6
-# Priority: medium
-# Description: Develop a fallback system to revert to the HTTP-based approach when WebSocket streaming fails.
+# Dependencies: 2, 3, 4, 6, 7
+# Priority: high
+# Description: Integrate the new WebSocket implementation with existing services and ensure compatibility.
 # Details:
-1. Create a FallbackService class to manage the transition between WebSocket and HTTP approaches.
-2. Implement logic to detect WebSocket failures and trigger fallback.
-3. Adapt existing HTTP-based transcription code to work alongside WebSocket implementation.
-4. Use the Adapter pattern to create a common interface for both WebSocket and HTTP approaches.
-5. Implement feature flags (use unleash-client-node version 3.x) to control fallback behavior.
-6. Ensure seamless user experience during fallback transitions.
-7. Implement logging and analytics to track fallback occurrences.
-8. Use TypeScript discriminated unions for type-safe handling of different operation modes.
+1. Create an integration layer in `src/services/GeminiService.ts`:
+   ```typescript
+   import { WebSocketManager } from './WebSocketManager';
+   import { MessageHandler } from './MessageHandler';
+
+   class GeminiService {
+     private wsManager: WebSocketManager;
+     private messageHandler: MessageHandler;
+
+     constructor() {
+       this.wsManager = new WebSocketManager(process.env.GEMINI_API_KEY!);
+       this.messageHandler = new MessageHandler(this.wsManager);
+     }
+
+     async initialize() {
+       await this.wsManager.connect();
+       // Additional setup
+     }
+
+     async sendMessage(message: string) {
+       return this.messageHandler.enqueue(message);
+     }
+
+     // Additional methods for different types of interactions
+   }
+   ```
+2. Update existing services to use the new `GeminiService`
+3. Ensure model consistency across all services
+4. Integrate with existing audio capture and processing pipeline
+5. Update UI components to work with the new WebSocket implementation
 
 # Test Strategy:
-1. Unit test FallbackService class methods.
-2. Integration test fallback mechanism with simulated WebSocket failures.
-3. Test seamless transition between WebSocket and HTTP modes.
-4. Verify correct functionality in fallback mode.
-5. User acceptance testing for uninterrupted experience during fallbacks.
+1. Integration tests for GeminiService
+2. End-to-end tests with UI components
+3. Verify model consistency across services
+4. Test compatibility with existing audio pipeline
+5. Regression testing on existing features

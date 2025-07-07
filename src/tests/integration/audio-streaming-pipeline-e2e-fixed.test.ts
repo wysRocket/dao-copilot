@@ -122,7 +122,7 @@ describe('AudioStreamingPipeline E2E Tests', () => {
     },
     websocket: {
       apiKey: 'test-key',
-      model: 'gemini-2.0-flash-exp'
+      model: 'gemini-live-2.5-flash-preview'
     },
     processing: {
       useWebWorkers: false,

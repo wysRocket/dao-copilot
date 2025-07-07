@@ -158,7 +158,7 @@ export class AudioStreamingE2ETest {
     const pipelineConfig: AudioPipelineConfig = {
       websocket: {
         apiKey: this.config.apiKey,
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-live-2.5-flash-preview',
         enableReconnect: true
       },
       audio: {
@@ -467,7 +467,7 @@ export async function demonstrateAudioPipeline(): Promise<void> {
   const pipeline = createAudioStreamingPipeline({
     websocket: {
       apiKey: process.env.GEMINI_API_KEY || 'demo-key',
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-live-2.5-flash-preview',
       enableReconnect: true
     },
     audio: {

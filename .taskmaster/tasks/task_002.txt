@@ -1,23 +1,46 @@
 # Task ID: 2
-# Title: Implement Real-time Audio Capture
+# Title: Implement WebSocket Connection Management
 # Status: pending
-# Dependencies: None
+# Dependencies: 1
 # Priority: high
-# Description: Update the existing audio recording service to support continuous real-time audio capture using Web Audio API.
+# Description: Create a service to manage WebSocket connections to the Google Gemini Live API.
 # Details:
-1. Use Web Audio API (latest spec) for audio capture.
-2. Create an AudioCaptureService class.
-3. Implement methods for starting and stopping audio capture.
-4. Use AudioContext and MediaStreamAudioSourceNode for audio processing.
-5. Set up a ScriptProcessorNode (or AudioWorklet for modern browsers) for real-time audio processing.
-6. Configure audio capture for 16-bit PCM format at 16kHz sample rate, mono channel.
-7. Implement audio buffering with 100ms chunk size.
-8. Use TypeScript for type safety.
-9. Optimize for low latency and CPU usage.
+1. Create a `WebSocketManager` class in `src/services/WebSocketManager.ts`
+2. Implement connection method using 'ws' library:
+   ```typescript
+   import WebSocket from 'ws';
+   import { v4 as uuidv4 } from 'uuid';
+
+   class WebSocketManager {
+     private ws: WebSocket | null = null;
+     private apiKey: string;
+     private sessionId: string;
+
+     constructor(apiKey: string) {
+       this.apiKey = apiKey;
+       this.sessionId = uuidv4();
+     }
+
+     connect() {
+       const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
+       this.ws = new WebSocket(url);
+
+       this.ws.on('open', this.onOpen.bind(this));
+       this.ws.on('message', this.onMessage.bind(this));
+       this.ws.on('error', this.onError.bind(this));
+       this.ws.on('close', this.onClose.bind(this));
+     }
+
+     // Implement other methods (onOpen, onMessage, onError, onClose)
+   }
+   ```
+3. Implement proper API key authentication
+4. Add connection state monitoring
+5. Implement graceful termination method
 
 # Test Strategy:
-1. Unit test AudioCaptureService methods.
-2. Test audio format conversion accuracy.
-3. Measure and assert on latency and CPU usage.
-4. Test with various audio input devices.
-5. Verify correct audio chunk size and format.
+1. Unit test for successful connection establishment
+2. Mock WebSocket server to test connection events
+3. Test API key authentication
+4. Verify connection state monitoring
+5. Test graceful termination

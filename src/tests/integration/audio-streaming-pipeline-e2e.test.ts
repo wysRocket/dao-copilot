@@ -171,7 +171,7 @@ describe('AudioStreamingPipeline - End-to-End Tests', () => {
     config = {
       websocket: {
         apiKey: 'test-api-key-e2e',
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-live-2.5-flash-preview',
         enableReconnect: true
       },
       audio: {
@@ -573,7 +573,7 @@ describe('AudioStreamingPipeline - End-to-End Tests', () => {
       const minimalPipeline = createAudioStreamingPipeline({
         websocket: {
           apiKey: 'minimal-test-key',
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-live-2.5-flash-preview',
           enableReconnect: false
         }
       })
@@ -591,7 +591,7 @@ describe('AudioStreamingPipeline - End-to-End Tests', () => {
       const lowLatencyConfig: AudioPipelineConfig = {
         websocket: {
           apiKey: 'low-latency-test',
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-live-2.5-flash-preview',
           enableReconnect: true
         },
         audio: {
