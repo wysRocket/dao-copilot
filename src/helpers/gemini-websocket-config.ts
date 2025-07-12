@@ -49,7 +49,7 @@ export const DEFAULT_CONFIG: Partial<GeminiWebSocketConfig> = {
   websocketEnabled: true,
   transcriptionMode: TranscriptionMode.HYBRID,
   websocketUrl:
-    'wss://generativelanguage.googleapis.com/ws/v1beta/models/gemini-2.5-flash-preview-05-20:streamGenerateContent',
+    'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
   fallbackToBatch: true,
   realTimeThreshold: 3000, // 3 seconds
   connectionTimeout: 30000, // 30 seconds
