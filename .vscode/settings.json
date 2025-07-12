@@ -1,4 +1,5 @@
 {
   "Codegeex.RepoIndex": true,
-  "postman.settings.dotenv-detection-notification-visibility": false
+  "postman.settings.dotenv-detection-notification-visibility": false,
+  "DevChat.PythonForCommands": "/Users/mininet/.chat/mamba/envs/devchat-commands/bin/python"
 }
