@@ -8,13 +8,17 @@ import {GeminiMessageHandler, MessageType, MessagePriority} from './gemini-messa
 import {GeminiErrorHandler, ErrorType, type GeminiError} from './gemini-error-handler'
 import {logger} from './gemini-logger'
 import {sanitizeLogMessage, safeLogger} from './log-sanitizer'
-import {validateSessionId} from '../utils/security-utils'
 import ReconnectionManager, {
   ReconnectionStrategy,
   type ReconnectionConfig
 } from './gemini-reconnection-manager'
 import {WebSocketHeartbeatMonitor, HeartbeatStatus} from './websocket-heartbeat-monitor'
 import GeminiSessionManager, {type SessionData} from './gemini-session-manager'
+
+// Model configuration constants
+export const GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
+// Default API version for Gemini Live API (use config.apiVersion to override)
+export const GEMINI_LIVE_API_VERSION = 'v1beta'
 
 export enum ConnectionState {
   DISCONNECTED = 'disconnected',
@@ -37,9 +41,9 @@ interface ServerErrorData {
   type?: string
 }
 
-// Enhanced data models for gemini-2.0-flash-live-001 responses
+// Enhanced data models for gemini-live-2.5-flash-preview responses
 export interface ParsedGeminiResponse {
-  type: 'text' | 'audio' | 'tool_call' | 'error' | 'setup_complete' | 'turn_complete'
+  type: 'text' | 'audio' | 'tool_call' | 'error' | 'setup_complete' | 'turn_complete' | 'tool_call_cancellation' | 'go_away' | 'session_resumption_update'
   content: string | ArrayBuffer | null
   metadata: {
     messageId?: string
@@ -47,7 +51,16 @@ export interface ParsedGeminiResponse {
     confidence?: number
     isPartial?: boolean
     modelTurn?: boolean
+    inputTranscription?: boolean
     turnId?: string
+    // v1beta specific metadata
+    toolCallIds?: string[]
+    timeLeft?: {
+      seconds: number
+      nanos: number
+    }
+    sessionHandle?: string
+    resumable?: boolean
   }
   toolCall?: {
     name: string
@@ -58,6 +71,20 @@ export interface ParsedGeminiResponse {
     code: string
     message: string
     details?: Record<string, unknown>
+  }
+  // v1beta specific response types
+  toolCallCancellation?: {
+    ids: string[]
+  }
+  goAway?: {
+    timeLeft?: {
+      seconds: number
+      nanos: number
+    }
+  }
+  sessionResumptionUpdate?: {
+    newHandle: string
+    resumable: boolean
   }
 }
 
@@ -102,6 +129,17 @@ export interface GeminiLiveConfig {
   reconnectionConfig?: Partial<ReconnectionConfig>
   websocketBaseUrl?: string
   maxQueueSize?: number
+  apiVersion?: string // API version to use (defaults to 'v1beta')
+  // Generation configuration options for fine-tuning responses
+  generationConfig?: {
+    candidateCount?: number
+    maxOutputTokens?: number
+    temperature?: number
+    topP?: number
+    topK?: number
+    presencePenalty?: number
+    frequencyPenalty?: number
+  }
 }
 
 export interface AudioData {
@@ -112,6 +150,7 @@ export interface AudioData {
 export interface RealtimeInput {
   audio?: AudioData
   text?: string
+  audioStreamEnd?: boolean
 }
 
 // Enhanced message queue system for reliability
@@ -162,6 +201,13 @@ export interface SetupMessage {
   setup: {
     model: string
     generationConfig?: {
+      candidateCount?: number
+      maxOutputTokens?: number
+      temperature?: number
+      topP?: number
+      topK?: number
+      presencePenalty?: number
+      frequencyPenalty?: number
       responseModalities?: ResponseModality[]
       speechConfig?: {
         voiceConfig?: {
@@ -170,12 +216,14 @@ export interface SetupMessage {
           }
         }
       }
+      mediaResolution?: object
     }
     systemInstruction?: {
       parts: Array<{
         text: string
       }>
     }
+    tools?: Array<object>
   }
 }
 
@@ -185,7 +233,7 @@ export interface GeminiLiveApiResponse {
 }
 
 /**
- * Enhanced message parser for gemini-2.0-flash-live-001 model
+ * Enhanced message parser for gemini-live-2.5-flash-preview model
  * Handles various response formats including text, audio, and tool calls
  */
 export class Gemini2FlashMessageParser {
@@ -259,6 +307,21 @@ export class Gemini2FlashMessageParser {
       return this.parseToolCall(message.toolCall as Record<string, unknown>, timestamp)
     }
 
+    // Handle tool call cancellation responses (v1beta)
+    if (message.toolCallCancellation && typeof message.toolCallCancellation === 'object') {
+      return this.parseToolCallCancellation(message.toolCallCancellation as Record<string, unknown>, timestamp)
+    }
+
+    // Handle go away responses (v1beta)
+    if (message.goAway && typeof message.goAway === 'object') {
+      return this.parseGoAway(message.goAway as Record<string, unknown>, timestamp)
+    }
+
+    // Handle session resumption updates (v1beta)
+    if (message.sessionResumptionUpdate && typeof message.sessionResumptionUpdate === 'object') {
+      return this.parseSessionResumptionUpdate(message.sessionResumptionUpdate as Record<string, unknown>, timestamp)
+    }
+
     // Handle error responses
     if (message.error && typeof message.error === 'object') {
       return this.parseError(message.error as Record<string, unknown>, timestamp)
@@ -284,6 +347,21 @@ export class Gemini2FlashMessageParser {
   ): ParsedGeminiResponse {
     const modelTurn = serverContent.modelTurn as Record<string, unknown> | undefined
     const turnComplete = serverContent.turnComplete as boolean | undefined
+    const inputTranscription = serverContent.inputTranscription as Record<string, unknown> | undefined
+
+    // Check for input transcription first (for speech-to-text)
+    if (inputTranscription && typeof inputTranscription.text === 'string') {
+      return {
+        type: 'text',
+        content: inputTranscription.text,
+        metadata: {
+          timestamp,
+          inputTranscription: true,
+          isPartial: !turnComplete,
+          confidence: typeof inputTranscription.confidence === 'number' ? inputTranscription.confidence : undefined
+        }
+      }
+    }
 
     if (modelTurn && Array.isArray(modelTurn.parts)) {
       // Extract text from parts
@@ -460,6 +538,84 @@ export class Gemini2FlashMessageParser {
   }
 
   /**
+   * Parse tool call cancellation messages (v1beta)
+   */
+  private static parseToolCallCancellation(
+    toolCallCancellation: Record<string, unknown>,
+    timestamp: number
+  ): ParsedGeminiResponse {
+    const ids = (toolCallCancellation.ids as string[]) || []
+    
+    return {
+      type: 'tool_call_cancellation',
+      content: null,
+      metadata: {
+        timestamp,
+        messageId: `cancellation_${timestamp}`,
+        toolCallIds: ids
+      },
+      toolCallCancellation: {
+        ids
+      }
+    }
+  }
+
+  /**
+   * Parse go away messages (v1beta)
+   */
+  private static parseGoAway(
+    goAway: Record<string, unknown>,
+    timestamp: number
+  ): ParsedGeminiResponse {
+    const timeLeft = goAway.timeLeft as Record<string, unknown> | undefined
+    
+    return {
+      type: 'go_away',
+      content: null,
+      metadata: {
+        timestamp,
+        messageId: `goaway_${timestamp}`,
+        timeLeft: timeLeft ? {
+          seconds: (timeLeft.seconds as number) || 0,
+          nanos: (timeLeft.nanos as number) || 0
+        } : undefined
+      },
+      goAway: {
+        timeLeft: timeLeft ? {
+          seconds: (timeLeft.seconds as number) || 0,
+          nanos: (timeLeft.nanos as number) || 0
+        } : undefined
+      }
+    }
+  }
+
+  /**
+   * Parse session resumption update messages (v1beta)
+   */
+  private static parseSessionResumptionUpdate(
+    sessionResumptionUpdate: Record<string, unknown>,
+    timestamp: number
+  ): ParsedGeminiResponse {
+    const newHandle = (sessionResumptionUpdate.newHandle as string) || ''
+    const resumable = (sessionResumptionUpdate.resumable as boolean) || false
+    
+    return {
+      type: 'session_resumption_update',
+      content: null,
+      metadata: {
+        timestamp,
+        messageId: `session_update_${timestamp}`,
+        sessionHandle: newHandle,
+        resumable
+      },
+      sessionResumptionUpdate: {
+        newHandle,
+        resumable
+      }
+    }
+  }
+
+  /**
    * Validate that a parsed response is well-formed
    */
   static validateResponse(response: ParsedGeminiResponse): {isValid: boolean; errors: string[]} {
@@ -499,6 +655,24 @@ export class Gemini2FlashMessageParser {
           errors.push('Error response must have error object with code and message')
         }
         break
+
+      case 'tool_call_cancellation':
+        if (!response.toolCallCancellation || !Array.isArray(response.toolCallCancellation.ids)) {
+          errors.push('Tool call cancellation response must have toolCallCancellation with ids array')
+        }
+        break
+
+      case 'go_away':
+        if (!response.goAway) {
+          errors.push('Go away response must have goAway object')
+        }
+        break
+
+      case 'session_resumption_update':
+        if (!response.sessionResumptionUpdate || typeof response.sessionResumptionUpdate.newHandle !== 'string' || typeof response.sessionResumptionUpdate.resumable !== 'boolean') {
+          errors.push('Session resumption update response must have sessionResumptionUpdate with newHandle and resumable')
+        }
+        break
     }
 
     return {
@@ -534,16 +708,84 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private currentSession: SessionData | null = null
   private isSetupComplete = false // Track setup completion to prevent audio before acknowledgment
 
+  /**
+   * Validate configuration for v1beta compatibility
+   */
+  private validateConfig(config: GeminiLiveConfig): void {
+    if (!config.apiKey || typeof config.apiKey !== 'string') {
+      throw new Error('Valid API key is required for Gemini Live API')
+    }
+
+    // Validate API key format (basic validation)
+    if (!config.apiKey.startsWith('AIza') || config.apiKey.length < 35) {
+      throw new Error('Invalid API key format. Google AI API keys should start with "AIza" and be at least 35 characters long')
+    }
+
+    // Validate model if provided
+    if (config.model && !config.model.includes('gemini')) {
+      logger.warn('Model name does not contain "gemini", please verify it is a valid Gemini Live model', {
+        providedModel: config.model
+      })
+    }
+
+    // Validate WebSocket URL if provided
+    if (config.websocketBaseUrl) {
+      try {
+        const url = new URL(config.websocketBaseUrl)
+        if (!url.protocol.startsWith('wss')) {
+          throw new Error('WebSocket URL must use secure protocol (wss://)')
+        }
+        if (!url.hostname.includes('googleapis.com')) {
+          logger.warn('Custom WebSocket URL does not use googleapis.com domain', {
+            hostname: url.hostname
+          })
+        }
+      } catch (error) {
+        throw new Error(`Invalid WebSocket URL: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    }
+
+    // Validate numeric configurations
+    if (config.reconnectAttempts !== undefined && (config.reconnectAttempts < 0 || config.reconnectAttempts > 20)) {
+      throw new Error('Reconnect attempts must be between 0 and 20')
+    }
+
+    if (config.heartbeatInterval !== undefined && (config.heartbeatInterval < 5000 || config.heartbeatInterval > 300000)) {
+      throw new Error('Heartbeat interval must be between 5 seconds and 5 minutes')
+    }
+
+    if (config.connectionTimeout !== undefined && (config.connectionTimeout < 1000 || config.connectionTimeout > 60000)) {
+      throw new Error('Connection timeout must be between 1 second and 1 minute')
+    }
+
+    if (config.maxQueueSize !== undefined && (config.maxQueueSize < 10 || config.maxQueueSize > 1000)) {
+      throw new Error('Max queue size must be between 10 and 1000')
+    }
+
+    logger.debug('Configuration validation passed', {
+      model: config.model || GEMINI_LIVE_MODEL,
+      hasApiKey: !!config.apiKey,
+      reconnectAttempts: config.reconnectAttempts,
+      heartbeatInterval: config.heartbeatInterval,
+      connectionTimeout: config.connectionTimeout
+    })
+  }
+
   constructor(config: GeminiLiveConfig) {
     super()
+    
+    // Validate configuration before proceeding
+    this.validateConfig(config)
+    
     this.config = {
-      model: 'gemini-2.0-flash-live-001',
+      model: GEMINI_LIVE_MODEL,
       responseModalities: [ResponseModality.TEXT],
       systemInstruction: 'You are a helpful assistant and answer in a friendly tone.',
       reconnectAttempts: 5,
       heartbeatInterval: 30000, // 30 seconds
       connectionTimeout: 10000, // 10 seconds
       maxQueueSize: 100, // Limit message queue size to prevent memory issues
+      apiVersion: 'v1beta', // Default to v1beta as per Google documentation
       ...config
     }
     this.maxReconnectAttempts = this.config.reconnectAttempts!
@@ -718,16 +960,50 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Build WebSocket URL for Gemini Live API
+   * Build WebSocket URL for Gemini Live API with configurable version
    */
   private buildWebSocketUrl(): string {
-    const baseUrl =
-      this.config.websocketBaseUrl ||
-      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent'
-    const params = new URLSearchParams({
-      key: this.config.apiKey
-    })
-    return `${baseUrl}?${params.toString()}`
+    try {
+      // Ensure API key is still valid (in case it was modified after construction)
+      if (!this.config.apiKey || typeof this.config.apiKey !== 'string') {
+        throw new Error('API key is required to build WebSocket URL')
+      }
+
+      // Use configured API version or default to v1beta (as per Google documentation)
+      const apiVersion = this.config.apiVersion || 'v1beta'
+
+      // Build the base URL with configurable API version
+      const baseUrl = this.config.websocketBaseUrl ||
+        `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.${apiVersion}.GenerativeService.BidiGenerateContent`
+
+      // Validate the base URL format
+      const urlObj = new URL(baseUrl)
+      if (!urlObj.protocol.startsWith('wss')) {
+        throw new Error('WebSocket URL must use secure protocol (wss://)')
+      }
+
+      // Create query parameters for authentication
+      const params = new URLSearchParams({
+        key: this.config.apiKey
+      })
+
+      const finalUrl = `${baseUrl}?${params.toString()}`
+      
+      logger.debug('Built WebSocket URL for Gemini Live API', {
+        baseUrl: baseUrl.substring(0, 50) + '...',
+        hasApiKey: !!this.config.apiKey,
+        apiVersion: apiVersion
+      })
+
+      return finalUrl
+    } catch (error) {
+      logger.error('Failed to build WebSocket URL', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        hasApiKey: !!this.config.apiKey,
+        apiVersion: this.config.apiVersion || 'v1beta'
+      })
+      throw new Error(`Failed to build WebSocket URL: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   /**
@@ -762,6 +1038,29 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     }
 
     return this.sendMessageDirectly(input, options)
+  }
+
+  /**
+   * Send client content with turn completion signal to trigger model response
+   * Updated format for v1beta API compatibility
+   */
+  async sendTurnCompletion(): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket not connected')
+    }
+
+    // For v1beta API, use clientContent structure with turnComplete
+    const turnCompletionMessage = JSON.stringify({
+      clientContent: {
+        turnComplete: true
+      }
+    })
+
+    logger.debug('Sending turn completion signal to trigger model response', {
+      messageLength: turnCompletionMessage.length
+    })
+
+    this.ws.send(turnCompletionMessage)
   }
 
   /**
@@ -856,16 +1155,38 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     }
 
     try {
-      // Build the correct Gemini Live API message format (using snake_case as per API docs)
-      const message = JSON.stringify({
-        realtime_input: {
-          media_chunks: this.buildMediaChunks(input)
-        }
-      })
+      // Build the correct Gemini Live API message format (using camelCase for v1beta API)
+      let message: string
+      
+      if (input.audioStreamEnd) {
+        // For audioStreamEnd, send it as a direct field, not in mediaChunks
+        message = JSON.stringify({
+          realtimeInput: {
+            audioStreamEnd: true
+          }
+        })
+      } else if (input.text) {
+        // Send text message to establish transcription context - this may help the model understand our intent
+        logger.debug('Sending text message to establish transcription context', {
+          textContent: input.text.substring(0, 50) + '...'
+        })
+        message = JSON.stringify({
+          realtimeInput: {
+            text: input.text
+          }
+        })
+      } else {
+        // For regular media chunks (audio only)
+        message = JSON.stringify({
+          realtimeInput: {
+            mediaChunks: this.buildMediaChunks(input)
+          }
+        })
+      }
 
       logger.debug('Sending message to Gemini Live API', {
         messageLength: message.length,
-        inputType: input.audio ? 'audio' : 'text',
+        inputType: input.audioStreamEnd ? 'audioStreamEnd' : (input.audio ? 'audio' : 'text'),
         circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
       })
 
@@ -974,14 +1295,14 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     if (input.text) {
       chunks.push({
         data: input.text,
-        mime_type: 'text/plain' // Use snake_case as per API docs
+        mimeType: 'text/plain' // Use camelCase for v1beta API
       })
     }
 
     if (input.audio) {
       chunks.push({
         data: input.audio.data,
-        mime_type: input.audio.mimeType // Use snake_case as per API docs
+        mimeType: input.audio.mimeType // Use camelCase for v1beta API
       })
     }
 
@@ -1045,6 +1366,25 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       // Parse the raw message first with additional safety
       const rawMessage = JSON.parse(messageData)
 
+      // DEBUG: Log all raw messages to diagnose transcription response issues
+      logger.debug('Raw WebSocket message received', {
+        messageData: messageData.substring(0, 500), // Truncate for logging
+        hasSetupComplete: !!(rawMessage.setupComplete),
+        hasServerContent: !!(rawMessage.serverContent),
+        hasModelTurn: !!(rawMessage.serverContent?.modelTurn),
+        hasTurnComplete: !!(rawMessage.serverContent?.turnComplete || rawMessage.turnComplete),
+        messageKeys: Object.keys(rawMessage || {}),
+        currentSetupState: this.isSetupComplete
+      })
+      
+      // Log ALL message types for debugging
+      console.log('WebSocket message received:', {
+        messageKeys: Object.keys(rawMessage || {}),
+        hasServerContent: !!(rawMessage.serverContent),
+        hasModelTurn: !!(rawMessage.serverContent?.modelTurn),
+        fullMessage: JSON.stringify(rawMessage, null, 2).substring(0, 1000)
+      })
+
       // Check if heartbeat monitor can handle this message
       if (this.heartbeatMonitor.handleMessage(rawMessage)) {
         // Message was handled by heartbeat monitor (pong response)
@@ -1052,7 +1392,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         return
       }
 
-      // Use enhanced message parser for gemini-2.0-flash-live-001
+      // Use enhanced message parser for gemini-live-2.5-flash-preview
       const geminiResponse = Gemini2FlashMessageParser.parseResponse(rawMessage)
       const validation = Gemini2FlashMessageParser.validateResponse(geminiResponse)
 
@@ -1064,6 +1404,16 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         isPartial: geminiResponse.metadata.isPartial,
         modelTurn: geminiResponse.metadata.modelTurn,
         circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
+      })
+
+      // ENHANCED DEBUG: Log what we're getting vs what we expect
+      console.log('WebSocket transcription: Raw message received:', {
+        original: geminiResponse,
+        type: geminiResponse.type,
+        metadata: geminiResponse.metadata,
+        payload: geminiResponse,
+        isValid: validation.isValid,
+        errors: validation.errors
       })
 
       // Handle validation errors
@@ -1168,6 +1518,20 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
           metadata: geminiResponse.metadata,
           isPartial: geminiResponse.metadata.isPartial
         })
+        
+        // Also emit transcriptionUpdate for backward compatibility with transcription services
+        this.emit('transcriptionUpdate', {
+          text: geminiResponse.content,
+          confidence: geminiResponse.metadata.confidence,
+          isFinal: !geminiResponse.metadata.isPartial
+        })
+        
+        logger.debug('Emitted transcription events', {
+          textLength: typeof geminiResponse.content === 'string' ? geminiResponse.content.length : 0,
+          isPartial: geminiResponse.metadata.isPartial,
+          confidence: geminiResponse.metadata.confidence,
+          isFinal: !geminiResponse.metadata.isPartial
+        })
         break
       case 'audio':
         this.emit('audioResponse', {
@@ -1185,9 +1549,36 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         })
         break
       case 'setup_complete':
+        // CRITICAL: Set setup complete flag immediately upon receiving the message
+        this.isSetupComplete = true
+        logger.info('Setup complete message received - marking as complete')
+        
         this.emit('setupComplete', {
           metadata: geminiResponse.metadata
         })
+        break
+      case 'tool_call_cancellation':
+        this.emit('toolCallCancellation', {
+          ids: geminiResponse.toolCallCancellation?.ids || [],
+          metadata: geminiResponse.metadata
+        })
+        break
+      case 'go_away':
+        this.emit('goAway', {
+          timeLeft: geminiResponse.goAway?.timeLeft,
+          metadata: geminiResponse.metadata
+        })
+        // Handle graceful disconnect when server requests go away
+        this.handleGoAwayMessage(geminiResponse.goAway?.timeLeft)
+        break
+      case 'session_resumption_update':
+        this.emit('sessionResumptionUpdate', {
+          newHandle: geminiResponse.sessionResumptionUpdate?.newHandle || '',
+          resumable: geminiResponse.sessionResumptionUpdate?.resumable || false,
+          metadata: geminiResponse.metadata
+        })
+        // Update session manager with new resumption data
+        this.handleSessionResumptionUpdate(geminiResponse.sessionResumptionUpdate)
         break
       default:
         logger.debug('Unhandled enhanced message type', {
@@ -1703,13 +2094,13 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
 
       // Create new session if no resumable session or resumption failed
       const sessionConfig = {
-        model: this.config.model || 'gemini-2.0-flash-live-001',
+        model: this.config.model || GEMINI_LIVE_MODEL,
         responseModalities: this.config.responseModalities || [ResponseModality.TEXT],
         systemInstruction: this.config.systemInstruction
       }
 
       this.currentSession = this.sessionManager.createSession(
-        this.config.model || 'gemini-2.0-flash-live-001',
+        this.config.model || GEMINI_LIVE_MODEL,
         sessionConfig
       )
 
@@ -1925,6 +2316,13 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    */
   isConnected(): boolean {
     return this.connectionState === ConnectionState.CONNECTED
+  }
+
+  /**
+   * Check if WebSocket setup is complete and ready to send audio data
+   */
+  isSetupCompleted(): boolean {
+    return this.isSetupComplete
   }
 
   /**
@@ -2238,19 +2636,27 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Send initial setup message to Gemini Live API
+   * Create a properly formatted setup message for Gemini Live API v1beta
+   * Following the official BidiGenerateContentSetup structure
    */
-  private async sendSetupMessage(): Promise<void> {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket not connected')
-    }
-
+  private createSetupMessage(): SetupMessage {
     const setupMessage: SetupMessage = {
       setup: {
         model: `models/${this.config.model}`,
         generationConfig: {
-          responseModalities: this.config.responseModalities || [ResponseModality.TEXT]
+          responseModalities: this.config.responseModalities || [ResponseModality.TEXT],
+          // Use configured values or defaults optimized for speech transcription
+          candidateCount: this.config.generationConfig?.candidateCount ?? 1, // Single response for transcription
+          maxOutputTokens: this.config.generationConfig?.maxOutputTokens ?? 8192, // Sufficient for transcription responses
+          temperature: this.config.generationConfig?.temperature ?? 0.1, // Low temperature for consistent transcription
+          topP: this.config.generationConfig?.topP ?? 0.95, // Focused but not overly restrictive
+          ...(this.config.generationConfig?.topK && { topK: this.config.generationConfig.topK }),
+          ...(this.config.generationConfig?.presencePenalty && { presencePenalty: this.config.generationConfig.presencePenalty }),
+          ...(this.config.generationConfig?.frequencyPenalty && { frequencyPenalty: this.config.generationConfig.frequencyPenalty })
+          // Note: speechConfig removed as it's not needed for speech-to-text transcription
+          // The speechConfig with voiceName is only needed for text-to-speech generation
         }
+        // Note: inputAudioTranscription removed - not part of v1beta setup message format
       }
     }
 
@@ -2260,6 +2666,19 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         parts: [{text: this.config.systemInstruction}]
       }
     }
+
+    return setupMessage
+  }
+
+  /**
+   * Send initial setup message to Gemini Live API v1beta
+   */
+  private async sendSetupMessage(): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket not connected')
+    }
+
+    const setupMessage = this.createSetupMessage()
 
     // Include session ID if we have a current session (for resumption)
     if (this.currentSession) {
@@ -2323,13 +2742,25 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   /**
    * Validate setup message configuration
    */
+  /**
+   * Validate setup message for v1beta API compatibility
+   * Enhanced validation following official Google documentation
+   */
   private validateSetupMessage(setupMessage: SetupMessage): void {
     if (!setupMessage.setup.model) {
       throw new Error('Setup message must include a model specification')
     }
 
     if (!setupMessage.setup.model.startsWith('models/')) {
-      throw new Error('Model specification must start with "models/"')
+      throw new Error('Model specification must start with "models/" for v1beta API')
+    }
+
+    // Validate the model name contains expected patterns for Gemini Live
+    const modelName = setupMessage.setup.model.replace('models/', '')
+    if (!modelName.includes('gemini')) {
+      logger.warn('Model name does not contain "gemini", this may not be a valid Gemini Live model', {
+        model: modelName
+      })
     }
 
     if (!setupMessage.setup.generationConfig?.responseModalities?.length) {
@@ -2346,6 +2777,57 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         `Invalid response modalities: ${invalidModalities.join(', ')}. Valid options: ${validModalities.join(', ')}`
       )
     }
+
+    // Validate generation config parameters
+    const genConfig = setupMessage.setup.generationConfig
+    if (genConfig.candidateCount !== undefined && (genConfig.candidateCount < 1 || genConfig.candidateCount > 8)) {
+      throw new Error('candidateCount must be between 1 and 8')
+    }
+
+    if (genConfig.maxOutputTokens !== undefined && (genConfig.maxOutputTokens < 1 || genConfig.maxOutputTokens > 32768)) {
+      throw new Error('maxOutputTokens must be between 1 and 32768')
+    }
+
+    if (genConfig.temperature !== undefined && (genConfig.temperature < 0 || genConfig.temperature > 2)) {
+      throw new Error('temperature must be between 0.0 and 2.0')
+    }
+
+    if (genConfig.topP !== undefined && (genConfig.topP < 0 || genConfig.topP > 1)) {
+      throw new Error('topP must be between 0.0 and 1.0')
+    }
+
+    if (genConfig.topK !== undefined && (genConfig.topK < 1 || genConfig.topK > 2048)) {
+      throw new Error('topK must be between 1 and 2048')
+    }
+
+    // Validate system instruction format if provided
+    if (setupMessage.setup.systemInstruction) {
+      if (!setupMessage.setup.systemInstruction.parts || !Array.isArray(setupMessage.setup.systemInstruction.parts)) {
+        throw new Error('System instruction must have a "parts" array')
+      }
+
+      if (setupMessage.setup.systemInstruction.parts.length === 0) {
+        throw new Error('System instruction parts array cannot be empty')
+      }
+
+      for (const part of setupMessage.setup.systemInstruction.parts) {
+        if (!part.text || typeof part.text !== 'string') {
+          throw new Error('Each system instruction part must have a "text" field with string content')
+        }
+      }
+    }
+
+    logger.debug('Setup message validation passed for v1beta API', {
+      model: setupMessage.setup.model,
+      responseModalities: setupMessage.setup.generationConfig.responseModalities,
+      hasSystemInstruction: !!setupMessage.setup.systemInstruction,
+      generationConfig: {
+        candidateCount: genConfig.candidateCount,
+        maxOutputTokens: genConfig.maxOutputTokens,
+        temperature: genConfig.temperature,
+        topP: genConfig.topP
+      }
+    })
   }
 
   /**
@@ -2353,10 +2835,19 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    * This is critical for proper protocol flow - must wait for server acknowledgment
    */
   private async waitForSetupResponse(): Promise<void> {
+    // If setup is already complete, resolve immediately
+    if (this.isSetupComplete) {
+      logger.info('Setup already complete - audio can be sent immediately')
+      return Promise.resolve()
+    }
+
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        this.off('setupComplete', onSetupComplete)
+        this.off('error', onError)
+        this.off('close', onClose)
         reject(new Error('Timeout waiting for setup response from Gemini Live API'))
-      }, 10000) // 10 second timeout
+      }, 15000) // Increased timeout to 15 seconds for better reliability
 
       // Listen for the setupComplete event from the main message handler
       const onSetupComplete = () => {
@@ -2369,6 +2860,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         clearTimeout(timeout)
         this.off('setupComplete', onSetupComplete)
         this.off('error', onError)
+        this.off('close', onClose)
         resolve()
       }
 
@@ -2376,14 +2868,24 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         clearTimeout(timeout)
         this.off('setupComplete', onSetupComplete)
         this.off('error', onError)
+        this.off('close', onClose)
         reject(new Error('WebSocket error while waiting for setup response'))
       }
 
       const onClose = () => {
         clearTimeout(timeout)
         this.off('setupComplete', onSetupComplete)
+        this.off('error', onError)
         this.off('close', onClose)
         reject(new Error('WebSocket closed while waiting for setup response'))
+      }
+
+      // Check if setup is complete before adding listeners (race condition protection)
+      if (this.isSetupComplete) {
+        clearTimeout(timeout)
+        logger.info('Setup completed during listener setup - resolving immediately')
+        resolve()
+        return
       }
 
       // Listen for events instead of parsing messages directly
@@ -2498,7 +3000,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   // ===== Enhanced Message Parsing Methods =====
 
   /**
-   * Parse a response using the enhanced gemini-2.0-flash-live-001 parser
+   * Parse a response using the enhanced gemini-live-2.5-flash-preview parser
    */
   parseGeminiResponse(rawMessage: unknown): ParsedGeminiResponse {
     return Gemini2FlashMessageParser.parseResponse(rawMessage)
@@ -2534,7 +3036,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   // ===== Server Error Classification and Recovery Methods =====
 
   /**
-   * Classify server errors to appropriate ErrorType
+   * Classify server errors to appropriate ErrorType for v1beta API
    */
   private classifyServerError(serverError: ServerErrorData): ErrorType {
     if (!serverError || !serverError.code) {
@@ -2544,34 +3046,65 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     const errorCode = String(serverError.code).toLowerCase()
     const errorMessage = String(serverError.message || '').toLowerCase()
 
-    // Authentication errors
+    // Authentication errors (enhanced for v1beta)
     if (
       errorCode.includes('auth') ||
+      errorCode.includes('unauthenticated') ||
       errorMessage.includes('unauthorized') ||
-      errorCode === '401'
+      errorMessage.includes('invalid api key') ||
+      errorMessage.includes('authentication failed') ||
+      errorCode === '401' ||
+      errorCode === '16' // gRPC UNAUTHENTICATED
     ) {
       return ErrorType.AUTHENTICATION
     }
 
-    // Rate limiting
-    if (errorCode.includes('rate') || errorMessage.includes('rate limit') || errorCode === '429') {
+    // Permission denied (v1beta specific)
+    if (
+      errorCode.includes('permission') ||
+      errorMessage.includes('permission denied') ||
+      errorMessage.includes('access denied') ||
+      errorCode === '403' ||
+      errorCode === '7' // gRPC PERMISSION_DENIED
+    ) {
+      return ErrorType.AUTHENTICATION
+    }
+
+    // Rate limiting (enhanced for v1beta)
+    if (
+      errorCode.includes('rate') ||
+      errorCode.includes('throttle') ||
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('too many requests') ||
+      errorCode === '429' ||
+      errorCode === '8' // gRPC RESOURCE_EXHAUSTED
+    ) {
       return ErrorType.RATE_LIMIT
     }
 
-    // Quota exceeded
+    // Quota exceeded (enhanced for v1beta)
     if (
       errorCode.includes('quota') ||
+      errorCode.includes('limit') ||
       errorMessage.includes('quota exceeded') ||
+      errorMessage.includes('limit exceeded') ||
+      errorMessage.includes('billing') ||
       errorCode === '403'
     ) {
       return ErrorType.QUOTA_EXCEEDED
     }
 
-    // Service unavailable
+    // Service unavailable (enhanced for v1beta)
     if (
       errorCode.includes('unavailable') ||
+      errorCode.includes('internal') ||
       errorMessage.includes('unavailable') ||
-      errorCode === '503'
+      errorMessage.includes('internal error') ||
+      errorMessage.includes('server error') ||
+      errorCode === '503' ||
+      errorCode === '500' ||
+      errorCode === '14' || // gRPC UNAVAILABLE
+      errorCode === '13'    // gRPC INTERNAL
     ) {
       return ErrorType.SERVICE_UNAVAILABLE
     }
@@ -2679,6 +3212,69 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       .replace(/[^\w\-_.:]/g, '_') // Keep only alphanumeric, hyphens, underscores, dots, and colons
       .substring(0, 100) // Limit length to prevent excessive memory usage
       .trim()
+  }
+
+  /**
+   * Handle go away message from server (v1beta)
+   */
+  private handleGoAwayMessage(timeLeft?: { seconds: number; nanos: number }): void {
+    logger.info('Server sent go away message', {
+      timeLeft,
+      sessionId: this.currentSession?.sessionId
+    })
+
+    if (timeLeft) {
+      const totalMs = (timeLeft.seconds * 1000) + (timeLeft.nanos / 1_000_000)
+      logger.info(`Server will disconnect in ${totalMs}ms`)
+      
+      // Schedule graceful disconnect before server forces it
+      setTimeout(() => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          logger.info('Gracefully closing connection before server timeout')
+          this.disconnect()
+        }
+      }, Math.max(0, totalMs - 1000)) // Disconnect 1 second before server timeout
+    } else {
+      // No time specified, disconnect immediately
+      logger.info('Immediate disconnect requested by server')
+      this.disconnect()
+    }
+  }
+
+  /**
+   * Handle session resumption update (v1beta)
+   */
+  private handleSessionResumptionUpdate(update?: { newHandle: string; resumable: boolean }): void {
+    if (!update || !this.currentSession) {
+      logger.debug('No session resumption update or current session to update')
+      return
+    }
+
+    logger.info('Received session resumption update', {
+      sessionId: this.currentSession.sessionId,
+      newHandle: update.newHandle ? 'present' : 'empty',
+      resumable: update.resumable
+    })
+
+    // Update session manager with new resumption capabilities
+    if (update.newHandle && update.resumable) {
+      // Store the session handle for potential resumption
+      // Note: This would need SessionData interface extension for full implementation
+      this.sessionManager.recordConnectionEvent('connected', 'resumption_handle_received')
+      
+      // Store resumption info in a separate structure for now
+      logger.info('Session resumption enabled', {
+        sessionId: this.currentSession.sessionId,
+        hasHandle: true
+      })
+    } else if (!update.resumable) {
+      // Session is no longer resumable
+      this.sessionManager.recordConnectionEvent('disconnected', 'resumption_handle_invalidated')
+      
+      logger.info('Session resumption disabled', {
+        sessionId: this.currentSession.sessionId
+      })
+    }
   }
 }
 

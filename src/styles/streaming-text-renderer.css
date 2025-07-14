@@ -1,0 +1,109 @@
+/* StreamingTextRenderer Component Styles */
+
+@keyframes blink {
+  0%, 50% { 
+    opacity: 1; 
+  }
+  51%, 100% { 
+    opacity: 0; 
+  }
+}
+
+@keyframes flash-highlight {
+  0% { 
+    background-color: rgba(255, 215, 0, 0.3);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.2);
+  }
+  100% { 
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+.streaming-text-renderer {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+}
+
+.streaming-text-renderer:focus {
+  outline: 2px solid var(--focus-color, #007acc);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.streaming-cursor {
+  display: inline-block;
+  width: 1px;
+  background-color: currentColor;
+  animation: blink 1s linear infinite;
+}
+
+.streaming-text-content {
+  display: inline;
+}
+
+/* Text state classes */
+.streaming-text-partial {
+  opacity: 0.8;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.streaming-text-final {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+.streaming-text-correction {
+  animation: flash-highlight 0.5s ease-out;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .streaming-text-renderer *,
+  .streaming-cursor {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .streaming-text-correction {
+    animation: none !important;
+    background-color: rgba(255, 215, 0, 0.3);
+  }
+}
+
+/* High contrast support */
+@media (prefers-contrast: high) {
+  .streaming-text-renderer {
+    color: CanvasText;
+    background-color: Canvas;
+  }
+  
+  .streaming-cursor {
+    color: Highlight;
+  }
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus management */
+.streaming-text-renderer[tabindex]:focus {
+  background-color: rgba(var(--focus-color-rgb, 0, 122, 204), 0.1);
+}
+
+/* Smooth transitions */
+.streaming-text-renderer {
+  transition: all 0.3s ease;
+}

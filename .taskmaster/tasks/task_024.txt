@@ -1,0 +1,258 @@
+# Task ID: 24
+# Title: Enhance Bidirectional Message Handling for gemini-2.0-flash-live-001
+# Status: pending
+# Dependencies: 13, 16, 20, 21, 22, 23
+# Priority: medium
+# Description: Update the message handling system to work optimally with the gemini-2.0-flash-live-001 model, supporting bidirectional communication, multiple message types, and streaming responses.
+# Details:
+1. Message Parsing and Format Handling:
+   a. Create a dedicated message parser for gemini-2.0-flash-live-001 specific response formats:
+   ```typescript
+   class Gemini2FlashMessageParser {
+     parseResponse(message: any): ParsedMessage {
+       // Handle various response formats (text, audio, tool calls)
+       // Extract relevant data based on message type
+     }
+   }
+   ```
+   
+   b. Implement support for half-cascade audio architecture:
+   ```typescript
+   function processAudioMessage(audioData: ArrayBuffer): AudioMessage {
+     // Process audio data according to half-cascade architecture requirements
+     // Handle audio format conversion if needed
+   }
+   ```
+
+2. Message Type Support:
+   a. Define interfaces for different message types:
+   ```typescript
+   interface TextMessage {
+     type: 'text';
+     content: string;
+     timestamp: number;
+   }
+   
+   interface AudioMessage {
+     type: 'audio';
+     audioData: ArrayBuffer;
+     format: string;
+     timestamp: number;
+   }
+   
+   interface ToolCallMessage {
+     type: 'tool_call';
+     toolName: string;
+     parameters: Record<string, any>;
+     timestamp: number;
+   }
+   ```
+   
+   b. Implement handlers for each message type:
+   ```typescript
+   const messageHandlers = {
+     text: (message: TextMessage) => { /* Handle text message */ },
+     audio: (message: AudioMessage) => { /* Handle audio message */ },
+     tool_call: (message: ToolCallMessage) => { /* Handle tool call */ },
+   };
+   ```
+
+3. Bidirectional Communication:
+   a. Implement message queuing system:
+   ```typescript
+   class MessageQueue {
+     private queue: Message[] = [];
+     
+     enqueue(message: Message): void {
+       this.queue.push(message);
+       this.processQueue();
+     }
+     
+     private processQueue(): void {
+       // Process messages in order
+       // Handle rate limiting
+       // Manage priorities
+     }
+   }
+   ```
+   
+   b. Implement message acknowledgment:
+   ```typescript
+   function acknowledgeMessage(messageId: string): void {
+     // Send acknowledgment to server
+     // Update message status in UI
+   }
+   ```
+
+4. Streaming Response Handling:
+   a. Implement streaming response processor:
+   ```typescript
+   class StreamingResponseProcessor {
+     private partialResponses: Map<string, Partial<Message>> = new Map();
+     
+     processChunk(chunk: any, messageId: string): Partial<Message> | null {
+       // Process chunk and update partial response
+       // Return complete message if all chunks received
+       // Otherwise return null
+     }
+   }
+   ```
+   
+   b. Handle partial results display:
+   ```typescript
+   function updatePartialResult(messageId: string, partialContent: string): void {
+     // Update UI with partial content
+     // Mark as partial/in-progress
+   }
+   ```
+
+5. Tool Use Support:
+   a. Implement tool call handling:
+   ```typescript
+   function handleToolCall(toolCall: ToolCallMessage): Promise<ToolCallResult> {
+     // Dispatch to appropriate tool handler
+     // Process result
+     // Format for display
+     return executeToolCall(toolCall);
+   }
+   ```
+   
+   b. Implement tool response formatting:
+   ```typescript
+   function formatToolResponse(result: ToolCallResult): Message {
+     // Format tool result as message
+     // Add metadata
+     return {
+       type: 'tool_response',
+       content: result.output,
+       toolName: result.toolName,
+       timestamp: Date.now(),
+     };
+   }
+   ```
+
+6. Error Handling:
+   a. Implement comprehensive error handling:
+   ```typescript
+   function handleMessageError(error: Error, messageId: string): void {
+     // Log error
+     // Update message status
+     // Retry if appropriate
+     // Display error to user if needed
+   }
+   ```
+   
+   b. Implement recovery strategies:
+   ```typescript
+   function recoverFromError(error: Error, messageContext: MessageContext): boolean {
+     // Implement recovery strategies based on error type
+     // Return true if recovery successful, false otherwise
+   }
+   ```
+
+7. Logging and Debugging:
+   a. Implement comprehensive logging:
+   ```typescript
+   const messageLogger = {
+     logSent: (message: Message) => {
+       console.log(`[SENT][${message.type}][${message.id}]`, message);
+     },
+     logReceived: (message: Message) => {
+       console.log(`[RECEIVED][${message.type}][${message.id}]`, message);
+     },
+     logError: (error: Error, context: string) => {
+       console.error(`[ERROR][${context}]`, error);
+     }
+   };
+   ```
+   
+   b. Implement message flow visualization for debugging:
+   ```typescript
+   function visualizeMessageFlow(messageId: string): void {
+     // Generate visualization of message flow
+     // Show timing, processing steps, etc.
+   }
+   ```
+
+8. Performance Optimization:
+   a. Implement message batching for efficiency:
+   ```typescript
+   function batchMessages(messages: Message[]): BatchedMessage {
+     // Combine messages into batch when appropriate
+     // Optimize for network efficiency
+   }
+   ```
+   
+   b. Implement message prioritization:
+   ```typescript
+   function prioritizeMessages(queue: Message[]): Message[] {
+     // Sort messages by priority
+     // Consider message type, age, etc.
+     return sortedQueue;
+   }
+   ```
+
+# Test Strategy:
+1. Unit Testing:
+   a. Test message parsing functionality:
+      - Create unit tests for the Gemini2FlashMessageParser class
+      - Test parsing of various message formats (text, audio, tool calls)
+      - Verify correct handling of malformed messages
+      - Test edge cases (empty messages, very large messages)
+   
+   b. Test message queue implementation:
+      - Verify correct message ordering
+      - Test queue processing with various message types
+      - Verify rate limiting functionality
+      - Test priority handling
+
+   c. Test streaming response processing:
+      - Verify correct assembly of message chunks
+      - Test handling of out-of-order chunks
+      - Verify partial result display
+      - Test timeout handling for incomplete messages
+
+2. Integration Testing:
+   a. Test bidirectional communication:
+      - Verify message sending and receiving with the actual gemini-2.0-flash-live-001 model
+      - Test acknowledgment flow
+      - Verify error handling and recovery
+      - Test with various network conditions (latency, packet loss)
+
+   b. Test tool use capabilities:
+      - Verify correct handling of tool calls from the model
+      - Test tool response formatting and sending
+      - Verify tool call error handling
+      - Test complex tool call sequences
+
+   c. Test audio message handling:
+      - Verify correct processing of audio input
+      - Test audio output handling
+      - Verify format conversions
+      - Test with various audio qualities and lengths
+
+3. Performance Testing:
+   a. Measure message processing performance:
+      - Test with high message volumes
+      - Measure latency under load
+      - Verify memory usage remains stable
+      - Test CPU utilization during peak load
+
+   b. Test streaming performance:
+      - Measure time to first byte
+      - Test with various chunk sizes
+      - Verify UI responsiveness during streaming
+      - Test with long-running streaming sessions
+
+4. End-to-End Testing:
+   a. Create comprehensive test scenarios:
+      - Test complete conversation flows
+      - Verify all message types work together
+      - Test recovery from various error conditions
+      - Verify logging and debugging tools
+
+   b. Conduct user experience testing:
+      - Verify message display is intuitive
+      - Test perceived responsiveness
+      - Verify error messages are helpful
+      - Test accessibility of the messaging interface

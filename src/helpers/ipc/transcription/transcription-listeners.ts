@@ -20,9 +20,16 @@ export function addTranscriptionEventListeners() {
           // Try direct API call first
           const result = await transcribeAudio(buffer);
           console.log(
-            'Direct transcription completed successfully:',
+            '✅ Direct transcription completed successfully:',
             result.text.substring(0, 50) + '...',
           );
+          console.log('✅ IPC RETURNING RESULT:', {
+            type: typeof result,
+            keys: result ? Object.keys(result) : 'null',
+            textLength: result?.text?.length,
+            source: result?.source,
+            duration: result?.duration
+          });
           return result;
         } catch (directError: unknown) {
           const directErrorMessage =

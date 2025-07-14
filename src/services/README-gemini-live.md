@@ -1,6 +1,6 @@
 # Gemini Live API WebSocket Implementation
 
-This directory contains the implementation of the WebSocket client for Google's Gemini Live API, enabling real-time bidirectional communication for transcription services with the `gemini-2.0-flash-live-001` model.
+This directory contains the implementation of the WebSocket client for Google's Gemini Live API, enabling real-time bidirectional communication for transcription services with the `gemini-live-2.5-flash-preview` model.
 
 ## ✨ Enhanced Features (v2.0)
 
@@ -29,9 +29,9 @@ interface MessageSendOptions {
 ```typescript
 const config: GeminiLiveConfig = {
   apiKey: 'your-api-key',
-  model: 'gemini-2.0-flash-live-001',  // Updated model
+  model: 'gemini-live-2.5-flash-preview',  // Updated model
   responseModalities: ['TEXT', 'AUDIO'],
-  websocketBaseUrl: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent', // New endpoint
+  websocketBaseUrl: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent', // New endpoint
   maxQueueSize: 100,                    // Message queue size limit
   reconnectAttempts: 5,
   heartbeatInterval: 30000
@@ -161,7 +161,7 @@ import GeminiLiveWebSocketClient from './gemini-live-websocket'
 
 const client = new GeminiLiveWebSocketClient({
   apiKey: 'your-api-key',
-  model: 'gemini-2.0-flash-live-001',
+  model: 'gemini-live-2.5-flash-preview',
   responseModalities: ['AUDIO'],
   systemInstruction: 'You are a helpful assistant.',
   reconnectAttempts: 5,
@@ -388,7 +388,7 @@ export GEMINI_API_KEY="your-api-key"
 ```typescript
 interface GeminiLiveConfig {
   apiKey: string // Required: API key for authentication
-  model?: string // Default: 'gemini-2.0-flash-live-001'
+  model?: string // Default: 'gemini-live-2.5-flash-preview'
   responseModalities?: string[] // Default: ['AUDIO']
   systemInstruction?: string // Default: friendly assistant instruction
   reconnectAttempts?: number // Default: 5
@@ -791,7 +791,7 @@ GOOGLE_API_KEY=your-google-api-key
 GEMINI_API_KEY=your-gemini-api-key
 
 # Optional
-GEMINI_MODEL=gemini-2.0-flash-live-001
+GEMINI_MODEL=gemini-live-2.5-flash-preview
 GEMINI_RECONNECT_ATTEMPTS=5
 GEMINI_HEARTBEAT_INTERVAL=30000
 GEMINI_CONNECTION_TIMEOUT=10000

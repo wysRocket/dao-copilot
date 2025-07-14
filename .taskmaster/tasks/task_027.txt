@@ -1,0 +1,357 @@
+# Task ID: 27
+# Title: Implement Google Gemini Live API with WebSockets using gemini-live-2.5-flash-preview Model
+# Status: pending
+# Dependencies: 13, 16, 20, 22, 23
+# Priority: high
+# Description: Update the WebSocket client implementation to use the newer gemini-live-2.5-flash-preview model instead of gemini-2.0-flash-live-001, with proper WebSocket connection handling and bidirectional message support. This implementation should use the v1beta API endpoint as specified in the Google AI Developer documentation.
+# Details:
+1. Update WebSocket Connection Configuration:
+   a. Modify the connection URL to use the correct v1beta endpoint format:
+      ```typescript
+      const wsUrl = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+      ```
+   b. Set API version to v1beta for all requests to access Live API features
+   c. Implement proper API key authentication in the connection headers
+
+2. Update Model Configuration:
+   a. Replace all instances of "gemini-2.0-flash-live-001" with "gemini-live-2.5-flash-preview"
+   b. Update the model path format to use "models/gemini-live-2.5-flash-preview"
+   c. Ensure model consistency across all WebSocket operations
+
+3. Implement Enhanced Setup Message Structure:
+   ```typescript
+   function createSetupMessage(config: GeminiSetupConfig): SetupMessage {
+     return {
+       setup: {
+         model: "models/gemini-live-2.5-flash-preview",
+         generationConfig: {
+           responseModalities: config.responseModalities || ["TEXT"]
+         },
+         sessionResumption: config.sessionResumption ?? true,
+         // Add proactive audio settings if needed
+         audioConfig: config.audioConfig || null
+       }
+     };
+   }
+   ```
+
+4. Implement Session Management:
+   a. Add proper session initialization with the new model
+   b. Implement session resumption configuration to handle server resets
+   c. Add proper session termination handling
+   d. Implement reconnection logic with the new model specification
+
+5. Enhance Bidirectional Message Handling:
+   a. Update message handlers to support text, audio, and video modalities
+   b. Implement response modalities configuration (TEXT, AUDIO)
+   c. Add support for half-cascade audio (native audio input and text-to-speech output)
+   d. Implement enhanced tool use support for the new model
+
+6. Error Handling and Reconnection:
+   a. Implement specific error handling for the new model's requirements
+   b. Add proper WebSocket disconnection and reconnection logic
+   c. Implement exponential backoff for reconnection attempts
+   d. Add detailed logging for connection issues
+
+7. Update Documentation and Type Definitions:
+   a. Update API interface documentation to reflect the new model capabilities
+   b. Update TypeScript type definitions for the new model parameters
+   c. Document the differences between gemini-2.0-flash-live-001 and gemini-live-2.5-flash-preview
+   d. Add examples of proper usage with the new model
+   e. Ensure all documentation references the v1beta API endpoint
+
+# Test Strategy:
+1. Unit Testing:
+   a. Create unit tests for the updated WebSocket client implementation:
+      - Test connection establishment with the correct model and v1beta endpoint
+      - Verify proper message formatting for setup messages with the new model
+      - Test bidirectional communication with mock responses
+      - Validate session management and resumption functionality
+      - Test error handling with simulated connection failures
+
+2. Integration Testing:
+   a. Test live connection to the Gemini Live API with the new model and v1beta endpoint:
+      - Verify successful connection and authentication
+      - Test sending and receiving messages in real-time
+      - Validate proper handling of different response modalities
+      - Test session resumption after disconnection
+      - Verify tool use capabilities with the new model
+
+3. Performance Testing:
+   a. Measure and compare response times between old and new models
+   b. Test under various network conditions (latency, packet loss)
+   c. Verify performance with continuous audio streaming
+   d. Test memory usage during extended sessions
+
+4. Regression Testing:
+   a. Ensure all existing functionality continues to work with the new model and v1beta endpoint
+   b. Verify that UI components correctly display responses from the new model
+   c. Test all existing user flows with the updated implementation
+
+5. Error Handling Testing:
+   a. Test recovery from various error conditions:
+      - API key authentication failures
+      - Network disconnections
+      - Server-side errors
+      - Invalid message formats
+   b. Verify proper error messages are displayed to users
+
+6. Cross-Platform Testing:
+   a. Test on all supported platforms (Windows, macOS, Linux)
+   b. Verify WebSocket implementation works consistently across browsers
+   c. Test on different network environments
+   d. Verify compatibility with the v1beta endpoint across all platforms
+
+# Subtasks:
+## 1. Update WebSocket Connection URL and API Version [pending]
+### Dependencies: None
+### Description: Modify the WebSocket connection URL to use the correct v1beta endpoint format for the gemini-live-2.5-flash-preview model and update the API version from v1alpha to v1beta.
+### Details:
+1. Update the WebSocket URL constant to use the correct v1beta endpoint:
+```typescript
+const wsUrl = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+```
+2. Ensure all API requests use v1beta version in the URL path
+3. Update the authentication mechanism to include API key in connection headers:
+```typescript
+const headers = {
+  'x-goog-api-key': apiKey,
+  'Content-Type': 'application/json'
+};
+```
+4. Implement connection parameter validation to ensure proper URL formatting
+5. Verify compatibility with the Google AI Developer documentation for v1beta API
+
+## 2. Update Model Configuration and References [pending]
+### Dependencies: 27.1
+### Description: Replace all instances of the old model name with the new gemini-live-2.5-flash-preview model and update model path formats throughout the codebase.
+### Details:
+1. Search and replace all instances of 'gemini-2.0-flash-live-001' with 'gemini-live-2.5-flash-preview'
+2. Update model path format to use 'models/gemini-live-2.5-flash-preview' in all relevant code paths
+3. Create a central model configuration constant to ensure consistency:
+```typescript
+export const GEMINI_LIVE_MODEL = 'models/gemini-live-2.5-flash-preview';
+```
+4. Update any model-specific configuration parameters that might differ between models
+5. Ensure model name is consistently referenced across all WebSocket operations
+6. Verify model naming convention matches the requirements in the v1beta API documentation
+
+## 3. Implement Enhanced Setup Message Structure [pending]
+### Dependencies: 27.2
+### Description: Update the setup message structure to support the new model's capabilities, including response modalities and session resumption configuration.
+### Details:
+1. Create or update the setup message creation function:
+```typescript
+function createSetupMessage(config: GeminiSetupConfig): SetupMessage {
+  return {
+    setup: {
+      model: GEMINI_LIVE_MODEL,
+      generationConfig: {
+        responseModalities: config.responseModalities || ["TEXT"],
+        temperature: config.temperature || 0.7,
+        topP: config.topP || 0.95,
+        topK: config.topK || 40,
+        candidateCount: config.candidateCount || 1
+      },
+      sessionResumption: config.sessionResumption ?? true,
+      audioConfig: config.audioConfig || null,
+      toolConfig: config.toolConfig || null
+    }
+  };
+}
+```
+2. Update the GeminiSetupConfig interface to include all new configuration options
+3. Implement validation for setup message parameters
+4. Add support for proactive audio settings if needed
+5. Ensure the setup message structure conforms to the v1beta API requirements
+
+## 4. Implement Session Management for the New Model [pending]
+### Dependencies: 27.3
+### Description: Enhance session management to handle initialization, resumption, and termination with the new model, including reconnection logic.
+### Details:
+1. Implement session initialization with the new model:
+```typescript
+function initializeSession(config: GeminiSessionConfig): Promise<GeminiSession> {
+  const setupMessage = createSetupMessage(config);
+  return sendSetupMessage(setupMessage)
+    .then(response => createSessionFromResponse(response, config));
+}
+```
+2. Add session resumption handling:
+```typescript
+function resumeSession(sessionId: string, config: GeminiSessionConfig): Promise<GeminiSession> {
+  const setupMessage = createSetupMessage({
+    ...config,
+    sessionResumption: true,
+    sessionId
+  });
+  return sendSetupMessage(setupMessage);
+}
+```
+3. Implement session termination with proper cleanup
+4. Add reconnection logic with exponential backoff
+5. Implement session state tracking to handle server resets
+6. Ensure session management is compatible with the v1beta API requirements
+
+## 5. Enhance Bidirectional Message Handling for Multiple Modalities [pending]
+### Dependencies: 27.4
+### Description: Update message handlers to support text, audio, and video modalities with the new model, including support for half-cascade audio.
+### Details:
+1. Update the message sending function to support multiple modalities:
+```typescript
+function sendContentMessage(session: GeminiSession, content: ContentInput[]): Promise<void> {
+  const message = {
+    content: {
+      parts: content.map(part => formatContentPart(part))
+    }
+  };
+  return session.socket.send(JSON.stringify(message));
+}
+```
+2. Implement formatContentPart function to handle different content types:
+```typescript
+function formatContentPart(part: ContentInput): ContentPart {
+  if (typeof part === 'string') {
+    return { text: part };
+  } else if (part.audio) {
+    return { inlineData: { mimeType: 'audio/wav', data: part.audio } };
+  } else if (part.image) {
+    return { inlineData: { mimeType: part.mimeType || 'image/jpeg', data: part.image } };
+  }
+  return part as ContentPart;
+}
+```
+3. Update response handlers to process different modality outputs
+4. Implement half-cascade audio support (native audio input and text-to-speech output)
+5. Add event listeners for different response types
+6. Ensure message format compatibility with the v1beta API specifications
+
+## 6. Implement Enhanced Error Handling and Reconnection Logic [pending]
+### Dependencies: 27.5
+### Description: Update error handling to address specific requirements of the new model and implement robust reconnection logic with exponential backoff.
+### Details:
+1. Implement model-specific error handling:
+```typescript
+function handleWebSocketError(error: WebSocketError, session: GeminiSession): void {
+  const errorCode = extractErrorCode(error);
+  
+  if (errorCode === 'MODEL_UNAVAILABLE') {
+    session.emit('error', { type: 'MODEL_ERROR', message: 'The gemini-live-2.5-flash-preview model is currently unavailable' });
+  } else if (errorCode === 'SESSION_EXPIRED') {
+    attemptSessionRenewal(session);
+  } else {
+    handleGenericError(error, session);
+  }
+}
+```
+2. Implement exponential backoff for reconnection:
+```typescript
+function reconnectWithBackoff(session: GeminiSession, attempt = 0): void {
+  const maxAttempts = 5;
+  const baseDelay = 1000;
+  const maxDelay = 30000;
+  
+  if (attempt >= maxAttempts) {
+    session.emit('error', { type: 'CONNECTION_FAILED', message: 'Failed to reconnect after multiple attempts' });
+    return;
+  }
+  
+  const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+  setTimeout(() => {
+    initializeWebSocket(session)
+      .then(() => session.emit('reconnected'))
+      .catch(() => reconnectWithBackoff(session, attempt + 1));
+  }, delay);
+}
+```
+3. Add detailed logging for connection issues
+4. Implement proper WebSocket cleanup on disconnection
+5. Add specific error handling for the new model's requirements
+6. Update error handling to account for any v1beta API-specific error codes
+
+## 7. Implement Response Modality Configuration and Tool Support [pending]
+### Dependencies: 27.5
+### Description: Add support for configuring response modalities and implement enhanced tool use support for the new model.
+### Details:
+1. Implement response modality configuration:
+```typescript
+function configureResponseModalities(config: GeminiConfig): string[] {
+  const modalities = [];
+  if (config.enableTextResponse !== false) {
+    modalities.push('TEXT');
+  }
+  if (config.enableAudioResponse === true) {
+    modalities.push('AUDIO');
+  }
+  return modalities.length > 0 ? modalities : ['TEXT'];
+}
+```
+2. Update the setup message to include response modality configuration
+3. Implement tool use support for the new model:
+```typescript
+function configureFunctionCalling(tools: Tool[]): ToolConfig {
+  return {
+    functionDeclarations: tools.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters
+    })),
+    enableExecution: false
+  };
+}
+```
+4. Add handlers for tool execution responses
+5. Implement function calling result submission
+6. Ensure tool configuration is compatible with the v1beta API specifications
+
+## 8. Update Documentation and Type Definitions [pending]
+### Dependencies: 27.1, 27.2, 27.3, 27.4, 27.5, 27.6, 27.7
+### Description: Update API interface documentation and TypeScript type definitions to reflect the new model capabilities and differences from the previous model.
+### Details:
+1. Update TypeScript interfaces for the new model parameters:
+```typescript
+interface GeminiLiveConfig {
+  model: string;
+  apiKey: string;
+  responseModalities?: ('TEXT' | 'AUDIO')[];
+  sessionResumption?: boolean;
+  audioConfig?: AudioConfig;
+  toolConfig?: ToolConfig;
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+}
+```
+2. Create comprehensive documentation for the new model capabilities
+3. Document the differences between gemini-2.0-flash-live-001 and gemini-live-2.5-flash-preview
+4. Add usage examples for different scenarios:
+```typescript
+// Example: Text conversation with the new model
+const session = await GeminiLive.createSession({
+  apiKey: 'YOUR_API_KEY',
+  responseModalities: ['TEXT']
+});
+
+session.sendMessage('Tell me about quantum computing');
+session.on('response', (text) => console.log(text));
+```
+5. Create migration guide for users upgrading from the previous model
+6. Document the v1beta API endpoint requirements and any differences from previous API versions
+7. Reference GitHub issue #176 in the documentation for traceability
+
+## 9. Verify Compatibility with v1beta API Endpoint [pending]
+### Dependencies: 27.1, 27.2, 27.3, 27.4, 27.5, 27.6, 27.7, 27.8
+### Description: Perform comprehensive testing to ensure the implementation is fully compatible with the v1beta API endpoint as specified in the Google AI Developer documentation.
+### Details:
+1. Review the Google AI Developer documentation for v1beta API to ensure all implementation details match the specifications
+2. Create a test suite specifically for v1beta endpoint compatibility:
+   a. Test connection establishment
+   b. Test authentication
+   c. Test message formats
+   d. Test response handling
+   e. Test error scenarios
+3. Compare request/response formats with the documentation examples
+4. Verify all features mentioned in GitHub issue #176 are properly implemented
+5. Document any discrepancies between the documentation and actual API behavior
+6. Create a compatibility report summarizing the findings
+

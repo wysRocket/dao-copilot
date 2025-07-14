@@ -20,12 +20,13 @@ async function testGeminiWebSocket() {
 
   const client = new GeminiLiveWebSocketClient({
     apiKey,
-    model: 'gemini-2.0-flash-live-001',
+    model: 'gemini-live-2.5-flash-preview',
     responseModalities: [ResponseModality.TEXT],
     systemInstruction: 'You are a helpful AI assistant. Please respond briefly.',
     reconnectAttempts: 3,
     heartbeatInterval: 30000,
-    connectionTimeout: 15000
+    connectionTimeout: 15000,
+    apiVersion: process.env.GEMINI_API_VERSION || 'v1beta' // Use configured API version or default to v1beta
   })
 
   // Set up event listeners
