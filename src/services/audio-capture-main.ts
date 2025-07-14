@@ -5,7 +5,7 @@
  * with the renderer process where AudioContext is available.
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {ipcMain, BrowserWindow} from 'electron'
 
 export interface AudioCaptureConfig {
