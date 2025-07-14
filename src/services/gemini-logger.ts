@@ -3,7 +3,7 @@
  * Centralized logging with multiple outputs and formatting
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {LogLevel, LogEntry} from './gemini-error-handler'
 import * as crypto from 'crypto'
 

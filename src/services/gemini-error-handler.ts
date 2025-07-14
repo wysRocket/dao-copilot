@@ -3,7 +3,7 @@
  * Comprehensive error management, classification, and logging
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {sanitizeForLogging} from '../utils/security-utils'
 
 export enum ErrorType {
