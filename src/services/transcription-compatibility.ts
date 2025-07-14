@@ -23,7 +23,14 @@ const LEGACY_ENV_MAPPINGS = {
   // Legacy specific mappings
   GEMINI_BATCH_MODE: 'GEMINI_TRANSCRIPTION_MODE',
   DISABLE_WEBSOCKET: 'GEMINI_WEBSOCKET_ENABLED',
-  PROXY_FALLBACK: 'GEMINI_FALLBACK_TO_BATCH'
+  PROXY_FALLBACK: 'GEMINI_FALLBACK_TO_BATCH',
+
+  // v1beta migration mappings
+  GEMINI_API_VERSION: 'GEMINI_API_VERSION',
+  GEMINI_MODEL_VERSION: 'GEMINI_MODEL_NAME',
+  USE_EXPERIMENTAL_MODEL: 'GEMINI_USE_V1BETA',
+  GEMINI_LIVE_MODEL: 'GEMINI_MODEL_NAME',
+  USE_V1_ALPHA: 'GEMINI_API_VERSION'
 } as const
 
 /**
@@ -39,6 +46,11 @@ export interface LegacyTranscriptionOptions {
   batchMode?: boolean
   useProxy?: boolean
   fallbackEnabled?: boolean
+  // Legacy model names that need migration
+  useV1Alpha?: boolean
+  useExperimentalModel?: boolean
+  geminiModel?: string
+  apiVersion?: string
   // Allow additional string-keyed properties for flexibility
   [key: string]: unknown
 }
@@ -59,7 +71,18 @@ export interface MigrationResult {
 export function detectLegacyUsage(options: Record<string, unknown>): boolean {
   if (!options || typeof options !== 'object') return false
 
-  const legacyKeys = ['batchMode', 'useProxy', 'fallbackEnabled', 'timeout', 'retries']
+  const legacyKeys = [
+    'batchMode', 
+    'useProxy', 
+    'fallbackEnabled', 
+    'timeout', 
+    'retries',
+    // v1beta migration indicators
+    'useV1Alpha',
+    'useExperimentalModel',
+    'geminiModel',
+    'apiVersion'
+  ]
 
   return legacyKeys.some(key => key in options)
 }
@@ -94,6 +117,36 @@ export function migrateLegacyEnvironment(): {
   if (process.env.PROXY_FALLBACK) {
     migrated.GEMINI_FALLBACK_TO_BATCH = process.env.PROXY_FALLBACK
     warnings.push('PROXY_FALLBACK is deprecated. Use GEMINI_FALLBACK_TO_BATCH instead.')
+  }
+
+  // Handle v1beta migration settings
+  if (process.env.USE_EXPERIMENTAL_MODEL) {
+    const useExperimental = process.env.USE_EXPERIMENTAL_MODEL?.toLowerCase()
+    if (useExperimental === 'true' || useExperimental === '1') {
+      migrated.GEMINI_USE_V1BETA = 'true'
+      migrated.GEMINI_MODEL_NAME = 'gemini-live-2.5-flash-preview'
+      migrated.GEMINI_API_VERSION = 'v1beta'
+    }
+    warnings.push('USE_EXPERIMENTAL_MODEL is deprecated. Use GEMINI_USE_V1BETA=true instead.')
+  }
+
+  if (process.env.USE_V1_ALPHA) {
+    const useV1Alpha = process.env.USE_V1_ALPHA?.toLowerCase()
+    if (useV1Alpha === 'true' || useV1Alpha === '1') {
+      migrated.GEMINI_API_VERSION = 'v1alpha'
+      migrated.GEMINI_MODEL_NAME = 'gemini-live-2.5-flash-preview'
+    }
+    warnings.push('USE_V1_ALPHA is deprecated. Set GEMINI_API_VERSION=v1alpha explicitly if needed.')
+  }
+
+  if (process.env.GEMINI_MODEL_VERSION) {
+    migrated.GEMINI_MODEL_NAME = process.env.GEMINI_MODEL_VERSION
+    warnings.push('GEMINI_MODEL_VERSION is deprecated. Use GEMINI_MODEL_NAME instead.')
+  }
+
+  if (process.env.GEMINI_LIVE_MODEL) {
+    migrated.GEMINI_MODEL_NAME = process.env.GEMINI_LIVE_MODEL
+    warnings.push('GEMINI_LIVE_MODEL is deprecated. Use GEMINI_MODEL_NAME instead.')
   }
 
   return {migrated, warnings}
@@ -145,6 +198,41 @@ export function migrateLegacyConfig(
     warnings.push('The "retries" option is now handled automatically by the reconnection manager.')
   }
 
+  // Handle v1beta model migrations
+  if ('useV1Alpha' in legacyConfig && legacyConfig.useV1Alpha) {
+    deprecations.push('The "useV1Alpha" option is deprecated. v1beta is now the default API version.')
+    newConfig.modelName = 'gemini-live-2.5-flash-preview' // Upgrade to v1beta model
+    warnings.push('Automatically upgraded from v1alpha to v1beta model for better performance.')
+  }
+
+  if ('useExperimentalModel' in legacyConfig && legacyConfig.useExperimentalModel) {
+    deprecations.push('The "useExperimentalModel" option is deprecated. v1beta models are now stable.')
+    newConfig.modelName = 'gemini-live-2.5-flash-preview'
+  }
+
+  if ('geminiModel' in legacyConfig && legacyConfig.geminiModel) {
+    // Migrate legacy model names to v1beta equivalents
+    const modelMigrations: Record<string, string> = {
+      'gemini-live-2.5-flash-preview': 'gemini-live-2.5-flash-preview',
+      'gemini-live-experimental': 'gemini-live-2.5-flash-preview',
+      'gemini-pro-vision': 'gemini-live-2.5-flash-preview',
+      'gemini-pro': 'gemini-live-2.5-flash-preview'
+    }
+
+    const legacyModel = legacyConfig.geminiModel as string
+    if (modelMigrations[legacyModel]) {
+      newConfig.modelName = modelMigrations[legacyModel]
+      warnings.push(`Migrated legacy model "${legacyModel}" to "${modelMigrations[legacyModel]}" for v1beta compatibility.`)
+    } else {
+      newConfig.modelName = legacyModel
+      warnings.push(`Using custom model "${legacyModel}". Ensure it's compatible with v1beta API.`)
+    }
+  }
+
+  if ('apiVersion' in legacyConfig && legacyConfig.apiVersion === 'v1alpha') {
+    warnings.push('v1alpha API is deprecated. Consider upgrading to v1beta for improved reliability.')
+  }
+
   // Apply environment migration
   const envMigration = migrateLegacyEnvironment()
   warnings.push(...envMigration.warnings)
@@ -191,7 +279,16 @@ export function createLegacyWrapper<T extends (...args: unknown[]) => unknown>(
  */
 export function isLegacyUsagePattern(): boolean {
   // Check environment variables
-  const legacyEnvVars = ['GEMINI_BATCH_MODE', 'DISABLE_WEBSOCKET', 'PROXY_FALLBACK']
+  const legacyEnvVars = [
+    'GEMINI_BATCH_MODE', 
+    'DISABLE_WEBSOCKET', 
+    'PROXY_FALLBACK',
+    // v1beta migration indicators
+    'USE_EXPERIMENTAL_MODEL',
+    'USE_V1_ALPHA',
+    'GEMINI_MODEL_VERSION',
+    'GEMINI_LIVE_MODEL'
+  ]
 
   return legacyEnvVars.some(envVar => process.env[envVar] !== undefined)
 }
@@ -226,17 +323,91 @@ export function generateMigrationGuide(currentConfig?: LegacyTranscriptionOption
   guide += '- Intelligent hybrid mode with `mode: TranscriptionMode.HYBRID` (default)\n'
   guide += '- Automatic fallback and error recovery\n'
   guide += '- Connection quality monitoring\n'
-  guide += '- Improved error handling and logging\n\n'
+  guide += '- Improved error handling and logging\n'
+  guide += '- v1beta API compatibility with `gemini-live-2.5-flash-preview` model\n'
+  guide += '- Enhanced WebSocket connection pooling and cleanup\n'
+  guide += '- Automatic legacy model migration to v1beta equivalents\n\n'
 
   guide += '## Example Migration\n'
   guide += '```typescript\n'
-  guide += '// Old usage\n'
-  guide += 'transcribeAudio(buffer, { apiKey, batchMode: true })\n\n'
-  guide += '// New usage\n'
-  guide += 'transcribeAudio(buffer, { apiKey, mode: TranscriptionMode.BATCH })\n'
+  guide += '// Old usage (v1alpha)\n'
+  guide += 'transcribeAudio(buffer, { \n'
+  guide += '  apiKey, \n'
+  guide += '  batchMode: true,\n'
+  guide += '  useV1Alpha: true,\n'
+  guide += '  geminiModel: "gemini-live-2.5-flash-preview"\n'
+  guide += '})\n\n'
+  guide += '// New usage (v1beta)\n'
+  guide += 'transcribeAudio(buffer, { \n'
+  guide += '  apiKey, \n'
+  guide += '  mode: TranscriptionMode.BATCH,\n'
+  guide += '  modelName: "gemini-live-2.5-flash-preview"\n'
+  guide += '})\n\n'
+  guide += '// Hybrid mode (recommended)\n'
+  guide += 'transcribeAudio(buffer, { \n'
+  guide += '  apiKey, \n'
+  guide += '  mode: TranscriptionMode.HYBRID,\n'
+  guide += '  fallbackToBatch: true\n'
+  guide += '})\n'
   guide += '```\n'
 
   return guide
+}
+
+/**
+ * v1beta migration utility for existing v1alpha users
+ */
+export function migrateToV1Beta(currentConfig: LegacyTranscriptionOptions): {
+  newConfig: Partial<TranscriptionOptions & ProxyTranscriptionOptions>
+  migrationSteps: string[]
+  benefits: string[]
+} {
+  const newConfig: Partial<TranscriptionOptions & ProxyTranscriptionOptions> = {}
+  const migrationSteps: string[] = []
+  const benefits: string[] = []
+
+  // Migrate API key
+  if (currentConfig.apiKey) {
+    newConfig.apiKey = currentConfig.apiKey
+    migrationSteps.push('✓ API key migrated successfully')
+  }
+
+  // Migrate model to v1beta
+  const currentModel = currentConfig.modelName || currentConfig.geminiModel || 'gemini-live-2.5-flash-preview'
+  newConfig.modelName = 'gemini-live-2.5-flash-preview'
+  migrationSteps.push(`✓ Model upgraded: ${currentModel} → gemini-live-2.5-flash-preview`)
+  benefits.push('Improved accuracy and performance with v1beta model')
+
+  // Migrate mode settings
+  if (currentConfig.batchMode) {
+    newConfig.mode = TranscriptionMode.BATCH
+    migrationSteps.push('✓ Batch mode migrated to TranscriptionMode.BATCH')
+  } else {
+    newConfig.mode = TranscriptionMode.HYBRID
+    migrationSteps.push('✓ Set to TranscriptionMode.HYBRID for optimal performance')
+    benefits.push('Hybrid mode provides automatic WebSocket/batch fallback')
+  }
+
+  // Enable fallback
+  newConfig.fallbackToBatch = true
+  migrationSteps.push('✓ Automatic fallback to batch mode enabled')
+  benefits.push('Enhanced reliability with automatic fallback')
+
+  // Migrate proxy settings if present
+  if (currentConfig.proxyUrl) {
+    newConfig.proxyUrl = currentConfig.proxyUrl
+    migrationSteps.push('✓ Proxy URL preserved')
+  }
+
+  benefits.push('v1beta API provides better error handling and connection stability')
+  benefits.push('WebSocket connection pooling for improved performance')
+  benefits.push('Automatic reconnection and retry mechanisms')
+
+  return {
+    newConfig,
+    migrationSteps,
+    benefits
+  }
 }
 
 /**
@@ -331,6 +502,7 @@ export default {
   createLegacyWrapper,
   isLegacyUsagePattern,
   generateMigrationGuide,
+  migrateToV1Beta,
   checkCompatibilityStatus,
   LegacyAliases,
 

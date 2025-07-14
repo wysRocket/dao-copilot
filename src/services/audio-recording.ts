@@ -173,11 +173,37 @@ export class AudioRecordingService {
 
       // Send for transcription via IPC
       if (window.transcriptionAPI?.transcribeAudio) {
+        console.log('🎤 AudioRecording: Calling transcriptionAPI.transcribeAudio with', wavData.length, 'bytes')
         const result = await window.transcriptionAPI.transcribeAudio(wavData)
-        console.log('Transcription result:', result)
+        console.log('🎤 AudioRecording: RAW IPC RESULT STRUCTURE:', {
+          type: typeof result,
+          keys: result ? Object.keys(result) : 'null',
+          fullResult: JSON.stringify(result, null, 2)
+        })
+        console.log('🎤 AudioRecording: Result text analysis:', {
+          text: result?.text,
+          textType: typeof result?.text,
+          textLength: result?.text?.length,
+          textTrimmed: result?.text?.trim(),
+          textTrimmedLength: result?.text?.trim()?.length,
+          textTruthyCheck: !!result?.text?.trim()
+        })
+        console.log('🎤 AudioRecording: onTranscription callback exists:', !!onTranscription)
 
-        if (onTranscription && result.text.trim()) {
+        if (onTranscription && result?.text?.trim()) {
+          console.log('🎤 AudioRecording: ✅ CALLING onTranscription callback with result')
           onTranscription(result)
+          console.log('🎤 AudioRecording: ✅ onTranscription callback completed successfully')
+        } else {
+          console.error('🎤 AudioRecording: ❌ SKIPPING onTranscription callback because:', {
+            hasCallback: !!onTranscription,
+            hasResult: !!result,
+            hasText: !!result?.text,
+            textValue: result?.text,
+            textTrimmed: result?.text?.trim(),
+            textTrimmedTruthy: !!result?.text?.trim(),
+            conditionResult: !!(onTranscription && result?.text?.trim())
+          })
         }
 
         return result
@@ -258,7 +284,9 @@ export class AudioRecordingService {
       // Set up audio chunk collection
       const audioChunks: AudioChunkData[] = []
       audioCapture.on('audioChunk', (chunkData: AudioChunkData) => {
+        console.log('🎤 AudioRecording: Audio chunk received, size:', chunkData.buffer.length)
         audioChunks.push(chunkData)
+        console.log('🎤 AudioRecording: Total chunks collected:', audioChunks.length)
       })
 
       // Set up interval processing
@@ -266,9 +294,14 @@ export class AudioRecordingService {
 
       this.recordingSubscription = intervalObservable.pipe(takeUntil(stopSubject)).subscribe({
         next: async () => {
+          console.log('🎤 AudioRecording: Interval triggered, checking for audio chunks')
+          console.log('🎤 AudioRecording: audioChunks.length:', audioChunks.length)
           if (audioChunks.length > 0) {
-            console.log(`Processing ${audioChunks.length} audio chunks for interval transcription`)
+            console.log(`🎤 AudioRecording: Processing ${audioChunks.length} audio chunks for interval transcription`)
+            console.log('🎤 AudioRecording: onTranscription callback provided:', !!onTranscription)
             await this.processAudioChunks(audioChunks.splice(0), onTranscription)
+          } else {
+            console.log('🎤 AudioRecording: No audio chunks available for processing')
           }
         },
         error: err => {
@@ -330,9 +363,15 @@ export class AudioRecordingService {
    * Toggle recording state
    */
   async toggleRecording(onTranscription?: (result: TranscriptionResult) => void): Promise<void> {
+    console.log('🎤 AudioRecordingService: toggleRecording called')
+    console.log('🎤 AudioRecordingService: Current state.isRecording:', this.state.isRecording)
+    console.log('🎤 AudioRecordingService: onTranscription callback provided:', !!onTranscription)
+    
     if (this.state.isRecording) {
+      console.log('🎤 AudioRecordingService: Stopping recording')
       this.stopIntervalRecording()
     } else {
+      console.log('🎤 AudioRecordingService: Starting recording')
       await this.startIntervalRecording(onTranscription)
     }
   }

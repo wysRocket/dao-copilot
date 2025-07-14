@@ -10,6 +10,7 @@ import {MultiWindowProvider} from './contexts/MultiWindowContext'
 import {WindowStateProvider} from './contexts/WindowStateProvider'
 import {ThemeProvider} from './contexts/ThemeProvider'
 import {GlassEffectsProvider} from './contexts/GlassEffectsProvider'
+import {StreamingTextProvider} from './contexts/StreamingTextContext'
 
 export default function App() {
   const [isMultiWindow, setIsMultiWindow] = useState(false)
@@ -31,11 +32,13 @@ export default function App() {
     <ThemeProvider defaultMode="dark">
       <GlassEffectsProvider>
         <MultiWindowProvider>
-          <WindowStateProvider>
-            <PortalManagerProvider>
-              {isMultiWindow ? <WindowRenderer /> : <RouterProvider router={router} />}
-            </PortalManagerProvider>
-          </WindowStateProvider>
+          <StreamingTextProvider>
+            <WindowStateProvider>
+              <PortalManagerProvider>
+                {isMultiWindow ? <WindowRenderer /> : <RouterProvider router={router} />}
+              </PortalManagerProvider>
+            </WindowStateProvider>
+          </StreamingTextProvider>
         </MultiWindowProvider>
       </GlassEffectsProvider>
     </ThemeProvider>

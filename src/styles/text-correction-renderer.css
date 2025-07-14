@@ -1,0 +1,496 @@
+/* TextCorrectionRenderer Component Styles */
+
+/* ==========================================
+   CSS Custom Properties for Correction Animations
+   ========================================== */
+:root {
+  --correction-highlight-color: rgba(255, 215, 0, 0.4);
+  --correction-insert-color: rgba(34, 197, 94, 0.3);
+  --correction-delete-color: rgba(239, 68, 68, 0.3);
+  --correction-replace-color: rgba(59, 130, 246, 0.3);
+  
+  --correction-highlight-duration: 0.6s;
+  --correction-replace-duration: 0.8s;
+  --correction-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  
+  --correction-border-radius: 3px;
+  --correction-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ==========================================
+   Base Component Styles
+   ========================================== */
+
+.text-correction-renderer {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  position: relative;
+}
+
+.text-correction-renderer.partial {
+  opacity: 0.9;
+}
+
+.text-correction-renderer.final {
+  opacity: 1;
+}
+
+.correction-text-container {
+  min-height: 1.5em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* ==========================================
+   Text Segment Styles
+   ========================================== */
+
+.correction-text-base,
+.correction-text-regular {
+  transition: all 0.2s ease;
+}
+
+.correction-segment {
+  position: relative;
+  display: inline;
+  transition: all var(--correction-transition-timing);
+  border-radius: var(--correction-border-radius);
+  padding: 1px 2px;
+  margin: 0 1px;
+}
+
+/* ==========================================
+   Correction Type Specific Styles
+   ========================================== */
+
+/* Insert Corrections */
+.correction-insert {
+  background: var(--correction-insert-color);
+  border-left: 2px solid #22c55e;
+  animation: correction-insert-reveal var(--correction-replace-duration) ease-out;
+}
+
+.correction-insert.correction-highlighting {
+  background: var(--correction-highlight-color);
+  animation: correction-highlight-pulse var(--correction-highlight-duration) ease-in-out;
+}
+
+.correction-insert.correction-replacing {
+  animation: correction-insert-expand var(--correction-replace-duration) ease-out;
+}
+
+/* Delete Corrections */
+.correction-delete {
+  background: var(--correction-delete-color);
+  border-left: 2px solid #ef4444;
+  text-decoration: line-through;
+  animation: correction-delete-fade var(--correction-replace-duration) ease-out;
+}
+
+.correction-delete.correction-highlighting {
+  background: var(--correction-highlight-color);
+  animation: correction-highlight-pulse var(--correction-highlight-duration) ease-in-out;
+}
+
+.correction-delete.correction-replacing {
+  animation: correction-delete-shrink var(--correction-replace-duration) ease-out;
+  opacity: calc(1 - var(--correction-progress, 0));
+}
+
+/* Replace Corrections */
+.correction-replace {
+  background: var(--correction-replace-color);
+  border-left: 2px solid #3b82f6;
+  animation: correction-replace-transition var(--correction-replace-duration) ease-out;
+}
+
+.correction-replace.correction-highlighting {
+  background: var(--correction-highlight-color);
+  animation: correction-highlight-pulse var(--correction-highlight-duration) ease-in-out;
+}
+
+.correction-replace.correction-replacing {
+  animation: correction-replace-morph var(--correction-replace-duration) ease-out;
+}
+
+/* Unchanged Segments (for context) */
+.correction-unchanged {
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+/* ==========================================
+   Animation Keyframes
+   ========================================== */
+
+@keyframes correction-highlight-pulse {
+  0%, 100% {
+    background-color: var(--correction-highlight-color);
+    box-shadow: 0 0 0 rgba(255, 215, 0, 0);
+  }
+  50% {
+    background-color: rgba(255, 215, 0, 0.6);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+  }
+}
+
+@keyframes correction-insert-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+    background-color: var(--correction-highlight-color);
+  }
+  50% {
+    background-color: var(--correction-highlight-color);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    background-color: var(--correction-insert-color);
+  }
+}
+
+@keyframes correction-insert-expand {
+  0% {
+    max-width: 0;
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    max-width: 100%;
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes correction-delete-fade {
+  0% {
+    opacity: 1;
+    background-color: var(--correction-highlight-color);
+  }
+  50% {
+    background-color: var(--correction-highlight-color);
+  }
+  100% {
+    opacity: 0.3;
+    background-color: var(--correction-delete-color);
+  }
+}
+
+@keyframes correction-delete-shrink {
+  0% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(0.1);
+    opacity: 0;
+  }
+}
+
+@keyframes correction-replace-transition {
+  0% {
+    background-color: var(--correction-highlight-color);
+    transform: scale(1);
+  }
+  25% {
+    background-color: var(--correction-highlight-color);
+    transform: scale(1.05);
+  }
+  75% {
+    background-color: var(--correction-replace-color);
+    transform: scale(1.05);
+  }
+  100% {
+    background-color: var(--correction-replace-color);
+    transform: scale(1);
+  }
+}
+
+@keyframes correction-replace-morph {
+  0% {
+    filter: blur(0px);
+    opacity: 1;
+  }
+  50% {
+    filter: blur(1px);
+    opacity: 0.7;
+  }
+  100% {
+    filter: blur(0px);
+    opacity: 1;
+  }
+}
+
+@keyframes correction-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(59, 130, 246, 0);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+  }
+}
+
+/* ==========================================
+   Phase-Specific Animations
+   ========================================== */
+
+.correction-phase-highlight {
+  animation-duration: var(--correction-highlight-duration);
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+}
+
+.correction-phase-replace {
+  animation-duration: var(--correction-replace-duration);
+  animation-timing-function: var(--correction-transition-timing);
+  animation-fill-mode: both;
+}
+
+.correction-phase-complete {
+  animation: none;
+  background: transparent;
+  border: none;
+  opacity: 1;
+}
+
+/* ==========================================
+   Statistics Display
+   ========================================== */
+
+.correction-stats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.stats-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.stats-label {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.stats-value {
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+}
+
+.stats-item.processing {
+  color: var(--correction-replace-color);
+  font-weight: 600;
+}
+
+.processing-indicator {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================
+   Interactive States
+   ========================================== */
+
+.correction-segment:hover {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  cursor: help;
+  z-index: 10;
+  position: relative;
+}
+
+.correction-segment:hover::after {
+  content: attr(data-correction-type);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  animation: tooltip-fade-in 0.2s ease-out 0.5s forwards;
+}
+
+@keyframes tooltip-fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-2px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ==========================================
+   Accessibility Features
+   ========================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Screen reader friendly correction announcements */
+.correction-segment[data-correction-type]::before {
+  content: "";
+}
+
+/* ==========================================
+   Reduced Motion Support
+   ========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .correction-segment,
+  .correction-segment * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .correction-segment:hover::after {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  
+  .processing-indicator {
+    animation: none !important;
+  }
+}
+
+/* ==========================================
+   High Contrast Support
+   ========================================== */
+
+@media (prefers-contrast: high) {
+  .correction-segment {
+    border: 2px solid currentColor;
+    background: transparent !important;
+  }
+  
+  .correction-insert {
+    border-color: #22c55e;
+  }
+  
+  .correction-delete {
+    border-color: #ef4444;
+  }
+  
+  .correction-replace {
+    border-color: #3b82f6;
+  }
+  
+  .correction-stats {
+    border: 2px solid currentColor;
+    background: transparent;
+  }
+}
+
+/* ==========================================
+   Dark Theme Support
+   ========================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --correction-highlight-color: rgba(255, 215, 0, 0.25);
+    --correction-insert-color: rgba(34, 197, 94, 0.2);
+    --correction-delete-color: rgba(239, 68, 68, 0.2);
+    --correction-replace-color: rgba(59, 130, 246, 0.2);
+  }
+  
+  .correction-stats {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary-dark, #9ca3af);
+  }
+  
+  .stats-value {
+    color: var(--text-primary-dark, #f9fafb);
+  }
+  
+  .correction-segment:hover::after {
+    background: rgba(255, 255, 255, 0.9);
+    color: #000;
+  }
+}
+
+/* ==========================================
+   Mobile Responsive Adjustments
+   ========================================== */
+
+@media (max-width: 768px) {
+  .correction-stats {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+  }
+  
+  .stats-item {
+    justify-content: space-between;
+  }
+  
+  .correction-segment {
+    padding: 2px 3px;
+    margin: 0 2px;
+  }
+  
+  .correction-segment:hover::after {
+    display: none; /* Hide tooltips on mobile */
+  }
+}
+
+/* ==========================================
+   Performance Optimizations
+   ========================================== */
+
+.correction-segment {
+  will-change: transform, opacity, background-color;
+  backface-visibility: hidden;
+  transform: translateZ(0); /* Force hardware acceleration */
+}
+
+/* Optimize for animations */
+.correction-highlighting,
+.correction-replacing {
+  will-change: transform, opacity, background-color, box-shadow;
+}
+
+/* ==========================================
+   Focus and Keyboard Navigation
+   ========================================== */
+
+.text-correction-renderer:focus {
+  outline: 2px solid var(--focus-color, #3b82f6);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.correction-segment:focus {
+  outline: 1px solid var(--focus-color, #3b82f6);
+  outline-offset: 1px;
+  z-index: 10;
+}

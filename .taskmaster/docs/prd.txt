@@ -1,175 +1,289 @@
-# Product Requirements Document: Gemini Live API WebSocket Integration
+# Live Text Rendering & Streaming Response via WebSockets - Product Requirements Document
 
-## Overview
-Update the DAO Copilot transcribing flow to integrate with Google's Gemini Live API using WebSocket connections for real-time transcription capabilities. This migration from the current batch-based approach will provide better performance, lower latency, and improved accuracy.
+## Project Overview
 
-## Background
-The current implementation uses batch-based transcription where audio is recorded in intervals and sent to the Gemini API via HTTP requests. Google has released the Gemini Live API which provides enhanced real-time transcription features through WebSocket connections, offering better performance and lower latency.
+This project aims to implement real-time text rendering and streaming response capabilities via WebSockets for the DAO Copilot application. The goal is to provide users with live, character-by-character or word-by-word streaming text responses from the Gemini Live API, creating a more engaging and responsive user experience.
 
-## Objectives
-- Replace the current batch-based transcription with real-time WebSocket streaming
-- Implement WebSocket client for Gemini Live API integration
-- Maintain all existing functionality while improving performance
-- Provide seamless user experience with real-time transcription updates
-- Implement robust error handling and reconnection logic
+## Business Context
 
-## Technical Requirements
+### Current State
+- The application currently uses batch-based transcription with delayed responses
+- Users experience noticeable delays between audio input and text output
+- The existing WebSocket implementation has timeout issues and falls back to batch mode
+- No real-time visual feedback during response generation
 
-### 1. WebSocket Implementation
-- Implement WebSocket client for Gemini Live API integration
-- Establish bidirectional communication with the API
-- Handle connection lifecycle (open, close, error events)
-- Implement reconnection logic with exponential backoff
-- Support binary and text message formats
+### Target State
+- Real-time streaming text responses that appear as they're generated
+- Smooth, live character-by-character or word-by-word rendering
+- Responsive UI with real-time connection status indicators
+- Seamless WebSocket-based communication with proper error handling
+- Enhanced user experience with immediate feedback and streaming animations
 
-### 2. Real-time Audio Streaming
-- Replace batch audio processing with continuous streaming
-- Implement audio capture using Web Audio API
-- Convert audio data to required format (16-bit PCM)
-- Stream audio chunks in real-time over WebSocket
-- Implement audio buffering and backpressure handling
+## Core Requirements
 
-### 3. Connection Management
-- Proper WebSocket connection lifecycle management
-- Handle network interruptions gracefully
-- Implement heartbeat mechanism for connection health
-- Support authentication and session management
-- Clean up resources on disconnection
+### 1. Real-Time Text Streaming Infrastructure
+- Implement proper Gemini Live API v1beta WebSocket integration
+- Handle streaming text responses with proper turn completion signals
+- Process incoming text chunks and emit them as streaming events
+- Implement proper message parsing for different response types (text, audio, metadata)
+- Support both partial and complete text response handling
 
-### 4. Error Handling and Recovery
-- Graceful handling of WebSocket connection failures
-- Fallback to HTTP-based approach when WebSocket fails
-- Network interruption recovery
-- API error handling and user feedback
-- Connection state management and status indicators
+### 2. Live Text Rendering Engine
+- Create a text rendering component that supports streaming updates
+- Implement character-by-character and word-by-word rendering modes
+- Add smooth typing animations with configurable speed
+- Support rich text formatting and markdown rendering in real-time
+- Handle text overflow, scrolling, and viewport management
 
-### 5. UI/UX Updates
-- Real-time transcription display updates
-- Connection status indicators
-- Streaming progress feedback
-- Smooth animations for live transcription
-- Performance optimizations for continuous updates
+### 3. WebSocket Response Stream Management
+- Fix existing WebSocket timeout issues with proper turn completion
+- Implement robust response parsing for streaming text content
+- Handle partial responses, response chunks, and turn completion signals
+- Support multiple response modalities (text, audio, tools) simultaneously
+- Manage response state and track completion status
 
-### 6. Performance Optimization
-- Efficient audio data processing
-- Memory management for continuous streaming
-- CPU usage optimization
-- Network bandwidth optimization
-- Responsive UI during streaming operations
+### 4. UI/UX Components for Live Updates
+- Build responsive text display components with streaming capabilities
+- Add real-time connection status indicators and health monitoring
+- Implement loading states, typing indicators, and progress feedback
+- Create smooth animations for text appearance and cursor effects
+- Support theme-aware styling and accessibility features
+
+### 5. Performance Optimization
+- Efficient DOM updates for real-time text rendering without performance degradation
+- Memory management for continuous streaming operations
+- Optimize rendering performance for long text responses
+- Implement virtualization for large text content
+- Handle high-frequency update rates without UI blocking
+
+### 6. Error Handling & Resilience
+- Graceful handling of WebSocket connection interruptions during streaming
+- Resume streaming after network reconnection with proper state recovery
+- Handle partial response errors and malformed streaming data
+- Provide user feedback for connection issues and recovery status
+- Implement fallback mechanisms when streaming fails
 
 ## Functional Requirements
 
-### Core Functionality
-1. **Real-time Transcription**: Continuous audio capture and transcription
-2. **WebSocket Communication**: Bidirectional communication with Gemini Live API
-3. **Connection Management**: Robust connection handling and recovery
-4. **Audio Streaming**: Efficient real-time audio data streaming
-5. **Error Recovery**: Graceful degradation and fallback mechanisms
+### F1: WebSocket Streaming Foundation
+- **F1.1**: Establish stable WebSocket connection to Gemini Live API v1beta
+- **F1.2**: Send proper setup messages with inputAudioTranscription configuration
+- **F1.3**: Handle setupComplete acknowledgments and connection lifecycle
+- **F1.4**: Send turn completion signals to trigger model responses
+- **F1.5**: Parse streaming server responses for text content
+- **F1.6**: Emit streaming events for real-time text updates
 
-### User Experience
-1. **Immediate Feedback**: Real-time transcription results displayed instantly
-2. **Connection Status**: Visual indicators for connection state
-3. **Seamless Operation**: No interruption to existing workflow
-4. **Performance**: No degradation in responsiveness
-5. **Reliability**: Consistent operation under various network conditions
+### F2: Live Text Rendering System
+- **F2.1**: Create StreamingTextRenderer component with configurable rendering modes
+- **F2.2**: Support character-by-character streaming with smooth animations
+- **F2.3**: Support word-by-word streaming for better readability
+- **F2.4**: Handle text formatting, markdown, and rich content in real-time
+- **F2.5**: Manage text overflow with auto-scrolling and viewport optimization
+- **F2.6**: Support pause, resume, and speed control for streaming text
+
+### F3: Response Management
+- **F3.1**: Parse incoming WebSocket messages for different content types
+- **F3.2**: Extract and process streaming text from server responses
+- **F3.3**: Handle response metadata (timestamps, turn IDs, completion status)
+- **F3.4**: Support multiple concurrent streaming responses
+- **F3.5**: Track response progress and completion state
+- **F3.6**: Handle response errors and malformed streaming data
+
+### F4: Connection Management & Monitoring
+- **F4.1**: Implement connection health monitoring with heartbeat mechanism
+- **F4.2**: Display real-time connection status with visual indicators
+- **F4.3**: Handle connection drops with automatic reconnection
+- **F4.4**: Maintain streaming state across reconnections
+- **F4.5**: Provide connection quality metrics and diagnostics
+- **F4.6**: Support manual connection reset and troubleshooting
+
+### F5: User Interface Integration
+- **F5.1**: Integrate streaming text components into existing chat interface
+- **F5.2**: Add typing indicators and live response status
+- **F5.3**: Support theme-aware styling for streaming text
+- **F5.4**: Implement accessibility features for streaming content
+- **F5.5**: Add user controls for streaming preferences (speed, mode)
+- **F5.6**: Support responsive design for different screen sizes
+
+### F6: Performance & Optimization
+- **F6.1**: Optimize DOM updates for high-frequency text streaming
+- **F6.2**: Implement efficient memory management for long responses
+- **F6.3**: Support virtualization for very long streaming text
+- **F6.4**: Minimize CPU usage during continuous streaming operations
+- **F6.5**: Handle browser performance constraints gracefully
+- **F6.6**: Support background streaming with minimal resource usage
+
+## Technical Requirements
+
+### T1: WebSocket Protocol Implementation
+- Use Gemini Live API v1beta with proper message formats
+- Implement realtimeInput with mediaChunks for audio data
+- Send audioStreamEnd signals after audio transmission
+- Send clientContent with endOfTurn to trigger responses
+- Parse serverContent and modelTurn for streaming text
+- Handle setupComplete, turnComplete, and other control messages
+
+### T2: Streaming Response Architecture
+- Create event-driven architecture for streaming responses
+- Implement response buffering and chunk management
+- Support incremental text updates with delta processing
+- Handle response ordering and sequence management
+- Support response cancellation and interruption
+- Implement response caching and replay capabilities
+
+### T3: Real-Time Rendering Engine
+- Use React/TypeScript for component implementation
+- Implement efficient DOM manipulation for streaming updates
+- Support requestAnimationFrame for smooth animations
+- Use virtual scrolling for performance optimization
+- Implement debouncing and throttling for high-frequency updates
+- Support Web Workers for background text processing
+
+### T4: State Management
+- Integrate with existing React context providers
+- Implement streaming state management with proper cleanup
+- Support undo/redo for streaming responses
+- Handle concurrent streaming sessions
+- Maintain response history and replay capabilities
+- Support offline mode with cached responses
+
+### T5: Error Recovery & Resilience
+- Implement exponential backoff for connection retries
+- Support graceful degradation when streaming fails
+- Handle partial response recovery after reconnection
+- Implement response validation and integrity checking
+- Support manual error recovery and reset mechanisms
+- Provide detailed error reporting and diagnostics
 
 ## Non-Functional Requirements
 
 ### Performance
-- Latency: < 200ms from audio input to transcription display
-- CPU Usage: No significant increase from current implementation
-- Memory Usage: Efficient memory management for continuous operation
-- Network Usage: Optimized data transmission
-
-### Reliability
-- 99.9% uptime for WebSocket connections
-- Automatic recovery from network failures
-- Fallback mechanism availability
-- Data integrity during transmission
+- Text rendering latency < 50ms for character updates
+- Support streaming rates up to 1000 characters/second
+- Memory usage growth < 1MB per 1000 characters of streaming text
+- CPU usage < 10% during active streaming on modern devices
+- Smooth 60fps animations during text appearance
 
 ### Scalability
-- Support for extended recording sessions
-- Handle high-frequency audio updates
-- Manage large transcription histories
-- Efficient resource cleanup
+- Support multiple concurrent streaming sessions
+- Handle responses up to 10,000 characters without performance degradation
+- Support background streaming with minimal resource impact
+- Scale to multiple WebSocket connections if needed
+
+### Reliability
+- WebSocket connection uptime > 99% under normal network conditions
+- Automatic recovery from connection drops within 5 seconds
+- Data integrity with zero message loss during streaming
+- Graceful handling of malformed or incomplete responses
+
+### Usability
+- Intuitive streaming controls with clear visual feedback
+- Accessibility compliance (WCAG 2.1 AA) for streaming content
+- Responsive design supporting mobile and desktop devices
+- Customizable streaming preferences with user persistence
+
+### Maintainability
+- Modular architecture with clear separation of concerns
+- Comprehensive unit and integration test coverage
+- Well-documented APIs and component interfaces
+- Consistent coding standards and TypeScript typing
+
+## Success Metrics
+
+### User Experience
+- Average response latency reduction by 70% compared to batch mode
+- User satisfaction score improvement for real-time interaction
+- Reduction in perceived wait time for AI responses
+- Increased user engagement with streaming features
+
+### Technical Performance
+- WebSocket connection success rate > 95%
+- Streaming response completion rate > 98%
+- Text rendering performance maintaining 60fps
+- Memory usage remaining stable during extended use
+
+### Development Efficiency
+- Test coverage > 90% for streaming components
+- Clear documentation and API reference
+- Modular components enabling easy feature extension
+- Consistent performance across different browsers and devices
 
 ## Implementation Phases
 
-### Phase 1: WebSocket Client Foundation
-- Implement basic WebSocket client
-- Establish connection to Gemini Live API
-- Handle basic message exchange
-- Implement connection lifecycle management
+### Phase 1: WebSocket Foundation (High Priority)
+- Fix existing WebSocket connection and response issues
+- Implement proper turn completion signaling
+- Establish stable streaming text response parsing
+- Create basic real-time event emission system
 
-### Phase 2: Audio Streaming Integration
-- Update audio recording service for real-time streaming
-- Implement audio format conversion
-- Integrate WebSocket client with audio service
-- Handle audio data transmission
+### Phase 2: Core Streaming Components (High Priority)
+- Build StreamingTextRenderer component
+- Implement character-by-character rendering mode
+- Add basic animations and typing effects
+- Integrate with existing UI components
 
-### Phase 3: Real-time Transcription Processing
-- Process incoming transcription results
-- Update UI components for real-time display
-- Implement partial result handling
-- Optimize rendering performance
+### Phase 3: Advanced Features (Medium Priority)
+- Add word-by-word rendering mode
+- Implement rich text and markdown support
+- Add streaming controls and user preferences
+- Enhance connection monitoring and status display
 
-### Phase 4: Error Handling and Recovery
-- Implement comprehensive error handling
-- Add reconnection logic
-- Create fallback mechanisms
-- Add connection status indicators
+### Phase 4: Optimization & Polish (Medium Priority)
+- Optimize performance for high-frequency updates
+- Add virtualization for long text responses
+- Implement advanced error recovery mechanisms
+- Add comprehensive testing and documentation
 
-### Phase 5: Testing and Optimization
-- Performance testing and optimization
-- End-to-end testing
-- Error scenario testing
-- User acceptance testing
+### Phase 5: Enhancement & Integration (Low Priority)
+- Support multiple concurrent streaming sessions
+- Add response history and replay capabilities
+- Implement advanced accessibility features
+- Add analytics and performance monitoring
 
-## Technical Specifications
+## Risk Assessment
 
-### WebSocket Configuration
-- Protocol: WSS (WebSocket Secure)
-- Message Format: JSON and Binary
-- Compression: Optional gzip compression
-- Heartbeat: 30-second intervals
+### High Risk
+- **WebSocket Connection Stability**: Current timeout issues need resolution
+- **API Response Format Changes**: Gemini Live API is in beta and may change
+- **Performance Under Load**: High-frequency DOM updates may impact performance
 
-### Audio Specifications
-- Format: 16-bit PCM
-- Sample Rate: 16kHz (configurable)
-- Channels: Mono
-- Chunk Size: 100ms buffers
+### Medium Risk
+- **Browser Compatibility**: WebSocket and streaming features across different browsers
+- **Network Resilience**: Handling various network conditions and interruptions
+- **Memory Management**: Preventing memory leaks during long streaming sessions
 
-### API Integration
-- Endpoint: Gemini Live API WebSocket endpoint
-- Authentication: API key-based
-- Session Management: Connection-based sessions
-- Rate Limiting: Respect API limits
+### Low Risk
+- **UI/UX Integration**: Fitting streaming components into existing design
+- **User Preference Management**: Storing and applying streaming settings
+- **Testing Complexity**: Creating comprehensive tests for real-time features
 
 ## Dependencies
-- Existing audio capture service (audio-recording.ts)
-- Current transcription infrastructure
-- WebSocket library (ws or native WebSocket API)
-- Electron IPC system
-- React UI components
 
-## Risks and Mitigation
-1. **WebSocket Connectivity**: Implement fallback to HTTP-based approach
-2. **Performance Impact**: Thorough performance testing and optimization
-3. **API Changes**: Monitor API documentation and implement version handling
-4. **Network Issues**: Robust reconnection and error handling
-5. **Browser Compatibility**: Test across different Electron versions
+### External Dependencies
+- Gemini Live API v1beta availability and stability
+- WebSocket support in target browsers
+- React/TypeScript framework compatibility
 
-## Success Criteria
-- Successful WebSocket connection to Gemini Live API
-- Real-time transcription functionality working
-- No degradation in existing features
-- Improved latency compared to batch approach
-- Robust error handling and recovery
-- Comprehensive test coverage
-- Updated documentation
+### Internal Dependencies
+- Existing WebSocket client implementation
+- Current UI component architecture
+- Theme and styling systems
+- State management infrastructure
 
-## References
-- [Gemini Live API Documentation](https://ai.google.dev/gemini-api/docs/live#javascript)
-- [Gemini Live API Reference](https://ai.google.dev/api/live)
-- Current implementation in src/services/
-- Existing audio capture system
+## Acceptance Criteria
+
+### MVP Acceptance
+- WebSocket connection establishes successfully and maintains stability
+- Streaming text responses render in real-time with visible character updates
+- Connection status is clearly displayed with appropriate indicators
+- Basic error handling prevents application crashes during streaming failures
+- Performance remains smooth during typical streaming operations
+
+### Full Feature Acceptance
+- Multiple rendering modes (character/word) with smooth animations
+- Rich text and markdown content streams properly
+- User preferences for streaming behavior persist across sessions
+- Comprehensive error recovery with automatic reconnection
+- Performance optimization handles edge cases and extended use
+- Accessibility features support users with different needs
+- Comprehensive testing coverage ensures reliability

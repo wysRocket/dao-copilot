@@ -484,7 +484,7 @@ export class EnhancedAudioRecordingService {
       const targetSampleRate = 16000 // Standard for speech recognition
 
       // Resample if needed
-      let processedAudio = audioData
+      let processedAudio: Float32Array = audioData
       if (sourceSampleRate !== targetSampleRate) {
         const {resampleAudio} = await import('./audio-recording')
         processedAudio = resampleAudio(
@@ -504,11 +504,37 @@ export class EnhancedAudioRecordingService {
 
       // Send for transcription via IPC
       if (window.transcriptionAPI?.transcribeAudio) {
+        console.log('🎤 EnhancedAudioRecording: Calling transcriptionAPI.transcribeAudio with', wavData.length, 'bytes')
         const result = await window.transcriptionAPI.transcribeAudio(wavData)
-        console.log('Transcription result:', result)
+        console.log('🎤 EnhancedAudioRecording: RAW IPC RESULT STRUCTURE:', {
+          type: typeof result,
+          keys: result ? Object.keys(result) : 'null',
+          fullResult: JSON.stringify(result, null, 2)
+        })
+        console.log('🎤 EnhancedAudioRecording: Result text analysis:', {
+          text: result?.text,
+          textType: typeof result?.text,
+          textLength: result?.text?.length,
+          textTrimmed: result?.text?.trim(),
+          textTrimmedLength: result?.text?.trim()?.length,
+          textTruthyCheck: !!result?.text?.trim()
+        })
+        console.log('🎤 EnhancedAudioRecording: onTranscription callback exists:', !!onTranscription)
 
-        if (onTranscription && result.text.trim()) {
+        if (onTranscription && result?.text?.trim()) {
+          console.log('🎤 EnhancedAudioRecording: ✅ CALLING onTranscription callback with result')
           onTranscription(result)
+          console.log('🎤 EnhancedAudioRecording: ✅ onTranscription callback completed successfully')
+        } else {
+          console.error('🎤 EnhancedAudioRecording: ❌ SKIPPING onTranscription callback because:', {
+            hasCallback: !!onTranscription,
+            hasResult: !!result,
+            hasText: !!result?.text,
+            textValue: result?.text,
+            textTrimmed: result?.text?.trim(),
+            textTrimmedTruthy: !!result?.text?.trim(),
+            conditionResult: !!(onTranscription && result?.text?.trim())
+          })
         }
 
         return result

@@ -26,6 +26,10 @@ import {
 } from '../../helpers/gemini-websocket-config'
 import { TranscriptionMode } from '../../services/gemini-live-integration'
 
+// Test utilities
+const VALID_TEST_API_KEY = 'AIzaSyDvNzK1234567890123456789012345678' // Valid format for testing
+const MOCK_AUDIO_BUFFER = Buffer.from('mock-audio-data-for-testing')
+
 // Mock WebSocket for testing
 class MockWebSocket extends EventEmitter {
   readyState = 1 // OPEN
@@ -67,7 +71,7 @@ describe('WebSocket Transcription System Integration Tests', () => {
   beforeEach(() => {
     // Setup test environment
     setupDevelopmentEnvironment()
-    process.env.GEMINI_API_KEY = 'test-api-key-for-integration-testing'
+    process.env.GEMINI_API_KEY = VALID_TEST_API_KEY
     process.env.GEMINI_WEBSOCKET_ENABLED = 'true'
     process.env.GEMINI_TRANSCRIPTION_MODE = 'hybrid'
     
@@ -100,7 +104,7 @@ describe('WebSocket Transcription System Integration Tests', () => {
       const { config, validation } = getValidatedConfig()
       
       expect(validation.isValid).toBe(true)
-      expect(config.apiKey).toBe('test-api-key-for-integration-testing')
+      expect(config.apiKey).toBe(VALID_TEST_API_KEY)
       expect(config.websocketEnabled).toBe(true)
       expect(config.transcriptionMode).toBe(TranscriptionMode.HYBRID)
     })
@@ -170,7 +174,7 @@ describe('WebSocket Transcription System Integration Tests', () => {
     
     it('should handle legacy options with compatibility layer', async () => {
       const legacyOptions = {
-        apiKey: 'test-api-key-for-integration-testing',
+        apiKey: VALID_TEST_API_KEY,
         batchMode: true, // Legacy option
         fallbackEnabled: true // Legacy option
       }
@@ -217,7 +221,7 @@ describe('WebSocket Transcription System Integration Tests', () => {
     
     it('should validate proxy configuration', () => {
       const config: ProxyTranscriptionOptions = {
-        apiKey: 'test-api-key',
+        apiKey: VALID_TEST_API_KEY,
         proxyUrl: 'http://localhost:3001',
         mode: TranscriptionMode.BATCH
       }

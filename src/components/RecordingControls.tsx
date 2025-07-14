@@ -19,6 +19,17 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
   })
 
   const audioService = getAudioRecordingService()
+  console.log('🎙️ RecordingControls: AudioService instantiated:', !!audioService)
+  console.log('🎙️ RecordingControls: AudioService type:', typeof audioService)
+  console.log('🎙️ RecordingControls: AudioService methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(audioService)))
+
+  // Wrap the onTranscription callback with debugging
+  const handleTranscriptionWithDebug = (result: TranscriptionResult) => {
+    console.log('🎙️ RecordingControls: Transcription result received:', result)
+    console.log('🎙️ RecordingControls: Calling onTranscription callback')
+    onTranscription(result)
+    console.log('🎙️ RecordingControls: onTranscription callback completed')
+  }
 
   // Subscribe to recording state changes
   useEffect(() => {
@@ -39,7 +50,10 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
   return (
     <>
       <button
-        onClick={() => audioService.toggleRecording(onTranscription)}
+        onClick={() => {
+          console.log('🎙️ RecordingControls: Record button clicked, calling toggleRecording')
+          audioService.toggleRecording(handleTranscriptionWithDebug)
+        }}
         className="record-btn app-region-no-drag mr-2 border-none bg-none p-0 transition-opacity hover:opacity-80"
         style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
         title={recordingState.isRecording ? 'Stop Recording' : 'Start Recording'}

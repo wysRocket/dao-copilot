@@ -1,6 +1,6 @@
 import React, {useEffect, useRef} from 'react'
 import {useWindowPortal} from '../hooks/useWindowPortal'
-import {useWindowCommunication, useTranscriptionState} from '../hooks/useSharedState'
+import {useWindowCommunication, useSharedState} from '../hooks/useSharedState'
 import {useWindowState} from '../contexts/WindowStateProvider'
 import {getAudioRecordingService, TranscriptionResult} from '../services/audio-recording'
 import RecordingControls from './RecordingControls'
@@ -15,7 +15,7 @@ const CustomTitleBar: React.FC = () => {
   const titleBarRef = useRef<HTMLDivElement>(null)
   const assistantWindow = useWindowPortal({type: 'assistant'})
   const {broadcast} = useWindowCommunication()
-  const {setProcessingState} = useTranscriptionState()
+  const {setProcessingState, addTranscript} = useSharedState()
   const {windowState} = useWindowState()
 
   // Use the audio recording service
@@ -35,8 +35,23 @@ const CustomTitleBar: React.FC = () => {
   }, [audioService, setProcessingState])
 
   const handleTranscription = (result: TranscriptionResult) => {
-    // Broadcast transcription result to all windows
+    console.log('🎯 CustomTitleBar: Received transcription result:', result)
+    console.log('🎯 Adding to shared state with addTranscript:', {
+      text: result.text,
+      confidence: result.confidence
+    })
+
+    // Add transcript to shared state for local display
+    addTranscript({
+      text: result.text,
+      confidence: result.confidence
+    })
+
+    console.log('🎯 Broadcasting transcription result to other windows')
+    // Also broadcast transcription result to other windows (like assistant window)
     broadcast('transcription-result', result)
+
+    console.log('🎯 Transcription handling complete')
   }
 
   const handleToggleAssistant = async (e: React.MouseEvent) => {

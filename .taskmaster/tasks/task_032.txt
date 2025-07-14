@@ -1,0 +1,196 @@
+# Task ID: 32
+# Title: Integrate Gemini Live API with Existing DAO Copilot Components
+# Status: pending
+# Dependencies: 13, 16, 27, 30, 4, 17
+# Priority: medium
+# Description: Update and integrate the WebSocket-based Gemini Live API implementation with existing DAO Copilot services and components to ensure seamless functionality across the application.
+# Details:
+1. Update Audio Capture and Streaming Services:
+   a. Modify audio-recording.ts to properly integrate with the Gemini Live WebSocket client
+   b. Ensure consistent audio format and sampling rate across all services
+   c. Update buffer handling to optimize for real-time streaming
+   d. Implement proper error handling for audio capture failures
+
+2. Update Transcription Display Components:
+   a. Enhance TranscriptDisplay component to properly handle streaming responses
+   b. Implement smooth transitions between partial and final transcriptions
+   c. Add visual indicators for active transcription state
+   d. Ensure glass morphism effects are maintained during transcription
+
+3. Integrate with Recording Controls and UI:
+   a. Update recording button states to reflect WebSocket connection status
+   b. Implement proper handling of start/stop recording with WebSocket lifecycle
+   c. Ensure recording indicators accurately reflect the current state
+   d. Add visual feedback for connection establishment and data transmission
+
+4. Implement WebSocket Connection Status Indicators:
+   a. Create or update status indicators to show WebSocket connection state
+   b. Add visual feedback for connection quality and latency
+   c. Implement reconnection progress indicators
+   d. Ensure status indicators are consistent across all windows
+
+5. Update Performance Monitoring and Logging:
+   a. Implement comprehensive logging for WebSocket events
+   b. Add performance metrics collection for WebSocket communication
+   c. Update dashboard components to display WebSocket-specific metrics
+   d. Implement error tracking and reporting for WebSocket failures
+
+6. Ensure Multi-Window Architecture Compatibility:
+   a. Test and update IPC communication for WebSocket status sharing
+   b. Ensure consistent WebSocket state across main and renderer processes
+   c. Implement proper connection sharing or management across windows
+   d. Update window management to handle WebSocket lifecycle events
+
+7. Maintain Theme System and Glassmorphism Effects:
+   a. Ensure all new or updated components maintain glassmorphism styling
+   b. Verify theme consistency across all WebSocket-related components
+   c. Implement proper loading/connecting states with glass effects
+   d. Update animation effects to reflect WebSocket communication state
+
+8. Standardize Model Usage:
+   a. Update all services to consistently use gemini-live-2.5-flash-preview model
+   b. Remove any references to older models or deprecated approaches
+   c. Implement model configuration validation to prevent inconsistencies
+   d. Add fallback mechanisms for handling model-specific features
+
+9. Integration Testing:
+   a. Create comprehensive test cases covering all integration points
+   b. Test end-to-end workflows with the integrated WebSocket implementation
+   c. Verify performance and reliability under various network conditions
+   d. Ensure all existing functionality works correctly with the new implementation
+
+# Test Strategy:
+1. Component Integration Testing:
+   a. Test each updated component individually with the WebSocket client:
+      - Verify audio capture and streaming with the WebSocket connection
+      - Test transcription display with simulated streaming responses
+      - Validate recording controls with actual WebSocket connections
+      - Check status indicators with various connection states
+
+2. End-to-End Workflow Testing:
+   a. Test complete user workflows from audio capture to response display:
+      - Start recording and verify WebSocket connection establishment
+      - Test continuous audio streaming and transcription display
+      - Validate proper handling of connection interruptions
+      - Verify session resumption after reconnection
+
+3. Multi-Window Testing:
+   a. Test WebSocket functionality across multiple application windows:
+      - Verify consistent connection state across windows
+      - Test IPC communication for WebSocket events
+      - Validate proper resource sharing between windows
+      - Check theme consistency across all windows
+
+4. Performance and Reliability Testing:
+   a. Conduct stress tests with prolonged WebSocket connections:
+      - Test with various network conditions (stable, unstable, slow)
+      - Measure and validate response times and latency
+      - Monitor memory usage during extended sessions
+      - Verify resource cleanup after connection termination
+
+5. UI/UX Validation:
+   a. Verify visual consistency and user experience:
+      - Check that all glassmorphism effects are maintained
+      - Validate theme consistency across all components
+      - Test accessibility of all updated components
+      - Ensure proper visual feedback for all WebSocket states
+
+6. Model Consistency Verification:
+   a. Verify consistent model usage across all services:
+      - Check all configuration files for correct model references
+      - Test with API responses to confirm model in use
+      - Validate model-specific features are properly implemented
+      - Verify fallback mechanisms for handling model limitations
+
+7. Regression Testing:
+   a. Ensure existing functionality remains intact:
+      - Test all previously working features with the updated implementation
+      - Verify backward compatibility with existing data
+      - Validate that performance hasn't degraded
+      - Check for any unintended side effects
+
+# Subtasks:
+## 1. Update Audio Capture Service for WebSocket Integration [pending]
+### Dependencies: None
+### Description: Modify the audio-recording.ts service to properly integrate with the Gemini Live WebSocket client, ensuring proper audio format, buffer handling, and error management.
+### Details:
+1. Refactor audio-recording.ts to connect with Gemini Live WebSocket API
+2. Standardize audio format to 16kHz, 16-bit mono PCM
+3. Implement efficient buffer management for real-time streaming
+4. Add comprehensive error handling for audio capture failures
+5. Ensure proper cleanup of audio resources when WebSocket connection closes
+6. Implement reconnection logic for dropped connections
+7. Add logging for audio capture events and errors
+
+## 2. Implement WebSocket Connection Manager [pending]
+### Dependencies: 32.1
+### Description: Create a centralized WebSocket connection manager to handle connection lifecycle, status tracking, and reconnection logic across the application.
+### Details:
+1. Create a WebSocketManager class to handle connection lifecycle
+2. Implement connection state management (connecting, connected, disconnected, error)
+3. Add reconnection logic with exponential backoff
+4. Implement event emitters for connection state changes
+5. Add methods for sending audio data and receiving transcription responses
+6. Ensure proper authentication and headers for Gemini Live API
+7. Implement connection sharing across renderer processes via IPC
+
+## 3. Update TranscriptDisplay for Streaming Responses [pending]
+### Dependencies: 32.2
+### Description: Enhance the TranscriptDisplay component to properly handle streaming responses from the Gemini Live API, with smooth transitions between partial and final transcriptions.
+### Details:
+1. Modify TranscriptDisplay to consume WebSocket streaming responses
+2. Implement rendering logic for partial vs. final transcription segments
+3. Add visual indicators for active transcription state
+4. Implement smooth transitions between transcript updates
+5. Ensure proper handling of transcription corrections
+6. Maintain glassmorphism styling during all transcription states
+7. Add auto-scrolling behavior for long transcriptions
+
+## 4. Integrate WebSocket with Recording Controls [pending]
+### Dependencies: 32.2
+### Description: Update recording control components to properly integrate with the WebSocket lifecycle, ensuring button states accurately reflect connection and recording status.
+### Details:
+1. Update RecordingButton component to reflect WebSocket connection status
+2. Implement proper handling of start/stop recording with WebSocket lifecycle
+3. Add visual feedback for connection establishment and data transmission
+4. Ensure recording indicators accurately reflect current state
+5. Implement proper error handling for recording start/stop failures
+6. Add tooltips to explain current connection/recording state
+7. Ensure consistent behavior across all windows via IPC communication
+
+## 5. Implement Connection Status Indicators [pending]
+### Dependencies: 32.2
+### Description: Create or update status indicators to show WebSocket connection state, quality, and provide visual feedback for connection events.
+### Details:
+1. Design and implement ConnectionStatusIndicator component
+2. Add visual states for connecting, connected, disconnected, and error states
+3. Implement subtle animations for active data transmission
+4. Add tooltips with detailed connection information
+5. Create a connection quality indicator based on latency and packet loss
+6. Implement reconnection progress indicator
+7. Ensure consistent styling with application theme and glassmorphism effects
+
+## 6. Update Performance Monitoring for WebSockets [pending]
+### Dependencies: 32.2
+### Description: Implement comprehensive logging, metrics collection, and performance monitoring for WebSocket communication to ensure optimal performance and troubleshooting capabilities.
+### Details:
+1. Add detailed logging for all WebSocket lifecycle events
+2. Implement performance metrics collection (latency, throughput, errors)
+3. Create dashboard components to display WebSocket-specific metrics
+4. Add error tracking and reporting for WebSocket failures
+5. Implement periodic connection health checks
+6. Create developer tools for WebSocket debugging
+7. Add telemetry for audio quality and transcription accuracy
+
+## 7. Ensure Multi-Window Architecture Compatibility [pending]
+### Dependencies: 32.2, 32.4, 32.5
+### Description: Test and update the application's multi-window architecture to properly handle WebSocket connections, ensuring consistent state and proper resource management across windows.
+### Details:
+1. Implement IPC communication for WebSocket status sharing
+2. Ensure consistent WebSocket state across main and renderer processes
+3. Create proper connection sharing or management across windows
+4. Update window management to handle WebSocket lifecycle events
+5. Implement proper cleanup when windows are closed
+6. Add connection priority management for multi-window scenarios
+7. Test end-to-end workflows across multiple windows
+

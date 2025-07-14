@@ -1,0 +1,199 @@
+# Task ID: 30
+# Title: Fix Gemini Live WebSocket Implementation Issues
+# Status: done
+# Dependencies: 20, 22, 16, 13, 28
+# Priority: high
+# Description: Update the current Gemini Live WebSocket implementation in gemini-live-websocket.ts to fix critical issues including model reference, API version, endpoint format, message structure, and bidirectional communication.
+# Details:
+1. Model Reference Update:
+   a. Replace the current model reference "gemini-2.0-flash-live-001" with "gemini-live-2.5-flash-preview"
+   b. Update all model references throughout the codebase for consistency
+
+2. API Version Update:
+   a. Change API version from "v1alpha" to "v1beta" in all endpoint URLs
+   b. Update any version-specific code paths to align with v1beta requirements
+
+3. WebSocket URL Endpoint Format Fix:
+   a. Modify the WebSocket URL construction to match v1beta requirements
+   b. Ensure proper URL formatting with correct path segments and query parameters
+   c. Example format: `wss://generativelanguage.googleapis.com/v1beta/models/gemini-live-2.5-flash-preview:streamGenerateContent`
+
+4. Setup Message Structure Update:
+   a. Refactor the setup message structure to match GitHub issue #176 acceptance criteria
+   b. Implement the correct JSON structure for the initial setup message:
+      ```typescript
+      function createSetupMessage(config: GeminiSetupConfig): SetupMessage {
+        return {
+          setup: {
+            model: "models/gemini-live-2.5-flash-preview",
+            generationConfig: {
+              responseModalities: config.responseModalities || ["TEXT"]
+            },
+            sessionResumption: config.sessionResumption ?? true
+          }
+        };
+      }
+      ```
+
+5. Bidirectional Message Handling:
+   a. Verify and fix message sending functionality
+   b. Ensure proper handling of incoming messages from the server
+   c. Implement correct message parsing for the v1beta response format
+   d. Fix any issues with message queuing or processing
+
+6. Connection and Authentication:
+   a. Update authentication mechanism to work with v1beta endpoint
+   b. Ensure API key is properly included in the connection request
+   c. Fix any issues with connection establishment and handshake
+
+7. Session Management:
+   a. Implement proper session management according to v1beta requirements
+   b. Fix session resumption functionality
+   c. Ensure session state is properly maintained during reconnections
+
+8. Error Handling:
+   a. Update error handling to accommodate v1beta error response formats
+   b. Implement appropriate error recovery strategies
+   c. Add detailed logging for troubleshooting
+
+# Test Strategy:
+1. Unit Testing:
+   a. Create unit tests for the updated WebSocket client implementation:
+      - Test connection with the correct model and endpoint
+      - Verify proper message formatting for setup messages
+      - Test bidirectional message handling
+      - Validate session management and resumption
+
+2. Integration Testing:
+   a. Test connection establishment with the Gemini Live API:
+      - Verify successful connection to v1beta endpoint
+      - Confirm authentication works correctly
+      - Test with valid and invalid API keys
+   b. Test bidirectional communication:
+      - Send various test messages and verify responses
+      - Test streaming responses for correctness
+      - Verify message format compliance with v1beta API
+
+3. End-to-End Testing:
+   a. Test the complete workflow from connection to response handling:
+      - Establish connection
+      - Send setup message
+      - Stream content
+      - Process responses
+      - Handle disconnection and reconnection
+   b. Verify all acceptance criteria from GitHub issue #176 are met
+
+4. Error Handling Testing:
+   a. Test various error scenarios:
+      - Network interruptions
+      - Invalid API keys
+      - Malformed messages
+      - Server-side errors
+   b. Verify proper error recovery and reconnection
+
+5. Performance Testing:
+   a. Measure connection establishment time
+   b. Test message throughput and latency
+   c. Verify performance under load
+
+6. Manual Testing:
+   a. Perform manual verification of the WebSocket connection using browser developer tools
+   b. Use WebSocket testing tools (like Postman or wscat) to verify endpoint behavior
+
+# Subtasks:
+## 1. Update Model Reference Throughout Codebase [done]
+### Dependencies: None
+### Description: Replace all instances of 'gemini-2.0-flash-live-001' with 'gemini-live-2.5-flash-preview' in the codebase, ensuring consistent model naming across all files.
+### Details:
+1. Search for all occurrences of 'gemini-2.0-flash-live-001' in the codebase
+2. Replace with 'gemini-live-2.5-flash-preview'
+3. Update any constants or enums that define model names
+4. Check for any hardcoded model references in tests and examples
+5. Update documentation references to the model name
+
+## 2. Update API Version from v1alpha to v1beta [done]
+### Dependencies: None
+### Description: Change all API endpoint references from 'v1alpha' to 'v1beta' and update any version-specific code paths to align with v1beta requirements.
+### Details:
+1. Search for all occurrences of 'v1alpha' in the codebase
+2. Replace with 'v1beta'
+3. Update any constants or configuration values that define API version
+4. Check for version-specific code paths that may need adjustment
+5. Update any URL construction logic that includes the API version
+
+## 3. Fix WebSocket URL Endpoint Format [done]
+### Dependencies: 30.2
+### Description: Modify the WebSocket URL construction to match v1beta requirements, ensuring proper formatting with correct path segments and query parameters.
+### Details:
+1. Update the WebSocket URL construction logic in gemini-live-websocket.ts
+2. Ensure the URL follows the format: 'wss://generativelanguage.googleapis.com/v1beta/models/gemini-live-2.5-flash-preview:streamGenerateContent'
+3. Verify query parameters are correctly appended
+4. Implement proper URL encoding for parameters
+5. Update any tests that verify URL construction
+
+## 4. Refactor Setup Message Structure [done]
+### Dependencies: 30.1
+### Description: Update the setup message structure to match the requirements specified in GitHub issue #176, implementing the correct JSON structure for the initial setup message.
+### Details:
+1. Implement the createSetupMessage function as specified:
+```typescript
+function createSetupMessage(config: GeminiSetupConfig): SetupMessage {
+  return {
+    setup: {
+      model: "models/gemini-live-2.5-flash-preview",
+      generationConfig: {
+        responseModalities: config.responseModalities || ["TEXT"]
+      },
+      sessionResumption: config.sessionResumption ?? true
+    }
+  };
+}
+```
+2. Update the GeminiSetupConfig interface if needed
+3. Ensure the setup message is correctly sent during connection initialization
+4. Update any tests that verify setup message structure
+
+## 5. Implement Bidirectional Message Handling [done]
+### Dependencies: 30.3, 30.4
+### Description: Fix message sending functionality and ensure proper handling of incoming messages from the server, implementing correct message parsing for the v1beta response format.
+### Details:
+1. Update the message sending logic to ensure compatibility with v1beta
+2. Implement or update message parsing for v1beta response format
+3. Fix any issues with message queuing or processing
+4. Ensure proper event emission when messages are received
+5. Handle different message types correctly (content, error, etc.)
+6. Implement proper message serialization and deserialization
+
+## 6. Update Connection and Authentication Mechanism [done]
+### Dependencies: 30.3
+### Description: Update the authentication mechanism to work with v1beta endpoint, ensuring API key is properly included in the connection request and fixing any issues with connection establishment.
+### Details:
+1. Update authentication logic to work with v1beta endpoint
+2. Ensure API key is correctly included in the connection request
+3. Fix any issues with connection establishment and handshake
+4. Implement proper error handling for authentication failures
+5. Update reconnection logic if needed
+6. Ensure proper cleanup on connection close
+
+## 7. Implement Session Management for v1beta [done]
+### Dependencies: 30.5, 30.6
+### Description: Update session management according to v1beta requirements, fixing session resumption functionality and ensuring session state is properly maintained during reconnections.
+### Details:
+1. Update session management logic to align with v1beta requirements
+2. Fix session resumption functionality
+3. Ensure session state is properly maintained during reconnections
+4. Implement session timeout handling
+5. Add session ID tracking if required by v1beta
+6. Update any session-related configuration options
+
+## 8. Enhance Error Handling and Logging [done]
+### Dependencies: 30.5, 30.7
+### Description: Update error handling to accommodate v1beta error response formats, implement appropriate error recovery strategies, and add detailed logging for troubleshooting.
+### Details:
+1. Update error handling to accommodate v1beta error response formats
+2. Implement appropriate error recovery strategies for different error types
+3. Add detailed logging for troubleshooting
+4. Create custom error types if needed
+5. Ensure errors are properly propagated to the client application
+6. Add documentation for common error scenarios and resolution steps
+

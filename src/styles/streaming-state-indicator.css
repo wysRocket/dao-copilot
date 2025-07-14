@@ -1,0 +1,536 @@
+/* StreamingStateIndicator Component Styles */
+
+/* ==========================================
+   CSS Custom Properties for Theme Support
+   ========================================== */
+:root {
+  --state-listening: #10b981;
+  --state-processing: #f59e0b; 
+  --state-receiving: #3b82f6;
+  --state-complete: #059669;
+  --state-error: #dc2626;
+  --state-disconnected: #6b7280;
+  --state-connecting: #8b5cf6;
+  
+  --state-transition-duration: 0.3s;
+  --state-animation-duration: 2s;
+  --state-border-radius: 8px;
+  --state-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ==========================================
+   Animation Keyframes
+   ========================================== */
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes pulse-fast {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-2px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
+  }
+}
+
+/* ==========================================
+   Base Component Styles
+   ========================================== */
+
+.streaming-state-indicator {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--state-border-radius);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--state-shadow);
+  transition: all var(--state-transition-duration) ease;
+  cursor: default;
+  user-select: none;
+  overflow: hidden;
+}
+
+.streaming-state-indicator:focus {
+  outline: 2px solid var(--focus-color, #007acc);
+  outline-offset: 2px;
+}
+
+.streaming-state-indicator[role="button"] {
+  cursor: pointer;
+}
+
+.streaming-state-indicator[role="button"]:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* ==========================================
+   Size Variants
+   ========================================== */
+
+.streaming-state-indicator.small {
+  padding: 4px 8px;
+  font-size: 0.875rem;
+  gap: 4px;
+}
+
+.streaming-state-indicator.small .state-icon {
+  font-size: 1rem;
+}
+
+.streaming-state-indicator.medium {
+  padding: 8px 12px;
+  font-size: 1rem;
+  gap: 8px;
+}
+
+.streaming-state-indicator.medium .state-icon {
+  font-size: 1.2rem;
+}
+
+.streaming-state-indicator.large {
+  padding: 12px 16px;
+  font-size: 1.125rem;
+  gap: 12px;
+}
+
+.streaming-state-indicator.large .state-icon {
+  font-size: 1.5rem;
+}
+
+/* ==========================================
+   Content Layout
+   ========================================== */
+
+.state-content {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  position: relative;
+  z-index: 2;
+}
+
+.state-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: all var(--state-transition-duration) ease;
+}
+
+.state-message {
+  font-weight: 500;
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+  transition: color var(--state-transition-duration) ease;
+}
+
+.state-details {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: var(--state-border-radius);
+  font-size: 0.875rem;
+  color: var(--text-secondary, #a1a1aa);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: all var(--state-transition-duration) ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.streaming-state-indicator:hover .state-details {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.state-description {
+  margin-bottom: 4px;
+}
+
+.connection-status {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+/* ==========================================
+   Animation Classes
+   ========================================== */
+
+.pulse-soft {
+  animation: pulse-soft var(--state-animation-duration) ease-in-out infinite;
+}
+
+.pulse-fast {
+  animation: pulse-fast 1s ease-in-out infinite;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+.rotate {
+  animation: rotate 2s linear infinite;
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+.fade-in {
+  animation: fade-in var(--state-transition-duration) ease-out;
+}
+
+.fade {
+  animation: fade var(--state-animation-duration) ease-in-out infinite;
+}
+
+/* ==========================================
+   State-Specific Styles
+   ========================================== */
+
+.streaming-state-indicator.listening {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.streaming-state-indicator.listening .state-background {
+  background: linear-gradient(45deg, var(--state-listening), transparent);
+}
+
+.streaming-state-indicator.processing {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.streaming-state-indicator.processing .state-background {
+  background: linear-gradient(45deg, var(--state-processing), transparent);
+}
+
+.streaming-state-indicator.receiving {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.streaming-state-indicator.receiving .state-background {
+  background: linear-gradient(45deg, var(--state-receiving), transparent);
+}
+
+.streaming-state-indicator.receiving .state-icon {
+  animation: pulse-fast 1s ease-in-out infinite;
+}
+
+.streaming-state-indicator.complete {
+  border-color: rgba(5, 150, 105, 0.3);
+}
+
+.streaming-state-indicator.complete .state-background {
+  background: linear-gradient(45deg, var(--state-complete), transparent);
+}
+
+.streaming-state-indicator.error {
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+.streaming-state-indicator.error .state-background {
+  background: linear-gradient(45deg, var(--state-error), transparent);
+}
+
+.streaming-state-indicator.error .state-icon {
+  animation: shake 0.5s ease-in-out infinite;
+}
+
+.streaming-state-indicator.disconnected {
+  border-color: rgba(107, 114, 128, 0.3);
+  opacity: 0.7;
+}
+
+.streaming-state-indicator.disconnected .state-background {
+  background: linear-gradient(45deg, var(--state-disconnected), transparent);
+}
+
+.streaming-state-indicator.connecting {
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.streaming-state-indicator.connecting .state-background {
+  background: linear-gradient(45deg, var(--state-connecting), transparent);
+}
+
+/* ==========================================
+   Connection Quality Indicators
+   ========================================== */
+
+.connection-quality {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.quality-bar {
+  width: 3px;
+  background-color: rgba(107, 114, 128, 0.3);
+  border-radius: 1px;
+  transition: all var(--state-transition-duration) ease;
+}
+
+.quality-bar:nth-child(1) {
+  height: 6px;
+}
+
+.quality-bar:nth-child(2) {
+  height: 10px;
+}
+
+.quality-bar:nth-child(3) {
+  height: 14px;
+}
+
+.quality-bar.active {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* ==========================================
+   Background Animation
+   ========================================== */
+
+.state-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  opacity: 0.1;
+  transition: opacity var(--state-transition-duration) ease;
+  z-index: 1;
+}
+
+/* ==========================================
+   Compact Variant
+   ========================================== */
+
+.streaming-state-indicator.compact {
+  padding: 4px 6px;
+  min-width: auto;
+}
+
+.streaming-state-indicator.compact .state-message {
+  display: none;
+}
+
+.streaming-state-indicator.compact .connection-quality {
+  margin-left: 2px;
+}
+
+/* ==========================================
+   Accessibility Enhancements
+   ========================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================
+   Reduced Motion Support
+   ========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .streaming-state-indicator *,
+  .state-icon,
+  .state-background,
+  .quality-bar {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .streaming-state-indicator:hover {
+    transform: none !important;
+  }
+}
+
+/* ==========================================
+   High Contrast Support
+   ========================================== */
+
+@media (prefers-contrast: high) {
+  .streaming-state-indicator {
+    border: 2px solid currentColor;
+    background: var(--background-high-contrast, #000000);
+  }
+  
+  .state-message {
+    color: var(--text-high-contrast, #ffffff);
+  }
+  
+  .state-background {
+    display: none;
+  }
+}
+
+/* ==========================================
+   Dark Theme Adjustments
+   ========================================== */
+
+@media (prefers-color-scheme: dark) {
+  .streaming-state-indicator {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .state-details {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+  }
+}
+
+/* ==========================================
+   Mobile Responsive Adjustments
+   ========================================== */
+
+@media (max-width: 768px) {
+  .streaming-state-indicator {
+    padding: 6px 10px;
+    font-size: 0.875rem;
+  }
+  
+  .streaming-state-indicator.large {
+    padding: 8px 12px;
+    font-size: 1rem;
+  }
+  
+  .state-details {
+    position: fixed;
+    top: auto;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    width: auto;
+    max-width: 280px;
+    margin: 0;
+  }
+}
+
+/* ==========================================
+   Focus and Interaction States
+   ========================================== */
+
+.streaming-state-indicator:focus-visible {
+  outline: 2px solid var(--focus-color, #007acc);
+  outline-offset: 2px;
+}
+
+.streaming-state-indicator[role="button"]:active {
+  transform: scale(0.98);
+}
+
+/* ==========================================
+   Loading States
+   ========================================== */
+
+.streaming-state-indicator.loading {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}

@@ -1,0 +1,1042 @@
+# Task ID: 37
+# Title: Implement Real-Time WebSocket Connection Quality and Performance Monitoring
+# Status: pending
+# Dependencies: 13, 16, 35, 5
+# Priority: medium
+# Description: Create a comprehensive monitoring and quality assessment system for the WebSocket connection to provide users with real-time feedback about connection health, transcription quality, and system performance during live streaming sessions.
+# Details:
+1. Create a WebSocketConnectionMonitor class:
+```typescript
+class WebSocketConnectionMonitor {
+  private connectionStartTime: number;
+  private lastPingTime: number = 0;
+  private pingIntervalId: NodeJS.Timeout | null = null;
+  private pingHistory: Array<{sent: number, received: number, latency: number}> = [];
+  private reconnectionEvents: Array<{timestamp: number, reason: string}> = [];
+  private messageStats = {
+    sent: 0,
+    received: 0,
+    errors: 0,
+    bytesTransferred: 0
+  };
+  
+  constructor(private webSocketClient: GeminiLiveWebSocketClient, private options = {
+    pingInterval: 5000,
+    maxPingHistory: 50,
+    maxReconnectionHistory: 20
+  }) {
+    this.connectionStartTime = Date.now();
+    this.setupEventListeners();
+    this.startPingInterval();
+  }
+  
+  private setupEventListeners(): void {
+    this.webSocketClient.on('open', this.handleConnectionOpen.bind(this));
+    this.webSocketClient.on('close', this.handleConnectionClose.bind(this));
+    this.webSocketClient.on('error', this.handleConnectionError.bind(this));
+    this.webSocketClient.on('message', this.handleMessage.bind(this));
+  }
+  
+  private startPingInterval(): void {
+    this.pingIntervalId = setInterval(() => {
+      this.sendPing();
+    }, this.options.pingInterval);
+  }
+  
+  private sendPing(): void {
+    if (this.webSocketClient.isConnected) {
+      this.lastPingTime = Date.now();
+      this.webSocketClient.sendPing()
+        .catch(err => this.handlePingError(err));
+    }
+  }
+  
+  private handlePingResponse(timestamp: number): void {
+    const latency = Date.now() - this.lastPingTime;
+    this.pingHistory.push({
+      sent: this.lastPingTime,
+      received: timestamp,
+      latency
+    });
+    
+    // Keep ping history within limits
+    if (this.pingHistory.length > this.options.maxPingHistory) {
+      this.pingHistory.shift();
+    }
+  }
+  
+  // Additional methods for monitoring and metrics
+  public getConnectionHealth(): ConnectionHealthMetrics {
+    const avgLatency = this.calculateAverageLatency();
+    const packetLoss = this.calculatePacketLoss();
+    const reconnectionRate = this.calculateReconnectionRate();
+    
+    return {
+      isConnected: this.webSocketClient.isConnected,
+      currentLatency: this.getCurrentLatency(),
+      averageLatency: avgLatency,
+      packetLoss,
+      reconnectionRate,
+      uptime: this.calculateUptime(),
+      connectionQuality: this.determineConnectionQuality(avgLatency, packetLoss, reconnectionRate)
+    };
+  }
+  
+  // Helper methods for calculations
+  private calculateAverageLatency(): number {
+    if (this.pingHistory.length === 0) return 0;
+    const sum = this.pingHistory.reduce((acc, ping) => acc + ping.latency, 0);
+    return sum / this.pingHistory.length;
+  }
+  
+  private getCurrentLatency(): number {
+    if (this.pingHistory.length === 0) return 0;
+    return this.pingHistory[this.pingHistory.length - 1].latency;
+  }
+  
+  private calculatePacketLoss(): number {
+    // Implementation for packet loss calculation
+    return 0; // Placeholder
+  }
+  
+  private calculateReconnectionRate(): number {
+    // Implementation for reconnection rate calculation
+    return 0; // Placeholder
+  }
+  
+  private calculateUptime(): number {
+    return Date.now() - this.connectionStartTime;
+  }
+  
+  private determineConnectionQuality(latency: number, packetLoss: number, reconnectionRate: number): 'good' | 'fair' | 'poor' {
+    // Logic to determine connection quality based on metrics
+    if (latency < 100 && packetLoss < 0.01 && reconnectionRate < 0.1) {
+      return 'good';
+    } else if (latency < 300 && packetLoss < 0.05 && reconnectionRate < 0.3) {
+      return 'fair';
+    } else {
+      return 'poor';
+    }
+  }
+}
+```
+
+2. Create a TranscriptionQualityMonitor class:
+```typescript
+class TranscriptionQualityMonitor {
+  private confidenceScores: number[] = [];
+  private partialToFinalRatio: {partial: number, final: number} = {partial: 0, final: 0};
+  private correctionEvents: number = 0;
+  private responseTimeHistory: number[] = [];
+  
+  constructor(private messageStreamHandler: MessageStreamHandler) {
+    this.setupEventListeners();
+  }
+  
+  private setupEventListeners(): void {
+    this.messageStreamHandler.on('partialTranscription', this.handlePartialTranscription.bind(this));
+    this.messageStreamHandler.on('finalTranscription', this.handleFinalTranscription.bind(this));
+    this.messageStreamHandler.on('transcriptionCorrection', this.handleTranscriptionCorrection.bind(this));
+  }
+  
+  private handlePartialTranscription(data: any): void {
+    this.partialToFinalRatio.partial++;
+    if (data.confidenceScore) {
+      this.confidenceScores.push(data.confidenceScore);
+    }
+    
+    if (data.responseTime) {
+      this.responseTimeHistory.push(data.responseTime);
+    }
+  }
+  
+  private handleFinalTranscription(data: any): void {
+    this.partialToFinalRatio.final++;
+    if (data.confidenceScore) {
+      this.confidenceScores.push(data.confidenceScore);
+    }
+  }
+  
+  private handleTranscriptionCorrection(): void {
+    this.correctionEvents++;
+  }
+  
+  public getTranscriptionQualityMetrics(): TranscriptionQualityMetrics {
+    return {
+      averageConfidence: this.calculateAverageConfidence(),
+      partialToFinalRatio: this.calculatePartialToFinalRatio(),
+      correctionFrequency: this.calculateCorrectionFrequency(),
+      averageResponseTime: this.calculateAverageResponseTime(),
+      qualityScore: this.calculateQualityScore()
+    };
+  }
+  
+  private calculateAverageConfidence(): number {
+    if (this.confidenceScores.length === 0) return 0;
+    const sum = this.confidenceScores.reduce((acc, score) => acc + score, 0);
+    return sum / this.confidenceScores.length;
+  }
+  
+  private calculatePartialToFinalRatio(): number {
+    if (this.partialToFinalRatio.final === 0) return 0;
+    return this.partialToFinalRatio.partial / this.partialToFinalRatio.final;
+  }
+  
+  private calculateCorrectionFrequency(): number {
+    const totalTranscriptions = this.partialToFinalRatio.final;
+    if (totalTranscriptions === 0) return 0;
+    return this.correctionEvents / totalTranscriptions;
+  }
+  
+  private calculateAverageResponseTime(): number {
+    if (this.responseTimeHistory.length === 0) return 0;
+    const sum = this.responseTimeHistory.reduce((acc, time) => acc + time, 0);
+    return sum / this.responseTimeHistory.length;
+  }
+  
+  private calculateQualityScore(): number {
+    // Weighted calculation based on multiple metrics
+    const confidenceWeight = 0.4;
+    const responseTimeWeight = 0.3;
+    const correctionWeight = 0.3;
+    
+    const normalizedConfidence = this.calculateAverageConfidence();
+    const normalizedResponseTime = Math.max(0, 1 - (this.calculateAverageResponseTime() / 1000));
+    const normalizedCorrection = Math.max(0, 1 - this.calculateCorrectionFrequency());
+    
+    return (
+      confidenceWeight * normalizedConfidence +
+      responseTimeWeight * normalizedResponseTime +
+      correctionWeight * normalizedCorrection
+    );
+  }
+}
+```
+
+3. Create a PerformanceMonitor class:
+```typescript
+class PerformanceMonitor {
+  private audioBufferStats: {
+    underruns: number,
+    bufferSize: number[],
+    timestamp: number[]
+  } = {
+    underruns: 0,
+    bufferSize: [],
+    timestamp: []
+  };
+  
+  private renderStats: {
+    frameDrops: number,
+    renderTimes: number[],
+    timestamp: number[]
+  } = {
+    frameDrops: 0,
+    renderTimes: [],
+    timestamp: []
+  };
+  
+  private memoryUsage: {
+    value: number[],
+    timestamp: number[]
+  } = {
+    value: [],
+    timestamp: []
+  };
+  
+  private cpuUsage: {
+    value: number[],
+    timestamp: number[]
+  } = {
+    value: [],
+    timestamp: []
+  };
+  
+  constructor(private options = {
+    sampleInterval: 1000,
+    maxSamples: 60
+  }) {
+    this.startMonitoring();
+  }
+  
+  private startMonitoring(): void {
+    setInterval(() => {
+      this.samplePerformanceMetrics();
+    }, this.options.sampleInterval);
+  }
+  
+  private samplePerformanceMetrics(): void {
+    // Sample memory usage
+    if (window.performance && window.performance.memory) {
+      const memory = window.performance.memory;
+      this.memoryUsage.value.push(memory.usedJSHeapSize / memory.jsHeapSizeLimit);
+      this.memoryUsage.timestamp.push(Date.now());
+      
+      if (this.memoryUsage.value.length > this.options.maxSamples) {
+        this.memoryUsage.value.shift();
+        this.memoryUsage.timestamp.shift();
+      }
+    }
+    
+    // Sample CPU usage (approximation using frame timing)
+    const frameTime = this.getAverageFrameTime();
+    if (frameTime) {
+      // Normalize to a 0-1 scale where 1 is 100% CPU usage (60fps = 16.67ms)
+      const normalizedCpuUsage = Math.min(1, frameTime / 16.67);
+      this.cpuUsage.value.push(normalizedCpuUsage);
+      this.cpuUsage.timestamp.push(Date.now());
+      
+      if (this.cpuUsage.value.length > this.options.maxSamples) {
+        this.cpuUsage.value.shift();
+        this.cpuUsage.timestamp.shift();
+      }
+    }
+  }
+  
+  public reportAudioBufferStatus(bufferSize: number, underrun: boolean = false): void {
+    this.audioBufferStats.bufferSize.push(bufferSize);
+    this.audioBufferStats.timestamp.push(Date.now());
+    
+    if (underrun) {
+      this.audioBufferStats.underruns++;
+    }
+    
+    if (this.audioBufferStats.bufferSize.length > this.options.maxSamples) {
+      this.audioBufferStats.bufferSize.shift();
+      this.audioBufferStats.timestamp.shift();
+    }
+  }
+  
+  public reportRenderPerformance(renderTime: number, frameDropped: boolean = false): void {
+    this.renderStats.renderTimes.push(renderTime);
+    this.renderStats.timestamp.push(Date.now());
+    
+    if (frameDropped) {
+      this.renderStats.frameDrops++;
+    }
+    
+    if (this.renderStats.renderTimes.length > this.options.maxSamples) {
+      this.renderStats.renderTimes.shift();
+      this.renderStats.timestamp.shift();
+    }
+  }
+  
+  private getAverageFrameTime(): number {
+    if (this.renderStats.renderTimes.length === 0) return 0;
+    const sum = this.renderStats.renderTimes.reduce((acc, time) => acc + time, 0);
+    return sum / this.renderStats.renderTimes.length;
+  }
+  
+  public getPerformanceMetrics(): PerformanceMetrics {
+    return {
+      audioBuffer: {
+        currentSize: this.getCurrentAudioBufferSize(),
+        averageSize: this.getAverageAudioBufferSize(),
+        underrunRate: this.getAudioUnderrunRate()
+      },
+      rendering: {
+        averageFrameTime: this.getAverageFrameTime(),
+        frameDropRate: this.getFrameDropRate()
+      },
+      memory: {
+        currentUsage: this.getCurrentMemoryUsage(),
+        trend: this.getMemoryUsageTrend()
+      },
+      cpu: {
+        currentUsage: this.getCurrentCpuUsage(),
+        trend: this.getCpuUsageTrend()
+      },
+      overallPerformance: this.calculateOverallPerformance()
+    };
+  }
+  
+  // Helper methods for calculations
+  private getCurrentAudioBufferSize(): number {
+    if (this.audioBufferStats.bufferSize.length === 0) return 0;
+    return this.audioBufferStats.bufferSize[this.audioBufferStats.bufferSize.length - 1];
+  }
+  
+  private getAverageAudioBufferSize(): number {
+    if (this.audioBufferStats.bufferSize.length === 0) return 0;
+    const sum = this.audioBufferStats.bufferSize.reduce((acc, size) => acc + size, 0);
+    return sum / this.audioBufferStats.bufferSize.length;
+  }
+  
+  private getAudioUnderrunRate(): number {
+    const totalSamples = this.audioBufferStats.bufferSize.length;
+    if (totalSamples === 0) return 0;
+    return this.audioBufferStats.underruns / totalSamples;
+  }
+  
+  private getFrameDropRate(): number {
+    const totalFrames = this.renderStats.renderTimes.length;
+    if (totalFrames === 0) return 0;
+    return this.renderStats.frameDrops / totalFrames;
+  }
+  
+  private getCurrentMemoryUsage(): number {
+    if (this.memoryUsage.value.length === 0) return 0;
+    return this.memoryUsage.value[this.memoryUsage.value.length - 1];
+  }
+  
+  private getMemoryUsageTrend(): 'stable' | 'increasing' | 'decreasing' {
+    if (this.memoryUsage.value.length < 10) return 'stable';
+    
+    // Simple linear regression to determine trend
+    const recentValues = this.memoryUsage.value.slice(-10);
+    const slope = this.calculateTrendSlope(recentValues);
+    
+    if (slope > 0.01) return 'increasing';
+    if (slope < -0.01) return 'decreasing';
+    return 'stable';
+  }
+  
+  private getCurrentCpuUsage(): number {
+    if (this.cpuUsage.value.length === 0) return 0;
+    return this.cpuUsage.value[this.cpuUsage.value.length - 1];
+  }
+  
+  private getCpuUsageTrend(): 'stable' | 'increasing' | 'decreasing' {
+    if (this.cpuUsage.value.length < 10) return 'stable';
+    
+    // Simple linear regression to determine trend
+    const recentValues = this.cpuUsage.value.slice(-10);
+    const slope = this.calculateTrendSlope(recentValues);
+    
+    if (slope > 0.01) return 'increasing';
+    if (slope < -0.01) return 'decreasing';
+    return 'stable';
+  }
+  
+  private calculateTrendSlope(values: number[]): number {
+    // Simple linear regression slope calculation
+    const n = values.length;
+    const indices = Array.from({length: n}, (_, i) => i);
+    
+    const sumX = indices.reduce((acc, x) => acc + x, 0);
+    const sumY = values.reduce((acc, y) => acc + y, 0);
+    const sumXY = indices.reduce((acc, x, i) => acc + x * values[i], 0);
+    const sumXX = indices.reduce((acc, x) => acc + x * x, 0);
+    
+    return (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  }
+  
+  private calculateOverallPerformance(): 'good' | 'fair' | 'poor' {
+    const memoryUsage = this.getCurrentMemoryUsage();
+    const cpuUsage = this.getCurrentCpuUsage();
+    const audioUnderrunRate = this.getAudioUnderrunRate();
+    const frameDropRate = this.getFrameDropRate();
+    
+    if (
+      memoryUsage < 0.7 &&
+      cpuUsage < 0.7 &&
+      audioUnderrunRate < 0.01 &&
+      frameDropRate < 0.01
+    ) {
+      return 'good';
+    } else if (
+      memoryUsage < 0.85 &&
+      cpuUsage < 0.85 &&
+      audioUnderrunRate < 0.05 &&
+      frameDropRate < 0.05
+    ) {
+      return 'fair';
+    } else {
+      return 'poor';
+    }
+  }
+}
+```
+
+4. Create a QualityIndicator React component:
+```tsx
+interface QualityIndicatorProps {
+  quality: 'good' | 'fair' | 'poor';
+  label: string;
+  showLabel?: boolean;
+  size?: 'small' | 'medium' | 'large';
+  className?: string;
+}
+
+const QualityIndicator: React.FC<QualityIndicatorProps> = ({
+  quality,
+  label,
+  showLabel = true,
+  size = 'medium',
+  className
+}) => {
+  const colorMap = {
+    good: '#4CAF50',
+    fair: '#FFC107',
+    poor: '#F44336'
+  };
+  
+  const sizeMap = {
+    small: '8px',
+    medium: '12px',
+    large: '16px'
+  };
+  
+  return (
+    <div className={`quality-indicator ${className || ''}`} title={label}>
+      <div 
+        className="indicator-dot"
+        style={{
+          backgroundColor: colorMap[quality],
+          width: sizeMap[size],
+          height: sizeMap[size],
+          borderRadius: '50%',
+          display: 'inline-block'
+        }}
+      />
+      {showLabel && (
+        <span className="indicator-label" style={{ marginLeft: '4px' }}>
+          {label}
+        </span>
+      )}
+    </div>
+  );
+};
+```
+
+5. Create a ConnectionQualityDashboard component:
+```tsx
+interface ConnectionQualityDashboardProps {
+  connectionMonitor: WebSocketConnectionMonitor;
+  transcriptionMonitor: TranscriptionQualityMonitor;
+  performanceMonitor: PerformanceMonitor;
+  updateInterval?: number;
+  expanded?: boolean;
+  onToggleExpand?: () => void;
+  className?: string;
+}
+
+const ConnectionQualityDashboard: React.FC<ConnectionQualityDashboardProps> = ({
+  connectionMonitor,
+  transcriptionMonitor,
+  performanceMonitor,
+  updateInterval = 1000,
+  expanded = false,
+  onToggleExpand,
+  className
+}) => {
+  const [metrics, setMetrics] = useState({
+    connection: connectionMonitor.getConnectionHealth(),
+    transcription: transcriptionMonitor.getTranscriptionQualityMetrics(),
+    performance: performanceMonitor.getPerformanceMetrics()
+  });
+  
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setMetrics({
+        connection: connectionMonitor.getConnectionHealth(),
+        transcription: transcriptionMonitor.getTranscriptionQualityMetrics(),
+        performance: performanceMonitor.getPerformanceMetrics()
+      });
+    }, updateInterval);
+    
+    return () => clearInterval(intervalId);
+  }, [connectionMonitor, transcriptionMonitor, performanceMonitor, updateInterval]);
+  
+  return (
+    <div className={`connection-quality-dashboard ${expanded ? 'expanded' : 'collapsed'} ${className || ''}`}>
+      <div className="dashboard-header" onClick={onToggleExpand}>
+        <div className="dashboard-title">Connection Quality</div>
+        <div className="dashboard-indicators">
+          <QualityIndicator 
+            quality={metrics.connection.connectionQuality} 
+            label="Connection" 
+            showLabel={false}
+            size="small"
+          />
+          <QualityIndicator 
+            quality={metrics.transcription.qualityScore > 0.8 ? 'good' : metrics.transcription.qualityScore > 0.5 ? 'fair' : 'poor'} 
+            label="Transcription" 
+            showLabel={false}
+            size="small"
+          />
+          <QualityIndicator 
+            quality={metrics.performance.overallPerformance} 
+            label="Performance" 
+            showLabel={false}
+            size="small"
+          />
+        </div>
+        <div className="dashboard-toggle">
+          {expanded ? '▼' : '▲'}
+        </div>
+      </div>
+      
+      {expanded && (
+        <div className="dashboard-details">
+          <div className="metrics-section">
+            <h4>Connection</h4>
+            <div className="metric-row">
+              <span className="metric-label">Status:</span>
+              <span className="metric-value">{metrics.connection.isConnected ? 'Connected' : 'Disconnected'}</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Latency:</span>
+              <span className="metric-value">{Math.round(metrics.connection.currentLatency)}ms</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Packet Loss:</span>
+              <span className="metric-value">{(metrics.connection.packetLoss * 100).toFixed(1)}%</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Uptime:</span>
+              <span className="metric-value">{formatDuration(metrics.connection.uptime)}</span>
+            </div>
+          </div>
+          
+          <div className="metrics-section">
+            <h4>Transcription</h4>
+            <div className="metric-row">
+              <span className="metric-label">Confidence:</span>
+              <span className="metric-value">{(metrics.transcription.averageConfidence * 100).toFixed(1)}%</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Response Time:</span>
+              <span className="metric-value">{Math.round(metrics.transcription.averageResponseTime)}ms</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Corrections:</span>
+              <span className="metric-value">{(metrics.transcription.correctionFrequency * 100).toFixed(1)}%</span>
+            </div>
+          </div>
+          
+          <div className="metrics-section">
+            <h4>Performance</h4>
+            <div className="metric-row">
+              <span className="metric-label">CPU Usage:</span>
+              <span className="metric-value">{(metrics.performance.cpu.currentUsage * 100).toFixed(1)}%</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Memory:</span>
+              <span className="metric-value">{(metrics.performance.memory.currentUsage * 100).toFixed(1)}%</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Audio Buffer:</span>
+              <span className="metric-value">
+                {metrics.performance.audioBuffer.currentSize} samples
+                {metrics.performance.audioBuffer.underrunRate > 0 && 
+                  <span className="warning"> ({(metrics.performance.audioBuffer.underrunRate * 100).toFixed(1)}% underruns)</span>
+                }
+              </span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Frame Time:</span>
+              <span className="metric-value">
+                {metrics.performance.rendering.averageFrameTime.toFixed(1)}ms
+                {metrics.performance.rendering.frameDropRate > 0 && 
+                  <span className="warning"> ({(metrics.performance.rendering.frameDropRate * 100).toFixed(1)}% drops)</span>
+                }
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Helper function to format duration
+function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  } else {
+    return `${seconds}s`;
+  }
+}
+```
+
+6. Create a MonitoringService to integrate all components:
+```typescript
+class MonitoringService {
+  private connectionMonitor: WebSocketConnectionMonitor;
+  private transcriptionMonitor: TranscriptionQualityMonitor;
+  private performanceMonitor: PerformanceMonitor;
+  private eventEmitter: EventEmitter = new EventEmitter();
+  
+  constructor(
+    webSocketClient: GeminiLiveWebSocketClient,
+    messageStreamHandler: MessageStreamHandler,
+    options = {
+      connectionMonitorOptions: {},
+      transcriptionMonitorOptions: {},
+      performanceMonitorOptions: {}
+    }
+  ) {
+    this.connectionMonitor = new WebSocketConnectionMonitor(
+      webSocketClient, 
+      options.connectionMonitorOptions
+    );
+    
+    this.transcriptionMonitor = new TranscriptionQualityMonitor(
+      messageStreamHandler
+    );
+    
+    this.performanceMonitor = new PerformanceMonitor(
+      options.performanceMonitorOptions
+    );
+    
+    this.setupEventListeners();
+    this.startPeriodicQualityCheck();
+  }
+  
+  private setupEventListeners(): void {
+    // Listen for significant quality changes and emit events
+  }
+  
+  private startPeriodicQualityCheck(): void {
+    setInterval(() => {
+      const metrics = this.getAllMetrics();
+      this.analyzeMetricsForIssues(metrics);
+    }, 5000);
+  }
+  
+  private analyzeMetricsForIssues(metrics: any): void {
+    // Check for critical issues
+    if (metrics.connection.connectionQuality === 'poor') {
+      this.eventEmitter.emit('qualityIssue', {
+        type: 'connection',
+        severity: 'high',
+        message: 'Poor connection quality detected',
+        metrics: metrics.connection
+      });
+    }
+    
+    if (metrics.performance.overallPerformance === 'poor') {
+      this.eventEmitter.emit('qualityIssue', {
+        type: 'performance',
+        severity: 'high',
+        message: 'Performance issues detected',
+        metrics: metrics.performance
+      });
+    }
+    
+    // Check for transcription quality issues
+    if (metrics.transcription.qualityScore < 0.5) {
+      this.eventEmitter.emit('qualityIssue', {
+        type: 'transcription',
+        severity: 'medium',
+        message: 'Low transcription quality detected',
+        metrics: metrics.transcription
+      });
+    }
+  }
+  
+  public getAllMetrics(): any {
+    return {
+      connection: this.connectionMonitor.getConnectionHealth(),
+      transcription: this.transcriptionMonitor.getTranscriptionQualityMetrics(),
+      performance: this.performanceMonitor.getPerformanceMetrics()
+    };
+  }
+  
+  public on(event: string, callback: Function): void {
+    this.eventEmitter.on(event, callback);
+  }
+  
+  public off(event: string, callback: Function): void {
+    this.eventEmitter.off(event, callback);
+  }
+  
+  public getConnectionMonitor(): WebSocketConnectionMonitor {
+    return this.connectionMonitor;
+  }
+  
+  public getTranscriptionMonitor(): TranscriptionQualityMonitor {
+    return this.transcriptionMonitor;
+  }
+  
+  public getPerformanceMonitor(): PerformanceMonitor {
+    return this.performanceMonitor;
+  }
+}
+```
+
+7. Integration with existing components:
+   - Update the PerformanceDashboard component to include the new monitoring metrics
+   - Add the ConnectionQualityDashboard to the main UI
+   - Integrate the MonitoringService with the WebSocketClient and MessageStreamHandler
+   - Add visual indicators for connection quality in the UI
+   - Implement automatic quality adjustment based on monitoring results
+
+8. Implement automatic quality adjustment recommendations:
+```typescript
+class QualityAdjustmentRecommender {
+  private monitoringService: MonitoringService;
+  private eventEmitter: EventEmitter = new EventEmitter();
+  
+  constructor(monitoringService: MonitoringService) {
+    this.monitoringService = monitoringService;
+    this.setupEventListeners();
+  }
+  
+  private setupEventListeners(): void {
+    this.monitoringService.on('qualityIssue', this.handleQualityIssue.bind(this));
+  }
+  
+  private handleQualityIssue(issue: any): void {
+    const recommendations = this.generateRecommendations(issue);
+    if (recommendations.length > 0) {
+      this.eventEmitter.emit('recommendations', recommendations);
+    }
+  }
+  
+  private generateRecommendations(issue: any): any[] {
+    const recommendations = [];
+    
+    switch (issue.type) {
+      case 'connection':
+        if (issue.metrics.packetLoss > 0.05) {
+          recommendations.push({
+            id: 'reduce_audio_quality',
+            type: 'connection',
+            action: 'reduceAudioQuality',
+            message: 'Reduce audio quality to improve connection stability',
+            severity: 'medium',
+            automatic: false
+          });
+        }
+        
+        if (issue.metrics.averageLatency > 300) {
+          recommendations.push({
+            id: 'increase_buffer_size',
+            type: 'connection',
+            action: 'increaseBufferSize',
+            message: 'Increase audio buffer size to handle high latency',
+            severity: 'medium',
+            automatic: true
+          });
+        }
+        break;
+        
+      case 'performance':
+        if (issue.metrics.memory.currentUsage > 0.8) {
+          recommendations.push({
+            id: 'reduce_history_size',
+            type: 'performance',
+            action: 'reduceHistorySize',
+            message: 'Reduce transcript history size to improve memory usage',
+            severity: 'high',
+            automatic: true
+          });
+        }
+        
+        if (issue.metrics.cpu.currentUsage > 0.8) {
+          recommendations.push({
+            id: 'disable_animations',
+            type: 'performance',
+            action: 'disableAnimations',
+            message: 'Disable UI animations to reduce CPU usage',
+            severity: 'medium',
+            automatic: true
+          });
+        }
+        break;
+        
+      case 'transcription':
+        if (issue.metrics.correctionFrequency > 0.2) {
+          recommendations.push({
+            id: 'improve_audio_input',
+            type: 'transcription',
+            action: 'suggestMicrophone',
+            message: 'Consider using a better microphone or reducing background noise',
+            severity: 'low',
+            automatic: false
+          });
+        }
+        break;
+    }
+    
+    return recommendations;
+  }
+  
+  public on(event: string, callback: Function): void {
+    this.eventEmitter.on(event, callback);
+  }
+  
+  public off(event: string, callback: Function): void {
+    this.eventEmitter.off(event, callback);
+  }
+}
+```
+
+9. Add a RecommendationNotifier component:
+```tsx
+interface RecommendationNotifierProps {
+  recommender: QualityAdjustmentRecommender;
+  onApplyRecommendation: (recommendation: any) => void;
+  className?: string;
+}
+
+const RecommendationNotifier: React.FC<RecommendationNotifierProps> = ({
+  recommender,
+  onApplyRecommendation,
+  className
+}) => {
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  
+  useEffect(() => {
+    const handleRecommendations = (newRecommendations: any[]) => {
+      setRecommendations(prev => {
+        // Filter out duplicates
+        const existingIds = prev.map(r => r.id);
+        const uniqueNew = newRecommendations.filter(r => !existingIds.includes(r.id));
+        return [...prev, ...uniqueNew];
+      });
+      
+      // Auto-apply recommendations marked as automatic
+      newRecommendations.forEach(rec => {
+        if (rec.automatic) {
+          onApplyRecommendation(rec);
+          // Remove from visible recommendations
+          setRecommendations(prev => prev.filter(r => r.id !== rec.id));
+        }
+      });
+    };
+    
+    recommender.on('recommendations', handleRecommendations);
+    
+    return () => {
+      recommender.off('recommendations', handleRecommendations);
+    };
+  }, [recommender, onApplyRecommendation]);
+  
+  const handleDismiss = (id: string) => {
+    setRecommendations(prev => prev.filter(r => r.id !== id));
+  };
+  
+  const handleApply = (recommendation: any) => {
+    onApplyRecommendation(recommendation);
+    handleDismiss(recommendation.id);
+  };
+  
+  if (recommendations.length === 0) {
+    return null;
+  }
+  
+  return (
+    <div className={`recommendation-notifier ${className || ''}`}>
+      {recommendations.map(rec => (
+        <div key={rec.id} className={`recommendation-item severity-${rec.severity}`}>
+          <div className="recommendation-message">{rec.message}</div>
+          <div className="recommendation-actions">
+            <button 
+              className="apply-button"
+              onClick={() => handleApply(rec)}
+            >
+              Apply
+            </button>
+            <button 
+              className="dismiss-button"
+              onClick={() => handleDismiss(rec.id)}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+# Test Strategy:
+1. Unit Testing:
+   a. Test WebSocketConnectionMonitor:
+      - Verify connection health metrics calculation
+      - Test ping/pong functionality and latency calculation
+      - Validate reconnection event tracking
+      - Test connection quality determination logic
+      - Mock WebSocket events to verify event handling
+
+   b. Test TranscriptionQualityMonitor:
+      - Verify confidence score tracking and averaging
+      - Test partial/final transcription ratio calculation
+      - Validate correction event tracking
+      - Test response time measurement
+      - Verify quality score calculation with different inputs
+
+   c. Test PerformanceMonitor:
+      - Verify audio buffer statistics tracking
+      - Test rendering performance measurement
+      - Validate memory and CPU usage monitoring
+      - Test trend analysis functions
+      - Verify overall performance determination logic
+
+2. Integration Testing:
+   a. Test integration with WebSocketClient:
+      - Verify that monitoring doesn't interfere with normal WebSocket operations
+      - Test that connection events are properly captured
+      - Validate that message statistics are accurately tracked
+
+   b. Test integration with MessageStreamHandler:
+      - Verify transcription events are properly monitored
+      - Test that quality metrics update in response to transcription events
+      - Validate that correction events are properly detected
+
+   c. Test integration with PerformanceDashboard:
+      - Verify that monitoring data is correctly displayed
+      - Test that UI updates reflect real-time changes in metrics
+      - Validate that performance data is accurately represented
+
+3. Performance Testing:
+   a. Measure monitoring overhead:
+      - Test CPU and memory usage with monitoring enabled vs. disabled
+      - Verify that monitoring doesn't significantly impact transcription performance
+      - Test with different monitoring update intervals to find optimal balance
+
+   b. Test under load conditions:
+      - Simulate high message throughput to test monitoring accuracy
+      - Test with long transcription sessions (30+ minutes)
+      - Verify monitoring stability during reconnection events
+
+4. UI Component Testing:
+   a. Test ConnectionQualityDashboard:
+      - Verify that all metrics are displayed correctly
+      - Test expand/collapse functionality
+      - Validate that quality indicators update in real-time
+      - Test responsive design on different screen sizes
+
+   b. Test QualityIndicator component:
+      - Verify correct color mapping for different quality levels
+      - Test with different sizes and label configurations
+      - Validate accessibility features (contrast, screen reader support)
+
+   c. Test RecommendationNotifier:
+      - Verify that recommendations are displayed correctly
+      - Test apply/dismiss functionality
+      - Validate automatic recommendation application
+      - Test multiple simultaneous recommendations
+
+5. End-to-End Testing:
+   a. Test complete monitoring flow:
+      - Start a transcription session and verify monitoring initialization
+      - Simulate various network conditions to trigger quality changes
+      - Verify that recommendations appear appropriately
+      - Test that applying recommendations improves metrics
+
+   b. Test with real WebSocket connection:
+      - Verify accuracy of connection metrics with actual Gemini Live API
+      - Test with different network conditions (good WiFi, poor cellular, etc.)
+      - Validate that monitoring correctly identifies real-world issues
+
+6. User Experience Testing:
+   a. Conduct usability testing:
+      - Verify that quality indicators are intuitive and understandable
+      - Test that recommendations are helpful and actionable
+      - Validate that monitoring doesn't distract from the main transcription experience
+
+   b. Accessibility testing:
+      - Verify that all monitoring components meet WCAG 2.1 AA standards
+      - Test with screen readers to ensure monitoring information is accessible
+      - Validate keyboard navigation for all interactive monitoring components
