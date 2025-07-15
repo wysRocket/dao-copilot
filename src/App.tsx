@@ -10,7 +10,7 @@ import {MultiWindowProvider} from './contexts/MultiWindowContext'
 import {WindowStateProvider} from './contexts/WindowStateProvider'
 import {ThemeProvider} from './contexts/ThemeProvider'
 import {GlassEffectsProvider} from './contexts/GlassEffectsProvider'
-import {StreamingTextProvider} from './contexts/StreamingTextContext'
+import {initializeTranscriptionEventMiddleware, destroyTranscriptionEventMiddleware} from './middleware/TranscriptionEventMiddleware'
 
 export default function App() {
   const [isMultiWindow, setIsMultiWindow] = useState(false)
@@ -18,6 +18,10 @@ export default function App() {
   useEffect(() => {
     syncThemeWithLocal()
 
+    // Initialize transcription event middleware
+    console.log('🚀 App: Initializing TranscriptionEventMiddleware')
+    initializeTranscriptionEventMiddleware()
+    
     // Check if this is a child window by looking for window type in URL
     const urlParams = new URLSearchParams(window.location.search)
     const windowType = urlParams.get('windowType')
@@ -26,19 +30,23 @@ export default function App() {
     if (windowType && windowType !== 'main') {
       setIsMultiWindow(true)
     }
+    
+    // Cleanup middleware on unmount
+    return () => {
+      console.log('🚀 App: Cleaning up TranscriptionEventMiddleware')
+      destroyTranscriptionEventMiddleware()
+    }
   }, [])
 
   return (
     <ThemeProvider defaultMode="dark">
       <GlassEffectsProvider>
         <MultiWindowProvider>
-          <StreamingTextProvider>
-            <WindowStateProvider>
-              <PortalManagerProvider>
-                {isMultiWindow ? <WindowRenderer /> : <RouterProvider router={router} />}
-              </PortalManagerProvider>
-            </WindowStateProvider>
-          </StreamingTextProvider>
+          <WindowStateProvider>
+            <PortalManagerProvider>
+              {isMultiWindow ? <WindowRenderer /> : <RouterProvider router={router} />}
+            </PortalManagerProvider>
+          </WindowStateProvider>
         </MultiWindowProvider>
       </GlassEffectsProvider>
     </ThemeProvider>

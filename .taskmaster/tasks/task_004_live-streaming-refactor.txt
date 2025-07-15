@@ -1,0 +1,91 @@
+# Task ID: 4
+# Title: Refactor Unified Transcription State Management
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Refactor state management to use single source of truth for transcription data with clear separation between streaming and static content.
+# Details:
+## Problem Analysis
+Current implementation has multiple overlapping state systems causing conflicts and performance issues:
+- Multiple TextStreamBuffer instances
+- Conflicting useState hooks
+- Poor separation between streaming and static state
+
+## Implementation Steps
+1. **Create Unified State Manager**:
+   - Create TranscriptionStateManager class
+   - Implement single source of truth pattern
+   - Add clear state separation for streaming vs. static content
+   - Implement proper state transitions
+
+2. **Refactor Context Architecture**:
+   - Consolidate StreamingTextContext and MultiWindowContext transcription logic
+   - Create clear interfaces between contexts
+   - Implement proper context composition
+   - Add state synchronization mechanisms
+
+3. **Implement State Lifecycle Management**:
+   - Define clear state transitions: incoming → streaming → static
+   - Implement proper cleanup for completed streams
+   - Add memory management for long sessions
+   - Handle edge cases and error states
+
+4. **Performance Optimization**:
+   - Eliminate duplicate state storage
+   - Implement efficient re-rendering strategies
+   - Add memoization for expensive operations
+   - Optimize event handling and subscriptions
+
+## Files to Create/Modify
+- Create `/src/state/TranscriptionStateManager.ts` - Unified state management
+- `/src/contexts/StreamingTextContext.tsx` - Simplify and focus on streaming
+- `/src/contexts/MultiWindowContext.tsx` - Remove transcription-specific logic
+- `/src/hooks/useTranscriptionState.ts` - New unified hook
+
+## State Architecture
+```typescript
+interface TranscriptionState {
+  streaming: {
+    current: StreamingTranscription | null
+    isActive: boolean
+    progress: number
+  }
+  static: {
+    transcripts: TranscriptionResult[]
+    isLoading: boolean
+  }
+  meta: {
+    totalCount: number
+    lastUpdate: number
+  }
+}
+```
+
+## Success Criteria
+- Single source of truth for all transcription state
+- Clear separation between streaming and static content
+- Improved performance with reduced re-renders
+- Proper memory management and cleanup
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Analyze Current State Architecture [done]
+### Dependencies: None
+### Description: Analyze existing state management patterns to identify overlaps and conflicts
+### Details:
+Examine current contexts, hooks, and state managers to understand the architecture and identify consolidation opportunities.
+
+## 2. Create Unified TranscriptionStateManager [done]
+### Dependencies: None
+### Description: Create unified TranscriptionStateManager class as single source of truth
+### Details:
+Design and implement a unified state manager that consolidates all transcription-related state management into a single, efficient system with clear separation between streaming and static content.
+
+## 3. Test and Integrate Unified State System [done]
+### Dependencies: None
+### Description: Test the unified TranscriptionStateManager and hooks, then integrate with existing components
+### Details:
+Create comprehensive tests for the unified state system and integrate it with existing components to replace the overlapping state management systems.
+
