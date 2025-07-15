@@ -3,7 +3,7 @@
  * Handles real-time bidirectional communication with Google's Gemini Live API
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {GeminiMessageHandler, MessageType, MessagePriority} from './gemini-message-handler'
 import {GeminiErrorHandler, ErrorType, type GeminiError} from './gemini-error-handler'
 import {logger} from './gemini-logger'
@@ -1799,9 +1799,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.on('error', (error: GeminiError) => {
       logger.error('WebSocket error occurred', {
         errorId: error.id,
-        errorType: error.type,
-        retryable: error.retryable,
-        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
+        type: error.type,
+        message: error.message,
+        retryable: error.retryable
       })
     })
 
@@ -1892,7 +1892,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Setup heartbeat monitor event listeners
+   * Set up heartbeat monitor event listeners
    */
   private setupHeartbeatMonitorEvents(): void {
     this.heartbeatMonitor.on('unhealthy', event => {
@@ -2543,6 +2543,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
 
   /**
    * Cleanup and destroy all resources
+  
    */
   async destroy(): Promise<void> {
     logger.info('Destroying GeminiLiveWebSocketClient')
