@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '../utils/tailwind';
-import { useStreamingText, StreamingTextConfig } from '../hooks/useStreamingText';
+import { useStreamingText } from '../contexts/StreamingTextContext';
 import { useTypewriterEffect, TypewriterConfig } from '../hooks/useTypewriterEffect';
 import { StreamingStateIndicator, useStreamingStateManager, type StreamingState } from './StreamingStateIndicator';
 import { streamingMemo, optimizeForAnimations, removeAnimationOptimizations, IntersectionObserverManager } from '../utils/performance-optimization';
@@ -84,19 +84,52 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const isVisibleRef = useRef<boolean>(true);
   const intersectionObserverRef = useRef<IntersectionObserverManager | null>(null);
+   // Use the streaming text context
+  const streamingContext = useStreamingText();
   
-  // Memoized streaming configuration to prevent unnecessary re-renders
-  const streamingConfig: StreamingTextConfig = useMemo(() => ({
-    animationSpeed: mode === 'instant' ? 1000 : animationSpeed,
-    enableAnimation: mode !== 'instant',
-    animationMode: mode === 'word' ? 'word' : 'character',
-    debounceDelay: 50,
-    onAnimationComplete: onAnimationComplete || (() => {}),
-    onTextUpdate: onTextUpdate || (() => {}),
-  }), [mode, animationSpeed, onAnimationComplete, onTextUpdate]);
+  const {
+    currentStreamingText,
+    isStreamingActive,
+    isCurrentTextPartial,
+    streamingMode: contextStreamingMode,
+    setStreamingMode,
+    startStreamingTranscription,
+    updateStreamingTranscription,
+    completeStreamingTranscription
+  } = streamingContext || {
+    // Fallback values if context is not available
+    currentStreamingText: text,
+    isStreamingActive: false,
+    isCurrentTextPartial: isPartial || false,
+    streamingMode: mode || 'character',
+    setStreamingMode: () => {},
+    startStreamingTranscription: () => {},
+    updateStreamingTranscription: () => {},
+    completeStreamingTranscription: () => {}
+  };
   
-  // Use the streaming text hook
-  const [streamingState, streamingControls] = useStreamingText(streamingConfig);
+  // Map context state to expected interface for compatibility
+  const streamingState = {
+    displayedText: currentStreamingText,
+    targetText: text,
+    isPartial: isCurrentTextPartial,
+    isAnimating: isStreamingActive,
+    hasCorrection: false, // Context doesn't track corrections yet
+    connectionState: (isStreamingActive ? 'connected' : 'disconnected') as 'connected' | 'disconnected' | 'connecting' | 'error'
+  };
+  
+  const streamingControls = {
+    updateText: (newText: string, partial: boolean = false) => {
+      updateStreamingTranscription(newText, partial);
+    },
+    clearText: () => {
+      // Context doesn't have direct clear, complete instead
+      completeStreamingTranscription();
+    },
+    completeAnimation: () => {
+      completeStreamingTranscription();
+    }
+  };
   
   // Memoized typewriter configuration
   const memoizedTypewriterConfig = useMemo(() => ({

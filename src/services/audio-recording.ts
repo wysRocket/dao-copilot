@@ -17,6 +17,7 @@ export interface TranscriptionResult {
   confidence?: number
   duration?: number
   timestamp?: number
+  source?: string  // Add source information
 }
 
 /**

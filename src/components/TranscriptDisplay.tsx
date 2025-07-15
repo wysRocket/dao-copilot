@@ -2,8 +2,7 @@ import React, {useEffect, useRef, useState} from 'react'
 import {TranscriptionResult} from '../services/main-stt-transcription'
 import GlassBox from './GlassBox'
 import VirtualizedTranscript from './VirtualizedTranscript'
-import StreamingTextRenderer from './StreamingTextRenderer'
-import AccessibleStreamingText from './AccessibleStreamingText'
+import LiveStreamingArea from './LiveStreamingArea'
 import {TextStreamBuffer} from '../services/TextStreamBuffer'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { NewContentIndicator, ScrollControls } from './AutoScrollComponents'
@@ -236,61 +235,21 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
                 {/* Live streaming text display */}
                 {enableStreaming && streamingText && (
                   <div className="mt-4 border-t border-opacity-20 pt-4" style={{borderColor: 'var(--border-secondary)'}}>
-                    <div className="mb-2 text-xs opacity-60" style={{color: 'var(--text-muted)'}}>
-                      Live Transcription:
-                    </div>
-                    {mergedAccessibilityConfig.enabled ? (
-                      <AccessibleStreamingText
-                        text={streamingText}
-                        isPartial={isStreamingPartial}
-                        mode={streamingMode}
-                        onAnimationComplete={onStreamingComplete}
-                        showCursor={true}
-                        highlightCorrections={true}
-                        ariaLabel="Live transcription text"
-                        announceChanges={mergedAccessibilityConfig.announceChanges}
-                        announcementPriority={mergedAccessibilityConfig.announcementPriority}
-                        enableKeyboardControls={mergedAccessibilityConfig.enableKeyboardControls}
-                        verboseStatus={mergedAccessibilityConfig.verboseStatus}
-                        partialStyle={{
-                          color: 'var(--text-muted)',
-                          opacity: 0.8,
-                          fontStyle: 'italic'
-                        }}
-                        finalStyle={{
-                          color: 'var(--text-primary)',
-                          opacity: 1
-                        }}
-                        correctionStyle={{
-                          backgroundColor: 'rgba(255, 215, 0, 0.2)',
-                          borderRadius: '2px',
-                          padding: '1px 2px'
-                        }}
-                      />
-                    ) : (
-                      <StreamingTextRenderer
-                        text={streamingText}
-                        isPartial={isStreamingPartial}
-                        mode={streamingMode}
-                        onAnimationComplete={onStreamingComplete}
-                        showCursor={true}
-                        highlightCorrections={true}
-                        partialStyle={{
-                          color: 'var(--text-muted)',
-                          opacity: 0.8,
-                          fontStyle: 'italic'
-                        }}
-                        finalStyle={{
-                          color: 'var(--text-primary)',
-                          opacity: 1
-                        }}
-                        correctionStyle={{
-                          backgroundColor: 'rgba(255, 215, 0, 0.2)',
-                          borderRadius: '2px',
-                          padding: '1px 2px'
-                        }}
-                      />
-                    )}
+                    <LiveStreamingArea
+                      streamingText={streamingText}
+                      isStreamingActive={!isStreamingPartial}
+                      isStreamingPartial={isStreamingPartial}
+                      streamingMode={streamingMode}
+                      streamingSource="microphone"
+                      confidence={0.85} // Default confidence, should come from props
+                      accessibilityConfig={mergedAccessibilityConfig}
+                      onStreamingComplete={onStreamingComplete}
+                      onClearStreaming={() => onStreamingComplete?.()}
+                      animate={true}
+                      showSourceBadge={true}
+                      showConfidenceScore={true}
+                      className="w-full"
+                    />
                   </div>
                 )}
 

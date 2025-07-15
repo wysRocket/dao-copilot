@@ -38,13 +38,15 @@ const CustomTitleBar: React.FC = () => {
     console.log('🎯 CustomTitleBar: Received transcription result:', result)
     console.log('🎯 Adding to shared state with addTranscript:', {
       text: result.text,
-      confidence: result.confidence
+      confidence: result.confidence,
+      source: result.source || 'audio-recording'
     })
 
-    // Add transcript to shared state for local display
+    // Add transcript to shared state with source information
     addTranscript({
       text: result.text,
-      confidence: result.confidence
+      confidence: result.confidence,
+      source: result.source || 'audio-recording'
     })
 
     console.log('🎯 Broadcasting transcription result to other windows')
