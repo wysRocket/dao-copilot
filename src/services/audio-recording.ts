@@ -17,7 +17,7 @@ export interface TranscriptionResult {
   confidence?: number
   duration?: number
   timestamp?: number
-  source?: string  // Add source information
+  source?: string // Add source information
 }
 
 /**
@@ -174,7 +174,11 @@ export class AudioRecordingService {
 
       // Send for transcription via IPC
       if (window.transcriptionAPI?.transcribeAudio) {
-        console.log('🎤 AudioRecording: Calling transcriptionAPI.transcribeAudio with', wavData.length, 'bytes')
+        console.log(
+          '🎤 AudioRecording: Calling transcriptionAPI.transcribeAudio with',
+          wavData.length,
+          'bytes'
+        )
         const result = await window.transcriptionAPI.transcribeAudio(wavData)
         console.log('🎤 AudioRecording: RAW IPC RESULT STRUCTURE:', {
           type: typeof result,
@@ -298,7 +302,9 @@ export class AudioRecordingService {
           console.log('🎤 AudioRecording: Interval triggered, checking for audio chunks')
           console.log('🎤 AudioRecording: audioChunks.length:', audioChunks.length)
           if (audioChunks.length > 0) {
-            console.log(`🎤 AudioRecording: Processing ${audioChunks.length} audio chunks for interval transcription`)
+            console.log(
+              `🎤 AudioRecording: Processing ${audioChunks.length} audio chunks for interval transcription`
+            )
             console.log('🎤 AudioRecording: onTranscription callback provided:', !!onTranscription)
             await this.processAudioChunks(audioChunks.splice(0), onTranscription)
           } else {
@@ -367,7 +373,7 @@ export class AudioRecordingService {
     console.log('🎤 AudioRecordingService: toggleRecording called')
     console.log('🎤 AudioRecordingService: Current state.isRecording:', this.state.isRecording)
     console.log('🎤 AudioRecordingService: onTranscription callback provided:', !!onTranscription)
-    
+
     if (this.state.isRecording) {
       console.log('🎤 AudioRecordingService: Stopping recording')
       this.stopIntervalRecording()

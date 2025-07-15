@@ -72,10 +72,10 @@ export function detectLegacyUsage(options: Record<string, unknown>): boolean {
   if (!options || typeof options !== 'object') return false
 
   const legacyKeys = [
-    'batchMode', 
-    'useProxy', 
-    'fallbackEnabled', 
-    'timeout', 
+    'batchMode',
+    'useProxy',
+    'fallbackEnabled',
+    'timeout',
     'retries',
     // v1beta migration indicators
     'useV1Alpha',
@@ -136,7 +136,9 @@ export function migrateLegacyEnvironment(): {
       migrated.GEMINI_API_VERSION = 'v1alpha'
       migrated.GEMINI_MODEL_NAME = 'gemini-live-2.5-flash-preview'
     }
-    warnings.push('USE_V1_ALPHA is deprecated. Set GEMINI_API_VERSION=v1alpha explicitly if needed.')
+    warnings.push(
+      'USE_V1_ALPHA is deprecated. Set GEMINI_API_VERSION=v1alpha explicitly if needed.'
+    )
   }
 
   if (process.env.GEMINI_MODEL_VERSION) {
@@ -200,13 +202,17 @@ export function migrateLegacyConfig(
 
   // Handle v1beta model migrations
   if ('useV1Alpha' in legacyConfig && legacyConfig.useV1Alpha) {
-    deprecations.push('The "useV1Alpha" option is deprecated. v1beta is now the default API version.')
+    deprecations.push(
+      'The "useV1Alpha" option is deprecated. v1beta is now the default API version.'
+    )
     newConfig.modelName = 'gemini-live-2.5-flash-preview' // Upgrade to v1beta model
     warnings.push('Automatically upgraded from v1alpha to v1beta model for better performance.')
   }
 
   if ('useExperimentalModel' in legacyConfig && legacyConfig.useExperimentalModel) {
-    deprecations.push('The "useExperimentalModel" option is deprecated. v1beta models are now stable.')
+    deprecations.push(
+      'The "useExperimentalModel" option is deprecated. v1beta models are now stable.'
+    )
     newConfig.modelName = 'gemini-live-2.5-flash-preview'
   }
 
@@ -222,7 +228,9 @@ export function migrateLegacyConfig(
     const legacyModel = legacyConfig.geminiModel as string
     if (modelMigrations[legacyModel]) {
       newConfig.modelName = modelMigrations[legacyModel]
-      warnings.push(`Migrated legacy model "${legacyModel}" to "${modelMigrations[legacyModel]}" for v1beta compatibility.`)
+      warnings.push(
+        `Migrated legacy model "${legacyModel}" to "${modelMigrations[legacyModel]}" for v1beta compatibility.`
+      )
     } else {
       newConfig.modelName = legacyModel
       warnings.push(`Using custom model "${legacyModel}". Ensure it's compatible with v1beta API.`)
@@ -230,7 +238,9 @@ export function migrateLegacyConfig(
   }
 
   if ('apiVersion' in legacyConfig && legacyConfig.apiVersion === 'v1alpha') {
-    warnings.push('v1alpha API is deprecated. Consider upgrading to v1beta for improved reliability.')
+    warnings.push(
+      'v1alpha API is deprecated. Consider upgrading to v1beta for improved reliability.'
+    )
   }
 
   // Apply environment migration
@@ -280,8 +290,8 @@ export function createLegacyWrapper<T extends (...args: unknown[]) => unknown>(
 export function isLegacyUsagePattern(): boolean {
   // Check environment variables
   const legacyEnvVars = [
-    'GEMINI_BATCH_MODE', 
-    'DISABLE_WEBSOCKET', 
+    'GEMINI_BATCH_MODE',
+    'DISABLE_WEBSOCKET',
     'PROXY_FALLBACK',
     // v1beta migration indicators
     'USE_EXPERIMENTAL_MODEL',
@@ -373,7 +383,8 @@ export function migrateToV1Beta(currentConfig: LegacyTranscriptionOptions): {
   }
 
   // Migrate model to v1beta
-  const currentModel = currentConfig.modelName || currentConfig.geminiModel || 'gemini-live-2.5-flash-preview'
+  const currentModel =
+    currentConfig.modelName || currentConfig.geminiModel || 'gemini-live-2.5-flash-preview'
   newConfig.modelName = 'gemini-live-2.5-flash-preview'
   migrationSteps.push(`✓ Model upgraded: ${currentModel} → gemini-live-2.5-flash-preview`)
   benefits.push('Improved accuracy and performance with v1beta model')

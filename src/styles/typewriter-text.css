@@ -33,7 +33,11 @@
 
 .typewriter-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, var(--text-accent, #007acc), var(--text-accent-light, #4dabf7));
+  background: linear-gradient(
+    90deg,
+    var(--text-accent, #007acc),
+    var(--text-accent-light, #4dabf7)
+  );
   transition: width 0.2s ease-out;
   border-radius: 1px;
   box-shadow: 0 0 4px rgba(0, 122, 204, 0.3);
@@ -41,11 +45,13 @@
 
 /* Typewriter cursor animation */
 @keyframes typewriter-blink {
-  0%, 50% { 
-    opacity: 1; 
+  0%,
+  50% {
+    opacity: 1;
   }
-  51%, 100% { 
-    opacity: 0; 
+  51%,
+  100% {
+    opacity: 0;
   }
 }
 
@@ -68,20 +74,24 @@
 }
 
 @keyframes typewriter-block-blink {
-  0%, 50% { 
-    opacity: 1; 
+  0%,
+  50% {
+    opacity: 1;
   }
-  51%, 100% { 
-    opacity: 0.3; 
+  51%,
+  100% {
+    opacity: 0.3;
   }
 }
 
 @keyframes typewriter-underline-blink {
-  0%, 50% { 
-    border-bottom-color: currentColor; 
+  0%,
+  50% {
+    border-bottom-color: currentColor;
   }
-  51%, 100% { 
-    border-bottom-color: transparent; 
+  51%,
+  100% {
+    border-bottom-color: transparent;
   }
 }
 
@@ -100,14 +110,14 @@
 }
 
 @keyframes char-pop {
-  0% { 
-    transform: scale(1); 
+  0% {
+    transform: scale(1);
   }
-  50% { 
-    transform: scale(1.1); 
+  50% {
+    transform: scale(1.1);
   }
-  100% { 
-    transform: scale(1); 
+  100% {
+    transform: scale(1);
   }
 }
 
@@ -123,17 +133,17 @@
 }
 
 @keyframes sound-pulse {
-  0% { 
-    transform: scale(1); 
-    opacity: 0.6; 
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
   }
-  50% { 
-    transform: scale(1.2); 
-    opacity: 1; 
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
   }
-  100% { 
-    transform: scale(1); 
-    opacity: 0.6; 
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
   }
 }
 
@@ -145,15 +155,15 @@
     animation: none !important;
     opacity: 1;
   }
-  
+
   .typewriter-progress-bar {
     transition: none;
   }
-  
+
   .char-emphasis {
     animation: none !important;
   }
-  
+
   .typewriter-container.sound-enabled::after {
     animation: none !important;
   }
@@ -164,12 +174,12 @@
   .typewriter-cursor {
     color: Highlight;
   }
-  
+
   .typewriter-progress {
     background-color: ButtonFace;
     border: 1px solid ButtonText;
   }
-  
+
   .typewriter-progress-bar {
     background: Highlight;
   }

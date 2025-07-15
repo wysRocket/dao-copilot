@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
  * v1beta Configuration Migration Script
- * 
+ *
  * This script helps users migrate their existing configuration to use the new
  * v1beta Gemini Live API with improved performance and reliability.
  */
 
 import * as fs from 'fs'
 import * as path from 'path'
-import { migrateLegacyEnvironment, migrateToV1Beta } from '../services/transcription-compatibility'
-import { createOptimizedV1BetaConfig, getConfigSummary } from '../helpers/gemini-websocket-config'
+import {migrateLegacyEnvironment, migrateToV1Beta} from '../services/transcription-compatibility'
+import {createOptimizedV1BetaConfig, getConfigSummary} from '../helpers/gemini-websocket-config'
 
 interface MigrationOptions {
   dryRun?: boolean
@@ -22,13 +22,13 @@ interface MigrationOptions {
  */
 function parseExistingEnvFile(envPath: string): Record<string, string> {
   const envConfig: Record<string, string> = {}
-  
+
   if (!fs.existsSync(envPath)) {
     return envConfig
   }
 
   const envContent = fs.readFileSync(envPath, 'utf8')
-  
+
   for (const line of envContent.split('\n')) {
     const trimmedLine = line.trim()
     if (trimmedLine && !trimmedLine.startsWith('#')) {
@@ -47,7 +47,7 @@ function parseExistingEnvFile(envPath: string): Record<string, string> {
  */
 function generateUpdatedEnvContent(currentEnv: Record<string, string>): string {
   const migration = migrateLegacyEnvironment()
-  const updatedEnv = { ...currentEnv, ...migration.migrated }
+  const updatedEnv = {...currentEnv, ...migration.migrated}
 
   // Apply v1beta optimizations
   updatedEnv.GEMINI_MODEL_NAME = 'gemini-live-2.5-flash-preview'
@@ -69,10 +69,27 @@ function generateUpdatedEnvContent(currentEnv: Record<string, string>): string {
   const groups = {
     'API Keys': ['GOOGLE_API_KEY', 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY'],
     'v1beta Model Configuration': ['GEMINI_MODEL_NAME', 'GEMINI_API_VERSION', 'GEMINI_USE_V1BETA'],
-    'WebSocket Settings': ['GEMINI_WEBSOCKET_ENABLED', 'GEMINI_TRANSCRIPTION_MODE', 'GEMINI_WEBSOCKET_URL'],
-    'Reliability Settings': ['GEMINI_FALLBACK_TO_BATCH', 'GEMINI_RECONNECTION_ENABLED', 'GEMINI_MAX_RECONNECTION_ATTEMPTS'],
-    'Performance Settings': ['GEMINI_CONNECTION_TIMEOUT', 'GEMINI_REALTIME_THRESHOLD', 'GEMINI_RECONNECTION_DELAY'],
-    'Proxy Configuration': ['PROXY_URL', 'PROXY_WEBSOCKET_ENABLED', 'PROXY_FALLBACK_ENABLED', 'PROXY_AUTH_TOKEN']
+    'WebSocket Settings': [
+      'GEMINI_WEBSOCKET_ENABLED',
+      'GEMINI_TRANSCRIPTION_MODE',
+      'GEMINI_WEBSOCKET_URL'
+    ],
+    'Reliability Settings': [
+      'GEMINI_FALLBACK_TO_BATCH',
+      'GEMINI_RECONNECTION_ENABLED',
+      'GEMINI_MAX_RECONNECTION_ATTEMPTS'
+    ],
+    'Performance Settings': [
+      'GEMINI_CONNECTION_TIMEOUT',
+      'GEMINI_REALTIME_THRESHOLD',
+      'GEMINI_RECONNECTION_DELAY'
+    ],
+    'Proxy Configuration': [
+      'PROXY_URL',
+      'PROXY_WEBSOCKET_ENABLED',
+      'PROXY_FALLBACK_ENABLED',
+      'PROXY_AUTH_TOKEN'
+    ]
   }
 
   for (const [groupName, keys] of Object.entries(groups)) {
@@ -95,7 +112,13 @@ function generateUpdatedEnvContent(currentEnv: Record<string, string>): string {
 
   // Add legacy deprecation notices
   content += '\n# Legacy Variables (deprecated)\n'
-  const legacyVars = ['GEMINI_BATCH_MODE', 'DISABLE_WEBSOCKET', 'USE_EXPERIMENTAL_MODEL', 'USE_V1_ALPHA', 'GEMINI_MODEL_VERSION']
+  const legacyVars = [
+    'GEMINI_BATCH_MODE',
+    'DISABLE_WEBSOCKET',
+    'USE_EXPERIMENTAL_MODEL',
+    'USE_V1_ALPHA',
+    'GEMINI_MODEL_VERSION'
+  ]
   for (const legacyVar of legacyVars) {
     if (currentEnv[legacyVar]) {
       content += `# ${legacyVar}="${currentEnv[legacyVar]}" # DEPRECATED - migrated to v1beta settings\n`
@@ -122,7 +145,7 @@ async function runMigration(options: MigrationOptions = {}): Promise<void> {
 
   if (!hasExistingConfig) {
     console.log('📝 No existing .env file found. Creating optimized v1beta configuration...\n')
-    
+
     // Create new optimized config
     const newEnvContent = generateUpdatedEnvContent({
       GOOGLE_API_KEY: 'your_google_api_key_here',
@@ -249,4 +272,4 @@ if (require.main === module) {
   main()
 }
 
-export { runMigration, parseExistingEnvFile, generateUpdatedEnvContent }
+export {runMigration, parseExistingEnvFile, generateUpdatedEnvContent}

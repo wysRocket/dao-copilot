@@ -4,9 +4,9 @@ import GlassBox from './GlassBox'
 import VirtualizedTranscript from './VirtualizedTranscript'
 import LiveStreamingArea from './LiveStreamingArea'
 import {TextStreamBuffer} from '../services/TextStreamBuffer'
-import { useAutoScroll } from '../hooks/useAutoScroll'
-import { NewContentIndicator, ScrollControls } from './AutoScrollComponents'
-import { useAccessibility } from '../hooks/useAccessibility'
+import {useAutoScroll} from '../hooks/useAutoScroll'
+import {NewContentIndicator, ScrollControls} from './AutoScrollComponents'
+import {useAccessibility} from '../hooks/useAccessibility'
 import {cn} from '../utils/tailwind'
 
 interface TranscriptDisplayProps {
@@ -75,7 +75,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
   const accessibility = useAccessibility({
     autoDetect: true,
     enableKeyboardHandling: mergedAccessibilityConfig.enableKeyboardControls,
-    enableFocusManagement: true,
+    enableFocusManagement: true
   })
   // Legacy to new config mapping
   const mergedAutoScrollConfig = {
@@ -92,7 +92,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
     state: autoScrollState,
     controls: autoScrollControls,
     containerRef,
-    onNewContent,
+    onNewContent
   } = useAutoScroll(mergedAutoScrollConfig)
 
   // Legacy scroll ref for compatibility
@@ -107,10 +107,15 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
       onScrollStateChange({
         isAutoScrolling: autoScrollState.isAutoScrolling,
         hasNewContent: autoScrollState.hasNewContent,
-        scrollPercentage: autoScrollState.scrollPercentage,
+        scrollPercentage: autoScrollState.scrollPercentage
       })
     }
-  }, [autoScrollState.isAutoScrolling, autoScrollState.hasNewContent, autoScrollState.scrollPercentage, onScrollStateChange])
+  }, [
+    autoScrollState.isAutoScrolling,
+    autoScrollState.hasNewContent,
+    autoScrollState.scrollPercentage,
+    onScrollStateChange
+  ])
 
   // Initialize streaming buffer
   useEffect(() => {
@@ -121,7 +126,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
         enableCorrectionDetection: true
       })
     }
-    
+
     return () => {
       if (streamBufferRef.current) {
         streamBufferRef.current.destroy()
@@ -146,9 +151,10 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
       // Announce new transcripts to screen readers
       if (mergedAccessibilityConfig.announceChanges) {
         const newTranscriptCount = transcripts.length - prevTranscriptCount.current
-        const announcement = newTranscriptCount === 1 
-          ? 'New transcript added'
-          : `${newTranscriptCount} new transcripts added`
+        const announcement =
+          newTranscriptCount === 1
+            ? 'New transcript added'
+            : `${newTranscriptCount} new transcripts added`
         accessibility.announce(announcement, 'low')
       }
 
@@ -163,8 +169,8 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
 
   return (
     <div className="mx-auto mt-4 w-full max-w-4xl">
-      <h3 
-        className="mb-3 text-center text-lg font-semibold" 
+      <h3
+        className="mb-3 text-center text-lg font-semibold"
         style={{color: 'var(--text-primary)'}}
         id="transcript-heading"
       >
@@ -181,10 +187,10 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
             )}
             role="log"
             aria-labelledby="transcript-heading"
-            aria-live={enableStreaming && streamingText ? "polite" : "off"}
+            aria-live={enableStreaming && streamingText ? 'polite' : 'off'}
             aria-relevant="additions text"
             tabIndex={mergedAccessibilityConfig.enableKeyboardControls ? 0 : -1}
-            onKeyDown={(e) => {
+            onKeyDown={e => {
               if (mergedAccessibilityConfig.enableKeyboardControls) {
                 // Handle keyboard navigation
                 if (e.key === 'Home') {
@@ -205,7 +211,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
             }}
           >
             {transcripts.length === 0 && !isProcessing ? (
-              <div 
+              <div
                 className="flex h-full min-h-[150px] flex-col items-center justify-center text-center"
                 role="status"
                 aria-label="No transcriptions available"
@@ -234,7 +240,10 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
 
                 {/* Live streaming text display */}
                 {enableStreaming && streamingText && (
-                  <div className="mt-4 border-t border-opacity-20 pt-4" style={{borderColor: 'var(--border-secondary)'}}>
+                  <div
+                    className="mt-4 border-t border-opacity-20 pt-4"
+                    style={{borderColor: 'var(--border-secondary)'}}
+                  >
                     <LiveStreamingArea
                       streamingText={streamingText}
                       isStreamingActive={!isStreamingPartial}
@@ -256,7 +265,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
                 {isProcessing && (
                   <div className="flex items-center justify-center p-4">
                     <GlassBox variant="light" className="px-4 py-2">
-                      <div 
+                      <div
                         className="flex items-center space-x-3"
                         role="status"
                         aria-label="Processing audio"
@@ -305,10 +314,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
               autoScrollControls.toggleAutoScroll()
               if (mergedAccessibilityConfig.announceChanges) {
                 const newState = !autoScrollState.isAutoScrolling
-                accessibility.announce(
-                  `Auto-scroll ${newState ? 'enabled' : 'disabled'}`,
-                  'medium'
-                )
+                accessibility.announce(`Auto-scroll ${newState ? 'enabled' : 'disabled'}`, 'medium')
               }
             }}
             onScrollToTop={() => {

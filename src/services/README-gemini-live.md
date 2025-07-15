@@ -17,10 +17,10 @@ This directory contains the implementation of the WebSocket client for Google's 
 
 ```typescript
 interface MessageSendOptions {
-  priority?: QueuePriority      // LOW, NORMAL, HIGH, CRITICAL
-  maxRetries?: number          // Number of retry attempts (default: 3)
-  timeout?: number             // Message timeout in milliseconds (default: 30000)
-  expectResponse?: boolean     // Whether to expect a response (default: false)
+  priority?: QueuePriority // LOW, NORMAL, HIGH, CRITICAL
+  maxRetries?: number // Number of retry attempts (default: 3)
+  timeout?: number // Message timeout in milliseconds (default: 30000)
+  expectResponse?: boolean // Whether to expect a response (default: false)
 }
 ```
 
@@ -29,10 +29,11 @@ interface MessageSendOptions {
 ```typescript
 const config: GeminiLiveConfig = {
   apiKey: 'your-api-key',
-  model: 'gemini-live-2.5-flash-preview',  // Updated model
+  model: 'gemini-live-2.5-flash-preview', // Updated model
   responseModalities: ['TEXT', 'AUDIO'],
-  websocketBaseUrl: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent', // New endpoint
-  maxQueueSize: 100,                    // Message queue size limit
+  websocketBaseUrl:
+    'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent', // New endpoint
+  maxQueueSize: 100, // Message queue size limit
   reconnectAttempts: 5,
   heartbeatInterval: 30000
 }

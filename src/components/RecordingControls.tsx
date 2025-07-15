@@ -21,7 +21,10 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
   const audioService = getAudioRecordingService()
   console.log('🎙️ RecordingControls: AudioService instantiated:', !!audioService)
   console.log('🎙️ RecordingControls: AudioService type:', typeof audioService)
-  console.log('🎙️ RecordingControls: AudioService methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(audioService)))
+  console.log(
+    '🎙️ RecordingControls: AudioService methods:',
+    Object.getOwnPropertyNames(Object.getPrototypeOf(audioService))
+  )
 
   // Wrap the onTranscription callback with debugging
   const handleTranscriptionWithDebug = (result: TranscriptionResult) => {

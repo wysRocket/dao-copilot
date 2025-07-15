@@ -193,17 +193,19 @@ describe('Proxy STT Transcription Service', () => {
       process.env.GOOGLE_API_KEY = mockApiKey
 
       // Set up the mock WebSocket instance to simulate a successful response
-      mockWebSocketInstance.on.mockImplementation((event: string, callback: (data: unknown) => void) => {
-        if (event === 'textResponse') {
-          // Simulate a text response event after a short delay
-          setTimeout(() => {
-            callback({
-              content: 'WebSocket transcription result',
-              metadata: { isPartial: false, turnComplete: true, confidence: 0.95 }
-            })
-          }, 10)
+      mockWebSocketInstance.on.mockImplementation(
+        (event: string, callback: (data: unknown) => void) => {
+          if (event === 'textResponse') {
+            // Simulate a text response event after a short delay
+            setTimeout(() => {
+              callback({
+                content: 'WebSocket transcription result',
+                metadata: {isPartial: false, turnComplete: true, confidence: 0.95}
+              })
+            }, 10)
+          }
         }
-      })
+      )
 
       const result = await transcribeAudioViaProxyEnhanced(mockAudioData, {
         mode: TranscriptionMode.WEBSOCKET,
@@ -222,17 +224,19 @@ describe('Proxy STT Transcription Service', () => {
       process.env.GOOGLE_API_KEY = mockApiKey
 
       // Set up the mock WebSocket instance for hybrid mode with short audio
-      mockWebSocketInstance.on.mockImplementation((event: string, callback: (data: unknown) => void) => {
-        if (event === 'textResponse') {
-          // Simulate a text response event after a short delay
-          setTimeout(() => {
-            callback({
-              content: 'Short audio WebSocket result',
-              metadata: { isPartial: false, turnComplete: true, confidence: 0.9 }
-            })
-          }, 10)
+      mockWebSocketInstance.on.mockImplementation(
+        (event: string, callback: (data: unknown) => void) => {
+          if (event === 'textResponse') {
+            // Simulate a text response event after a short delay
+            setTimeout(() => {
+              callback({
+                content: 'Short audio WebSocket result',
+                metadata: {isPartial: false, turnComplete: true, confidence: 0.9}
+              })
+            }, 10)
+          }
         }
-      })
+      )
 
       // Create short audio buffer
       const shortAudioData = Buffer.from('short')

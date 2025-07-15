@@ -1,13 +1,13 @@
 /**
  * Integration Tests for WebSocket-based Transcription System
- * 
- * These tests verify the complete functionality and performance of the 
- * refactored transcription system, including WebSocket connections, 
+ *
+ * These tests verify the complete functionality and performance of the
+ * refactored transcription system, including WebSocket connections,
  * fallback mechanisms, and end-to-end transcription flows.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { EventEmitter } from 'events'
+import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
+import {EventEmitter} from 'events'
 import {
   transcribeAudio,
   transcribeAudioWithCompatibility,
@@ -24,7 +24,7 @@ import {
   getValidatedConfig,
   setupDevelopmentEnvironment
 } from '../../helpers/gemini-websocket-config'
-import { TranscriptionMode } from '../../services/gemini-live-integration'
+import {TranscriptionMode} from '../../services/gemini-live-integration'
 
 // Test utilities
 const VALID_TEST_API_KEY = 'AIzaSyDvNzK1234567890123456789012345678' // Valid format for testing
@@ -34,14 +34,14 @@ const MOCK_AUDIO_BUFFER = Buffer.from('mock-audio-data-for-testing')
 class MockWebSocket extends EventEmitter {
   readyState = 1 // OPEN
   url: string
-  
+
   constructor(url: string) {
     super()
     this.url = url
     // Simulate async connection
     setTimeout(() => this.emit('open'), 10)
   }
-  
+
   send() {
     // Simulate receiving a transcription response
     setTimeout(() => {
@@ -51,10 +51,10 @@ class MockWebSocket extends EventEmitter {
         confidence: 0.95,
         isFinal: true
       }
-      this.emit('message', { data: JSON.stringify(response) })
+      this.emit('message', {data: JSON.stringify(response)})
     }, 100)
   }
-  
+
   close() {
     this.readyState = 3 // CLOSED
     this.emit('close')
@@ -67,32 +67,32 @@ const mockFetch = vi.fn()
 describe('WebSocket Transcription System Integration Tests', () => {
   let originalFetch: typeof fetch
   let originalWebSocket: typeof WebSocket
-  
+
   beforeEach(() => {
     // Setup test environment
     setupDevelopmentEnvironment()
     process.env.GEMINI_API_KEY = VALID_TEST_API_KEY
     process.env.GEMINI_WEBSOCKET_ENABLED = 'true'
     process.env.GEMINI_TRANSCRIPTION_MODE = 'hybrid'
-    
+
     // Mock global WebSocket
     originalWebSocket = global.WebSocket
     global.WebSocket = MockWebSocket as unknown as typeof WebSocket
-    
+
     // Mock global fetch
     originalFetch = global.fetch
     global.fetch = mockFetch as unknown as typeof fetch
-    
+
     // Reset mocks
     vi.clearAllMocks()
     mockFetch.mockReset()
   })
-  
+
   afterEach(() => {
     // Restore originals
     global.WebSocket = originalWebSocket
     global.fetch = originalFetch
-    
+
     // Clean up environment
     delete process.env.GEMINI_API_KEY
     delete process.env.GEMINI_WEBSOCKET_ENABLED
@@ -101,39 +101,41 @@ describe('WebSocket Transcription System Integration Tests', () => {
 
   describe('Configuration Integration', () => {
     it('should load and validate configuration successfully', () => {
-      const { config, validation } = getValidatedConfig()
-      
+      const {config, validation} = getValidatedConfig()
+
       expect(validation.isValid).toBe(true)
       expect(config.apiKey).toBe(VALID_TEST_API_KEY)
       expect(config.websocketEnabled).toBe(true)
       expect(config.transcriptionMode).toBe(TranscriptionMode.HYBRID)
     })
-    
+
     it('should handle invalid configuration gracefully', () => {
       delete process.env.GEMINI_API_KEY
-      
-      const { validation } = getValidatedConfig()
-      
+
+      const {validation} = getValidatedConfig()
+
       expect(validation.isValid).toBe(false)
-      expect(validation.errors).toContain('API key is required. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.')
+      expect(validation.errors).toContain(
+        'API key is required. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable.'
+      )
     })
   })
 
   describe('Main Transcription Service Integration', () => {
     const mockAudioBuffer = Buffer.from('mock-audio-data')
-    
+
     it('should transcribe audio using WebSocket mode', async () => {
       const options: TranscriptionOptions = {
         mode: TranscriptionMode.WEBSOCKET,
         enableWebSocket: true
       }
-      
+
       // This test verifies that the transcription service can handle WebSocket mode
       // In a real scenario, it would connect to the actual WebSocket endpoint
-      
+
       try {
         const result = await transcribeAudio(mockAudioBuffer, options)
-        
+
         // The result should contain the basic structure
         expect(result).toHaveProperty('text')
         expect(result).toHaveProperty('duration')
@@ -144,7 +146,7 @@ describe('WebSocket Transcription System Integration Tests', () => {
         expect(error).toBeDefined()
       }
     }, 10000) // Longer timeout for integration tests
-    
+
     it('should fallback to batch mode when WebSocket fails', async () => {
       // Mock WebSocket to fail
       global.WebSocket = class extends EventEmitter {
@@ -154,15 +156,15 @@ describe('WebSocket Transcription System Integration Tests', () => {
         }
         close() {}
       } as unknown as typeof WebSocket
-      
+
       const options: TranscriptionOptions = {
         mode: TranscriptionMode.HYBRID,
         fallbackToBatch: true
       }
-      
+
       try {
         const result = await transcribeAudio(mockAudioBuffer, options)
-        
+
         // Should still get a result via fallback
         expect(result).toHaveProperty('text')
         expect(result).toHaveProperty('duration')
@@ -171,17 +173,20 @@ describe('WebSocket Transcription System Integration Tests', () => {
         expect(error).toBeDefined()
       }
     }, 10000)
-    
+
     it('should handle legacy options with compatibility layer', async () => {
       const legacyOptions = {
         apiKey: VALID_TEST_API_KEY,
         batchMode: true, // Legacy option
         fallbackEnabled: true // Legacy option
       }
-      
+
       try {
-        const result = await transcribeAudioWithCompatibility(mockAudioBuffer, legacyOptions as TranscriptionOptions)
-        
+        const result = await transcribeAudioWithCompatibility(
+          mockAudioBuffer,
+          legacyOptions as TranscriptionOptions
+        )
+
         expect(result).toHaveProperty('text')
         expect(result).toHaveProperty('duration')
       } catch (error) {
@@ -193,86 +198,90 @@ describe('WebSocket Transcription System Integration Tests', () => {
 
   describe('Proxy Transcription Service Integration', () => {
     const mockAudioBuffer = Buffer.from('mock-audio-data')
-    
+
     beforeEach(() => {
       // Mock successful proxy responses
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('/health')) {
           return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({ status: 'healthy' })
+            json: () => Promise.resolve({status: 'healthy'})
           })
         }
-        
+
         if (url.includes('/transcribe')) {
           return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({
-              text: 'Mock proxy transcription result',
-              duration: 150,
-              source: 'batch-proxy'
-            })
+            json: () =>
+              Promise.resolve({
+                text: 'Mock proxy transcription result',
+                duration: 150,
+                source: 'batch-proxy'
+              })
           })
         }
-        
+
         return Promise.reject(new Error('Unknown endpoint'))
       })
     })
-    
+
     it('should validate proxy configuration', () => {
       const config: ProxyTranscriptionOptions = {
         apiKey: VALID_TEST_API_KEY,
         proxyUrl: 'http://localhost:3001',
         mode: TranscriptionMode.BATCH
       }
-      
+
       const validation = validateProxyConfig(config)
       expect(validation.isValid).toBe(true)
     })
-    
+
     it('should check proxy health successfully', async () => {
       const health = await checkProxyHealth('http://localhost:3001')
-      
+
       expect(health.isHealthy).toBe(true)
       expect(health.latency).toBeGreaterThanOrEqual(0)
     })
-    
+
     it('should transcribe audio via proxy in batch mode', async () => {
       const options: ProxyTranscriptionOptions = {
         apiKey: 'test-api-key',
         mode: TranscriptionMode.BATCH
       }
-      
+
       const result = await transcribeAudioViaProxyEnhanced(mockAudioBuffer, options)
-      
+
       expect(result).toHaveProperty('text')
       expect(result).toHaveProperty('duration')
       expect(result.source).toBe('batch-proxy')
     })
-    
+
     it('should handle proxy WebSocket mode with fallback', async () => {
       const options: ProxyTranscriptionOptions = {
         apiKey: 'test-api-key',
         mode: TranscriptionMode.WEBSOCKET,
         fallbackToBatch: true
       }
-      
+
       // WebSocket may not be supported in proxy, should fallback
       const result = await transcribeAudioViaProxyEnhanced(mockAudioBuffer, options)
-      
+
       expect(result).toHaveProperty('text')
       expect(result).toHaveProperty('duration')
     })
-    
+
     it('should handle legacy proxy options with compatibility layer', async () => {
       const legacyOptions = {
         apiKey: 'test-api-key',
         batchMode: true,
         proxyUrl: 'http://localhost:3001'
       }
-      
-      const result = await transcribeAudioViaProxyWithCompatibility(mockAudioBuffer, legacyOptions as ProxyTranscriptionOptions)
-      
+
+      const result = await transcribeAudioViaProxyWithCompatibility(
+        mockAudioBuffer,
+        legacyOptions as ProxyTranscriptionOptions
+      )
+
       expect(result).toHaveProperty('text')
       expect(result).toHaveProperty('duration')
     })
@@ -280,24 +289,24 @@ describe('WebSocket Transcription System Integration Tests', () => {
 
   describe('End-to-End Transcription Flow', () => {
     const mockAudioBuffer = Buffer.from('mock-audio-data')
-    
+
     it('should handle complete transcription flow with all modes', async () => {
       const modes = [TranscriptionMode.BATCH, TranscriptionMode.WEBSOCKET, TranscriptionMode.HYBRID]
-      
+
       for (const mode of modes) {
         const options: TranscriptionOptions = {
           mode,
           enableWebSocket: mode !== TranscriptionMode.BATCH,
           fallbackToBatch: true
         }
-        
+
         try {
           const result = await transcribeAudio(mockAudioBuffer, options)
-          
+
           expect(result).toHaveProperty('text')
           expect(result).toHaveProperty('duration')
           expect(typeof result.duration).toBe('number')
-          
+
           // Verify source tracking
           if (result.source) {
             expect(['websocket', 'batch', 'proxy'].some(s => result.source?.includes(s))).toBe(true)
@@ -308,23 +317,23 @@ describe('WebSocket Transcription System Integration Tests', () => {
         }
       }
     })
-    
+
     it('should maintain performance within acceptable thresholds', async () => {
       const options: TranscriptionOptions = {
         mode: TranscriptionMode.BATCH, // Most reliable for testing
         fallbackToBatch: true
       }
-      
+
       const startTime = Date.now()
-      
+
       try {
         const result = await transcribeAudio(mockAudioBuffer, options)
         const endTime = Date.now()
         const totalTime = endTime - startTime
-        
+
         // Performance thresholds for integration testing
         expect(totalTime).toBeLessThan(30000) // Should complete within 30 seconds
-        
+
         if (result.duration) {
           expect(result.duration).toBeLessThan(totalTime) // API call time should be tracked
         }
@@ -337,7 +346,7 @@ describe('WebSocket Transcription System Integration Tests', () => {
 
   describe('Error Handling and Resilience', () => {
     const mockAudioBuffer = Buffer.from('mock-audio-data')
-    
+
     it('should handle network failures gracefully', async () => {
       // Mock network failure
       mockFetch.mockRejectedValue(new Error('Network error'))
@@ -348,12 +357,12 @@ describe('WebSocket Transcription System Integration Tests', () => {
         }
         close() {}
       } as unknown as typeof WebSocket
-      
+
       const options: TranscriptionOptions = {
         mode: TranscriptionMode.HYBRID,
         fallbackToBatch: true
       }
-      
+
       try {
         await transcribeAudio(mockAudioBuffer, options)
       } catch (error) {
@@ -362,14 +371,14 @@ describe('WebSocket Transcription System Integration Tests', () => {
         expect(error).toBeInstanceOf(Error)
       }
     })
-    
+
     it('should handle invalid audio data gracefully', async () => {
       const invalidAudioBuffer = Buffer.alloc(0) // Empty buffer
-      
+
       const options: TranscriptionOptions = {
         mode: TranscriptionMode.BATCH
       }
-      
+
       try {
         await transcribeAudio(invalidAudioBuffer, options)
       } catch (error) {
@@ -377,15 +386,15 @@ describe('WebSocket Transcription System Integration Tests', () => {
         expect(error).toBeDefined()
       }
     })
-    
+
     it('should handle API key issues appropriately', async () => {
       delete process.env.GEMINI_API_KEY
-      
+
       const options: TranscriptionOptions = {
         // No API key provided
         mode: TranscriptionMode.BATCH
       }
-      
+
       try {
         await transcribeAudio(mockAudioBuffer, options)
       } catch (error) {
@@ -398,26 +407,26 @@ describe('WebSocket Transcription System Integration Tests', () => {
 
   describe('Legacy Compatibility Integration', () => {
     const mockAudioBuffer = Buffer.from('mock-audio-data')
-    
+
     it('should seamlessly migrate legacy environment variables', () => {
       // Set legacy environment variables
       process.env.GEMINI_BATCH_MODE = 'true'
       process.env.DISABLE_WEBSOCKET = 'true'
       process.env.PROXY_FALLBACK = 'false'
-      
-      const { config } = getValidatedConfig()
-      
+
+      const {config} = getValidatedConfig()
+
       // Should have migrated to new format
       expect(config.transcriptionMode).toBe(TranscriptionMode.BATCH)
       expect(config.websocketEnabled).toBe(false)
       expect(config.proxyFallbackEnabled).toBe(false)
-      
+
       // Clean up
       delete process.env.GEMINI_BATCH_MODE
       delete process.env.DISABLE_WEBSOCKET
       delete process.env.PROXY_FALLBACK
     })
-    
+
     it('should handle mixed legacy and modern configuration', async () => {
       const mixedOptions = {
         apiKey: 'test-api-key',
@@ -425,10 +434,13 @@ describe('WebSocket Transcription System Integration Tests', () => {
         batchMode: false, // Legacy (should be ignored due to mode presence)
         fallbackEnabled: true // Legacy
       }
-      
+
       try {
-        const result = await transcribeAudioWithCompatibility(mockAudioBuffer, mixedOptions as TranscriptionOptions)
-        
+        const result = await transcribeAudioWithCompatibility(
+          mockAudioBuffer,
+          mixedOptions as TranscriptionOptions
+        )
+
         expect(result).toHaveProperty('text')
         expect(result).toHaveProperty('duration')
       } catch (error) {

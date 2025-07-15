@@ -504,7 +504,11 @@ export class EnhancedAudioRecordingService {
 
       // Send for transcription via IPC
       if (window.transcriptionAPI?.transcribeAudio) {
-        console.log('🎤 EnhancedAudioRecording: Calling transcriptionAPI.transcribeAudio with', wavData.length, 'bytes')
+        console.log(
+          '🎤 EnhancedAudioRecording: Calling transcriptionAPI.transcribeAudio with',
+          wavData.length,
+          'bytes'
+        )
         const result = await window.transcriptionAPI.transcribeAudio(wavData)
         console.log('🎤 EnhancedAudioRecording: RAW IPC RESULT STRUCTURE:', {
           type: typeof result,
@@ -519,22 +523,30 @@ export class EnhancedAudioRecordingService {
           textTrimmedLength: result?.text?.trim()?.length,
           textTruthyCheck: !!result?.text?.trim()
         })
-        console.log('🎤 EnhancedAudioRecording: onTranscription callback exists:', !!onTranscription)
+        console.log(
+          '🎤 EnhancedAudioRecording: onTranscription callback exists:',
+          !!onTranscription
+        )
 
         if (onTranscription && result?.text?.trim()) {
           console.log('🎤 EnhancedAudioRecording: ✅ CALLING onTranscription callback with result')
           onTranscription(result)
-          console.log('🎤 EnhancedAudioRecording: ✅ onTranscription callback completed successfully')
+          console.log(
+            '🎤 EnhancedAudioRecording: ✅ onTranscription callback completed successfully'
+          )
         } else {
-          console.error('🎤 EnhancedAudioRecording: ❌ SKIPPING onTranscription callback because:', {
-            hasCallback: !!onTranscription,
-            hasResult: !!result,
-            hasText: !!result?.text,
-            textValue: result?.text,
-            textTrimmed: result?.text?.trim(),
-            textTrimmedTruthy: !!result?.text?.trim(),
-            conditionResult: !!(onTranscription && result?.text?.trim())
-          })
+          console.error(
+            '🎤 EnhancedAudioRecording: ❌ SKIPPING onTranscription callback because:',
+            {
+              hasCallback: !!onTranscription,
+              hasResult: !!result,
+              hasText: !!result?.text,
+              textValue: result?.text,
+              textTrimmed: result?.text?.trim(),
+              textTrimmedTruthy: !!result?.text?.trim(),
+              conditionResult: !!(onTranscription && result?.text?.trim())
+            }
+          )
         }
 
         return result

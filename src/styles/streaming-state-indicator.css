@@ -5,13 +5,13 @@
    ========================================== */
 :root {
   --state-listening: #10b981;
-  --state-processing: #f59e0b; 
+  --state-processing: #f59e0b;
   --state-receiving: #3b82f6;
   --state-complete: #059669;
   --state-error: #dc2626;
   --state-disconnected: #6b7280;
   --state-connecting: #8b5cf6;
-  
+
   --state-transition-duration: 0.3s;
   --state-animation-duration: 2s;
   --state-border-radius: 8px;
@@ -23,7 +23,8 @@
    ========================================== */
 
 @keyframes pulse-soft {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -34,7 +35,8 @@
 }
 
 @keyframes pulse-fast {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -63,13 +65,21 @@
 }
 
 @keyframes shake {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateX(0);
   }
-  10%, 30%, 50%, 70%, 90% {
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
     transform: translateX(-2px);
   }
-  20%, 40%, 60%, 80% {
+  20%,
+  40%,
+  60%,
+  80% {
     transform: translateX(2px);
   }
 }
@@ -86,7 +96,8 @@
 }
 
 @keyframes fade {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.3;
   }
   50% {
@@ -95,11 +106,14 @@
 }
 
 @keyframes glow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 5px currentColor;
   }
   50% {
-    box-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
+    box-shadow:
+      0 0 20px currentColor,
+      0 0 30px currentColor;
   }
 }
 
@@ -129,11 +143,11 @@
   outline-offset: 2px;
 }
 
-.streaming-state-indicator[role="button"] {
+.streaming-state-indicator[role='button'] {
   cursor: pointer;
 }
 
-.streaming-state-indicator[role="button"]:hover {
+.streaming-state-indicator[role='button']:hover {
   background: rgba(255, 255, 255, 0.08);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -430,7 +444,7 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  
+
   .streaming-state-indicator:hover {
     transform: none !important;
   }
@@ -445,11 +459,11 @@
     border: 2px solid currentColor;
     background: var(--background-high-contrast, #000000);
   }
-  
+
   .state-message {
     color: var(--text-high-contrast, #ffffff);
   }
-  
+
   .state-background {
     display: none;
   }
@@ -464,7 +478,7 @@
     background: rgba(0, 0, 0, 0.3);
     border-color: rgba(255, 255, 255, 0.1);
   }
-  
+
   .state-details {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
@@ -480,12 +494,12 @@
     padding: 6px 10px;
     font-size: 0.875rem;
   }
-  
+
   .streaming-state-indicator.large {
     padding: 8px 12px;
     font-size: 1rem;
   }
-  
+
   .state-details {
     position: fixed;
     top: auto;
@@ -507,7 +521,7 @@
   outline-offset: 2px;
 }
 
-.streaming-state-indicator[role="button"]:active {
+.streaming-state-indicator[role='button']:active {
   transform: scale(0.98);
 }
 

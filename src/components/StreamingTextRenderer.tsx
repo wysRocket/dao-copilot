@@ -1,58 +1,67 @@
-import React, { useEffect, useRef, useCallback, useMemo } from 'react';
-import { cn } from '../utils/tailwind';
-import { useStreamingText } from '../contexts/StreamingTextContext';
-import { useTypewriterEffect, TypewriterConfig } from '../hooks/useTypewriterEffect';
-import { StreamingStateIndicator, useStreamingStateManager, type StreamingState } from './StreamingStateIndicator';
-import { streamingMemo, optimizeForAnimations, removeAnimationOptimizations, IntersectionObserverManager } from '../utils/performance-optimization';
-import '../styles/streaming-text-renderer.css';
+import React, {useEffect, useRef, useCallback, useMemo} from 'react'
+import {cn} from '../utils/tailwind'
+import {useStreamingText} from '../contexts/StreamingTextContext'
+import {useTypewriterEffect, TypewriterConfig} from '../hooks/useTypewriterEffect'
+import {
+  StreamingStateIndicator,
+  useStreamingStateManager,
+  type StreamingState
+} from './StreamingStateIndicator'
+import {
+  streamingMemo,
+  optimizeForAnimations,
+  removeAnimationOptimizations,
+  IntersectionObserverManager
+} from '../utils/performance-optimization'
+import '../styles/streaming-text-renderer.css'
 
 /**
  * Streaming text renderer modes
  */
-export type StreamingMode = 'character' | 'word' | 'instant';
+export type StreamingMode = 'character' | 'word' | 'instant'
 
 /**
  * Props for the StreamingTextRenderer component
  */
 export interface StreamingTextRendererProps {
   /** The text content to display */
-  text: string;
+  text: string
   /** Whether the text is partial (still being updated) */
-  isPartial?: boolean;
+  isPartial?: boolean
   /** Animation mode for text rendering */
-  mode?: StreamingMode;
+  mode?: StreamingMode
   /** Animation speed in characters per second (character mode) or words per second (word mode) */
-  animationSpeed?: number;
+  animationSpeed?: number
   /** Additional CSS classes */
-  className?: string;
+  className?: string
   /** Callback when animation completes */
-  onAnimationComplete?: () => void;
+  onAnimationComplete?: () => void
   /** Callback when text is updated */
-  onTextUpdate?: (text: string, isPartial: boolean) => void;
+  onTextUpdate?: (text: string, isPartial: boolean) => void
   /** Whether to show a blinking cursor during animation */
-  showCursor?: boolean;
+  showCursor?: boolean
   /** Whether to enable text formatting (bold, italic, etc.) */
-  enableFormatting?: boolean;
+  enableFormatting?: boolean
   /** Whether to highlight corrections */
-  highlightCorrections?: boolean;
+  highlightCorrections?: boolean
   /** Whether to enable advanced typewriter effects */
-  enableTypewriterEffects?: boolean;
+  enableTypewriterEffects?: boolean
   /** Configuration for typewriter effects */
-  typewriterConfig?: TypewriterConfig;
+  typewriterConfig?: TypewriterConfig
   /** Whether to enable sound effects */
-  enableSounds?: boolean;
+  enableSounds?: boolean
   /** Custom cursor character */
-  cursorChar?: string;
+  cursorChar?: string
   /** Show streaming state indicator */
-  showStateIndicator?: boolean;
+  showStateIndicator?: boolean
   /** Custom streaming state (overrides automatic detection) */
-  customState?: StreamingState;
+  customState?: StreamingState
   /** Callback when state changes */
-  onStateChange?: (state: StreamingState) => void;
+  onStateChange?: (state: StreamingState) => void
   /** Custom styling for different text states */
-  partialStyle?: React.CSSProperties;
-  finalStyle?: React.CSSProperties;
-  correctionStyle?: React.CSSProperties;
+  partialStyle?: React.CSSProperties
+  finalStyle?: React.CSSProperties
+  correctionStyle?: React.CSSProperties
 }
 
 /**
@@ -79,14 +88,14 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
   onStateChange,
   partialStyle,
   finalStyle,
-  correctionStyle,
+  correctionStyle
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isVisibleRef = useRef<boolean>(true);
-  const intersectionObserverRef = useRef<IntersectionObserverManager | null>(null);
-   // Use the streaming text context
-  const streamingContext = useStreamingText();
-  
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isVisibleRef = useRef<boolean>(true)
+  const intersectionObserverRef = useRef<IntersectionObserverManager | null>(null)
+  // Use the streaming text context
+  const streamingContext = useStreamingText()
+
   const {
     currentStreamingText,
     isStreamingActive,
@@ -106,8 +115,8 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
     startStreamingTranscription: () => {},
     updateStreamingTranscription: () => {},
     completeStreamingTranscription: () => {}
-  };
-  
+  }
+
   // Map context state to expected interface for compatibility
   const streamingState = {
     displayedText: currentStreamingText,
@@ -115,91 +124,98 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
     isPartial: isCurrentTextPartial,
     isAnimating: isStreamingActive,
     hasCorrection: false, // Context doesn't track corrections yet
-    connectionState: (isStreamingActive ? 'connected' : 'disconnected') as 'connected' | 'disconnected' | 'connecting' | 'error'
-  };
-  
+    connectionState: (isStreamingActive ? 'connected' : 'disconnected') as
+      | 'connected'
+      | 'disconnected'
+      | 'connecting'
+      | 'error'
+  }
+
   const streamingControls = {
     updateText: (newText: string, partial: boolean = false) => {
-      updateStreamingTranscription(newText, partial);
+      updateStreamingTranscription(newText, partial)
     },
     clearText: () => {
       // Context doesn't have direct clear, complete instead
-      completeStreamingTranscription();
+      completeStreamingTranscription()
     },
     completeAnimation: () => {
-      completeStreamingTranscription();
+      completeStreamingTranscription()
     }
-  };
-  
+  }
+
   // Memoized typewriter configuration
-  const memoizedTypewriterConfig = useMemo(() => ({
-    speed: animationSpeed,
-    showCursor: false, // We'll handle cursor separately
-    pauseAtPunctuation: true,
-    variableSpeed: true,
-    enableSounds: enableSounds,
-    ...typewriterConfig,
-  }), [animationSpeed, enableSounds, typewriterConfig]);
-  
+  const memoizedTypewriterConfig = useMemo(
+    () => ({
+      speed: animationSpeed,
+      showCursor: false, // We'll handle cursor separately
+      pauseAtPunctuation: true,
+      variableSpeed: true,
+      enableSounds: enableSounds,
+      ...typewriterConfig
+    }),
+    [animationSpeed, enableSounds, typewriterConfig]
+  )
+
   // Use typewriter effects for enhanced animation
   const typewriterState = useTypewriterEffect(
-    enableTypewriterEffects ? streamingState.displayedText : '', 
+    enableTypewriterEffects ? streamingState.displayedText : '',
     memoizedTypewriterConfig
-  );
+  )
 
   // Manage streaming state indicators
-  const stateManager = useStreamingStateManager();
+  const stateManager = useStreamingStateManager()
 
   // Memoized current state calculation
   const currentState = useMemo(() => {
-    if (customState) return customState;
-    
-    if (streamingState.connectionState === 'disconnected') return 'disconnected';
-    if (streamingState.connectionState === 'connecting') return 'connecting';
-    if (streamingState.connectionState === 'error') return 'error';
-    if (streamingState.isAnimating) return 'receiving';
-    if (streamingState.hasCorrection) return 'processing';
-    if (streamingState.isPartial) return 'processing';
-    if (streamingState.displayedText.length > 0) return 'complete';
-    return 'listening';
-  }, [customState, streamingState]);
+    if (customState) return customState
+
+    if (streamingState.connectionState === 'disconnected') return 'disconnected'
+    if (streamingState.connectionState === 'connecting') return 'connecting'
+    if (streamingState.connectionState === 'error') return 'error'
+    if (streamingState.isAnimating) return 'receiving'
+    if (streamingState.hasCorrection) return 'processing'
+    if (streamingState.isPartial) return 'processing'
+    if (streamingState.displayedText.length > 0) return 'complete'
+    return 'listening'
+  }, [customState, streamingState])
 
   // Setup intersection observer for performance optimization
   useEffect(() => {
-    if (!containerRef.current) return;
-    
+    if (!containerRef.current) return
+
     intersectionObserverRef.current = new IntersectionObserverManager({
       threshold: 0.1,
-      rootMargin: '50px',
-    });
-    
-    intersectionObserverRef.current.observe(containerRef.current, (isVisible) => {
-      isVisibleRef.current = isVisible;
-      
+      rootMargin: '50px'
+    })
+
+    intersectionObserverRef.current.observe(containerRef.current, isVisible => {
+      isVisibleRef.current = isVisible
+
       // Optimize animations when not visible
       if (!isVisible && containerRef.current) {
-        removeAnimationOptimizations(containerRef.current);
+        removeAnimationOptimizations(containerRef.current)
       } else if (isVisible && containerRef.current) {
-        optimizeForAnimations(containerRef.current);
+        optimizeForAnimations(containerRef.current)
       }
-    });
-    
+    })
+
     return () => {
-      intersectionObserverRef.current?.disconnect();
-    };
-  }, []);
+      intersectionObserverRef.current?.disconnect()
+    }
+  }, [])
 
   // Update state manager when state changes
   useEffect(() => {
-    stateManager.updateState(currentState);
-    onStateChange?.(currentState);
-  }, [currentState, stateManager, onStateChange]);
-  
+    stateManager.updateState(currentState)
+    onStateChange?.(currentState)
+  }, [currentState, stateManager, onStateChange])
+
   // Update text when props change
   useEffect(() => {
-    streamingControls.updateText(text, isPartial);
-  }, [text, isPartial, streamingControls]);
-  
+    streamingControls.updateText(text, isPartial)
+  }, [text, isPartial, streamingControls])
+
   /**
    * Get the text to display based on mode and typewriter effects
    * Memoized for performance optimization
@@ -207,13 +223,13 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
   const displayText = useMemo(() => {
     // Use typewriter effects if enabled
     if (enableTypewriterEffects && typewriterState) {
-      return typewriterState.displayedText;
+      return typewriterState.displayedText
     }
-    
+
     // For non-typewriter modes, just return the displayed text
     // The streaming hook handles the animation internally
-    return streamingState.displayedText;
-  }, [streamingState.displayedText, enableTypewriterEffects, typewriterState]);
+    return streamingState.displayedText
+  }, [streamingState.displayedText, enableTypewriterEffects, typewriterState])
 
   /**
    * Process text for formatting if enabled
@@ -221,41 +237,37 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
    */
   const processedText = useMemo((): React.ReactNode => {
     if (!enableFormatting) {
-      return displayText;
+      return displayText
     }
-    
+
     // Simple markdown-like formatting
-    const segments: React.ReactNode[] = [];
-    let currentIndex = 0;
-    
+    const segments: React.ReactNode[] = []
+    let currentIndex = 0
+
     // Bold formatting **text**
-    const boldRegex = /\*\*(.*?)\*\*/g;
-    let boldMatch;
-    
+    const boldRegex = /\*\*(.*?)\*\*/g
+    let boldMatch
+
     while ((boldMatch = boldRegex.exec(displayText)) !== null) {
       // Add text before the match
       if (boldMatch.index > currentIndex) {
-        segments.push(displayText.slice(currentIndex, boldMatch.index));
+        segments.push(displayText.slice(currentIndex, boldMatch.index))
       }
-      
+
       // Add bold text
-      segments.push(
-        <strong key={`bold-${boldMatch.index}`}>
-          {boldMatch[1]}
-        </strong>
-      );
-      
-      currentIndex = boldMatch.index + boldMatch[0].length;
+      segments.push(<strong key={`bold-${boldMatch.index}`}>{boldMatch[1]}</strong>)
+
+      currentIndex = boldMatch.index + boldMatch[0].length
     }
-    
+
     // Add remaining text
     if (currentIndex < displayText.length) {
-      segments.push(displayText.slice(currentIndex));
+      segments.push(displayText.slice(currentIndex))
     }
-    
-    return segments.length > 0 ? segments : displayText;
-  }, [enableFormatting, displayText]);
-  
+
+    return segments.length > 0 ? segments : displayText
+  }, [enableFormatting, displayText])
+
   /**
    * Get appropriate styles based on text state
    */
@@ -263,84 +275,83 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
     const baseStyles: React.CSSProperties = {
       transition: 'color 0.3s ease, opacity 0.3s ease',
       wordWrap: 'break-word',
-      whiteSpace: 'pre-wrap',
-    };
-    
+      whiteSpace: 'pre-wrap'
+    }
+
     if (streamingState.hasCorrection && highlightCorrections) {
       return {
         ...baseStyles,
         ...correctionStyle,
-        animation: 'flash-highlight 0.5s ease-out',
-      };
+        animation: 'flash-highlight 0.5s ease-out'
+      }
     }
-    
+
     if (streamingState.isPartial) {
       return {
         ...baseStyles,
         opacity: 0.8,
         fontStyle: 'italic',
         color: 'var(--text-muted)',
-        ...partialStyle,
-      };
+        ...partialStyle
+      }
     }
-    
+
     return {
       ...baseStyles,
       opacity: 1,
       color: 'var(--text-primary)',
-      ...finalStyle,
-    };
+      ...finalStyle
+    }
   }, [
     streamingState.hasCorrection,
     streamingState.isPartial,
     highlightCorrections,
     correctionStyle,
     partialStyle,
-    finalStyle,
-  ]);
-  
+    finalStyle
+  ])
+
   /**
    * Render the animated cursor
    */
   const renderCursor = useCallback((): React.ReactNode => {
     if (!showCursor || !streamingState.isAnimating) {
-      return null;
+      return null
     }
-    
+
     return (
       <span
         className="streaming-cursor"
         style={{
           animation: 'blink 1s linear infinite',
           color: 'var(--text-accent)',
-          marginLeft: '1px',
+          marginLeft: '1px'
         }}
       >
         {cursorChar}
       </span>
-    );
-  }, [showCursor, streamingState.isAnimating, cursorChar]);
-  
+    )
+  }, [showCursor, streamingState.isAnimating, cursorChar])
+
   /**
    * Handle keyboard accessibility
    */
-  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-    if (event.key === 'Escape' && streamingState.isAnimating) {
-      streamingControls.completeAnimation();
-    }
-  }, [streamingState.isAnimating, streamingControls]);
-  
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key === 'Escape' && streamingState.isAnimating) {
+        streamingControls.completeAnimation()
+      }
+    },
+    [streamingState.isAnimating, streamingControls]
+  )
+
   // Get the text to display and process formatting
-  const textStyles = getTextStyles();
-  
+  const textStyles = getTextStyles()
+
   return (
     <div
       ref={containerRef}
-      className={cn(
-        'streaming-text-renderer',
-        'relative inline-block w-full',
-        className
-      )}
+      className={cn('streaming-text-renderer', 'relative inline-block w-full', className)}
       style={textStyles}
       role="log"
       aria-live={streamingState.isPartial ? 'polite' : 'off'}
@@ -365,33 +376,33 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
         {processedText}
         {/* Show typewriter cursor if enabled and active */}
         {enableTypewriterEffects && typewriterState?.showCursor && (
-          <span 
+          <span
             className="typewriter-cursor"
             style={{
               borderRight: '2px solid currentColor',
               marginLeft: '1px',
-              animation: 'blink 1s infinite',
+              animation: 'blink 1s infinite'
             }}
           >
             |
           </span>
         )}
       </span>
-      
+
       {/* Animated cursor */}
       {renderCursor()}
-      
+
       {/* Screen reader announcements */}
       <span className="sr-only" aria-live="polite">
         {streamingState.isPartial ? 'Receiving text...' : 'Text complete'}
       </span>
     </div>
-  );
-};
+  )
+}
 
 /**
  * Memoized version of StreamingTextRenderer for performance optimization
  */
-export const MemoizedStreamingTextRenderer = React.memo(StreamingTextRenderer);
+export const MemoizedStreamingTextRenderer = React.memo(StreamingTextRenderer)
 
-export default StreamingTextRenderer;
+export default StreamingTextRenderer

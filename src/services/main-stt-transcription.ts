@@ -293,8 +293,7 @@ async function transcribeAudioViaWebSocket(
     apiKey,
     model: options.modelName || DEFAULT_GEMINI_LIVE_MODEL, // Use Live API model for WebSocket
     responseModalities: [ResponseModality.TEXT], // Optimize for text transcription
-    systemInstruction:
-      'Listen to the audio and respond with a transcription.',
+    systemInstruction: 'Listen to the audio and respond with a transcription.',
     connectionTimeout: 15000, // Increased timeout for better reliability
     maxQueueSize: 50, // Optimized queue size for transcription
     apiVersion: process.env.GEMINI_API_VERSION || 'v1beta', // Use configured API version or default to v1beta
@@ -318,7 +317,7 @@ async function transcribeAudioViaWebSocket(
         const timeout = setTimeout(() => {
           reject(new Error('Timeout waiting for WebSocket setup completion'))
         }, 15000)
-        
+
         const onSetupComplete = () => {
           clearTimeout(timeout)
           client.off('setupComplete', onSetupComplete)
@@ -326,21 +325,21 @@ async function transcribeAudioViaWebSocket(
           console.log('WebSocket setup completed - ready to send audio')
           resolve()
         }
-        
+
         const onSetupError = (error: unknown) => {
           clearTimeout(timeout)
-          client.off('setupComplete', onSetupComplete) 
+          client.off('setupComplete', onSetupComplete)
           client.off('error', onSetupError)
           reject(error)
         }
-        
+
         // Check if already complete before adding listeners
         if (client.isSetupCompleted()) {
           clearTimeout(timeout)
           resolve()
           return
         }
-        
+
         client.on('setupComplete', onSetupComplete)
         client.on('error', onSetupError)
       })
@@ -354,10 +353,10 @@ async function transcribeAudioViaWebSocket(
 
     // Brief pause to let the model process the context, then clear any responses
     await new Promise(resolve => setTimeout(resolve, 2000))
-    
+
     // Clear any text responses from the initial context message
     console.log('Context established, now preparing to send audio for transcription')
-    
+
     // Reset the resolved flag to ensure we only capture post-audio responses
     let audioSent = false
 
@@ -433,20 +432,20 @@ async function transcribeAudioViaWebSocket(
       }
 
       console.log(`Finished sending all ${chunks.length} audio chunks`)
-      
+
       // Mark that audio has been sent so we can process responses appropriately
       audioSent = true
-      
+
       // Add a small delay to let the model process the audio
       console.log('Waiting for model to process audio chunks...')
       await new Promise(resolve => setTimeout(resolve, 2000))
-      
+
       // Signal end of audio input to trigger transcription processing
       console.log('Sending end-of-audio-stream signal to Gemini Live API')
       await client.sendRealtimeInput({
         audioStreamEnd: true
       })
-      
+
       // Don't send turn completion - it causes protocol errors in Gemini Live API v1beta
       console.log('Audio stream ended - waiting for transcription response')
     } else {
@@ -470,13 +469,13 @@ async function transcribeAudioViaWebSocket(
           mimeType // Use plain "audio/pcm" as per API documentation
         }
       })
-      
+
       // Signal end of audio input to trigger transcription processing
       console.log('Sending end-of-audio-stream signal to Gemini Live API')
       await client.sendRealtimeInput({
         audioStreamEnd: true
       })
-      
+
       // Don't send turn completion - it causes protocol errors in Gemini Live API v1beta
       console.log('Audio stream ended - waiting for transcription response')
     }
@@ -484,7 +483,7 @@ async function transcribeAudioViaWebSocket(
     // Wait for transcription response
     const result = await new Promise<TranscriptionResult>((resolve, reject) => {
       let resolved = false
-      
+
       // Cleanup function to disconnect when done
       const cleanup = async () => {
         try {
@@ -493,10 +492,12 @@ async function transcribeAudioViaWebSocket(
           console.warn('Error disconnecting WebSocket client:', error)
         }
       }
-      
+
       const timeout = setTimeout(async () => {
         if (!resolved) {
-          console.log('🔥 WebSocket transcription: 20 second timeout reached, no responses received')
+          console.log(
+            '🔥 WebSocket transcription: 20 second timeout reached, no responses received'
+          )
           console.log('🔥 Timeout triggered - starting cleanup and fallback to batch mode')
           resolved = true
           await cleanup()
@@ -508,7 +509,7 @@ async function transcribeAudioViaWebSocket(
       let partialText = ''
       let bestConfidence = 0
       let lastUpdateTime = Date.now()
-      
+
       console.log('WebSocket transcription: Waiting for responses...')
 
       // Fallback: resolve with partial text if we have reasonable content after some time
@@ -539,7 +540,11 @@ async function transcribeAudioViaWebSocket(
             lastUpdateTime = Date.now()
 
             // If this is a final transcription, high confidence, or any reasonable text, resolve
-            if (data.isFinal || (data.confidence && data.confidence > 0.5) || (partialText.length > 3 && Date.now() - lastUpdateTime > 1000)) {
+            if (
+              data.isFinal ||
+              (data.confidence && data.confidence > 0.5) ||
+              (partialText.length > 3 && Date.now() - lastUpdateTime > 1000)
+            ) {
               console.log('WebSocket transcription: Resolving with final result')
               resolved = true
               clearTimeout(timeout)
@@ -559,38 +564,44 @@ async function transcribeAudioViaWebSocket(
       )
 
       // Also listen for direct textResponse events from the WebSocket client
-      client.on('textResponse', async (data: {content?: string; metadata?: {confidence?: number}; isPartial?: boolean}) => {
-        console.log('WebSocket transcription: Received textResponse:', data)
-        // Only process responses that come after we've sent audio (not context responses)
-        if (!resolved && audioSent && data.content?.trim()) {
-          const text = data.content.trim()
-          const confidence = data.metadata?.confidence || 0.9
-          const isFinal = !data.isPartial
-          
-          partialText = text
-          bestConfidence = Math.max(bestConfidence, confidence)
-          lastUpdateTime = Date.now()
+      client.on(
+        'textResponse',
+        async (data: {content?: string; metadata?: {confidence?: number}; isPartial?: boolean}) => {
+          console.log('WebSocket transcription: Received textResponse:', data)
+          // Only process responses that come after we've sent audio (not context responses)
+          if (!resolved && audioSent && data.content?.trim()) {
+            const text = data.content.trim()
+            const confidence = data.metadata?.confidence || 0.9
+            const isFinal = !data.isPartial
 
-          // If this is a final response or good content, resolve
-          if (isFinal || text.length > 3) {
-            console.log('WebSocket transcription: Resolving with textResponse result')
-            resolved = true
-            clearTimeout(timeout)
-            clearTimeout(partialTimeout)
-            await cleanup()
+            partialText = text
+            bestConfidence = Math.max(bestConfidence, confidence)
+            lastUpdateTime = Date.now()
 
-            const duration = Date.now() - startTime
-            resolve({
-              text: text,
-              duration,
-              confidence: confidence,
-              source: 'websocket-text'
-            })
+            // If this is a final response or good content, resolve
+            if (isFinal || text.length > 3) {
+              console.log('WebSocket transcription: Resolving with textResponse result')
+              resolved = true
+              clearTimeout(timeout)
+              clearTimeout(partialTimeout)
+              await cleanup()
+
+              const duration = Date.now() - startTime
+              resolve({
+                text: text,
+                duration,
+                confidence: confidence,
+                source: 'websocket-text'
+              })
+            }
+          } else if (!audioSent) {
+            console.log(
+              'WebSocket transcription: Ignoring pre-audio textResponse:',
+              data.content?.substring(0, 50) + '...'
+            )
           }
-        } else if (!audioSent) {
-          console.log('WebSocket transcription: Ignoring pre-audio textResponse:', data.content?.substring(0, 50) + '...')
         }
-      })
+      )
 
       client.on('error', async (error: Error) => {
         console.log('WebSocket transcription: Received error:', error)
@@ -617,40 +628,52 @@ async function transcribeAudioViaWebSocket(
       })
 
       // Listen for geminiResponse events (the primary event from parseResponse)
-      client.on('geminiResponse', async (response: {type?: string; content?: string; metadata?: {confidence?: number; isPartial?: boolean}}) => {
-        console.log('WebSocket transcription: Received geminiResponse:', response)
-        // Only process text responses that come after we've sent audio
-        if (!resolved && audioSent && response.type === 'text' && response.content?.trim()) {
-          const text = response.content.trim()
-          const confidence = response.metadata?.confidence || 0.8
-          const isFinal = !response.metadata?.isPartial
-          
-          partialText = text
-          bestConfidence = Math.max(bestConfidence, confidence)
-          lastUpdateTime = Date.now()
+      client.on(
+        'geminiResponse',
+        async (response: {
+          type?: string
+          content?: string
+          metadata?: {confidence?: number; isPartial?: boolean}
+        }) => {
+          console.log('WebSocket transcription: Received geminiResponse:', response)
+          // Only process text responses that come after we've sent audio
+          if (!resolved && audioSent && response.type === 'text' && response.content?.trim()) {
+            const text = response.content.trim()
+            const confidence = response.metadata?.confidence || 0.8
+            const isFinal = !response.metadata?.isPartial
 
-          console.log(`WebSocket transcription: Got text response: "${text}" (final: ${isFinal}, confidence: ${confidence})`)
+            partialText = text
+            bestConfidence = Math.max(bestConfidence, confidence)
+            lastUpdateTime = Date.now()
 
-          // If this is a final response or good content, resolve
-          if (isFinal || text.length > 2) {
-            console.log('WebSocket transcription: Resolving with geminiResponse result')
-            resolved = true
-            clearTimeout(timeout)
-            clearTimeout(partialTimeout)
-            await cleanup()
+            console.log(
+              `WebSocket transcription: Got text response: "${text}" (final: ${isFinal}, confidence: ${confidence})`
+            )
 
-            const duration = Date.now() - startTime
-            resolve({
-              text: text,
-              duration,
-              confidence: confidence,
-              source: 'websocket-gemini'
-            })
+            // If this is a final response or good content, resolve
+            if (isFinal || text.length > 2) {
+              console.log('WebSocket transcription: Resolving with geminiResponse result')
+              resolved = true
+              clearTimeout(timeout)
+              clearTimeout(partialTimeout)
+              await cleanup()
+
+              const duration = Date.now() - startTime
+              resolve({
+                text: text,
+                duration,
+                confidence: confidence,
+                source: 'websocket-gemini'
+              })
+            }
+          } else if (!audioSent && response.type === 'text') {
+            console.log(
+              'WebSocket transcription: Ignoring pre-audio geminiResponse:',
+              response.content?.substring(0, 50) + '...'
+            )
           }
-        } else if (!audioSent && response.type === 'text') {
-          console.log('WebSocket transcription: Ignoring pre-audio geminiResponse:', response.content?.substring(0, 50) + '...')
         }
-      })
+      )
 
       // Listen for turnComplete events to know when transcription is finished
       client.on('turnComplete', async () => {
