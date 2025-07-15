@@ -40,11 +40,15 @@ export type TextStreamBufferEvent = 'update' | 'flush' | 'clear' | 'correction'
 /**
  * Event listener function type
  */
-export type TextStreamBufferListener = (text: string, isPartial: boolean, chunks: TextChunk[]) => void
+export type TextStreamBufferListener = (
+  text: string,
+  isPartial: boolean,
+  chunks: TextChunk[]
+) => void
 
 /**
  * TextStreamBuffer class for handling rapid text updates and managing streaming text state efficiently
- * 
+ *
  * This buffer system manages incoming text chunks and optimizes rendering performance by:
  * - Buffering rapid text updates to prevent UI thrashing
  * - Implementing debouncing for smooth text transitions
@@ -130,11 +134,9 @@ export class TextStreamBuffer {
   private handleCorrection(correctionChunk: TextChunk): void {
     // Find chunks to correct based on timestamp or position
     const correctionTime = correctionChunk.timestamp
-    
+
     // Remove chunks that came after the correction point
-    this.buffer = this.buffer.filter(chunk => 
-      chunk.timestamp < correctionTime || chunk.correction
-    )
+    this.buffer = this.buffer.filter(chunk => chunk.timestamp < correctionTime || chunk.correction)
 
     // Add the correction chunk
     this.addChunkToBuffer(correctionChunk)
@@ -154,7 +156,7 @@ export class TextStreamBuffer {
 
     for (let i = 1; i < this.buffer.length; i++) {
       const nextChunk = this.buffer[i]
-      
+
       // Check if chunks can be merged (within 100ms and same partial state)
       if (
         nextChunk.timestamp - currentChunk.timestamp < 100 &&
@@ -305,7 +307,12 @@ export class TextStreamBuffer {
   /**
    * Emit events to listeners
    */
-  private emit(event: TextStreamBufferEvent, text: string, isPartial: boolean, chunks: TextChunk[]): void {
+  private emit(
+    event: TextStreamBufferEvent,
+    text: string,
+    isPartial: boolean,
+    chunks: TextChunk[]
+  ): void {
     const eventListeners = this.listeners.get(event)
     if (eventListeners) {
       eventListeners.forEach(listener => {

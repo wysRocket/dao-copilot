@@ -1,16 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { StreamingTextRenderer } from './StreamingTextRenderer';
-import { StreamingStateIndicator, useStreamingStateManager, type StreamingState } from './StreamingStateIndicator';
-import '../styles/streaming-demo.css';
+import React, {useState, useEffect} from 'react'
+import {StreamingTextRenderer} from './StreamingTextRenderer'
+import {
+  StreamingStateIndicator,
+  useStreamingStateManager,
+  type StreamingState
+} from './StreamingStateIndicator'
+import '../styles/streaming-demo.css'
 
 /**
  * Demo component showing StreamingStateIndicator functionality
  */
 export const StreamingStateDemo: React.FC = () => {
-  const stateManager = useStreamingStateManager();
-  const [currentText, setCurrentText] = useState('');
-  const [isPartial, setIsPartial] = useState(false);
-  const [demoMode, setDemoMode] = useState<'manual' | 'auto'>('manual');
+  const stateManager = useStreamingStateManager()
+  const [currentText, setCurrentText] = useState('')
+  const [isPartial, setIsPartial] = useState(false)
+  const [demoMode, setDemoMode] = useState<'manual' | 'auto'>('manual')
 
   // Demo text for cycling through states
   const demoTexts = [
@@ -19,93 +23,94 @@ export const StreamingStateDemo: React.FC = () => {
     'Processing audio input from microphone.',
     'Converting speech to text in real-time.',
     'Transcription completed successfully!'
-  ];
+  ]
 
   /**
    * Auto demo cycling through different states
    */
   useEffect(() => {
-    if (demoMode !== 'auto') return;
+    if (demoMode !== 'auto') return
 
     const states: StreamingState[] = [
       'listening',
-      'processing', 
+      'processing',
       'receiving',
       'complete',
       'disconnected',
       'connecting',
       'error'
-    ];
+    ]
 
-    let currentIndex = 0;
-    
+    let currentIndex = 0
+
     const interval = setInterval(() => {
-      const state = states[currentIndex];
-      stateManager.updateState(state, undefined, 
-        state === 'receiving' ? 'good' : 
-        state === 'processing' ? 'poor' : 'good'
-      );
-      
+      const state = states[currentIndex]
+      stateManager.updateState(
+        state,
+        undefined,
+        state === 'receiving' ? 'good' : state === 'processing' ? 'poor' : 'good'
+      )
+
       // Update text based on state
       if (state === 'receiving') {
-        setCurrentText(demoTexts[Math.floor(Math.random() * demoTexts.length)]);
-        setIsPartial(true);
+        setCurrentText(demoTexts[Math.floor(Math.random() * demoTexts.length)])
+        setIsPartial(true)
       } else if (state === 'complete') {
-        setIsPartial(false);
+        setIsPartial(false)
       } else if (state === 'error') {
-        setCurrentText('Error: Failed to process audio');
-        setIsPartial(false);
+        setCurrentText('Error: Failed to process audio')
+        setIsPartial(false)
       }
 
-      currentIndex = (currentIndex + 1) % states.length;
-    }, 3000);
+      currentIndex = (currentIndex + 1) % states.length
+    }, 3000)
 
-    return () => clearInterval(interval);
-  }, [demoMode, stateManager]);
+    return () => clearInterval(interval)
+  }, [demoMode, stateManager])
 
   /**
    * Manual state change handlers
    */
   const handleStateChange = (state: StreamingState) => {
-    stateManager.updateState(state);
-    
+    stateManager.updateState(state)
+
     // Update demo text based on state
     switch (state) {
       case 'listening':
-        setCurrentText('Ready for audio input...');
-        setIsPartial(false);
-        break;
+        setCurrentText('Ready for audio input...')
+        setIsPartial(false)
+        break
       case 'processing':
-        setCurrentText('Processing audio...');
-        setIsPartial(true);
-        break;
+        setCurrentText('Processing audio...')
+        setIsPartial(true)
+        break
       case 'receiving':
-        setCurrentText('Live transcription text appearing in real-time');
-        setIsPartial(true);
-        break;
+        setCurrentText('Live transcription text appearing in real-time')
+        setIsPartial(true)
+        break
       case 'complete':
-        setCurrentText('Transcription completed successfully!');
-        setIsPartial(false);
-        break;
+        setCurrentText('Transcription completed successfully!')
+        setIsPartial(false)
+        break
       case 'error':
-        setCurrentText('Error: Unable to process audio');
-        setIsPartial(false);
-        break;
+        setCurrentText('Error: Unable to process audio')
+        setIsPartial(false)
+        break
       case 'disconnected':
-        setCurrentText('Connection lost - reconnecting...');
-        setIsPartial(false);
-        break;
+        setCurrentText('Connection lost - reconnecting...')
+        setIsPartial(false)
+        break
       case 'connecting':
-        setCurrentText('Establishing connection...');
-        setIsPartial(false);
-        break;
+        setCurrentText('Establishing connection...')
+        setIsPartial(false)
+        break
     }
-  };
+  }
 
   return (
     <div className="streaming-demo-container">
       <h2>Streaming State Indicator Demo</h2>
-      
+
       {/* Demo Controls */}
       <div className="demo-controls">
         <div className="mode-toggle">
@@ -115,7 +120,7 @@ export const StreamingStateDemo: React.FC = () => {
               name="demoMode"
               value="manual"
               checked={demoMode === 'manual'}
-              onChange={(e) => setDemoMode(e.target.value as 'manual' | 'auto')}
+              onChange={e => setDemoMode(e.target.value as 'manual' | 'auto')}
             />
             Manual Control
           </label>
@@ -125,7 +130,7 @@ export const StreamingStateDemo: React.FC = () => {
               name="demoMode"
               value="auto"
               checked={demoMode === 'auto'}
-              onChange={(e) => setDemoMode(e.target.value as 'manual' | 'auto')}
+              onChange={e => setDemoMode(e.target.value as 'manual' | 'auto')}
             />
             Auto Demo
           </label>
@@ -133,27 +138,13 @@ export const StreamingStateDemo: React.FC = () => {
 
         {demoMode === 'manual' && (
           <div className="state-buttons">
-            <button onClick={() => handleStateChange('listening')}>
-              Listening
-            </button>
-            <button onClick={() => handleStateChange('processing')}>
-              Processing
-            </button>
-            <button onClick={() => handleStateChange('receiving')}>
-              Receiving
-            </button>
-            <button onClick={() => handleStateChange('complete')}>
-              Complete
-            </button>
-            <button onClick={() => handleStateChange('error')}>
-              Error
-            </button>
-            <button onClick={() => handleStateChange('disconnected')}>
-              Disconnected
-            </button>
-            <button onClick={() => handleStateChange('connecting')}>
-              Connecting
-            </button>
+            <button onClick={() => handleStateChange('listening')}>Listening</button>
+            <button onClick={() => handleStateChange('processing')}>Processing</button>
+            <button onClick={() => handleStateChange('receiving')}>Receiving</button>
+            <button onClick={() => handleStateChange('complete')}>Complete</button>
+            <button onClick={() => handleStateChange('error')}>Error</button>
+            <button onClick={() => handleStateChange('disconnected')}>Disconnected</button>
+            <button onClick={() => handleStateChange('connecting')}>Connecting</button>
           </div>
         )}
       </div>
@@ -161,7 +152,7 @@ export const StreamingStateDemo: React.FC = () => {
       {/* State Indicator Variants */}
       <div className="indicator-variants">
         <h3>Indicator Variants</h3>
-        
+
         {/* Large with details */}
         <div className="variant-section">
           <h4>Large with Details</h4>
@@ -209,7 +200,7 @@ export const StreamingStateDemo: React.FC = () => {
           enableTypewriterEffects={true}
           showStateIndicator={true}
           customState={stateManager.state}
-          onStateChange={(state) => console.log('State changed:', state)}
+          onStateChange={state => console.log('State changed:', state)}
           className="demo-renderer"
         />
       </div>
@@ -233,7 +224,7 @@ export const StreamingStateDemo: React.FC = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default StreamingStateDemo;
+export default StreamingStateDemo

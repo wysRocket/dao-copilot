@@ -1,4 +1,4 @@
-import { TranscriptionWithSource, TranscriptionSource } from '../services/TranscriptionSourceManager'
+import {TranscriptionWithSource, TranscriptionSource} from '../services/TranscriptionSourceManager'
 
 /**
  * Core transcription result interface
@@ -57,9 +57,9 @@ export interface TranscriptionState {
 /**
  * State change event types
  */
-export type StateChangeType = 
+export type StateChangeType =
   | 'streaming-started'
-  | 'streaming-updated' 
+  | 'streaming-updated'
   | 'streaming-completed'
   | 'transcript-added'
   | 'transcripts-cleared'
@@ -129,7 +129,7 @@ const DEFAULT_STATE: TranscriptionState = {
 
 /**
  * Unified Transcription State Manager
- * 
+ *
  * Single source of truth for all transcription-related state with:
  * - Clear separation between streaming and static content
  * - Proper state lifecycle management
@@ -144,9 +144,9 @@ export class TranscriptionStateManager {
   private garbageCollectionIntervalId: NodeJS.Timeout | null = null
 
   constructor(config: Partial<StateTransitionConfig> = {}) {
-    this.state = { ...DEFAULT_STATE }
-    this.config = { ...DEFAULT_CONFIG, ...config }
-    
+    this.state = {...DEFAULT_STATE}
+    this.config = {...DEFAULT_CONFIG, ...config}
+
     // Initialize garbage collection if enabled
     if (this.config.enableGarbageCollection) {
       this.startGarbageCollection()
@@ -157,7 +157,7 @@ export class TranscriptionStateManager {
    * Get current state (readonly)
    */
   getState(): Readonly<TranscriptionState> {
-    return { ...this.state }
+    return {...this.state}
   }
 
   /**
@@ -165,7 +165,7 @@ export class TranscriptionStateManager {
    */
   subscribe(listener: StateChangeListener): () => void {
     this.listeners.add(listener)
-    
+
     // Return unsubscribe function
     return () => {
       this.listeners.delete(listener)
@@ -299,7 +299,11 @@ export class TranscriptionStateManager {
   /**
    * Set recording state
    */
-  setRecordingState(isRecording: boolean, recordingTime: number = 0, status: string = 'Ready'): void {
+  setRecordingState(
+    isRecording: boolean,
+    recordingTime: number = 0,
+    status: string = 'Ready'
+  ): void {
     this.state.recording.isRecording = isRecording
     this.state.recording.recordingTime = recordingTime
     this.state.recording.status = status
@@ -326,7 +330,7 @@ export class TranscriptionStateManager {
    */
   onStreamingComplete(callback: () => void): () => void {
     this.state.streaming.completionCallbacks.push(callback)
-    
+
     // Return unsubscribe function
     return () => {
       const index = this.state.streaming.completionCallbacks.indexOf(callback)
@@ -339,32 +343,34 @@ export class TranscriptionStateManager {
   /**
    * Get memory usage statistics
    */
-  getMemoryUsage(): { transcriptCount: number; estimatedSize: number } {
-    return { ...this.state.meta.memoryUsage }
+  getMemoryUsage(): {transcriptCount: number; estimatedSize: number} {
+    return {...this.state.meta.memoryUsage}
   }
 
   /**
    * Force garbage collection
    */
   performGarbageCollection(): void {
-    const { maxStaticTranscripts, memoryThreshold } = this.config
-    const { transcripts } = this.state.static
-    const { estimatedSize } = this.state.meta.memoryUsage
+    const {maxStaticTranscripts, memoryThreshold} = this.config
+    const {transcripts} = this.state.static
+    const {estimatedSize} = this.state.meta.memoryUsage
 
     // Remove old transcripts if we exceed limits
     if (transcripts.length > maxStaticTranscripts || estimatedSize > memoryThreshold) {
       const targetCount = Math.floor(maxStaticTranscripts * 0.8) // Keep 80% of max
-      
+
       if (transcripts.length > targetCount) {
         // Remove oldest transcripts first
         const transcriptsToKeep = transcripts
           .sort((a, b) => b.timestamp - a.timestamp)
           .slice(0, targetCount)
-        
+
         this.state.static.transcripts = transcriptsToKeep
         this.updateMetadata()
-        
-        console.log(`TranscriptionStateManager: Garbage collected ${transcripts.length - targetCount} old transcripts`)
+
+        console.log(
+          `TranscriptionStateManager: Garbage collected ${transcripts.length - targetCount} old transcripts`
+        )
       }
     }
   }
@@ -415,13 +421,13 @@ export class TranscriptionStateManager {
 
   private updateMetadata(): void {
     const transcripts = this.state.static.transcripts
-    
+
     this.state.meta.totalCount = transcripts.length
     this.state.meta.memoryUsage.transcriptCount = transcripts.length
-    
+
     // Rough memory estimation (characters * 2 bytes + object overhead)
     this.state.meta.memoryUsage.estimatedSize = transcripts.reduce((total, transcript) => {
-      return total + (transcript.text.length * 2) + 200 // 200 bytes overhead per object
+      return total + transcript.text.length * 2 + 200 // 200 bytes overhead per object
     }, 0)
   }
 
@@ -450,9 +456,12 @@ export class TranscriptionStateManager {
 
   private startGarbageCollection(): void {
     // Run garbage collection every 5 minutes
-    this.garbageCollectionIntervalId = setInterval(() => {
-      this.performGarbageCollection()
-    }, 5 * 60 * 1000)
+    this.garbageCollectionIntervalId = setInterval(
+      () => {
+        this.performGarbageCollection()
+      },
+      5 * 60 * 1000
+    )
   }
 }
 

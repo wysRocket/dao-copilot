@@ -1,37 +1,37 @@
-import React, { useEffect, useRef, useCallback, useMemo } from 'react';
-import { cn } from '../utils/tailwind';
-import { StreamingTextRenderer, StreamingTextRendererProps } from './StreamingTextRenderer';
-import { useAccessibility } from '../hooks/useAccessibility';
-import { KeyboardUtils } from '../utils/accessibility';
-import '../styles/accessible-streaming-text.css';
+import React, {useEffect, useRef, useCallback, useMemo} from 'react'
+import {cn} from '../utils/tailwind'
+import {StreamingTextRenderer, StreamingTextRendererProps} from './StreamingTextRenderer'
+import {useAccessibility} from '../hooks/useAccessibility'
+import {KeyboardUtils} from '../utils/accessibility'
+import '../styles/accessible-streaming-text.css'
 
 /**
  * Enhanced streaming text renderer with comprehensive accessibility support
  */
 export interface AccessibleStreamingTextProps extends StreamingTextRendererProps {
   /** Custom ARIA label for the text content */
-  ariaLabel?: string;
+  ariaLabel?: string
   /** ARIA description for complex content */
-  ariaDescription?: string;
+  ariaDescription?: string
   /** Whether to announce text changes to screen readers */
-  announceChanges?: boolean;
+  announceChanges?: boolean
   /** Priority for screen reader announcements */
-  announcementPriority?: 'low' | 'medium' | 'high';
+  announcementPriority?: 'low' | 'medium' | 'high'
   /** Enable keyboard navigation controls */
-  enableKeyboardControls?: boolean;
+  enableKeyboardControls?: boolean
   /** Custom keyboard shortcuts */
   keyboardShortcuts?: {
-    pause?: string;
-    resume?: string;
-    restart?: string;
-    skipToEnd?: string;
-  };
+    pause?: string
+    resume?: string
+    restart?: string
+    skipToEnd?: string
+  }
   /** Whether to provide detailed status updates */
-  verboseStatus?: boolean;
+  verboseStatus?: boolean
   /** Custom role override */
-  roleOverride?: string;
+  roleOverride?: string
   /** Whether to create an isolated accessibility context */
-  isolatedContext?: boolean;
+  isolatedContext?: boolean
 }
 
 /**
@@ -51,7 +51,7 @@ export const AccessibleStreamingText: React.FC<AccessibleStreamingTextProps> = (
     pause: ' ',
     resume: ' ',
     restart: 'r',
-    skipToEnd: 'Enter',
+    skipToEnd: 'Enter'
   },
   verboseStatus = false,
   roleOverride,
@@ -65,140 +65,152 @@ export const AccessibleStreamingText: React.FC<AccessibleStreamingTextProps> = (
   const accessibility = useAccessibility({
     autoDetect: true,
     enableKeyboardHandling: enableKeyboardControls,
-    enableFocusManagement: true,
-  });
+    enableFocusManagement: true
+  })
 
   // Refs
-  const containerRef = useRef<HTMLDivElement>(null);
-  const lastAnnouncedTextRef = useRef<string>('');
-  const isUserPausedRef = useRef<boolean>(false);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const lastAnnouncedTextRef = useRef<string>('')
+  const isUserPausedRef = useRef<boolean>(false)
 
   // Memoized effective animation speed (respects reduced motion preference)
   const effectiveAnimationSpeed = useMemo(() => {
     if (accessibility.shouldReduceMotion) {
-      return mode === 'instant' ? animationSpeed : Math.max(animationSpeed * 5, 100);
+      return mode === 'instant' ? animationSpeed : Math.max(animationSpeed * 5, 100)
     }
-    return animationSpeed;
-  }, [animationSpeed, accessibility.shouldReduceMotion, mode]);
+    return animationSpeed
+  }, [animationSpeed, accessibility.shouldReduceMotion, mode])
 
   // Memoized effective mode (respects reduced motion preference)
   const effectiveMode = useMemo(() => {
     if (accessibility.shouldReduceMotion) {
-      return 'instant';
+      return 'instant'
     }
-    return mode;
-  }, [mode, accessibility.shouldReduceMotion]);
+    return mode
+  }, [mode, accessibility.shouldReduceMotion])
 
   // Announce text changes to screen readers
-  const announceTextChange = useCallback((newText: string, partial: boolean) => {
-    if (!announceChanges || !accessibility.preferences.announceChanges) return;
+  const announceTextChange = useCallback(
+    (newText: string, partial: boolean) => {
+      if (!announceChanges || !accessibility.preferences.announceChanges) return
 
-    // Don't announce if text hasn't changed significantly
-    if (newText === lastAnnouncedTextRef.current) return;
+      // Don't announce if text hasn't changed significantly
+      if (newText === lastAnnouncedTextRef.current) return
 
-    let announcement = '';
-    
-    if (verboseStatus) {
-      if (partial) {
-        announcement = `Receiving: ${newText}`;
+      let announcement = ''
+
+      if (verboseStatus) {
+        if (partial) {
+          announcement = `Receiving: ${newText}`
+        } else {
+          announcement = `Complete: ${newText}`
+        }
       } else {
-        announcement = `Complete: ${newText}`;
+        // Only announce the new part for efficiency
+        const previousLength = lastAnnouncedTextRef.current.length
+        const newPart = newText.slice(previousLength)
+        announcement = newPart || newText
       }
-    } else {
-      // Only announce the new part for efficiency
-      const previousLength = lastAnnouncedTextRef.current.length;
-      const newPart = newText.slice(previousLength);
-      announcement = newPart || newText;
-    }
 
-    if (announcement.trim()) {
-      accessibility.announce(announcement, announcementPriority);
-      lastAnnouncedTextRef.current = newText;
-    }
-  }, [announceChanges, accessibility, announcementPriority, verboseStatus]);
+      if (announcement.trim()) {
+        accessibility.announce(announcement, announcementPriority)
+        lastAnnouncedTextRef.current = newText
+      }
+    },
+    [announceChanges, accessibility, announcementPriority, verboseStatus]
+  )
 
   // Enhanced text update handler
-  const handleTextUpdate = useCallback((updatedText: string, partial: boolean) => {
-    announceTextChange(updatedText, partial);
-    onTextUpdate?.(updatedText, partial);
-  }, [announceTextChange, onTextUpdate]);
+  const handleTextUpdate = useCallback(
+    (updatedText: string, partial: boolean) => {
+      announceTextChange(updatedText, partial)
+      onTextUpdate?.(updatedText, partial)
+    },
+    [announceTextChange, onTextUpdate]
+  )
 
   // Enhanced animation complete handler
   const handleAnimationComplete = useCallback(() => {
     if (verboseStatus) {
-      accessibility.announce('Text animation complete', 'low');
+      accessibility.announce('Text animation complete', 'low')
     }
-    onAnimationComplete?.();
-  }, [accessibility, verboseStatus, onAnimationComplete]);
+    onAnimationComplete?.()
+  }, [accessibility, verboseStatus, onAnimationComplete])
 
   // Keyboard event handler
-  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-    if (!enableKeyboardControls) return;
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (!enableKeyboardControls) return
 
-    const key = event.key;
+      const key = event.key
 
-    // Handle custom keyboard shortcuts
-    if (key === keyboardShortcuts.pause || key === keyboardShortcuts.resume) {
-      event.preventDefault();
-      isUserPausedRef.current = !isUserPausedRef.current;
-      
-      const action = isUserPausedRef.current ? 'paused' : 'resumed';
-      accessibility.announce(`Animation ${action}`, 'medium');
-      return;
-    }
+      // Handle custom keyboard shortcuts
+      if (key === keyboardShortcuts.pause || key === keyboardShortcuts.resume) {
+        event.preventDefault()
+        isUserPausedRef.current = !isUserPausedRef.current
 
-    if (key === keyboardShortcuts.restart) {
-      event.preventDefault();
-      accessibility.announce('Restarting animation', 'medium');
-      // Note: Restart functionality would need to be implemented in parent component
-      return;
-    }
+        const action = isUserPausedRef.current ? 'paused' : 'resumed'
+        accessibility.announce(`Animation ${action}`, 'medium')
+        return
+      }
 
-    if (key === keyboardShortcuts.skipToEnd) {
-      event.preventDefault();
-      accessibility.announce('Skipping to end', 'medium');
-      // Note: Skip functionality would need to be implemented in parent component
-      return;
-    }
+      if (key === keyboardShortcuts.restart) {
+        event.preventDefault()
+        accessibility.announce('Restarting animation', 'medium')
+        // Note: Restart functionality would need to be implemented in parent component
+        return
+      }
 
-    // Handle escape to stop animations
-    if (KeyboardUtils.isEscapeKey(event.nativeEvent)) {
-      event.preventDefault();
-      accessibility.announce('Animation stopped', 'medium');
-      return;
-    }
-  }, [enableKeyboardControls, keyboardShortcuts, accessibility]);
+      if (key === keyboardShortcuts.skipToEnd) {
+        event.preventDefault()
+        accessibility.announce('Skipping to end', 'medium')
+        // Note: Skip functionality would need to be implemented in parent component
+        return
+      }
+
+      // Handle escape to stop animations
+      if (KeyboardUtils.isEscapeKey(event.nativeEvent)) {
+        event.preventDefault()
+        accessibility.announce('Animation stopped', 'medium')
+        return
+      }
+    },
+    [enableKeyboardControls, keyboardShortcuts, accessibility]
+  )
 
   // Focus handler
   const handleFocus = useCallback(() => {
     if (verboseStatus && text) {
-      const status = isPartial ? 'partial' : 'complete';
-      accessibility.announce(`Focused on ${status} text: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}`, 'low');
+      const status = isPartial ? 'partial' : 'complete'
+      accessibility.announce(
+        `Focused on ${status} text: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}`,
+        'low'
+      )
     }
-  }, [accessibility, verboseStatus, text, isPartial]);
+  }, [accessibility, verboseStatus, text, isPartial])
 
   // Status description for screen readers
   const statusDescription = useMemo(() => {
-    if (!verboseStatus) return undefined;
+    if (!verboseStatus) return undefined
 
-    const parts = [];
-    
+    const parts = []
+
     if (isPartial) {
-      parts.push('receiving partial text');
+      parts.push('receiving partial text')
     } else {
-      parts.push('text complete');
+      parts.push('text complete')
     }
 
     if (mode !== 'instant') {
-      parts.push(`animated with ${mode} mode`);
+      parts.push(`animated with ${mode} mode`)
     }
 
     if (accessibility.shouldReduceMotion) {
-      parts.push('motion reduced for accessibility');
+      parts.push('motion reduced for accessibility')
     }
 
-    return parts.join(', ');
-  }, [isPartial, mode, accessibility.shouldReduceMotion, verboseStatus]);
+    return parts.join(', ')
+  }, [isPartial, mode, accessibility.shouldReduceMotion, verboseStatus])
 
   // ARIA attributes
   const ariaAttributes = useMemo(() => {
@@ -206,19 +218,26 @@ export const AccessibleStreamingText: React.FC<AccessibleStreamingTextProps> = (
       'aria-label': ariaLabel || 'Live streaming text',
       'aria-live': isPartial ? 'polite' : 'off',
       'aria-atomic': 'true',
-      'role': roleOverride || 'log',
-    };
+      role: roleOverride || 'log'
+    }
 
     if (ariaDescription || statusDescription) {
-      attributes['aria-description'] = ariaDescription || statusDescription;
+      attributes['aria-description'] = ariaDescription || statusDescription
     }
 
     if (enableKeyboardControls) {
-      attributes['tabIndex'] = '0';
+      attributes['tabIndex'] = '0'
     }
 
-    return attributes;
-  }, [ariaLabel, isPartial, ariaDescription, statusDescription, enableKeyboardControls, roleOverride]);
+    return attributes
+  }, [
+    ariaLabel,
+    isPartial,
+    ariaDescription,
+    statusDescription,
+    enableKeyboardControls,
+    roleOverride
+  ])
 
   // CSS classes with accessibility considerations
   const containerClasses = useMemo(() => {
@@ -228,18 +247,18 @@ export const AccessibleStreamingText: React.FC<AccessibleStreamingTextProps> = (
         'reduced-motion': accessibility.shouldReduceMotion,
         'high-contrast': accessibility.shouldUseHighContrast,
         'screen-reader-optimized': accessibility.isScreenReaderActive,
-        'keyboard-navigable': enableKeyboardControls,
+        'keyboard-navigable': enableKeyboardControls
       },
       restProps.className
-    );
-  }, [accessibility, enableKeyboardControls, restProps.className]);
+    )
+  }, [accessibility, enableKeyboardControls, restProps.className])
 
   // Announce initial text on mount
   useEffect(() => {
     if (text && announceChanges) {
-      announceTextChange(text, isPartial);
+      announceTextChange(text, isPartial)
     }
-  }, []); // Only on mount
+  }, []) // Only on mount
 
   return (
     <div
@@ -295,12 +314,12 @@ export const AccessibleStreamingText: React.FC<AccessibleStreamingTextProps> = (
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
 /**
  * Default export with display name for debugging
  */
-AccessibleStreamingText.displayName = 'AccessibleStreamingText';
+AccessibleStreamingText.displayName = 'AccessibleStreamingText'
 
-export default AccessibleStreamingText;
+export default AccessibleStreamingText

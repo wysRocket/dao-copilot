@@ -1,17 +1,17 @@
 /**
  * WebSocketTranscriptionRouter
- * 
+ *
  * Automatically routes WebSocket transcriptions to the streaming renderer
  * instead of static display. Provides intelligent routing decisions based
  * on transcription source and current system state.
  */
 
-import { 
-  isWebSocketTranscription, 
+import {
+  isWebSocketTranscription,
   getTranscriptionSourceInfo,
   hasWebSocketCharacteristics
 } from '../utils/transcription-detection'
-import { TranscriptionWithSource } from './TranscriptionSourceManager'
+import {TranscriptionWithSource} from './TranscriptionSourceManager'
 
 export interface RouterConfiguration {
   enableWebSocketPriority: boolean
@@ -100,7 +100,7 @@ export class WebSocketTranscriptionRouter {
   routeTranscription(transcription: TranscriptionWithSource): RoutingDecision {
     const sourceInfo = getTranscriptionSourceInfo(transcription.source)
     const currentState = this.getCurrentSystemState()
-    
+
     if (this.config.routingDebugMode) {
       console.log('🔀 Router: Routing transcription:', {
         source: transcription.source,
@@ -112,10 +112,10 @@ export class WebSocketTranscriptionRouter {
 
     // Create routing decision
     const decision = this.createRoutingDecision(transcription, sourceInfo, currentState)
-    
+
     // Execute the routing decision
     this.executeRoutingDecision(transcription, decision)
-    
+
     // Store in history for debugging
     this.routingHistory.push({
       transcription,
@@ -158,7 +158,10 @@ export class WebSocketTranscriptionRouter {
     // Handle streaming transcriptions
     if (sourceInfo.isStreaming) {
       // If WebSocket is active, queue the streaming transcription
-      if (currentState.activeStreamingSource && isWebSocketTranscription(currentState.activeStreamingSource)) {
+      if (
+        currentState.activeStreamingSource &&
+        isWebSocketTranscription(currentState.activeStreamingSource)
+      ) {
         if (this.transcriptionQueue.length < this.config.maxQueueSize) {
           return {
             action: 'queue',
@@ -210,9 +213,11 @@ export class WebSocketTranscriptionRouter {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (hasWebSocketCharacteristics(transcription as any)) {
         if (this.config.routingDebugMode) {
-          console.log('🔀 Router: Batch transcription has WebSocket characteristics, upgrading to streaming')
+          console.log(
+            '🔀 Router: Batch transcription has WebSocket characteristics, upgrading to streaming'
+          )
         }
-        
+
         return {
           action: 'route-to-streaming',
           priority: 1.5,
@@ -315,9 +320,12 @@ export class WebSocketTranscriptionRouter {
 
       this.streamingTarget.startStreamingTranscription(transcription)
       this.activeStreamingSource = transcription.source
-      
+
       if (this.config.routingDebugMode) {
-        console.log('🔀 Router: ✅ Routed to streaming:', transcription.text.substring(0, 50) + '...')
+        console.log(
+          '🔀 Router: ✅ Routed to streaming:',
+          transcription.text.substring(0, 50) + '...'
+        )
       }
     } catch (error) {
       console.error('🔀 Router: Error routing to streaming:', error)
@@ -338,7 +346,7 @@ export class WebSocketTranscriptionRouter {
 
     try {
       this.staticTarget.addStaticTranscription(transcription)
-      
+
       if (this.config.routingDebugMode) {
         console.log('🔀 Router: ✅ Routed to static:', transcription.text.substring(0, 50) + '...')
       }
@@ -357,10 +365,13 @@ export class WebSocketTranscriptionRouter {
     }
 
     this.transcriptionQueue.push(transcription)
-    
+
     if (this.config.routingDebugMode) {
-      console.log('🔀 Router: ✅ Added to queue:', transcription.text.substring(0, 50) + '...', 
-                  `(${this.transcriptionQueue.length}/${this.config.maxQueueSize})`)
+      console.log(
+        '🔀 Router: ✅ Added to queue:',
+        transcription.text.substring(0, 50) + '...',
+        `(${this.transcriptionQueue.length}/${this.config.maxQueueSize})`
+      )
     }
   }
 
@@ -376,9 +387,12 @@ export class WebSocketTranscriptionRouter {
 
     try {
       this.streamingTarget.updateStreamingTranscription(transcription)
-      
+
       if (this.config.routingDebugMode) {
-        console.log('🔀 Router: ✅ Merged with current stream:', transcription.text.substring(0, 50) + '...')
+        console.log(
+          '🔀 Router: ✅ Merged with current stream:',
+          transcription.text.substring(0, 50) + '...'
+        )
       }
     } catch (error) {
       console.error('🔀 Router: Error merging with current stream:', error)
@@ -390,14 +404,21 @@ export class WebSocketTranscriptionRouter {
    * Process queued transcriptions when streaming becomes available
    */
   processQueue(): void {
-    if (!this.streamingTarget || this.streamingTarget.isStreamingActive || this.transcriptionQueue.length === 0) {
+    if (
+      !this.streamingTarget ||
+      this.streamingTarget.isStreamingActive ||
+      this.transcriptionQueue.length === 0
+    ) {
       return
     }
 
     const nextTranscription = this.transcriptionQueue.shift()
     if (nextTranscription) {
       if (this.config.routingDebugMode) {
-        console.log('🔀 Router: Processing queued transcription:', nextTranscription.text.substring(0, 50) + '...')
+        console.log(
+          '🔀 Router: Processing queued transcription:',
+          nextTranscription.text.substring(0, 50) + '...'
+        )
       }
       this.routeToStreaming(nextTranscription, false)
     }
@@ -409,11 +430,11 @@ export class WebSocketTranscriptionRouter {
   onStreamingComplete(source: string): void {
     if (this.activeStreamingSource === source) {
       this.activeStreamingSource = null
-      
+
       if (this.config.routingDebugMode) {
         console.log('🔀 Router: Streaming completed for source:', source)
       }
-      
+
       // Process next item in queue
       setTimeout(() => this.processQueue(), 100)
     }
@@ -437,10 +458,13 @@ export class WebSocketTranscriptionRouter {
    */
   getStats() {
     const recentHistory = this.routingHistory.slice(-50)
-    const actionCounts = recentHistory.reduce((acc, entry) => {
-      acc[entry.decision.action] = (acc[entry.decision.action] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
+    const actionCounts = recentHistory.reduce(
+      (acc, entry) => {
+        acc[entry.decision.action] = (acc[entry.decision.action] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>
+    )
 
     return {
       queueLength: this.transcriptionQueue.length,
@@ -458,7 +482,7 @@ export class WebSocketTranscriptionRouter {
     this.transcriptionQueue = []
     this.activeStreamingSource = null
     this.routingHistory = []
-    
+
     if (this.config.routingDebugMode) {
       console.log('🔀 Router: State reset')
     }
@@ -468,8 +492,8 @@ export class WebSocketTranscriptionRouter {
    * Update router configuration
    */
   updateConfig(newConfig: Partial<RouterConfiguration>): void {
-    this.config = { ...this.config, ...newConfig }
-    
+    this.config = {...this.config, ...newConfig}
+
     if (this.config.routingDebugMode) {
       console.log('🔀 Router: Configuration updated:', this.config)
     }

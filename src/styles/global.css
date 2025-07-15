@@ -356,8 +356,12 @@
 
 /* Live Streaming Area Animations */
 @keyframes shimmer {
-  0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
-  100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+  0% {
+    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+  }
+  100% {
+    transform: translateX(100%) translateY(100%) rotate(45deg);
+  }
 }
 
 @keyframes slideInUp {
@@ -459,13 +463,9 @@
 .live-streaming-container {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.05) 100%
-  );
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
@@ -475,16 +475,16 @@
   .live-streaming-area {
     margin: 0.5rem;
   }
-  
+
   .live-streaming-container {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
-  
+
   .streaming-status-compact {
     font-size: 0.625rem;
   }
-  
+
   .streaming-confidence-mobile {
     display: none;
   }
@@ -494,13 +494,13 @@
   .live-streaming-area {
     margin: 0.25rem;
   }
-  
+
   .streaming-header-mobile {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
   }
-  
+
   .streaming-content-mobile {
     min-height: 40px;
     padding: 0.75rem;
@@ -516,7 +516,7 @@
       rgba(255, 255, 255, 0.03) 100%
     );
     border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 
+    box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
@@ -525,13 +525,9 @@
 /* Light mode enhancements */
 @media (prefers-color-scheme: light) {
   .live-streaming-container {
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.7) 0%,
-      rgba(255, 255, 255, 0.4) 100%
-    );
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.4) 100%);
     border: 1px solid rgba(0, 0, 0, 0.1);
-    box-shadow: 
+    box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.05),
       inset 0 1px 0 rgba(255, 255, 255, 0.8);
   }
@@ -545,7 +541,7 @@
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  
+
   .streaming-entering,
   .streaming-completing,
   .streaming-exiting,
@@ -595,7 +591,7 @@
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 
+  box-shadow:
     0 8px 32px rgba(31, 38, 135, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
@@ -654,11 +650,11 @@
   .transcript-scroll {
     scroll-behavior: auto;
   }
-  
+
   .shimmer-effect::before {
     animation: none;
   }
-  
+
   .streaming-entering,
   .streaming-completing,
   .streaming-exiting,
@@ -666,11 +662,11 @@
   .streaming-progress-bar {
     animation: none;
   }
-  
+
   .live-streaming-area {
     transition: none;
   }
-  
+
   .glass-button {
     transition: none;
   }

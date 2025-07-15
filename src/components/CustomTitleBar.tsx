@@ -165,7 +165,7 @@ const CustomTitleBar: React.FC = () => {
   return (
     <div
       ref={titleBarRef}
-      className="app-region-drag flex w-full items-center overflow-hidden px-4 select-none"
+      className="app-region-drag flex w-full select-none items-center overflow-hidden px-4"
       style={
         {
           WebkitAppRegion: 'drag',

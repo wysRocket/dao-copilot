@@ -1,15 +1,18 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
-import { 
-  getTranscriptionStateManager, 
-  TranscriptionStateManager 
+import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
+import {renderHook, act} from '@testing-library/react'
+import {
+  getTranscriptionStateManager,
+  TranscriptionStateManager
 } from '../../state/TranscriptionStateManager'
-import useTranscriptionState, { 
-  useStreamingState, 
-  useStaticTranscripts, 
-  useRecordingState 
+import useTranscriptionState, {
+  useStreamingState,
+  useStaticTranscripts,
+  useRecordingState
 } from '../../hooks/useTranscriptionState'
-import { TranscriptionWithSource, TranscriptionSource } from '../../services/TranscriptionSourceManager'
+import {
+  TranscriptionWithSource,
+  TranscriptionSource
+} from '../../services/TranscriptionSourceManager'
 
 describe('Unified Transcription State Management', () => {
   let stateManager: TranscriptionStateManager
@@ -32,20 +35,20 @@ describe('Unified Transcription State Management', () => {
   describe('TranscriptionStateManager', () => {
     it('should initialize with default state', () => {
       const state = stateManager.getState()
-      
+
       expect(state.streaming.isActive).toBe(false)
       expect(state.streaming.current).toBeNull()
       expect(state.streaming.progress).toBe(0)
       expect(state.streaming.mode).toBe('character')
-      
+
       expect(state.static.transcripts).toEqual([])
       expect(state.static.isLoading).toBe(false)
-      
+
       expect(state.recording.isRecording).toBe(false)
       expect(state.recording.isProcessing).toBe(false)
       expect(state.recording.recordingTime).toBe(0)
       expect(state.recording.status).toBe('Ready')
-      
+
       expect(state.meta.totalCount).toBe(0)
     })
 
@@ -60,7 +63,7 @@ describe('Unified Transcription State Management', () => {
 
       // Start streaming
       stateManager.startStreaming(mockTranscription)
-      
+
       let state = stateManager.getState()
       expect(state.streaming.isActive).toBe(true)
       expect(state.streaming.current?.text).toBe('Hello world')
@@ -68,14 +71,14 @@ describe('Unified Transcription State Management', () => {
 
       // Update streaming
       stateManager.updateStreaming('Hello world from', true)
-      
+
       state = stateManager.getState()
       expect(state.streaming.current?.text).toBe('Hello world from')
       expect(state.streaming.current?.isPartial).toBe(true)
 
       // Complete streaming
       stateManager.completeStreaming()
-      
+
       state = stateManager.getState()
       expect(state.streaming.isActive).toBe(false)
       expect(state.static.transcripts).toHaveLength(1)
@@ -93,7 +96,7 @@ describe('Unified Transcription State Management', () => {
       }
 
       stateManager.addTranscript(transcript)
-      
+
       const state = stateManager.getState()
       expect(state.static.transcripts).toHaveLength(1)
       expect(state.static.transcripts[0].text).toBe('Test transcript')
@@ -102,26 +105,26 @@ describe('Unified Transcription State Management', () => {
 
     it('should handle state subscriptions', () => {
       const mockListener = vi.fn()
-      
+
       const unsubscribe = stateManager.subscribe(mockListener)
-      
+
       stateManager.setRecordingState(true, 100, 'Recording')
-      
+
       expect(mockListener).toHaveBeenCalledWith('recording-changed', expect.any(Object))
-      
+
       unsubscribe()
-      
+
       stateManager.setRecordingState(false, 0, 'Ready')
-      
+
       // Should not be called after unsubscribe
       expect(mockListener).toHaveBeenCalledTimes(1)
     })
 
     it('should handle streaming completion callbacks', () => {
       const mockCallback = vi.fn()
-      
+
       const unsubscribe = stateManager.onStreamingComplete(mockCallback)
-      
+
       const mockTranscription: TranscriptionWithSource = {
         id: 'test-completion',
         text: 'Test completion',
@@ -132,9 +135,9 @@ describe('Unified Transcription State Management', () => {
 
       stateManager.startStreaming(mockTranscription)
       stateManager.completeStreaming()
-      
+
       expect(mockCallback).toHaveBeenCalledTimes(1)
-      
+
       unsubscribe()
     })
 
@@ -162,7 +165,7 @@ describe('Unified Transcription State Management', () => {
 
   describe('useTranscriptionState hook', () => {
     it('should provide state and actions', () => {
-      const { result } = renderHook(() => useTranscriptionState())
+      const {result} = renderHook(() => useTranscriptionState())
 
       expect(result.current.isStreamingActive).toBe(false)
       expect(result.current.transcripts).toEqual([])
@@ -173,7 +176,7 @@ describe('Unified Transcription State Management', () => {
     })
 
     it('should update when state changes', () => {
-      const { result } = renderHook(() => useTranscriptionState())
+      const {result} = renderHook(() => useTranscriptionState())
 
       act(() => {
         result.current.setRecordingState(true, 100, 'Recording')
@@ -185,7 +188,7 @@ describe('Unified Transcription State Management', () => {
     })
 
     it('should handle streaming actions', () => {
-      const { result } = renderHook(() => useTranscriptionState())
+      const {result} = renderHook(() => useTranscriptionState())
 
       const mockTranscription: TranscriptionWithSource = {
         id: 'streaming-test',
@@ -230,40 +233,40 @@ describe('Unified Transcription State Management', () => {
 
   describe('Specialized hooks', () => {
     it('useStreamingState should provide only streaming-related state', () => {
-      const { result } = renderHook(() => useStreamingState())
+      const {result} = renderHook(() => useStreamingState())
 
       expect(result.current.isStreamingActive).toBe(false)
       expect(result.current.currentStreamingText).toBe('')
       expect(typeof result.current.startStreaming).toBe('function')
       expect(typeof result.current.updateStreaming).toBe('function')
       expect(typeof result.current.completeStreaming).toBe('function')
-      
+
       // Should not have transcript-related properties
       expect('transcripts' in result.current).toBe(false)
       expect('isRecording' in result.current).toBe(false)
     })
 
     it('useStaticTranscripts should provide only transcript-related state', () => {
-      const { result } = renderHook(() => useStaticTranscripts())
+      const {result} = renderHook(() => useStaticTranscripts())
 
       expect(result.current.transcripts).toEqual([])
       expect(result.current.transcriptCount).toBe(0)
       expect(typeof result.current.addTranscript).toBe('function')
       expect(typeof result.current.clearTranscripts).toBe('function')
-      
+
       // Should not have streaming-related properties
       expect('isStreamingActive' in result.current).toBe(false)
       expect('isRecording' in result.current).toBe(false)
     })
 
     it('useRecordingState should provide only recording-related state', () => {
-      const { result } = renderHook(() => useRecordingState())
+      const {result} = renderHook(() => useRecordingState())
 
       expect(result.current.isRecording).toBe(false)
       expect(result.current.isProcessing).toBe(false)
       expect(typeof result.current.setRecordingState).toBe('function')
       expect(typeof result.current.setProcessingState).toBe('function')
-      
+
       // Should not have streaming or transcript properties
       expect('isStreamingActive' in result.current).toBe(false)
       expect('transcripts' in result.current).toBe(false)
@@ -272,8 +275,8 @@ describe('Unified Transcription State Management', () => {
 
   describe('Performance characteristics', () => {
     it('should handle rapid state updates efficiently', () => {
-      const { result } = renderHook(() => useTranscriptionState())
-      
+      const {result} = renderHook(() => useTranscriptionState())
+
       // First start streaming
       act(() => {
         const initialTranscription: TranscriptionWithSource = {
@@ -285,29 +288,29 @@ describe('Unified Transcription State Management', () => {
         }
         result.current.startStreaming(initialTranscription)
       })
-      
+
       const start = performance.now()
-      
+
       act(() => {
         // Simulate rapid streaming updates
         for (let i = 0; i < 100; i++) {
           result.current.updateStreaming(`Text update ${i}`, true)
         }
       })
-      
+
       const end = performance.now()
       const duration = end - start
-      
+
       // Should complete rapid updates in reasonable time (less than 100ms)
       expect(duration).toBeLessThan(100)
       expect(result.current.currentStreamingText).toBe('Text update 99')
     })
 
     it('should provide memory usage information', () => {
-      const { result } = renderHook(() => useTranscriptionState())
+      const {result} = renderHook(() => useTranscriptionState())
 
       const memoryUsage = result.current.getMemoryUsage()
-      
+
       expect(memoryUsage).toHaveProperty('transcriptCount')
       expect(memoryUsage).toHaveProperty('estimatedSize')
       expect(typeof memoryUsage.transcriptCount).toBe('number')

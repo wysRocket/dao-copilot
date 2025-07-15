@@ -12,17 +12,17 @@ export default function HomePage() {
   const {
     // Current state
     state,
-    
+
     // Static transcripts
     transcripts,
     isProcessing,
-    
+
     // Streaming state
     currentStreamingText,
     isStreamingActive,
     isCurrentTextPartial,
     streamingMode,
-    
+
     // Actions
     startStreaming,
     updateStreaming,
@@ -53,8 +53,11 @@ export default function HomePage() {
   useEffect(() => {
     // Set up streaming target for router
     router.setStreamingTarget({
-      startStreamingTranscription: (transcription) => {
-        console.log('🔄 HomePage: Router requested streaming start:', transcription.text.substring(0, 50) + '...')
+      startStreamingTranscription: transcription => {
+        console.log(
+          '🔄 HomePage: Router requested streaming start:',
+          transcription.text.substring(0, 50) + '...'
+        )
         startStreaming({
           id: transcription.id,
           text: transcription.text,
@@ -64,12 +67,18 @@ export default function HomePage() {
           source: transcription.source
         })
       },
-      updateStreamingTranscription: (transcription) => {
-        console.log('🔄 HomePage: Router requested streaming update:', transcription.text.substring(0, 50) + '...')
+      updateStreamingTranscription: transcription => {
+        console.log(
+          '🔄 HomePage: Router requested streaming update:',
+          transcription.text.substring(0, 50) + '...'
+        )
         updateStreaming(transcription.text, transcription.isPartial)
       },
-      completeStreamingTranscription: (transcription) => {
-        console.log('🔄 HomePage: Router requested streaming completion:', transcription.text.substring(0, 50) + '...')
+      completeStreamingTranscription: transcription => {
+        console.log(
+          '🔄 HomePage: Router requested streaming completion:',
+          transcription.text.substring(0, 50) + '...'
+        )
         completeStreaming()
       },
       isStreamingActive: isStreamingActive,
@@ -78,26 +87,37 @@ export default function HomePage() {
 
     // Set up static target for router
     router.setStaticTarget({
-      addStaticTranscription: (transcription) => {
-        console.log('🔄 HomePage: Router requested static add:', transcription.text.substring(0, 50) + '...')
+      addStaticTranscription: transcription => {
+        console.log(
+          '🔄 HomePage: Router requested static add:',
+          transcription.text.substring(0, 50) + '...'
+        )
         // This would be handled by the shared state system
       },
-      appendToLastTranscription: (text) => {
+      appendToLastTranscription: text => {
         console.log('🔄 HomePage: Router requested append:', text.substring(0, 50) + '...')
         // Append functionality can be added later if needed
       },
-      updateTranscription: (id) => {
+      updateTranscription: id => {
         console.log('🔄 HomePage: Router requested update for:', id)
         // Update functionality can be added later if needed
       }
     })
-  }, [router, startStreaming, updateStreaming, completeStreaming, isStreamingActive, handleStreamingComplete, state.streaming.current?.source])
+  }, [
+    router,
+    startStreaming,
+    updateStreaming,
+    completeStreaming,
+    isStreamingActive,
+    handleStreamingComplete,
+    state.streaming.current?.source
+  ])
 
   // Watch for new transcriptions and route them appropriately
   useEffect(() => {
     if (transcripts.length > 0) {
       const latestTranscript = transcripts[transcripts.length - 1]
-      
+
       // Check if this is a new transcript that hasn't been processed
       if (
         latestTranscript.id &&
@@ -105,16 +125,19 @@ export default function HomePage() {
         latestTranscript.text &&
         latestTranscript.text.length > 2 // Only process meaningful text
       ) {
-        console.log('🔴 HomePage: New transcript detected:', latestTranscript.text.substring(0, 50) + '...')
+        console.log(
+          '🔴 HomePage: New transcript detected:',
+          latestTranscript.text.substring(0, 50) + '...'
+        )
         console.log('🔴 HomePage: Transcript source:', latestTranscript.source)
-        
+
         // Mark as processed
         processedTranscriptIds.current.add(latestTranscript.id)
-        
+
         // Check if it's a WebSocket transcription using detection utility
         const isWebSocketSource = isWebSocketTranscription(latestTranscript.source)
         console.log('🔴 HomePage: Is WebSocket source:', isWebSocketSource)
-        
+
         if (isWebSocketSource) {
           // Convert to TranscriptionWithSource format for router
           const transcriptionWithSource = {
@@ -125,7 +148,7 @@ export default function HomePage() {
             source: TranscriptionSource.WEBSOCKET_GEMINI,
             isPartial: false
           }
-          
+
           // Route through WebSocket router
           console.log('🔄 HomePage: Routing WebSocket transcription through router')
           const decision = router.routeTranscription(transcriptionWithSource)
@@ -141,9 +164,21 @@ export default function HomePage() {
   useEffect(() => {
     console.log('🏠 HomePage: Transcripts updated:', transcripts.length, 'transcripts')
     console.log('🏠 HomePage: Processing state:', isProcessing)
-    console.log('🏠 HomePage: Streaming active (unified):', isStreamingActive, 'text:', currentStreamingText.substring(0, 50) + '...')
+    console.log(
+      '🏠 HomePage: Streaming active (unified):',
+      isStreamingActive,
+      'text:',
+      currentStreamingText.substring(0, 50) + '...'
+    )
     console.log('🏠 HomePage: Streaming partial:', isCurrentTextPartial, 'mode:', streamingMode)
-  }, [transcripts, isProcessing, currentStreamingText, isStreamingActive, isCurrentTextPartial, streamingMode])
+  }, [
+    transcripts,
+    isProcessing,
+    currentStreamingText,
+    isStreamingActive,
+    isCurrentTextPartial,
+    streamingMode
+  ])
 
   // Use unified streaming state
   const effectiveStreamingActive = isStreamingActive
@@ -168,18 +203,23 @@ export default function HomePage() {
       source: transcript.source
     }))
 
-  console.log('🏠 HomePage: Rendering with', staticTranscripts.length, 'static transcripts, streaming active:', effectiveStreamingActive)
+  console.log(
+    '🏠 HomePage: Rendering with',
+    staticTranscripts.length,
+    'static transcripts, streaming active:',
+    effectiveStreamingActive
+  )
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex w-full flex-1 flex-col items-center justify-center p-8">
         {/* Debug: Transcription Event Test Component */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="w-full max-w-4xl mb-6">
+          <div className="mb-6 w-full max-w-4xl">
             <TranscriptionEventTest />
           </div>
         )}
-        
+
         {/* Live Transcript Display with Streaming Support */}
         <div className="flex w-full justify-center">
           <TranscriptDisplay

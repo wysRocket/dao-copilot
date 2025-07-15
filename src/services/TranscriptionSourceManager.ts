@@ -1,6 +1,6 @@
 /**
  * TranscriptionSourceManager - Manages transcription sources and routing priority
- * 
+ *
  * This service resolves conflicts between different transcription sources by implementing
  * a priority system where WebSocket transcriptions take precedence over batch transcriptions.
  * It also handles routing to appropriate renderers (streaming vs static).
@@ -21,16 +21,16 @@ export interface TranscriptionWithSource {
 export enum TranscriptionSource {
   // WebSocket sources (highest priority)
   WEBSOCKET_GEMINI = 'websocket-gemini',
-  WEBSOCKET = 'websocket', 
+  WEBSOCKET = 'websocket',
   WEBSOCKET_PROXY = 'websocket-proxy',
   WEBSOCKET_PARTIAL = 'websocket-partial',
   WEBSOCKET_TEXT = 'websocket-text',
   WEBSOCKET_TURN_COMPLETE = 'websocket-turn-complete',
-  
+
   // Streaming sources (medium priority)
   STREAMING = 'streaming',
   REAL_TIME = 'real-time',
-  
+
   // Batch sources (lowest priority)
   BATCH = 'batch',
   BATCH_PROXY = 'batch-proxy',
@@ -38,9 +38,9 @@ export enum TranscriptionSource {
 }
 
 export enum SourcePriority {
-  WEBSOCKET = 1,    // Highest priority - real-time WebSocket transcriptions
-  STREAMING = 2,    // Medium priority - streaming transcriptions
-  BATCH = 3         // Lowest priority - batch/file transcriptions
+  WEBSOCKET = 1, // Highest priority - real-time WebSocket transcriptions
+  STREAMING = 2, // Medium priority - streaming transcriptions
+  BATCH = 3 // Lowest priority - batch/file transcriptions
 }
 
 export interface RoutingDecision {
@@ -83,22 +83,21 @@ export class TranscriptionSourceManager {
    */
   getSourcePriority(source: TranscriptionSource): SourcePriority {
     // WebSocket sources get highest priority
-    if ([
-      TranscriptionSource.WEBSOCKET_GEMINI,
-      TranscriptionSource.WEBSOCKET,
-      TranscriptionSource.WEBSOCKET_PROXY,
-      TranscriptionSource.WEBSOCKET_PARTIAL,
-      TranscriptionSource.WEBSOCKET_TEXT,
-      TranscriptionSource.WEBSOCKET_TURN_COMPLETE
-    ].includes(source)) {
+    if (
+      [
+        TranscriptionSource.WEBSOCKET_GEMINI,
+        TranscriptionSource.WEBSOCKET,
+        TranscriptionSource.WEBSOCKET_PROXY,
+        TranscriptionSource.WEBSOCKET_PARTIAL,
+        TranscriptionSource.WEBSOCKET_TEXT,
+        TranscriptionSource.WEBSOCKET_TURN_COMPLETE
+      ].includes(source)
+    ) {
       return SourcePriority.WEBSOCKET
     }
 
     // Streaming sources get medium priority
-    if ([
-      TranscriptionSource.STREAMING,
-      TranscriptionSource.REAL_TIME
-    ].includes(source)) {
+    if ([TranscriptionSource.STREAMING, TranscriptionSource.REAL_TIME].includes(source)) {
       return SourcePriority.STREAMING
     }
 
@@ -122,7 +121,7 @@ export class TranscriptionSourceManager {
   routeTranscription(transcription: TranscriptionWithSource): RoutingDecision {
     const sourcePriority = this.getSourcePriority(transcription.source)
     const currentTime = Date.now()
-    
+
     // Check for debouncing
     if (currentTime - this.lastTranscriptionTime < this.config.debounceMs) {
       return {
@@ -158,7 +157,10 @@ export class TranscriptionSourceManager {
 
     // Streaming sources get priority if no WebSocket is active
     if (sourcePriority === SourcePriority.STREAMING) {
-      if (this.currentStreamingSource && this.getSourcePriority(this.currentStreamingSource) === SourcePriority.WEBSOCKET) {
+      if (
+        this.currentStreamingSource &&
+        this.getSourcePriority(this.currentStreamingSource) === SourcePriority.WEBSOCKET
+      ) {
         return {
           shouldRoute: false,
           routeToStreaming: false,
@@ -235,7 +237,7 @@ export class TranscriptionSourceManager {
       if (routing.routeToStreaming) {
         streamingTranscription = transcription
       }
-      
+
       if (routing.routeToStatic) {
         staticTranscription = transcription
         this.staticTranscripts.push(transcription)
@@ -268,7 +270,7 @@ export class TranscriptionSourceManager {
 
     // Move to static transcripts
     this.staticTranscripts.push(activeTranscription)
-    
+
     // Clear active stream
     this.clearActiveStream(source)
 
@@ -326,14 +328,14 @@ export class TranscriptionSourceManager {
    * Update configuration
    */
   updateConfig(newConfig: Partial<SourceManagerConfig>): void {
-    this.config = { ...this.config, ...newConfig }
+    this.config = {...this.config, ...newConfig}
   }
 
   /**
    * Get current configuration
    */
   getConfig(): SourceManagerConfig {
-    return { ...this.config }
+    return {...this.config}
   }
 
   /**
@@ -348,7 +350,7 @@ export class TranscriptionSourceManager {
 
     // Handle common aliases and variations
     const normalizedSource = source.toLowerCase().replace(/[-_]/g, '')
-    
+
     if (normalizedSource.includes('websocket') && normalizedSource.includes('gemini')) {
       return TranscriptionSource.WEBSOCKET_GEMINI
     }
@@ -380,11 +382,11 @@ export class TranscriptionSourceManager {
    * Create a TranscriptionWithSource from legacy transcript format
    */
   static fromLegacyTranscript(
-    transcript: { text: string; confidence?: number; id?: string; timestamp?: number },
+    transcript: {text: string; confidence?: number; id?: string; timestamp?: number},
     source: string | TranscriptionSource = TranscriptionSource.BATCH
   ): TranscriptionWithSource {
     const parsedSource = typeof source === 'string' ? this.parseSource(source) : source
-    
+
     return {
       id: transcript.id || `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: transcript.text,

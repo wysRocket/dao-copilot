@@ -1,27 +1,34 @@
 /* StreamingTextRenderer Component Styles */
 
 @keyframes blink {
-  0%, 50% { 
-    opacity: 1; 
+  0%,
+  50% {
+    opacity: 1;
   }
-  51%, 100% { 
-    opacity: 0; 
+  51%,
+  100% {
+    opacity: 0;
   }
 }
 
 @keyframes flash-highlight {
-  0% { 
+  0% {
     background-color: rgba(255, 215, 0, 0.3);
     box-shadow: 0 0 8px rgba(255, 215, 0, 0.2);
   }
-  100% { 
+  100% {
     background-color: transparent;
     box-shadow: none;
   }
 }
 
 .streaming-text-renderer {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   line-height: 1.5;
 }
 
@@ -66,7 +73,7 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  
+
   .streaming-text-correction {
     animation: none !important;
     background-color: rgba(255, 215, 0, 0.3);
@@ -79,7 +86,7 @@
     color: CanvasText;
     background-color: Canvas;
   }
-  
+
   .streaming-cursor {
     color: Highlight;
   }

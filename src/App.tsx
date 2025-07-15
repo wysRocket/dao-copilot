@@ -10,7 +10,10 @@ import {MultiWindowProvider} from './contexts/MultiWindowContext'
 import {WindowStateProvider} from './contexts/WindowStateProvider'
 import {ThemeProvider} from './contexts/ThemeProvider'
 import {GlassEffectsProvider} from './contexts/GlassEffectsProvider'
-import {initializeTranscriptionEventMiddleware, destroyTranscriptionEventMiddleware} from './middleware/TranscriptionEventMiddleware'
+import {
+  initializeTranscriptionEventMiddleware,
+  destroyTranscriptionEventMiddleware
+} from './middleware/TranscriptionEventMiddleware'
 
 export default function App() {
   const [isMultiWindow, setIsMultiWindow] = useState(false)
@@ -21,7 +24,7 @@ export default function App() {
     // Initialize transcription event middleware
     console.log('🚀 App: Initializing TranscriptionEventMiddleware')
     initializeTranscriptionEventMiddleware()
-    
+
     // Check if this is a child window by looking for window type in URL
     const urlParams = new URLSearchParams(window.location.search)
     const windowType = urlParams.get('windowType')
@@ -30,7 +33,7 @@ export default function App() {
     if (windowType && windowType !== 'main') {
       setIsMultiWindow(true)
     }
-    
+
     // Cleanup middleware on unmount
     return () => {
       console.log('🚀 App: Cleaning up TranscriptionEventMiddleware')

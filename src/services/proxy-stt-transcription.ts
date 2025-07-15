@@ -91,14 +91,17 @@ let webSocketClientInstance: GeminiLiveWebSocketClient | null = null
 function getWebSocketClient(options: ProxyTranscriptionOptions): GeminiLiveWebSocketClient {
   if (!webSocketClientInstance || webSocketClientInstance.getConnectionState() === 'disconnected') {
     const config: GeminiLiveConfig = {
-      apiKey: options.apiKey || 
+      apiKey:
+        options.apiKey ||
         process.env.GOOGLE_API_KEY ||
         process.env.VITE_GOOGLE_API_KEY ||
         process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-        process.env.GEMINI_API_KEY || '',
+        process.env.GEMINI_API_KEY ||
+        '',
       model: 'gemini-live-2.5-flash-preview', // Use v1beta model
       responseModalities: [ResponseModality.TEXT], // Primary mode for transcription
-      systemInstruction: 'You are a speech-to-text transcription service. Provide accurate transcriptions of audio input.',
+      systemInstruction:
+        'You are a speech-to-text transcription service. Provide accurate transcriptions of audio input.',
       reconnectAttempts: 3,
       heartbeatInterval: 30000,
       connectionTimeout: 10000,
@@ -110,17 +113,17 @@ function getWebSocketClient(options: ProxyTranscriptionOptions): GeminiLiveWebSo
     }
 
     webSocketClientInstance = new GeminiLiveWebSocketClient(config)
-    
+
     // Set up event handlers for logging
     webSocketClientInstance.on('connected', () => {
       logger.info('WebSocket proxy client connected')
     })
-    
+
     webSocketClientInstance.on('disconnected', () => {
       logger.info('WebSocket proxy client disconnected')
     })
-    
-    webSocketClientInstance.on('error', (error) => {
+
+    webSocketClientInstance.on('error', error => {
       logger.error('WebSocket proxy client error:', error)
     })
   }
@@ -145,12 +148,12 @@ async function transcribeAudioViaWebSocketProxy(
 
   try {
     const wsClient = getWebSocketClient(options)
-    
+
     // Connect if not already connected and wait for setup completion
     if (wsClient.getConnectionState() !== 'connected') {
       await wsClient.connect()
     }
-    
+
     // CRITICAL: Wait for setup completion before sending audio
     // This ensures the Gemini Live API is ready to receive audio data
     if (!wsClient.isSetupCompleted()) {
@@ -159,7 +162,7 @@ async function transcribeAudioViaWebSocketProxy(
         const timeout = setTimeout(() => {
           reject(new Error('Timeout waiting for WebSocket setup completion'))
         }, 15000)
-        
+
         const onSetupComplete = () => {
           clearTimeout(timeout)
           wsClient.off('setupComplete', onSetupComplete)
@@ -167,21 +170,21 @@ async function transcribeAudioViaWebSocketProxy(
           logger.debug('WebSocket setup completed - ready to send audio')
           resolve()
         }
-        
+
         const onSetupError = (error: unknown) => {
           clearTimeout(timeout)
-          wsClient.off('setupComplete', onSetupComplete) 
+          wsClient.off('setupComplete', onSetupComplete)
           wsClient.off('error', onSetupError)
           reject(error)
         }
-        
+
         // Check if already complete before adding listeners
         if (wsClient.isSetupCompleted()) {
           clearTimeout(timeout)
           resolve()
           return
         }
-        
+
         wsClient.on('setupComplete', onSetupComplete)
         wsClient.on('error', onSetupError)
       })
@@ -189,7 +192,7 @@ async function transcribeAudioViaWebSocketProxy(
 
     // Convert audio buffer to base64 for WebSocket transmission
     const audioBase64 = audioData.toString('base64')
-    
+
     // Create realtime input for audio
     const realtimeInput = {
       audio: {
@@ -205,25 +208,28 @@ async function transcribeAudioViaWebSocketProxy(
       }, 30000) // 30 second timeout
 
       let responseText = ''
-      
+
       // Listen for text responses
-      const handleTextResponse = (response: {content: string; metadata?: {isPartial?: boolean; turnComplete?: boolean; confidence?: number}}) => {
+      const handleTextResponse = (response: {
+        content: string
+        metadata?: {isPartial?: boolean; turnComplete?: boolean; confidence?: number}
+      }) => {
         responseText += response.content
-        
+
         // Check if this is a complete response
         if (response.metadata?.isPartial === false || response.metadata?.turnComplete) {
           clearTimeout(timeoutId)
           wsClient.off('textResponse', handleTextResponse)
           wsClient.off('error', handleError)
-          
+
           const endTime = Date.now()
           const duration = endTime - startTime
-          
+
           logger.debug('WebSocket proxy transcription completed', {
             duration,
             textLength: responseText.length
           })
-          
+
           resolve({
             text: responseText.trim(),
             duration,
@@ -232,25 +238,26 @@ async function transcribeAudioViaWebSocketProxy(
           })
         }
       }
-      
+
       const handleError = (error: Error | unknown) => {
         clearTimeout(timeoutId)
         wsClient.off('textResponse', handleTextResponse)
         wsClient.off('error', handleError)
         reject(error)
       }
-      
+
       // Set up event listeners
       wsClient.on('textResponse', handleTextResponse)
       wsClient.on('error', handleError)
-      
-      // Send the audio data
-      wsClient.sendRealtimeInput(realtimeInput, {
-        priority: QueuePriority.HIGH,
-        timeout: 25000
-      }).catch(handleError)
-    })
 
+      // Send the audio data
+      wsClient
+        .sendRealtimeInput(realtimeInput, {
+          priority: QueuePriority.HIGH,
+          timeout: 25000
+        })
+        .catch(handleError)
+    })
   } catch (error) {
     const endTime = Date.now()
     const duration = endTime - startTime
@@ -667,7 +674,10 @@ export async function transcribeAudioViaProxyWithCompatibility(
   options: ProxyTranscriptionOptions = {}
 ): Promise<ProxyTranscriptionResult> {
   // Migrate legacy configuration options if needed (cast to compatible type)
-  const migrationResult = migrateLegacyConfig(options as Parameters<typeof migrateLegacyConfig>[0], true)
+  const migrationResult = migrateLegacyConfig(
+    options as Parameters<typeof migrateLegacyConfig>[0],
+    true
+  )
 
   if (migrationResult.isLegacy) {
     logger.warn('Legacy proxy configuration detected. Consider migrating to the new format.')
@@ -695,9 +705,9 @@ export async function transcribeAudioViaProxyWithCompatibility(
 export async function transcribeAudioViaProxyV1Beta(
   audioData: Buffer,
   legacyOptions: ProxyTranscriptionOptions = {}
-): Promise<ProxyTranscriptionResult & { migrationInfo?: { steps: string[], benefits: string[] } }> {
+): Promise<ProxyTranscriptionResult & {migrationInfo?: {steps: string[]; benefits: string[]}}> {
   const migration = migrateToV1Beta(legacyOptions as Parameters<typeof migrateToV1Beta>[0])
-  
+
   logger.info('Migrating to v1beta proxy transcription', {
     steps: migration.migrationSteps.length,
     benefits: migration.benefits.length
@@ -748,7 +758,7 @@ class ProxyCleanupManager {
     this.cleanupInProgress = true
     logger.info(`Starting cleanup of ${this.activeConnections.size} active WebSocket connections`)
 
-    const cleanupPromises = Array.from(this.activeConnections).map(async (client) => {
+    const cleanupPromises = Array.from(this.activeConnections).map(async client => {
       try {
         await client.disconnect()
         logger.debug('Successfully cleaned up WebSocket connection')
@@ -778,7 +788,7 @@ export async function transcribeAudioViaWebSocketProxyWithPooling(
   options: ProxyTranscriptionOptions = {}
 ): Promise<ProxyTranscriptionResult> {
   const startTime = Date.now()
-  
+
   const apiKey =
     options.apiKey ||
     process.env.GOOGLE_API_KEY ||
@@ -803,7 +813,8 @@ export async function transcribeAudioViaWebSocketProxyWithPooling(
     apiKey,
     model: modelName,
     responseModalities: [ResponseModality.TEXT],
-    systemInstruction: 'You are a professional transcription assistant. Provide accurate, clean transcription of audio content.',
+    systemInstruction:
+      'You are a professional transcription assistant. Provide accurate, clean transcription of audio content.',
     reconnectAttempts: 3,
     heartbeatInterval: 30000,
     connectionTimeout: 10000
@@ -815,21 +826,21 @@ export async function transcribeAudioViaWebSocketProxyWithPooling(
   try {
     // Connect to Gemini Live API via v1beta endpoint
     await wsClient.connect()
-    
+
     logger.info('WebSocket connection established for proxy transcription', {
       model: modelName,
       endpoint: 'v1beta'
     })
 
     // CRITICAL: Wait for setup completion before sending audio
-    // This ensures the Gemini Live API is ready to receive audio data  
+    // This ensures the Gemini Live API is ready to receive audio data
     if (!wsClient.isSetupCompleted()) {
       logger.debug('Waiting for WebSocket setup completion before sending audio')
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Timeout waiting for WebSocket setup completion'))
         }, 15000)
-        
+
         const onSetupComplete = () => {
           clearTimeout(timeout)
           wsClient.off('setupComplete', onSetupComplete)
@@ -837,21 +848,21 @@ export async function transcribeAudioViaWebSocketProxyWithPooling(
           logger.debug('WebSocket setup completed - ready to send audio')
           resolve()
         }
-        
+
         const onSetupError = (error: unknown) => {
           clearTimeout(timeout)
-          wsClient.off('setupComplete', onSetupComplete) 
+          wsClient.off('setupComplete', onSetupComplete)
           wsClient.off('error', onSetupError)
           reject(error)
         }
-        
+
         // Check if already complete before adding listeners
         if (wsClient.isSetupCompleted()) {
           clearTimeout(timeout)
           resolve()
           return
         }
-        
+
         wsClient.on('setupComplete', onSetupComplete)
         wsClient.on('error', onSetupError)
       })
@@ -878,7 +889,7 @@ export async function transcribeAudioViaWebSocketProxyWithPooling(
       const messageHandler = (message: {
         serverContent?: {
           modelTurn?: {
-            parts?: { text?: string }[]
+            parts?: {text?: string}[]
           }
           turnComplete?: boolean
         }
@@ -919,9 +930,8 @@ export async function transcribeAudioViaWebSocketProxyWithPooling(
       text: result,
       duration,
       source: 'websocket-proxy-pooled',
-      rawResponse: { transcription: result, model: modelName }
+      rawResponse: {transcription: result, model: modelName}
     }
-
   } catch (error) {
     const endTime = Date.now()
     const duration = endTime - startTime
@@ -946,4 +956,4 @@ export async function transcribeAudioViaWebSocketProxyWithPooling(
 }
 
 // Export the cleanup manager and utilities for external use
-export { ProxyCleanupManager }
+export {ProxyCleanupManager}

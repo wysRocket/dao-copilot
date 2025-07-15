@@ -104,12 +104,12 @@
 }
 
 /* Enhanced focus management */
-.accessible-streaming-text[tabindex="0"] {
+.accessible-streaming-text[tabindex='0'] {
   /* Ensure keyboard focusability */
   position: relative;
 }
 
-.accessible-streaming-text[tabindex="0"]:focus-visible {
+.accessible-streaming-text[tabindex='0']:focus-visible {
   /* Modern focus-visible support */
   outline: 2px solid var(--focus-color, #007acc);
   outline-offset: 2px;
@@ -276,13 +276,13 @@
 }
 
 /* Status indicators for screen readers */
-.accessible-streaming-text[aria-live="polite"] {
+.accessible-streaming-text[aria-live='polite'] {
   /* Visual indicator that content is live */
   position: relative;
 }
 
-.accessible-streaming-text[aria-live="polite"]:before {
-  content: "";
+.accessible-streaming-text[aria-live='polite']:before {
+  content: '';
   position: absolute;
   top: -2px;
   left: -2px;
@@ -306,7 +306,7 @@
 }
 
 /* Ensure compatibility with voice control software */
-.accessible-streaming-text[role="log"] {
+.accessible-streaming-text[role='log'] {
   /* Ensure proper semantic role */
   display: block;
 }
@@ -319,11 +319,11 @@
 }
 
 @keyframes flash-highlight {
-  0% { 
+  0% {
     background-color: var(--highlight-static);
     box-shadow: 0 0 4px var(--highlight-static);
   }
-  100% { 
+  100% {
     background-color: transparent;
     box-shadow: none;
   }

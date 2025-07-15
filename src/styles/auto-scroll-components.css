@@ -14,7 +14,7 @@
   --auto-scroll-success: #10b981;
   --auto-scroll-warning: #f59e0b;
   --auto-scroll-notification: #ef4444;
-  
+
   --auto-scroll-border-radius: 8px;
   --auto-scroll-button-size: 40px;
   --auto-scroll-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -303,7 +303,8 @@
 }
 
 @keyframes scroll-button-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -326,7 +327,8 @@
 }
 
 @keyframes notification-dot-pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 1;
   }

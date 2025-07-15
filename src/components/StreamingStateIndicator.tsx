@@ -1,46 +1,46 @@
-import React from 'react';
-import '../styles/streaming-state-indicator.css';
+import React from 'react'
+import '../styles/streaming-state-indicator.css'
 
 /**
  * Streaming state types for visual feedback
  */
-export type StreamingState = 
-  | 'listening'     // Ready for input, waiting for audio
-  | 'processing'    // Processing audio or preparing to send
-  | 'receiving'     // Actively receiving transcription data
-  | 'complete'      // Transcription completed
-  | 'error'         // Error state requiring user attention
-  | 'disconnected'  // WebSocket connection lost
-  | 'connecting';   // Attempting to establish connection
+export type StreamingState =
+  | 'listening' // Ready for input, waiting for audio
+  | 'processing' // Processing audio or preparing to send
+  | 'receiving' // Actively receiving transcription data
+  | 'complete' // Transcription completed
+  | 'error' // Error state requiring user attention
+  | 'disconnected' // WebSocket connection lost
+  | 'connecting' // Attempting to establish connection
 
 /**
  * Connection quality indicator for network status
  */
-export type ConnectionQuality = 'good' | 'poor' | 'unstable';
+export type ConnectionQuality = 'good' | 'poor' | 'unstable'
 
 /**
  * Props for the StreamingStateIndicator component
  */
 export interface StreamingStateIndicatorProps {
   /** Current streaming state */
-  state: StreamingState;
+  state: StreamingState
   /** Connection quality when applicable */
-  connectionQuality?: ConnectionQuality;
+  connectionQuality?: ConnectionQuality
   /** Custom message to display */
-  message?: string;
+  message?: string
   /** Whether to show detailed status information */
-  showDetails?: boolean;
+  showDetails?: boolean
   /** Callback when indicator is clicked (for user interaction) */
-  onClick?: () => void;
+  onClick?: () => void
   /** Custom CSS class for styling */
-  className?: string;
+  className?: string
   /** Size variant for different use cases */
-  size?: 'small' | 'medium' | 'large';
+  size?: 'small' | 'medium' | 'large'
 }
 
 /**
  * StreamingStateIndicator Component
- * 
+ *
  * Provides comprehensive visual feedback for streaming text states with smooth
  * animations and accessibility support.
  */
@@ -107,10 +107,10 @@ export const StreamingStateIndicator: React.FC<StreamingStateIndicatorProps> = (
         animation: 'rotate',
         description: 'Establishing connection'
       }
-    };
-    
-    return configs[state];
-  };
+    }
+
+    return configs[state]
+  }
 
   /**
    * Get connection quality indicator styles
@@ -132,55 +132,54 @@ export const StreamingStateIndicator: React.FC<StreamingStateIndicatorProps> = (
         bars: 2,
         description: 'Unstable connection'
       }
-    };
-    
-    return indicators[quality];
-  };
+    }
 
-  const config = getStateConfig(state);
-  const qualityConfig = getQualityIndicator(connectionQuality);
-  const displayMessage = message || config.message;
+    return indicators[quality]
+  }
+
+  const config = getStateConfig(state)
+  const qualityConfig = getQualityIndicator(connectionQuality)
+  const displayMessage = message || config.message
 
   /**
    * Render connection quality bars
    */
   const renderQualityBars = () => {
     if (!['receiving', 'listening', 'processing'].includes(state)) {
-      return null;
+      return null
     }
 
     return (
       <div className="connection-quality" aria-label={qualityConfig.description}>
-        {[1, 2, 3].map((bar) => (
+        {[1, 2, 3].map(bar => (
           <div
             key={bar}
             className={`quality-bar ${bar <= qualityConfig.bars ? 'active' : 'inactive'}`}
             style={{
-              backgroundColor: bar <= qualityConfig.bars ? qualityConfig.color : 'rgba(107, 114, 128, 0.3)'
+              backgroundColor:
+                bar <= qualityConfig.bars ? qualityConfig.color : 'rgba(107, 114, 128, 0.3)'
             }}
           />
         ))}
       </div>
-    );
-  };
+    )
+  }
 
   /**
    * Render detailed status information
    */
   const renderDetails = () => {
-    if (!showDetails) return null;
+    if (!showDetails) return null
 
     return (
       <div className="state-details">
         <div className="state-description">{config.description}</div>
         {connectionQuality && (
-          <div className="connection-status">
-            Connection: {qualityConfig.description}
-          </div>
+          <div className="connection-status">Connection: {qualityConfig.description}</div>
         )}
       </div>
-    );
-  };
+    )
+  }
 
   return (
     <div
@@ -196,16 +195,14 @@ export const StreamingStateIndicator: React.FC<StreamingStateIndicatorProps> = (
         {/* Animated icon */}
         <div
           className={`state-icon ${config.animation}`}
-          style={{ color: config.color }}
+          style={{color: config.color}}
           aria-hidden="true"
         >
           {config.icon}
         </div>
 
         {/* Status message */}
-        <div className="state-message">
-          {displayMessage}
-        </div>
+        <div className="state-message">{displayMessage}</div>
 
         {/* Connection quality indicator */}
         {renderQualityBars()}
@@ -224,28 +221,20 @@ export const StreamingStateIndicator: React.FC<StreamingStateIndicatorProps> = (
       />
 
       {/* Screen reader only live region for state changes */}
-      <div
-        className="sr-only"
-        aria-live="polite"
-        aria-atomic="true"
-        id={`${state}-details`}
-      >
+      <div className="sr-only" aria-live="polite" aria-atomic="true" id={`${state}-details`}>
         {config.description}
         {connectionQuality && ` - ${qualityConfig.description}`}
       </div>
     </div>
-  );
-};
+  )
+}
 
 /**
  * Compact version for minimal UI space
  */
-export const StreamingStateIndicatorCompact: React.FC<Omit<StreamingStateIndicatorProps, 'showDetails' | 'size'>> = ({
-  state,
-  connectionQuality,
-  className = '',
-  ...props
-}) => {
+export const StreamingStateIndicatorCompact: React.FC<
+  Omit<StreamingStateIndicatorProps, 'showDetails' | 'size'>
+> = ({state, connectionQuality, className = '', ...props}) => {
   return (
     <StreamingStateIndicator
       {...props}
@@ -255,47 +244,45 @@ export const StreamingStateIndicatorCompact: React.FC<Omit<StreamingStateIndicat
       showDetails={false}
       size="small"
     />
-  );
-};
+  )
+}
 
 /**
  * Hook for managing streaming state with automatic transitions
  */
 export const useStreamingStateManager = () => {
-  const [state, setState] = React.useState<StreamingState>('disconnected');
-  const [connectionQuality, setConnectionQuality] = React.useState<ConnectionQuality>('good');
-  const [message, setMessage] = React.useState<string>();
+  const [state, setState] = React.useState<StreamingState>('disconnected')
+  const [connectionQuality, setConnectionQuality] = React.useState<ConnectionQuality>('good')
+  const [message, setMessage] = React.useState<string>()
 
   /**
    * Update streaming state with optional custom message
    */
-  const updateState = React.useCallback((
-    newState: StreamingState, 
-    customMessage?: string,
-    quality?: ConnectionQuality
-  ) => {
-    setState(newState);
-    if (customMessage) setMessage(customMessage);
-    if (quality) setConnectionQuality(quality);
-  }, []);
+  const updateState = React.useCallback(
+    (newState: StreamingState, customMessage?: string, quality?: ConnectionQuality) => {
+      setState(newState)
+      if (customMessage) setMessage(customMessage)
+      if (quality) setConnectionQuality(quality)
+    },
+    []
+  )
 
   /**
    * Auto-transition to error state after timeout
    */
-  const setStateWithTimeout = React.useCallback((
-    newState: StreamingState,
-    timeoutMs: number = 30000,
-    errorMessage?: string
-  ) => {
-    setState(newState);
-    
-    const timeout = setTimeout(() => {
-      setState('error');
-      if (errorMessage) setMessage(errorMessage);
-    }, timeoutMs);
+  const setStateWithTimeout = React.useCallback(
+    (newState: StreamingState, timeoutMs: number = 30000, errorMessage?: string) => {
+      setState(newState)
 
-    return () => clearTimeout(timeout);
-  }, []);
+      const timeout = setTimeout(() => {
+        setState('error')
+        if (errorMessage) setMessage(errorMessage)
+      }, timeoutMs)
+
+      return () => clearTimeout(timeout)
+    },
+    []
+  )
 
   return {
     state,
@@ -305,7 +292,7 @@ export const useStreamingStateManager = () => {
     setStateWithTimeout,
     isConnected: state !== 'disconnected' && state !== 'connecting' && state !== 'error',
     isActive: ['listening', 'processing', 'receiving'].includes(state)
-  };
-};
+  }
+}
 
-export default StreamingStateIndicator;
+export default StreamingStateIndicator

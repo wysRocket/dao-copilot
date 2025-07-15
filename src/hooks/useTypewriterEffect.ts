@@ -1,31 +1,31 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import {useState, useEffect, useCallback, useRef} from 'react'
 
 /**
  * Configuration for typewriter animation effects
  */
 export interface TypewriterConfig {
   /** Speed in characters per second */
-  speed?: number;
+  speed?: number
   /** Delay before starting animation in milliseconds */
-  startDelay?: number;
+  startDelay?: number
   /** Whether to show cursor during typing */
-  showCursor?: boolean;
+  showCursor?: boolean
   /** Cursor character */
-  cursorChar?: string;
+  cursorChar?: string
   /** Whether to pause at punctuation */
-  pauseAtPunctuation?: boolean;
+  pauseAtPunctuation?: boolean
   /** Pause duration at punctuation in milliseconds */
-  punctuationPause?: number;
+  punctuationPause?: number
   /** Whether to vary typing speed randomly */
-  variableSpeed?: boolean;
+  variableSpeed?: boolean
   /** Speed variation range (0-1) */
-  speedVariation?: number;
+  speedVariation?: number
   /** Sound effects for typing */
-  enableSounds?: boolean;
+  enableSounds?: boolean
   /** Callback when typing completes */
-  onComplete?: () => void;
+  onComplete?: () => void
   /** Callback for each character typed */
-  onCharacterTyped?: (char: string, index: number) => void;
+  onCharacterTyped?: (char: string, index: number) => void
 }
 
 /**
@@ -33,15 +33,15 @@ export interface TypewriterConfig {
  */
 export interface TypewriterState {
   /** Currently displayed text */
-  displayedText: string;
+  displayedText: string
   /** Whether animation is active */
-  isTyping: boolean;
+  isTyping: boolean
   /** Current character index being typed */
-  currentIndex: number;
+  currentIndex: number
   /** Whether cursor is visible */
-  showCursor: boolean;
+  showCursor: boolean
   /** Progress percentage (0-100) */
-  progress: number;
+  progress: number
 }
 
 /**
@@ -58,12 +58,12 @@ const defaultConfig: Required<TypewriterConfig> = {
   speedVariation: 0.3,
   enableSounds: false,
   onComplete: () => {},
-  onCharacterTyped: () => {},
-};
+  onCharacterTyped: () => {}
+}
 
 /**
  * Custom hook for advanced typewriter animation effects
- * 
+ *
  * Provides smooth, configurable typewriter animations with realistic typing patterns,
  * cursor effects, and sound support.
  */
@@ -71,202 +71,207 @@ export const useTypewriterEffect = (
   text: string,
   config: TypewriterConfig = {}
 ): TypewriterState => {
-  const mergedConfig = { ...defaultConfig, ...config };
-  
+  const mergedConfig = {...defaultConfig, ...config}
+
   // State management
-  const [displayedText, setDisplayedText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [showCursor, setShowCursor] = useState(mergedConfig.showCursor);
-  
+  const [displayedText, setDisplayedText] = useState('')
+  const [isTyping, setIsTyping] = useState(false)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [showCursor, setShowCursor] = useState(mergedConfig.showCursor)
+
   // Refs for managing timers and audio
-  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const cursorTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const cursorTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+
   /**
    * Generate realistic typing intervals with variation
    */
-  const getTypingInterval = useCallback((char: string): number => {
-    const baseInterval = 1000 / mergedConfig.speed;
-    let interval = baseInterval;
-    
-    // Add punctuation pauses
-    if (mergedConfig.pauseAtPunctuation && /[.!?,:;]/.test(char)) {
-      interval += mergedConfig.punctuationPause;
-    }
-    
-    // Add speed variation for realism
-    if (mergedConfig.variableSpeed) {
-      const variation = (Math.random() - 0.5) * 2 * mergedConfig.speedVariation;
-      interval *= (1 + variation);
-    }
-    
-    // Slower for complex characters
-    if (/[A-Z]/.test(char)) {
-      interval *= 1.2; // Slightly slower for capitals
-    }
-    
-    return Math.max(interval, 20); // Minimum 20ms interval
-  }, [mergedConfig]);
-  
+  const getTypingInterval = useCallback(
+    (char: string): number => {
+      const baseInterval = 1000 / mergedConfig.speed
+      let interval = baseInterval
+
+      // Add punctuation pauses
+      if (mergedConfig.pauseAtPunctuation && /[.!?,:;]/.test(char)) {
+        interval += mergedConfig.punctuationPause
+      }
+
+      // Add speed variation for realism
+      if (mergedConfig.variableSpeed) {
+        const variation = (Math.random() - 0.5) * 2 * mergedConfig.speedVariation
+        interval *= 1 + variation
+      }
+
+      // Slower for complex characters
+      if (/[A-Z]/.test(char)) {
+        interval *= 1.2 // Slightly slower for capitals
+      }
+
+      return Math.max(interval, 20) // Minimum 20ms interval
+    },
+    [mergedConfig]
+  )
+
   /**
    * Play typing sound effect
    */
-  const playTypingSound = useCallback((char: string) => {
-    if (!mergedConfig.enableSounds) return;
-    
-    try {
-      if (!audioContextRef.current) {
-        const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        audioContextRef.current = new AudioContextClass();
+  const playTypingSound = useCallback(
+    (char: string) => {
+      if (!mergedConfig.enableSounds) return
+
+      try {
+        if (!audioContextRef.current) {
+          const AudioContextClass =
+            window.AudioContext ||
+            (window as unknown as {webkitAudioContext: typeof AudioContext}).webkitAudioContext
+          audioContextRef.current = new AudioContextClass()
+        }
+
+        const audioContext = audioContextRef.current
+        const oscillator = audioContext.createOscillator()
+        const gainNode = audioContext.createGain()
+
+        // Different frequencies for different character types
+        let frequency = 800 // Default
+        if (/[aeiouAEIOU]/.test(char)) {
+          frequency = 600 // Lower for vowels
+        } else if (/[.!?]/.test(char)) {
+          frequency = 400 // Even lower for punctuation
+        } else if (/[A-Z]/.test(char)) {
+          frequency = 1000 // Higher for capitals
+        }
+
+        oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime)
+        oscillator.type = 'square'
+
+        gainNode.gain.setValueAtTime(0.05, audioContext.currentTime)
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1)
+
+        oscillator.connect(gainNode)
+        gainNode.connect(audioContext.destination)
+
+        oscillator.start(audioContext.currentTime)
+        oscillator.stop(audioContext.currentTime + 0.1)
+      } catch (error) {
+        console.warn('Failed to play typing sound:', error)
       }
-      
-      const audioContext = audioContextRef.current;
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      // Different frequencies for different character types
-      let frequency = 800; // Default
-      if (/[aeiouAEIOU]/.test(char)) {
-        frequency = 600; // Lower for vowels
-      } else if (/[.!?]/.test(char)) {
-        frequency = 400; // Even lower for punctuation
-      } else if (/[A-Z]/.test(char)) {
-        frequency = 1000; // Higher for capitals
-      }
-      
-      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-      oscillator.type = 'square';
-      
-      gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.1);
-      
-    } catch (error) {
-      console.warn('Failed to play typing sound:', error);
-    }
-  }, [mergedConfig.enableSounds]);
-  
+    },
+    [mergedConfig.enableSounds]
+  )
+
   /**
    * Type the next character
    */
   const typeNextCharacter = useCallback(() => {
     if (currentIndex >= text.length) {
-      setIsTyping(false);
-      mergedConfig.onComplete();
-      return;
+      setIsTyping(false)
+      mergedConfig.onComplete()
+      return
     }
-    
-    const char = text[currentIndex];
-    const newDisplayedText = text.slice(0, currentIndex + 1);
-    
-    setDisplayedText(newDisplayedText);
-    setCurrentIndex(prev => prev + 1);
-    
+
+    const char = text[currentIndex]
+    const newDisplayedText = text.slice(0, currentIndex + 1)
+
+    setDisplayedText(newDisplayedText)
+    setCurrentIndex(prev => prev + 1)
+
     // Play sound effect
-    playTypingSound(char);
-    
+    playTypingSound(char)
+
     // Call character typed callback
-    mergedConfig.onCharacterTyped(char, currentIndex);
-    
+    mergedConfig.onCharacterTyped(char, currentIndex)
+
     // Schedule next character
-    const interval = getTypingInterval(char);
-    typingTimerRef.current = setTimeout(typeNextCharacter, interval);
-    
-  }, [currentIndex, text, getTypingInterval, playTypingSound, mergedConfig]);
-  
+    const interval = getTypingInterval(char)
+    typingTimerRef.current = setTimeout(typeNextCharacter, interval)
+  }, [currentIndex, text, getTypingInterval, playTypingSound, mergedConfig])
+
   /**
    * Start the typing animation
    */
   const startTyping = useCallback(() => {
     if (text.length === 0) {
-      setDisplayedText('');
-      setIsTyping(false);
-      setCurrentIndex(0);
-      return;
+      setDisplayedText('')
+      setIsTyping(false)
+      setCurrentIndex(0)
+      return
     }
-    
-    setIsTyping(true);
-    setCurrentIndex(0);
-    setDisplayedText('');
-    
+
+    setIsTyping(true)
+    setCurrentIndex(0)
+    setDisplayedText('')
+
     // Start typing after delay
     typingTimerRef.current = setTimeout(() => {
-      typeNextCharacter();
-    }, mergedConfig.startDelay);
-    
-  }, [text, typeNextCharacter, mergedConfig.startDelay]);
-  
+      typeNextCharacter()
+    }, mergedConfig.startDelay)
+  }, [text, typeNextCharacter, mergedConfig.startDelay])
+
   /**
    * Manage cursor blinking
    */
   useEffect(() => {
     if (!mergedConfig.showCursor) {
-      setShowCursor(false);
-      return;
+      setShowCursor(false)
+      return
     }
-    
+
     // Blink cursor every 530ms (realistic cursor blink rate)
     cursorTimerRef.current = setInterval(() => {
-      setShowCursor(prev => !prev);
-    }, 530);
-    
+      setShowCursor(prev => !prev)
+    }, 530)
+
     return () => {
       if (cursorTimerRef.current) {
-        clearInterval(cursorTimerRef.current);
+        clearInterval(cursorTimerRef.current)
       }
-    };
-  }, [mergedConfig.showCursor]);
-  
+    }
+  }, [mergedConfig.showCursor])
+
   /**
    * Start typing when text changes
    */
   useEffect(() => {
     // Clear existing timers
     if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current);
+      clearTimeout(typingTimerRef.current)
     }
-    
-    startTyping();
-    
+
+    startTyping()
+
     return () => {
       if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
+        clearTimeout(typingTimerRef.current)
       }
-    };
-  }, [text, startTyping]);
-  
+    }
+  }, [text, startTyping])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
+        clearTimeout(typingTimerRef.current)
       }
       if (cursorTimerRef.current) {
-        clearInterval(cursorTimerRef.current);
+        clearInterval(cursorTimerRef.current)
       }
       if (audioContextRef.current) {
-        audioContextRef.current.close().catch(console.warn);
+        audioContextRef.current.close().catch(console.warn)
       }
-    };
-  }, []);
-  
+    }
+  }, [])
+
   // Calculate progress
-  const progress = text.length > 0 ? (currentIndex / text.length) * 100 : 0;
-  
+  const progress = text.length > 0 ? (currentIndex / text.length) * 100 : 0
+
   return {
     displayedText,
     isTyping,
     currentIndex,
     showCursor: mergedConfig.showCursor && showCursor,
-    progress,
-  };
-};
+    progress
+  }
+}
 
-export default useTypewriterEffect;
+export default useTypewriterEffect

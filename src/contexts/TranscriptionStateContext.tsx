@@ -1,5 +1,5 @@
-import React, { createContext, useContext, ReactNode } from 'react'
-import useTranscriptionState, { UseTranscriptionStateReturn } from '../hooks/useTranscriptionState'
+import React, {createContext, useContext, ReactNode} from 'react'
+import useTranscriptionState, {UseTranscriptionStateReturn} from '../hooks/useTranscriptionState'
 
 /**
  * Context for providing unified transcription state throughout the application
@@ -20,19 +20,19 @@ interface TranscriptionStateProviderProps {
 
 /**
  * Provider component that wraps the application and provides unified transcription state
- * 
+ *
  * This replaces the multiple overlapping contexts (MultiWindowContext, StreamingTextContext, etc.)
  * with a single, unified state management solution.
- * 
+ *
  * @param children - Child components
  * @param autoSubscribe - Whether to automatically subscribe to state changes (default: true)
  */
-export const TranscriptionStateProvider: React.FC<TranscriptionStateProviderProps> = ({ 
-  children, 
-  autoSubscribe = true 
+export const TranscriptionStateProvider: React.FC<TranscriptionStateProviderProps> = ({
+  children,
+  autoSubscribe = true
 }) => {
   const transcriptionState = useTranscriptionState(autoSubscribe)
-  
+
   return (
     <TranscriptionStateContext.Provider value={transcriptionState}>
       {children}
@@ -42,26 +42,26 @@ export const TranscriptionStateProvider: React.FC<TranscriptionStateProviderProp
 
 /**
  * Hook to access the unified transcription state from any component
- * 
+ *
  * This hook provides access to all transcription-related state and actions
  * throughout the application. It replaces the need for multiple context hooks.
- * 
+ *
  * @throws Error if used outside of TranscriptionStateProvider
  * @returns Unified transcription state and actions
  */
 export const useTranscriptionStateContext = (): UseTranscriptionStateReturn => {
   const context = useContext(TranscriptionStateContext)
-  
+
   if (!context) {
     throw new Error('useTranscriptionStateContext must be used within a TranscriptionStateProvider')
   }
-  
+
   return context
 }
 
 /**
  * Higher-order component that automatically provides transcription state context
- * 
+ *
  * @param Component - Component to wrap
  * @param autoSubscribe - Whether to automatically subscribe to state changes
  * @returns Wrapped component with transcription state context
@@ -75,9 +75,9 @@ export const withTranscriptionState = <P extends object>(
       <Component {...props} />
     </TranscriptionStateProvider>
   )
-  
+
   WrappedComponent.displayName = `withTranscriptionState(${Component.displayName || Component.name})`
-  
+
   return WrappedComponent
 }
 
@@ -102,7 +102,7 @@ export const useStreamingStateContext = () => {
     setStreamingMode,
     onStreamingComplete
   } = useTranscriptionStateContext()
-  
+
   return {
     currentStreamingText,
     isStreamingActive,
@@ -131,7 +131,7 @@ export const useStaticTranscriptsContext = () => {
     getMemoryUsage,
     performGarbageCollection
   } = useTranscriptionStateContext()
-  
+
   return {
     transcripts,
     isLoadingTranscripts,
@@ -155,7 +155,7 @@ export const useRecordingStateContext = () => {
     setRecordingState,
     setProcessingState
   } = useTranscriptionStateContext()
-  
+
   return {
     isRecording,
     isProcessing,

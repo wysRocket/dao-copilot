@@ -4,7 +4,12 @@
   max-width: 800px;
   margin: 0 auto;
   padding: 2rem;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
 }
 
 .streaming-demo-container h2 {
@@ -62,7 +67,7 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
-.mode-toggle input[type="radio"] {
+.mode-toggle input[type='radio'] {
   margin: 0;
   accent-color: var(--accent-color, #3b82f6);
 }
@@ -214,7 +219,7 @@
 
 /* Focus and Accessibility */
 .state-buttons button:focus,
-.mode-toggle input[type="radio"]:focus {
+.mode-toggle input[type='radio']:focus {
   outline: 2px solid var(--focus-color, #007acc);
   outline-offset: 2px;
 }
