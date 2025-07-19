@@ -7,7 +7,8 @@ import {EventEmitter} from 'events'
 import GeminiLiveWebSocketClient, {
   ConnectionState,
   type GeminiLiveConfig,
-  type RealtimeInput
+  type RealtimeInput,
+  QueuePriority
 } from './gemini-live-websocket'
 import {
   AudioRecordingService,
@@ -19,6 +20,7 @@ import {
 } from './audio-recording'
 import {convertFloat32ToPCM16, validateAudioFormat} from './gemini-audio-utils'
 import {logger} from './gemini-logger'
+import {isAudioCaptureSupported, isNodeEnvironment} from '../helpers/environment-config'
 import type {ProcessedMessage} from './gemini-message-handler'
 
 export enum TranscriptionMode {
@@ -53,13 +55,14 @@ export interface IntegrationState {
  */
 export class GeminiLiveIntegrationService extends EventEmitter {
   private websocketClient: GeminiLiveWebSocketClient | null = null
-  private audioService: AudioRecordingService
+  private audioService: AudioRecordingService | null = null
   private config: IntegrationConfig
   private state: IntegrationState
   private audioBuffer: Float32Array[] = []
   private streamingInterval: NodeJS.Timeout | null = null
   private fallbackTimer: NodeJS.Timeout | null = null
   private isDestroyed = false
+  private canUseAudio: boolean
 
   constructor(config: Partial<IntegrationConfig>) {
     super()
@@ -80,12 +83,44 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       throw new Error('API key is required for Gemini Live integration')
     }
 
-    this.audioService = getAudioRecordingService()
+    // Check if audio capture is supported in current environment
+    this.canUseAudio = isAudioCaptureSupported()
+
+    if (this.canUseAudio) {
+      try {
+        this.audioService = getAudioRecordingService()
+        logger.info('Audio service initialized successfully', {
+          hasAudioService: !!this.audioService
+        })
+      } catch (error) {
+        logger.error('Failed to initialize audio service', {error})
+        this.audioService = null
+        this.canUseAudio = false
+      }
+    } else {
+      logger.warn('Audio capture not supported in current environment', {
+        environment: isNodeEnvironment() ? 'node' : 'unknown',
+        audioCaptureSupported: false
+      })
+
+      // Force mode to batch if audio isn't available
+      if (this.config.mode === TranscriptionMode.WEBSOCKET) {
+        logger.info('Switching to batch mode due to audio limitations')
+        this.config.mode = TranscriptionMode.BATCH
+      }
+    }
 
     this.state = {
       mode: this.config.mode,
       connectionState: ConnectionState.DISCONNECTED,
-      recordingState: this.audioService.getState(),
+      recordingState:
+        this.audioService?.getState() ||
+        ({
+          isRecording: false,
+          isTranscribing: false,
+          recordingTime: 0,
+          status: 'Audio not available'
+        } as RecordingState),
       isStreaming: false,
       isProcessing: false,
       bytesStreamed: 0,
@@ -198,6 +233,11 @@ export class GeminiLiveIntegrationService extends EventEmitter {
    * Set up audio service event handlers
    */
   private setupAudioServiceHandlers(): void {
+    if (!this.audioService) {
+      logger.warn('Cannot setup audio service handlers - audio service not available')
+      return
+    }
+
     this.audioService.onStateChange(recordingState => {
       this.updateState({recordingState})
       this.emit('recordingStateChanged', recordingState)
@@ -362,7 +402,12 @@ export class GeminiLiveIntegrationService extends EventEmitter {
         }
       }
 
-      await this.websocketClient.sendRealtimeInput(audioInput)
+      await this.websocketClient.sendRealtimeInput(audioInput, {
+        priority: QueuePriority.HIGH, // Audio chunks get high priority for real-time processing
+        maxRetries: 2, // Retry failed audio chunks for reliability
+        timeout: 8000, // 8 second timeout for audio processing
+        expectResponse: true // Audio chunks expect transcription responses
+      })
 
       this.updateState({
         bytesStreamed: this.state.bytesStreamed + pcmData.byteLength
@@ -415,13 +460,21 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     }
     const base64Data = btoa(binary)
 
-    // Send via WebSocket
-    await this.websocketClient.sendRealtimeInput({
-      audio: {
-        data: base64Data,
-        mimeType: mimeType
+    // Send via WebSocket with enhanced message options
+    await this.websocketClient.sendRealtimeInput(
+      {
+        audio: {
+          data: base64Data,
+          mimeType: mimeType
+        }
+      },
+      {
+        priority: QueuePriority.NORMAL, // Standard priority for direct audio sends
+        maxRetries: 3, // More retries for explicit sendAudioData calls
+        timeout: 10000, // 10 second timeout for larger audio data
+        expectResponse: true // Expect transcription response
       }
-    })
+    )
 
     // Update streaming metrics
     this.updateState({
@@ -504,12 +557,16 @@ export class GeminiLiveIntegrationService extends EventEmitter {
       }
 
       // Start audio recording
-      this.audioService.startIntervalRecording(result => {
-        // Handle batch transcription results
-        if (this.state.mode === TranscriptionMode.BATCH) {
-          this.handleTranscriptionResult(result, 'batch')
-        }
-      })
+      if (this.audioService) {
+        await this.audioService.startIntervalRecording(result => {
+          // Handle batch transcription results
+          if (this.state.mode === TranscriptionMode.BATCH) {
+            this.handleTranscriptionResult(result, 'batch')
+          }
+        })
+      } else {
+        throw new Error('Audio service not available - cannot start audio recording')
+      }
 
       this.emit('transcriptionStarted')
     } catch (error) {
@@ -535,7 +592,9 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     logger.info('Stopping transcription')
 
     // Stop audio recording
-    this.audioService.stopIntervalRecording()
+    if (this.audioService) {
+      this.audioService.stopIntervalRecording()
+    }
 
     // Stop audio streaming
     if (this.state.isStreaming) {
@@ -627,14 +686,21 @@ export class GeminiLiveIntegrationService extends EventEmitter {
   }
 
   /**
-   * Get connection metrics
+   * Get connection metrics with enhanced WebSocket statistics
    */
   getMetrics() {
     const baseMetrics = {
       bytesStreamed: this.state.bytesStreamed,
       messagesReceived: this.state.messagesReceived,
       errors: this.state.errors,
-      mode: this.state.mode
+      mode: this.state.mode,
+      state: this.state,
+      configuration: {
+        mode: this.config.mode,
+        fallbackEnabled: this.config.fallbackToBatch,
+        streamingEnabled: this.config.enableAudioStreaming
+      },
+      audioBufferSize: this.audioBuffer.length
     }
 
     if (this.websocketClient) {
@@ -642,7 +708,8 @@ export class GeminiLiveIntegrationService extends EventEmitter {
         ...baseMetrics,
         connectionMetrics: this.websocketClient.getConnectionMetrics(),
         reconnectionState: this.websocketClient.getReconnectionState(),
-        errorStats: this.websocketClient.getErrorStats()
+        errorStats: this.websocketClient.getErrorStats(),
+        queueStatistics: this.websocketClient.getQueueStatistics()
       }
     }
 
@@ -666,6 +733,35 @@ export class GeminiLiveIntegrationService extends EventEmitter {
   /**
    * Cleanup and destroy the service
    */
+  /**
+   * Get enhanced WebSocket queue and connection statistics
+   */
+  getWebSocketStatistics() {
+    if (!this.websocketClient) {
+      return null
+    }
+
+    return this.websocketClient.getQueueStatistics()
+  }
+
+  /**
+   * Get WebSocket connection metrics
+   */
+  getConnectionMetrics() {
+    if (!this.websocketClient) {
+      return null
+    }
+
+    return this.websocketClient.getConnectionMetrics()
+  }
+
+  /**
+   * Get the underlying WebSocket client for advanced operations
+   */
+  getWebSocketClient(): GeminiLiveWebSocketClient | null {
+    return this.websocketClient
+  }
+
   async destroy(): Promise<void> {
     if (this.isDestroyed) {
       return

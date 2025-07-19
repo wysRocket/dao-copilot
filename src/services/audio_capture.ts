@@ -71,7 +71,6 @@ export class Capturer {
     const waveLoopbackNode = new AudioWorkletNode(this.audio_context, 'wave-loopback')
     waveLoopbackNode.port.onmessage = (event): void => {
       const inputFrame = event.data
-      // console.log(inputFrame)
       cb(inputFrame)
     }
 

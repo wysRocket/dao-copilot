@@ -1,4 +1,10 @@
 import React, {createContext, useContext, useEffect, useState, ReactNode, useCallback} from 'react'
+import {
+  getTranscriptionSourceManager,
+  TranscriptionWithSource,
+  TranscriptionSource,
+  TranscriptionSourceManager
+} from '../services/TranscriptionSourceManager'
 
 interface WindowState {
   windowType: string
@@ -17,9 +23,14 @@ export interface SharedState {
     text: string
     timestamp: number
     confidence?: number
+    source?: string // Add source information
   }>
   isRecording: boolean
   isProcessing: boolean
+
+  // Streaming transcription state
+  currentStreamingTranscription: TranscriptionWithSource | null
+  isStreamingActive: boolean
 
   // Theme state
   theme: 'light' | 'dark' | 'system'
@@ -43,6 +54,10 @@ interface MultiWindowContextType {
   syncState: () => void
   subscribeToStateChanges: (callback: (newState: SharedState) => void) => () => void
   broadcastStateChange: <K extends keyof SharedState>(key: K, value: SharedState[K]) => void
+
+  // Enhanced transcription methods with source support
+  addTranscriptionWithSource: (transcription: TranscriptionWithSource) => void
+  addTranscript: (transcript: {text: string; confidence?: number; source?: string}) => void // Legacy support
 }
 
 const MultiWindowContext = createContext<MultiWindowContextType | null>(null)
@@ -51,6 +66,8 @@ const DEFAULT_SHARED_STATE: SharedState = {
   transcripts: [],
   isRecording: false,
   isProcessing: false,
+  currentStreamingTranscription: null,
+  isStreamingActive: false,
   theme: 'system',
   activeWindowId: null,
   windowStates: {},
@@ -179,24 +196,85 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
     }
   }, [])
 
-  // Transcription-specific helpers
+  // Initialize source manager
+  const sourceManager = getTranscriptionSourceManager()
+
+  // Enhanced transcription method with source routing
+  const addTranscriptionWithSource = useCallback(
+    (transcription: TranscriptionWithSource) => {
+      console.log(
+        '🔄 MultiWindowContext: Processing transcription with source:',
+        transcription.source
+      )
+
+      // Route the transcription through the source manager
+      const result = sourceManager.processTranscription(transcription)
+
+      console.log('🔄 Source manager routing decision:', result.routing)
+
+      // Handle streaming transcription
+      if (result.streamingTranscription) {
+        console.log(
+          '🔄 Setting streaming transcription:',
+          result.streamingTranscription.text.substring(0, 50) + '...'
+        )
+        broadcastStateChange('currentStreamingTranscription', result.streamingTranscription)
+        broadcastStateChange('isStreamingActive', true)
+      }
+
+      // Handle static transcription
+      if (result.staticTranscription) {
+        console.log(
+          '🔄 Adding static transcription:',
+          result.staticTranscription.text.substring(0, 50) + '...'
+        )
+        const staticTranscript = {
+          id: result.staticTranscription.id,
+          text: result.staticTranscription.text,
+          timestamp: result.staticTranscription.timestamp,
+          confidence: result.staticTranscription.confidence,
+          source: result.staticTranscription.source
+        }
+
+        // Add to static transcripts
+        broadcastStateChange('transcripts', [...sharedState.transcripts, staticTranscript])
+      }
+    },
+    [sharedState.transcripts, broadcastStateChange, sourceManager]
+  )
+
+  // Legacy addTranscript method for backward compatibility
   const addTranscript = useCallback(
-    (transcript: {text: string; confidence?: number}) => {
-      const newTranscript = {
+    (transcript: {text: string; confidence?: number; source?: string}) => {
+      console.log(
+        '🔄 MultiWindowContext: Legacy addTranscript called with source:',
+        transcript.source
+      )
+
+      // Convert legacy format to TranscriptionWithSource
+      const transcriptionWithSource: TranscriptionWithSource = {
         id: `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         text: transcript.text,
         timestamp: Date.now(),
-        confidence: transcript.confidence
+        confidence: transcript.confidence,
+        source: transcript.source
+          ? TranscriptionSourceManager.parseSource(transcript.source)
+          : TranscriptionSource.BATCH,
+        isPartial: false
       }
 
-      broadcastStateChange('transcripts', [...sharedState.transcripts, newTranscript])
+      // Route through the new method
+      addTranscriptionWithSource(transcriptionWithSource)
     },
-    [sharedState.transcripts, broadcastStateChange]
+    [addTranscriptionWithSource]
   )
 
   const clearTranscripts = useCallback(() => {
+    sourceManager.clearAll()
     broadcastStateChange('transcripts', [])
-  }, [broadcastStateChange])
+    broadcastStateChange('currentStreamingTranscription', null)
+    broadcastStateChange('isStreamingActive', false)
+  }, [broadcastStateChange, sourceManager])
 
   const setRecordingState = useCallback(
     (isRecording: boolean) => {
@@ -230,7 +308,7 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
   // Enhanced context value with helper methods
   const contextValue: MultiWindowContextType & {
     // Transcription helpers
-    addTranscript: (transcript: {text: string; confidence?: number}) => void
+    addTranscript: (transcript: {text: string; confidence?: number; source?: string}) => void
     clearTranscripts: () => void
     setRecordingState: (isRecording: boolean) => void
     setProcessingState: (isProcessing: boolean) => void
@@ -248,6 +326,7 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
     broadcastStateChange,
 
     // Helper methods
+    addTranscriptionWithSource,
     addTranscript,
     clearTranscripts,
     setRecordingState,

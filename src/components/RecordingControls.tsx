@@ -1,16 +1,27 @@
-import React, {useEffect, useState} from 'react'
+import React, {useEffect, useState, useCallback, useMemo, memo} from 'react'
 
+// Services and types
 import {
   getAudioRecordingService,
   TranscriptionResult,
   RecordingState
 } from '../services/audio-recording'
 
+// Hooks and connection types
+import {GeminiConnectionState, GeminiConnectionControls} from '../hooks/useGeminiConnection'
+
 interface RecordingControlsProps {
   onTranscription: (transcript: TranscriptionResult) => void
+  geminiConnection?: {
+    state: GeminiConnectionState
+    controls: GeminiConnectionControls
+  }
 }
 
-const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) => {
+const RecordingControls: React.FC<RecordingControlsProps> = memo(({
+  onTranscription,
+  geminiConnection
+}) => {
   const [recordingState, setRecordingState] = useState<RecordingState>({
     isRecording: false,
     isTranscribing: false,
@@ -19,6 +30,27 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
   })
 
   const audioService = getAudioRecordingService()
+
+  // Log WebSocket connection status
+  useEffect(() => {
+    if (geminiConnection) {
+      // Connection state monitoring without debug output
+    }
+  }, [geminiConnection?.state.connectionState, geminiConnection?.state.isStreaming])
+
+  // Memoized transcription callback to prevent recreations
+  const handleTranscription = useCallback((result: TranscriptionResult) => {
+    onTranscription(result)
+  }, [onTranscription])
+
+  // Memoized WebSocket availability check
+  const shouldUseWebSocket = useMemo(() => {
+    return (
+      geminiConnection &&
+      geminiConnection.state.connectionState !== 'error' &&
+      geminiConnection.state.errors < 3
+    )
+  }, [geminiConnection?.state.connectionState, geminiConnection?.state.errors])
 
   // Subscribe to recording state changes
   useEffect(() => {
@@ -36,10 +68,45 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
     }
   }, [audioService])
 
+  // Enhanced recording handler with quota-aware WebSocket integration
+  const handleToggleRecording = async () => {
+    if (!recordingState.isRecording) {
+      // Starting recording
+
+      // Only attempt WebSocket if we haven't exceeded quota recently
+      if (shouldUseWebSocket && geminiConnection) {
+        try {
+          await geminiConnection.controls.connect()
+        } catch (error) {
+          console.warn(
+            '🔌 Failed to connect WebSocket (likely quota), falling back to batch mode:',
+            error
+          )
+        }
+      }
+
+      // Start audio recording (this will use batch transcription as fallback/primary)
+      audioService.toggleRecording(handleTranscription)
+      
+      // Broadcast recording started
+      window.electronWindow?.broadcast?.('recording-state-changed', true)
+    } else {
+      // Stopping recording
+
+      // Stop audio recording first
+      audioService.toggleRecording(handleTranscription)
+      
+      // Broadcast recording stopped
+      window.electronWindow?.broadcast?.('recording-state-changed', false)
+
+      // Keep WebSocket connected for potential future use (quota permitting)
+    }
+  }
+
   return (
     <>
       <button
-        onClick={() => audioService.toggleRecording(onTranscription)}
+        onClick={handleToggleRecording}
         className="record-btn app-region-no-drag mr-2 border-none bg-none p-0 transition-opacity hover:opacity-80"
         style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
         title={recordingState.isRecording ? 'Stop Recording' : 'Start Recording'}
@@ -89,6 +156,8 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({onTranscription}) 
       </span>
     </>
   )
-}
+})
+
+RecordingControls.displayName = 'RecordingControls'
 
 export default RecordingControls

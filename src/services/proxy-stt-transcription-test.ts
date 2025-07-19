@@ -306,7 +306,7 @@ describe('Proxy STT Transcription Service', () => {
       expect(config.fallbackToBatch).toBe(true)
       expect(config.realTimeThreshold).toBe(3000)
       expect(config.proxyUrl).toBe('http://localhost:8001')
-      expect(config.modelName).toBe('gemini-2.5-flash-preview-05-20')
+      expect(config.modelName).toBe('gemini-1.5-flash')
     })
   })
 

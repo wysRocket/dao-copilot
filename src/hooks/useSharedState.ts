@@ -1,86 +1,112 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useMultiWindowContext } from '../contexts/MultiWindowContext';
-import { useWindowState } from '../contexts/WindowStateProvider';
+import {useCallback} from 'react'
+import {useMultiWindowContext} from '../contexts/MultiWindowContext'
+import {useWindowState} from '../contexts/WindowStateProvider'
+import {TranscriptionWithSource} from '../services/TranscriptionSourceManager'
 
 export interface UseSharedStateReturn {
   // Shared state access
   transcripts: Array<{
-    id: string;
-    text: string;
-    timestamp: number;
-    confidence?: number;
-  }>;
-  isRecording: boolean;
-  isProcessing: boolean;
-  theme: 'light' | 'dark' | 'system';
-  settings: any;
+    id: string
+    text: string
+    timestamp: number
+    confidence?: number
+    source?: string
+  }>
+  isRecording: boolean
+  isProcessing: boolean
+  theme: 'light' | 'dark' | 'system'
+  settings: {
+    audioInputDevice?: string
+    transcriptionService?: string
+    autoSave?: boolean
+    notifications?: boolean
+  }
+
+  // Streaming state
+  currentStreamingTranscription: TranscriptionWithSource | null
+  isStreamingActive: boolean
 
   // Shared state actions
-  addTranscript: (transcript: { text: string; confidence?: number }) => void;
-  clearTranscripts: () => void;
-  setRecordingState: (isRecording: boolean) => void;
-  setProcessingState: (isProcessing: boolean) => void;
-  updateSettings: (newSettings: any) => void;
-  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  addTranscript: (transcript: {text: string; confidence?: number; source?: string}) => void
+  clearTranscripts: () => void
+  setRecordingState: (isRecording: boolean) => void
+  setProcessingState: (isProcessing: boolean) => void
+  updateSettings: (
+    newSettings: Partial<{
+      audioInputDevice?: string
+      transcriptionService?: string
+      autoSave?: boolean
+      notifications?: boolean
+    }>
+  ) => void
+  setTheme: (theme: 'light' | 'dark' | 'system') => void
 
   // Window-specific state
-  windowState: any;
-  updateLocalState: (key: string, value: any) => void;
-  resetLocalState: () => void;
+  windowState: {
+    windowId: string
+    windowType: string
+    isVisible: boolean
+    isFocused: boolean
+    sidebarOpen?: boolean
+    currentView?: string
+    scrollPosition?: number
+    formData?: Record<string, unknown>
+    selectedItems?: string[]
+    searchQuery?: string
+  }
+  updateLocalState: (key: string, value: unknown) => void
+  resetLocalState: () => void
 
   // Window actions
-  focusWindow: () => void;
-  hideWindow: () => void;
-  showWindow: () => void;
+  focusWindow: () => void
+  hideWindow: () => void
+  showWindow: () => void
 
   // Cross-window communication
-  sendToWindow: (targetWindowId: string, channel: string, ...args: any[]) => void;
-  broadcast: (channel: string, ...args: any[]) => void;
-  onMessage: (callback: (channel: string, ...args: any[]) => void) => () => void;
+  sendToWindow: (targetWindowId: string, channel: string, ...args: unknown[]) => void
+  broadcast: (channel: string, ...args: unknown[]) => void
+  onMessage: (callback: (channel: string, ...args: unknown[]) => void) => () => void
 
   // State synchronization
-  syncState: () => void;
+  syncState: () => void
 }
 
 export const useSharedState = (): UseSharedStateReturn => {
-  const multiWindowContext = useMultiWindowContext();
-  const windowStateContext = useWindowState();
-  
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const multiWindowContext = useMultiWindowContext() as any // Type assertion for extended context
+  const windowStateContext = useWindowState()
+
   // Extract shared state
   const {
     sharedState,
-    broadcastStateChange,
     syncState,
     addTranscript,
     clearTranscripts,
     setRecordingState,
     setProcessingState,
     updateSettings,
-    setTheme,
-  } = multiWindowContext;
+    setTheme
+  } = multiWindowContext
 
   // Extract window state
-  const {
-    windowState,
-    updateLocalState,
-    resetLocalState,
-    focusWindow,
-    hideWindow,
-    showWindow,
-  } = windowStateContext;
+  const {windowState, updateLocalState, resetLocalState, focusWindow, hideWindow, showWindow} =
+    windowStateContext
 
   // Cross-window communication helpers
-  const sendToWindow = useCallback((targetWindowId: string, channel: string, ...args: any[]) => {
-    window.electronWindow?.sendToWindow(targetWindowId, channel, ...args);
-  }, []);
+  const sendToWindow = useCallback(
+    (targetWindowId: string, channel: string, ...args: unknown[]) => {
+      window.electronWindow?.sendToWindow(targetWindowId, channel, ...args)
+    },
+    []
+  )
 
-  const broadcast = useCallback((channel: string, ...args: any[]) => {
-    window.electronWindow?.broadcast(channel, ...args);
-  }, []);
+  const broadcast = useCallback((channel: string, ...args: unknown[]) => {
+    window.electronWindow?.broadcast(channel, ...args)
+  }, [])
 
-  const onMessage = useCallback((callback: (channel: string, ...args: any[]) => void) => {
-    return window.electronWindow?.onInterWindowMessage?.(callback) || (() => {});
-  }, []);
+  const onMessage = useCallback((callback: (channel: string, ...args: unknown[]) => void) => {
+    return window.electronWindow?.onInterWindowMessage?.(callback) || (() => {})
+  }, [])
 
   return {
     // Shared state
@@ -89,6 +115,10 @@ export const useSharedState = (): UseSharedStateReturn => {
     isProcessing: sharedState.isProcessing,
     theme: sharedState.theme,
     settings: sharedState.settings,
+
+    // Streaming state
+    currentStreamingTranscription: sharedState.currentStreamingTranscription,
+    isStreamingActive: sharedState.isStreamingActive,
 
     // Shared state actions
     addTranscript,
@@ -100,7 +130,7 @@ export const useSharedState = (): UseSharedStateReturn => {
 
     // Window-specific state
     windowState,
-    updateLocalState,
+    updateLocalState: updateLocalState as (key: string, value: unknown) => void,
     resetLocalState,
 
     // Window actions
@@ -114,14 +144,22 @@ export const useSharedState = (): UseSharedStateReturn => {
     onMessage,
 
     // State synchronization
-    syncState,
-  };
-};
+    syncState
+  }
+}
 
 // Specialized hooks for specific use cases
 export const useTranscriptionState = () => {
-  const { transcripts, isRecording, isProcessing, addTranscript, clearTranscripts, setRecordingState, setProcessingState } = useSharedState();
-  
+  const {
+    transcripts,
+    isRecording,
+    isProcessing,
+    addTranscript,
+    clearTranscripts,
+    setRecordingState,
+    setProcessingState
+  } = useSharedState()
+
   return {
     transcripts,
     isRecording,
@@ -129,36 +167,36 @@ export const useTranscriptionState = () => {
     addTranscript,
     clearTranscripts,
     setRecordingState,
-    setProcessingState,
-  };
-};
+    setProcessingState
+  }
+}
 
 export const useThemeState = () => {
-  const { theme, setTheme } = useSharedState();
-  
+  const {theme, setTheme} = useSharedState()
+
   return {
     theme,
-    setTheme,
-  };
-};
+    setTheme
+  }
+}
 
 export const useSettingsState = () => {
-  const { settings, updateSettings } = useSharedState();
-  
+  const {settings, updateSettings} = useSharedState()
+
   return {
     settings,
-    updateSettings,
-  };
-};
+    updateSettings
+  }
+}
 
 export const useWindowCommunication = () => {
-  const { sendToWindow, broadcast, onMessage, windowState } = useSharedState();
-  
+  const {sendToWindow, broadcast, onMessage, windowState} = useSharedState()
+
   return {
     sendToWindow,
     broadcast,
     onMessage,
     currentWindowId: windowState.windowId,
-    currentWindowType: windowState.windowType,
-  };
-};
+    currentWindowType: windowState.windowType
+  }
+}

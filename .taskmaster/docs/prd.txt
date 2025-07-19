@@ -1,175 +1,91 @@
-# Product Requirements Document: Gemini Live API WebSocket Integration
+# Live Transcription System Optimization & Cleanup PRD
 
-## Overview
-Update the DAO Copilot transcribing flow to integrate with Google's Gemini Live API using WebSocket connections for real-time transcription capabilities. This migration from the current batch-based approach will provide better performance, lower latency, and improved accuracy.
+## Project Overview
+The live transcription system using Gemini Live WebSocket API is now functionally complete with proper text accumulation controlled by REC/STOP buttons. This PRD outlines optimization and cleanup tasks to improve code quality, performance, and maintainability.
 
-## Background
-The current implementation uses batch-based transcription where audio is recorded in intervals and sent to the Gemini API via HTTP requests. Google has released the Gemini Live API which provides enhanced real-time transcription features through WebSocket connections, offering better performance and lower latency.
+## Current State Assessment
+- ✅ Gemini Live WebSocket integration working
+- ✅ Real-time transcription streaming implemented
+- ✅ Text accumulation during recording sessions
+- ✅ Manual transcription completion via REC/STOP button
+- ✅ Dual state management (unified + context) functioning
+- ✅ Garbage collection disabled to prevent transcript loss
+- ✅ localStorage persistence for transcript history
 
-## Objectives
-- Replace the current batch-based transcription with real-time WebSocket streaming
-- Implement WebSocket client for Gemini Live API integration
-- Maintain all existing functionality while improving performance
-- Provide seamless user experience with real-time transcription updates
-- Implement robust error handling and reconnection logic
+## Optimization & Cleanup Goals
 
-## Technical Requirements
+### 1. Code Architecture Cleanup
+**Objective**: Simplify and consolidate the transcription state management system
+- Remove redundant state management systems (currently using both unified TranscriptionStateManager and StreamingTextContext)
+- Consolidate to single source of truth for transcription state
+- Clean up unused imports and variables
+- Standardize naming conventions across components
 
-### 1. WebSocket Implementation
-- Implement WebSocket client for Gemini Live API integration
-- Establish bidirectional communication with the API
-- Handle connection lifecycle (open, close, error events)
-- Implement reconnection logic with exponential backoff
-- Support binary and text message formats
+### 2. Performance Optimization
+**Objective**: Improve real-time transcription performance and reduce memory usage
+- Optimize WebSocket message handling and processing
+- Implement efficient text accumulation algorithms
+- Reduce React re-renders during streaming
+- Optimize component update cycles
+- Implement proper memoization where needed
 
-### 2. Real-time Audio Streaming
-- Replace batch audio processing with continuous streaming
-- Implement audio capture using Web Audio API
-- Convert audio data to required format (16-bit PCM)
-- Stream audio chunks in real-time over WebSocket
-- Implement audio buffering and backpressure handling
+### 3. Error Handling & Resilience
+**Objective**: Make the system more robust and user-friendly
+- Improve WebSocket connection error handling
+- Add proper fallback mechanisms for quota exceeded scenarios
+- Implement retry logic for failed connections
+- Add user feedback for connection states and errors
+- Handle edge cases in text accumulation logic
 
-### 3. Connection Management
-- Proper WebSocket connection lifecycle management
-- Handle network interruptions gracefully
-- Implement heartbeat mechanism for connection health
-- Support authentication and session management
-- Clean up resources on disconnection
+### 4. Code Quality & Maintainability
+**Objective**: Improve code readability, testing, and documentation
+- Remove debug console logs from production code
+- Add proper TypeScript types and interfaces
+- Implement unit tests for core transcription logic
+- Add comprehensive JSDoc documentation
+- Refactor large functions into smaller, testable units
 
-### 4. Error Handling and Recovery
-- Graceful handling of WebSocket connection failures
-- Fallback to HTTP-based approach when WebSocket fails
-- Network interruption recovery
-- API error handling and user feedback
-- Connection state management and status indicators
+### 5. User Experience Enhancements
+**Objective**: Polish the transcription interface and interactions
+- Improve visual feedback during recording states
+- Add keyboard shortcuts for recording control
+- Implement better loading states and progress indicators
+- Enhance accessibility features
+- Add configuration options for transcription behavior
 
-### 5. UI/UX Updates
-- Real-time transcription display updates
-- Connection status indicators
-- Streaming progress feedback
-- Smooth animations for live transcription
-- Performance optimizations for continuous updates
-
-### 6. Performance Optimization
-- Efficient audio data processing
-- Memory management for continuous streaming
-- CPU usage optimization
-- Network bandwidth optimization
-- Responsive UI during streaming operations
-
-## Functional Requirements
-
-### Core Functionality
-1. **Real-time Transcription**: Continuous audio capture and transcription
-2. **WebSocket Communication**: Bidirectional communication with Gemini Live API
-3. **Connection Management**: Robust connection handling and recovery
-4. **Audio Streaming**: Efficient real-time audio data streaming
-5. **Error Recovery**: Graceful degradation and fallback mechanisms
-
-### User Experience
-1. **Immediate Feedback**: Real-time transcription results displayed instantly
-2. **Connection Status**: Visual indicators for connection state
-3. **Seamless Operation**: No interruption to existing workflow
-4. **Performance**: No degradation in responsiveness
-5. **Reliability**: Consistent operation under various network conditions
-
-## Non-Functional Requirements
-
-### Performance
-- Latency: < 200ms from audio input to transcription display
-- CPU Usage: No significant increase from current implementation
-- Memory Usage: Efficient memory management for continuous operation
-- Network Usage: Optimized data transmission
-
-### Reliability
-- 99.9% uptime for WebSocket connections
-- Automatic recovery from network failures
-- Fallback mechanism availability
-- Data integrity during transmission
-
-### Scalability
-- Support for extended recording sessions
-- Handle high-frequency audio updates
-- Manage large transcription histories
-- Efficient resource cleanup
-
-## Implementation Phases
-
-### Phase 1: WebSocket Client Foundation
-- Implement basic WebSocket client
-- Establish connection to Gemini Live API
-- Handle basic message exchange
-- Implement connection lifecycle management
-
-### Phase 2: Audio Streaming Integration
-- Update audio recording service for real-time streaming
-- Implement audio format conversion
-- Integrate WebSocket client with audio service
-- Handle audio data transmission
-
-### Phase 3: Real-time Transcription Processing
-- Process incoming transcription results
-- Update UI components for real-time display
-- Implement partial result handling
-- Optimize rendering performance
-
-### Phase 4: Error Handling and Recovery
-- Implement comprehensive error handling
-- Add reconnection logic
-- Create fallback mechanisms
-- Add connection status indicators
-
-### Phase 5: Testing and Optimization
-- Performance testing and optimization
-- End-to-end testing
-- Error scenario testing
-- User acceptance testing
-
-## Technical Specifications
-
-### WebSocket Configuration
-- Protocol: WSS (WebSocket Secure)
-- Message Format: JSON and Binary
-- Compression: Optional gzip compression
-- Heartbeat: 30-second intervals
-
-### Audio Specifications
-- Format: 16-bit PCM
-- Sample Rate: 16kHz (configurable)
-- Channels: Mono
-- Chunk Size: 100ms buffers
-
-### API Integration
-- Endpoint: Gemini Live API WebSocket endpoint
-- Authentication: API key-based
-- Session Management: Connection-based sessions
-- Rate Limiting: Respect API limits
-
-## Dependencies
-- Existing audio capture service (audio-recording.ts)
-- Current transcription infrastructure
-- WebSocket library (ws or native WebSocket API)
-- Electron IPC system
-- React UI components
-
-## Risks and Mitigation
-1. **WebSocket Connectivity**: Implement fallback to HTTP-based approach
-2. **Performance Impact**: Thorough performance testing and optimization
-3. **API Changes**: Monitor API documentation and implement version handling
-4. **Network Issues**: Robust reconnection and error handling
-5. **Browser Compatibility**: Test across different Electron versions
+### 6. Technical Debt Reduction
+**Objective**: Address accumulated technical debt
+- Remove commented-out code and unused files
+- Update deprecated dependencies
+- Standardize error handling patterns
+- Implement consistent logging strategy
+- Clean up file organization and imports
 
 ## Success Criteria
-- Successful WebSocket connection to Gemini Live API
-- Real-time transcription functionality working
-- No degradation in existing features
-- Improved latency compared to batch approach
-- Robust error handling and recovery
+- Single, clean state management system for transcriptions
+- Improved performance with faster real-time updates
+- Robust error handling with graceful degradation
+- Clean, well-documented codebase
 - Comprehensive test coverage
-- Updated documentation
+- Enhanced user experience with better feedback
 
-## References
-- [Gemini Live API Documentation](https://ai.google.dev/gemini-api/docs/live#javascript)
-- [Gemini Live API Reference](https://ai.google.dev/api/live)
-- Current implementation in src/services/
-- Existing audio capture system
+## Technical Constraints
+- Maintain backward compatibility with existing transcription data
+- Preserve localStorage persistence functionality
+- Keep WebSocket integration functional
+- Maintain current UI/UX patterns
+- Ensure cross-platform Electron compatibility
+
+## Priority Levels
+1. **High**: Code architecture cleanup and state management consolidation
+2. **High**: Performance optimization for real-time streaming
+3. **Medium**: Error handling and resilience improvements
+4. **Medium**: Code quality and maintainability
+5. **Low**: User experience enhancements
+6. **Low**: Technical debt reduction
+
+## Implementation Phases
+**Phase 1**: State management consolidation and architecture cleanup
+**Phase 2**: Performance optimization and error handling
+**Phase 3**: Code quality improvements and testing
+**Phase 4**: User experience enhancements and final polish

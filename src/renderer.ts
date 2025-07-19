@@ -1,15 +1,39 @@
-import './App';
+import React from 'react'
+import {createRoot} from 'react-dom/client'
+import App from './App'
 
-// connectServer(import.meta.env.VITE_WS_URL)
+console.log('🚀 DAO Copilot: Renderer starting...')
 
-// function connectServer(url: string): void {
-//   const socket = new WebSocket(url)
+// Wait for DOM to be ready
+window.addEventListener('DOMContentLoaded', () => {
+  console.log('� DAO Copilot: DOM loaded, mounting React...')
 
-//   socket.addEventListener('open', (_event) => {
-//     socket.send('Hello Server!')
-//   })
+  try {
+    const appElement = document.getElementById('app')
+    if (!appElement) {
+      throw new Error('App element not found')
+    }
 
-//   socket.addEventListener('message', (event) => {
-//     console.log('Message from server ', event.data)
-//   })
-// }
+    console.log('✅ DAO Copilot: App element found, mounting full app...')
+
+    const root = createRoot(appElement)
+    root.render(React.createElement(React.StrictMode, null, React.createElement(App)))
+
+    console.log('✅ DAO Copilot: FULL App rendered successfully!')
+  } catch (error) {
+    console.error('🚨 DAO Copilot: Error in renderer:', error)
+
+    const appElement = document.getElementById('app')
+    if (appElement) {
+      appElement.innerHTML = `
+        <div style="padding: 20px; color: red; font-family: Arial;">
+          <h1>🚨 DAO Copilot - Renderer Error</h1>
+          <p>Error: ${error instanceof Error ? error.message : 'Unknown error'}</p>
+          <p>Check console for details</p>
+        </div>
+      `
+    }
+  }
+})
+
+console.log('✅ DAO Copilot: Renderer script loaded, waiting for DOM...')

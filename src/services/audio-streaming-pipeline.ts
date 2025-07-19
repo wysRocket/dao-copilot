@@ -64,7 +64,7 @@ export class AudioStreamingPipeline extends EventEmitter {
     // Initialize core services
     this.websocketClient = new GeminiLiveWebSocketClient({
       apiKey: config.websocket.apiKey,
-      model: config.websocket.model || 'gemini-2.0-flash-exp'
+      model: config.websocket.model || 'gemini-live-2.5-flash-preview'
     })
 
     this.formatConverter = new AudioFormatConverter()
@@ -303,7 +303,7 @@ export function createAudioStreamingPipeline(
   const defaultConfig: AudioPipelineConfig = {
     websocket: {
       apiKey: config.websocket?.apiKey || '',
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-live-2.5-flash-preview',
       enableReconnect: true
     },
     audio: {

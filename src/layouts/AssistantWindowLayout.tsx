@@ -3,62 +3,52 @@ import {useWindowState} from '../contexts/WindowStateProvider'
 import {useTranscriptionState, useWindowCommunication} from '../hooks/useSharedState'
 import {useGlassEffects} from '../contexts/GlassEffectsProvider'
 import {useTheme} from '../contexts/ThemeProvider'
-import {
-  AssistantNavigationProvider,
-  useAssistantNavigation
-} from '../contexts/AssistantNavigationContext'
+import {StreamingTextProvider} from '../contexts/StreamingTextContext'
 import {WindowButton} from '../components/ui/window-button'
 import {WindowStatus} from '../components/ui/window-status'
 import {BackgroundEffect} from '../components/ui/BackgroundEffect'
-
-// Import page components
-import ChatPage from '../pages/assistant/ChatPage'
-import TranscriptsPage from '../pages/assistant/TranscriptsPage'
-import AnalysisPage from '../pages/assistant/AnalysisPage'
-import SettingsPage from '../pages/assistant/SettingsPage'
+import {useNavigate, useRouter} from '@tanstack/react-router'
 
 interface AssistantWindowLayoutProps {
-  children?: React.ReactNode
-  initialTab?: 'chat' | 'transcripts' | 'analysis' | 'settings'
+  children: React.ReactNode
 }
 
-function AssistantContent() {
-  const {currentTab, navigateToTab} = useAssistantNavigation()
+export default function AssistantWindowLayout({children}: AssistantWindowLayoutProps) {
   const {windowState, updateLocalState} = useWindowState()
   const {transcripts} = useTranscriptionState()
   const {sendToWindow, onMessage} = useWindowCommunication()
   const {config: glassConfig} = useGlassEffects()
   const {mode: themeMode} = useTheme()
+  const navigate = useNavigate()
+  const router = useRouter()
 
   // Listen for navigation messages from other windows
   useEffect(() => {
     const unsubscribe = onMessage((channel, ...args) => {
       if (channel === 'set-assistant-view' && args[0]) {
-        navigateToTab(args[0])
+        const route = `/${args[0]}` as any
+        navigate({to: route})
       }
       if (channel === 'navigate-assistant-tab' && args[0]) {
-        navigateToTab(args[0])
+        const route = `/${args[0]}` as any
+        navigate({to: route})
       }
     })
 
     return unsubscribe
-  }, [onMessage, navigateToTab])
+  }, [onMessage, navigate])
 
-  // Render current page based on tab
-  const renderCurrentPage = () => {
-    switch (currentTab) {
-      case 'chat':
-        return <ChatPage />
-      case 'transcripts':
-        return <TranscriptsPage />
-      case 'analysis':
-        return <AnalysisPage />
-      case 'settings':
-        return <SettingsPage />
-      default:
-        return <ChatPage />
-    }
+  // Get current route to determine active tab
+  const currentPath = router.state.location.pathname
+  const getCurrentTab = () => {
+    if (currentPath.includes('/chat')) return 'chat'
+    if (currentPath.includes('/transcripts')) return 'transcripts'
+    if (currentPath.includes('/analysis')) return 'analysis'
+    if (currentPath.includes('/settings')) return 'settings'
+    return 'transcripts' // default
   }
+
+  const currentTab = getCurrentTab()
 
   // Assistant-specific header with transcription status
   const AssistantHeader = () => (
@@ -152,7 +142,7 @@ function AssistantContent() {
         <WindowButton
           variant={currentTab === 'chat' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => navigateToTab('chat')}
+          onClick={() => navigate({to: '/chat' as any})}
           className="transition-all duration-200"
         >
           💬 Chat
@@ -160,7 +150,7 @@ function AssistantContent() {
         <WindowButton
           variant={currentTab === 'transcripts' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => navigateToTab('transcripts')}
+          onClick={() => navigate({to: '/transcripts' as any})}
           className="transition-all duration-200"
         >
           📝 Transcripts
@@ -168,7 +158,7 @@ function AssistantContent() {
         <WindowButton
           variant={currentTab === 'analysis' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => navigateToTab('analysis')}
+          onClick={() => navigate({to: '/analysis' as any})}
           className="transition-all duration-200"
         >
           📊 Analysis
@@ -176,7 +166,7 @@ function AssistantContent() {
         <WindowButton
           variant={currentTab === 'settings' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => navigateToTab('settings')}
+          onClick={() => navigate({to: '/settings' as any})}
           className="transition-all duration-200"
         >
           ⚙️ Settings
@@ -300,23 +290,20 @@ function AssistantContent() {
           </div>
         )}
 
-        {/* Main content area */}
-        <div className="flex min-h-0 flex-1 flex-col">{renderCurrentPage()}</div>
+        {/* Main content area - this is where the routed pages will render */}
+        <StreamingTextProvider
+          onTranscriptionComplete={transcription => {
+            console.log('🔴 AssistantWindowLayout: Transcription completed:', transcription)
+            // You can handle completed transcriptions here if needed
+          }}
+        >
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        </StreamingTextProvider>
       </div>
 
       <div className="relative z-10">
         <AssistantFooter />
       </div>
     </div>
-  )
-}
-
-export default function AssistantWindowLayout({
-  initialTab = 'transcripts'
-}: AssistantWindowLayoutProps) {
-  return (
-    <AssistantNavigationProvider initialTab={initialTab}>
-      <AssistantContent />
-    </AssistantNavigationProvider>
   )
 }

@@ -1,44 +1,53 @@
 import React from 'react'
 import TranscriptDisplay from '../components/TranscriptDisplay'
-import {TranscriptionResult} from '../services/main-stt-transcription'
-
-// Sample transcript data for demonstration
-const sampleTranscripts: TranscriptionResult[] = [
-  {
-    text: 'Hello, this is a test of the glass transcript display component.',
-    startTime: 0.0,
-    endTime: 3.2,
-    confidence: 0.95,
-    timestamp: Date.now() - 10000
-  },
-  {
-    text: 'The glassmorphism effects create a beautiful, modern interface that adapts to the current theme.',
-    startTime: 3.5,
-    endTime: 8.1,
-    confidence: 0.87,
-    timestamp: Date.now() - 5000
-  },
-  {
-    text: 'Each message bubble has subtle glass effects with smooth animations.',
-    startTime: 8.5,
-    endTime: 11.8,
-    confidence: 0.92,
-    timestamp: Date.now() - 2000
-  }
-]
+import TranscriptionEventTest from '../components/TranscriptionEventTest'
+import {useTranscriptionState} from '../hooks/useTranscriptionState'
 
 export default function HomePage() {
+  // Use unified transcription state management
+  const {
+    // Static transcripts
+    transcripts,
+    isProcessing,
+
+    // Streaming state
+    currentStreamingText,
+    isCurrentTextPartial,
+    isStreamingActive,
+    streamingMode,
+
+    // Actions
+    completeStreaming
+  } = useTranscriptionState()
+
+  // Convert TranscriptionStateManager.TranscriptionResult to main-stt-transcription.TranscriptionResult
+  const convertedTranscripts = transcripts.map(transcript => ({
+    ...transcript,
+    duration: transcript.duration || 0 // Ensure duration is always a number
+  }))
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex w-full flex-1 flex-col items-center justify-center p-8">
-        {/* Enhanced Transcript Display Demo */}
-        <div className="flex w-full justify-center">
+      <div className="flex w-full flex-1 flex-col p-8">
+        {/* Main Transcript Display */}
+        <div className="mb-8 flex-1">
           <TranscriptDisplay
-            transcripts={sampleTranscripts}
-            isProcessing={false}
+            transcripts={convertedTranscripts}
+            isProcessing={isProcessing}
+            enableStreaming={true}
+            streamingText={currentStreamingText}
+            isStreamingPartial={isCurrentTextPartial}
+            isStreamingActive={isStreamingActive}
+            streamingMode={streamingMode}
+            onStreamingComplete={completeStreaming}
             autoScroll={true}
             showScrollToBottom={true}
           />
+        </div>
+
+        {/* Transcription Event Test Component for debugging */}
+        <div className="mt-4">
+          <TranscriptionEventTest />
         </div>
       </div>
     </div>
