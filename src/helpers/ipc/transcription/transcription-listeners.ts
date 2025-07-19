@@ -1,6 +1,6 @@
 import {ipcMain} from 'electron'
-import {TRANSCRIPTION_TRANSCRIBE_CHANNEL} from './transcription-channels'
-import {transcribeAudio} from '../../../services/main-stt-transcription'
+import {TRANSCRIPTION_TRANSCRIBE_CHANNEL, TRANSCRIPTION_TEST_STREAMING_CHANNEL} from './transcription-channels'
+import {transcribeAudio, testStreamingTranscriptionIPC} from '../../../services/main-stt-transcription'
 import {transcribeAudioViaProxy} from '../../../services/proxy-stt-transcription'
 
 export function addTranscriptionEventListeners() {
@@ -56,6 +56,18 @@ export function addTranscriptionEventListeners() {
     } catch (error) {
       console.error('Transcription error in main process:', error)
       throw error
+    }
+  })
+
+  // Add handler for testing streaming transcription IPC
+  ipcMain.handle(TRANSCRIPTION_TEST_STREAMING_CHANNEL, async () => {
+    try {
+      console.log('🧪 Received test streaming transcription request')
+      await testStreamingTranscriptionIPC()
+      return { success: true, message: 'Test streaming transcription IPC initiated' }
+    } catch (error) {
+      console.error('🧪 Failed to test streaming transcription IPC:', error)
+      return { success: false, error: String(error) }
     }
   })
 }

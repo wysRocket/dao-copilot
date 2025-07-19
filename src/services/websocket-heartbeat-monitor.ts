@@ -4,9 +4,9 @@
  * missed heartbeat detection, and automatic recovery triggers.
  */
 
-import EventEmitter from 'eventemitter3'
+import {EventEmitter} from 'events'
 import {logger} from './gemini-logger'
-import * as crypto from 'crypto'
+import {BrowserCrypto} from '../utils/browser-crypto'
 
 export interface HeartbeatConfig {
   /** Interval between heartbeat pings (ms) */
@@ -456,10 +456,12 @@ export class WebSocketHeartbeatMonitor extends EventEmitter {
    */
   private generatePingId(): string {
     try {
-      if (crypto.randomUUID) {
-        return `ping_${Date.now()}_${crypto.randomUUID()}`
+      const uuid = BrowserCrypto.randomUUID()
+      if (uuid) {
+        return `ping_${Date.now()}_${uuid}`
       } else {
-        return `ping_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`
+        const randomHex = BrowserCrypto.randomHex(16)
+        return `ping_${Date.now()}_${randomHex}`
       }
     } catch {
       // Fallback using high-resolution timestamp

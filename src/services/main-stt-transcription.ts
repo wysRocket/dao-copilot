@@ -1,12 +1,12 @@
 import {GoogleGenAI} from '@google/genai'
 import {TranscriptionMode} from './gemini-live-integration'
-import {ResponseModality} from './gemini-live-websocket'
 import {
   createLegacyWrapper,
   migrateLegacyConfig,
   LegacyAliases
 } from './transcription-compatibility'
-import {sanitizeLogMessage} from './log-sanitizer'
+import {QuotaManager} from './quota-manager'
+import {UnifiedPerformanceService} from './unified-performance'
 
 // Live API model for WebSocket (recommended half-cascade model)
 const DEFAULT_GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
@@ -58,12 +58,37 @@ export async function transcribeAudio(
   audioData: Buffer,
   options: TranscriptionOptions = {}
 ): Promise<TranscriptionResult> {
+  // Start performance tracking
+  const performanceService = UnifiedPerformanceService.getInstance()
+  const session = performanceService.startTranscriptionSession()
+  const audioProcessingStart = Date.now()
+
   // Check if WebSocket mode should be used
   if (shouldUseWebSocket(options)) {
     try {
       console.log('🚀 Starting WebSocket transcription attempt')
       // For main process, we have audio data already - process it directly via WebSocket
-      return await transcribeAudioViaWebSocket(audioData, options)
+      const result = await transcribeAudioViaWebSocket(audioData, options)
+      
+      // Record performance metrics
+      const audioProcessingTime = Date.now() - audioProcessingStart
+      performanceService.recordTranscriptionMetrics(
+        session.sessionId,
+        session,
+        audioProcessingTime,
+        result.duration,
+        {
+          text: result.text,
+          confidence: result.confidence,
+          source: result.source || 'websocket'
+        },
+        {
+          totalAudioBytes: audioData.length,
+          bufferChunks: Math.ceil(audioData.length / (32 * 1024)) // Estimate chunks
+        }
+      )
+      
+      return result
     } catch (error) {
       console.warn('🔥 WebSocket transcription failed, falling back to batch mode:', error)
       console.log('🔥 Error details:', error)
@@ -74,7 +99,140 @@ export async function transcribeAudio(
 
   // Fallback to original batch mode
   console.log('🚀 Starting batch transcription (fallback or direct)')
-  return transcribeAudioBatch(audioData, options)
+  const result = await transcribeAudioBatch(audioData, options)
+  
+  // Record performance metrics for batch mode
+  const audioProcessingTime = Date.now() - audioProcessingStart
+  performanceService.recordTranscriptionMetrics(
+    session.sessionId,
+    session,
+    audioProcessingTime,
+    result.duration,
+    {
+      text: result.text,
+      confidence: result.confidence,
+      source: result.source || 'batch'
+    },
+    {
+      totalAudioBytes: audioData.length,
+      bufferChunks: 1 // Batch mode uses single chunk
+    }
+  )
+  
+  return result
+}
+
+/**
+ * Optimized audio metrics calculation with strategic sampling
+ * Uses intelligent sampling to quickly assess audio characteristics
+ */
+function calculateAudioMetrics(pcmData: Buffer): {
+  totalBytes: number
+  nonZeroBytes: number
+  maxAmplitude: number
+  avgAmplitude: number
+  isSilent: boolean
+} {
+  const totalBytes = pcmData.length
+  
+  // Early return for empty buffers
+  if (totalBytes === 0) {
+    return { totalBytes: 0, nonZeroBytes: 0, maxAmplitude: 0, avgAmplitude: 0, isSilent: true }
+  }
+  
+  // For small buffers, analyze everything
+  if (totalBytes <= 2000) {
+    return calculateFullAudioMetrics(pcmData)
+  }
+  
+  // For larger buffers, use strategic sampling
+  return calculateSampledAudioMetrics(pcmData)
+}
+
+/**
+ * Full analysis for small audio buffers
+ */
+function calculateFullAudioMetrics(pcmData: Buffer): {
+  totalBytes: number
+  nonZeroBytes: number
+  maxAmplitude: number
+  avgAmplitude: number
+  isSilent: boolean
+} {
+  let nonZeroBytes = 0
+  let maxAmplitude = 0
+  let amplitudeSum = 0
+  let sampleCount = 0
+
+  for (let i = 0; i < pcmData.length - 1; i += 2) {
+    const sample = pcmData.readInt16LE(i)
+    const amplitude = Math.abs(sample)
+    
+    if (sample !== 0) nonZeroBytes += 2
+    if (amplitude > maxAmplitude) maxAmplitude = amplitude
+    amplitudeSum += amplitude
+    sampleCount++
+  }
+  
+  const avgAmplitude = sampleCount > 0 ? amplitudeSum / sampleCount : 0
+  const isSilent = nonZeroBytes === 0 || maxAmplitude < 100
+  
+  return { totalBytes: pcmData.length, nonZeroBytes, maxAmplitude, avgAmplitude, isSilent }
+}
+
+/**
+ * Strategic sampling for large audio buffers
+ * Samples from beginning, middle, and end for representative analysis
+ */
+function calculateSampledAudioMetrics(pcmData: Buffer): {
+  totalBytes: number
+  nonZeroBytes: number
+  maxAmplitude: number
+  avgAmplitude: number
+  isSilent: boolean
+} {
+  const totalBytes = pcmData.length
+  const sampleSize = 1000 // Sample 1000 bytes from each region
+  
+  let nonZeroSamples = 0
+  let maxAmplitude = 0
+  let amplitudeSum = 0
+  let totalSamples = 0
+  
+  // Sample from three regions: start, middle, end
+  const regions = [
+    { start: 0, size: Math.min(sampleSize, totalBytes) },
+    { start: Math.max(0, Math.floor(totalBytes / 2) - sampleSize / 2), size: sampleSize },
+    { start: Math.max(0, totalBytes - sampleSize), size: sampleSize }
+  ]
+  
+  for (const region of regions) {
+    const endPos = Math.min(region.start + region.size, totalBytes - 1)
+    
+    for (let i = region.start; i < endPos; i += 2) {
+      const sample = pcmData.readInt16LE(i)
+      const amplitude = Math.abs(sample)
+      
+      if (sample !== 0) nonZeroSamples++
+      if (amplitude > maxAmplitude) maxAmplitude = amplitude
+      amplitudeSum += amplitude
+      totalSamples++
+    }
+  }
+  
+  // Extrapolate non-zero bytes based on sampling ratio
+  const samplingRatio = totalSamples > 0 ? (totalBytes / 2) / totalSamples : 0
+  const estimatedNonZeroBytes = nonZeroSamples * 2 * samplingRatio
+  const avgAmplitude = totalSamples > 0 ? amplitudeSum / totalSamples : 0
+  const isSilent = estimatedNonZeroBytes === 0 || maxAmplitude < 100
+  
+  return { 
+    totalBytes, 
+    nonZeroBytes: Math.round(estimatedNonZeroBytes), 
+    maxAmplitude, 
+    avgAmplitude, 
+    isSilent 
+  }
 }
 
 /**
@@ -286,348 +444,236 @@ async function transcribeAudioViaWebSocket(
   const startTime = Date.now()
   const apiKey = getApiKey(options)
 
-  // Import WebSocket client directly
-  const {default: GeminiLiveWebSocketClient} = await import('./gemini-live-websocket')
-
-  const client = new GeminiLiveWebSocketClient({
-    apiKey,
-    model: options.modelName || DEFAULT_GEMINI_LIVE_MODEL, // Use Live API model for WebSocket
-    responseModalities: [ResponseModality.TEXT], // Optimize for text transcription
-    systemInstruction: 'Listen to the audio and respond with a transcription.',
-    connectionTimeout: 15000, // Increased timeout for better reliability
-    maxQueueSize: 50, // Optimized queue size for transcription
-    apiVersion: process.env.GEMINI_API_VERSION || 'v1beta', // Use configured API version or default to v1beta
-    generationConfig: {
-      candidateCount: 1,
-      maxOutputTokens: 2048,
-      temperature: 0.0,
-      topP: 1.0
-    }
-  })
-
   try {
-    // Connect to WebSocket
-    await client.connect()
-
-    // CRITICAL: Wait for setup completion before sending audio
-    // This ensures the Gemini Live API is ready to receive audio data
-    if (!client.isSetupCompleted()) {
-      console.log('Waiting for WebSocket setup completion before sending audio')
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Timeout waiting for WebSocket setup completion'))
-        }, 15000)
-
-        const onSetupComplete = () => {
-          clearTimeout(timeout)
-          client.off('setupComplete', onSetupComplete)
-          client.off('error', onSetupError)
-          console.log('WebSocket setup completed - ready to send audio')
-          resolve()
-        }
-
-        const onSetupError = (error: unknown) => {
-          clearTimeout(timeout)
-          client.off('setupComplete', onSetupComplete)
-          client.off('error', onSetupError)
-          reject(error)
-        }
-
-        // Check if already complete before adding listeners
-        if (client.isSetupCompleted()) {
-          clearTimeout(timeout)
-          resolve()
-          return
-        }
-
-        client.on('setupComplete', onSetupComplete)
-        client.on('error', onSetupError)
-      })
+    // Check for recent quota errors using QuotaManager
+    const quotaManager = QuotaManager.getInstance()
+    const WEBSOCKET_PROVIDER = 'gemini-websocket'
+    
+    if (quotaManager.shouldBlockProvider(WEBSOCKET_PROVIDER)) {
+      const timeUntilUnblocked = quotaManager.getTimeUntilUnblocked(WEBSOCKET_PROVIDER)
+      console.log(
+        `🚫 Skipping WebSocket transcription due to recent quota errors. Unblocked in ${Math.round(timeUntilUnblocked / 1000)}s`
+      )
+      throw new Error('Quota limit exceeded - using batch fallback')
     }
 
-    // Send an initial text message to establish transcription context
-    console.log('Sending initial context message to prepare for transcription')
-    await client.sendRealtimeInput({
-      text: 'Wait for audio input, then transcribe exactly what you hear.'
+    // Import WebSocket client directly
+    const {default: GeminiLiveWebSocketClient, ResponseModality} = await import(
+      './gemini-live-websocket'
+    )
+
+    const client = new GeminiLiveWebSocketClient({
+      apiKey,
+      model: options.modelName || DEFAULT_GEMINI_LIVE_MODEL, // Use Live API model for WebSocket
+      responseModalities: [ResponseModality.TEXT], // Optimize for text transcription
+      systemInstruction:
+        'You are a speech-to-text transcription system. Listen to the audio input and provide an accurate transcription of the spoken words. Only return the transcribed text, no additional commentary.',
+      connectionTimeout: 15000, // Increased timeout for better reliability
+      maxQueueSize: 50, // Optimized queue size for transcription
+      apiVersion: process.env.GEMINI_API_VERSION || 'v1beta', // Use configured API version or default to v1beta
+      generationConfig: {
+        candidateCount: 1,
+        maxOutputTokens: 2048,
+        temperature: 0.0,
+        topP: 1.0
+      }
     })
 
-    // Brief pause to let the model process the context, then clear any responses
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    try {
+      // Connect to WebSocket
+      await client.connect()
 
-    // Clear any text responses from the initial context message
-    console.log('Context established, now preparing to send audio for transcription')
+      // CRITICAL: Wait for setup completion before sending audio
+      // This ensures the Gemini Live API is ready to receive audio data
+      if (!client.isSetupCompleted()) {
+        console.log('Waiting for WebSocket setup completion before sending audio')
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Timeout waiting for WebSocket setup completion'))
+          }, 15000)
 
-    // Reset the resolved flag to ensure we only capture post-audio responses
-    let audioSent = false
+          const onSetupComplete = () => {
+            clearTimeout(timeout)
+            client.off('setupComplete', onSetupComplete)
+            client.off('error', onSetupError)
+            console.log('WebSocket setup completed - ready to send audio')
+            resolve()
+          }
 
-    // Analyze and strip WAV headers if present to get raw PCM data
-    const audioFormat = analyzeWavFormat(audioData)
-    console.log('Audio format analysis:', audioFormat)
+          const onSetupError = (error: unknown) => {
+            clearTimeout(timeout)
+            client.off('setupComplete', onSetupComplete)
+            client.off('error', onSetupError)
+            reject(error)
+          }
 
-    let pcmData = stripWavHeaders(audioData)
-    console.log(`Original audio: ${audioData.length} bytes, PCM data: ${pcmData.length} bytes`)
+          // Check if already complete before adding listeners
+          if (client.isSetupCompleted()) {
+            clearTimeout(timeout)
+            resolve()
+            return
+          }
 
-    // Get audio format information
-    const originalSampleRate = audioFormat.sampleRate || 16000
-    const channels = audioFormat.channels || 1
-    const bitDepth = audioFormat.bitDepth || 16
+          client.on('setupComplete', onSetupComplete)
+          client.on('error', onSetupError)
+        })
+      }
 
-    // Gemini Live API requires 16000Hz sample rate
-    const targetSampleRate = 16000
+      // Don't send any initial context message - let the API process audio directly
+      console.log('WebSocket setup completed - ready to send audio')
 
-    if (originalSampleRate !== targetSampleRate) {
+      // Clear any text responses and prepare for audio processing
+      console.log('Preparing to send audio for transcription')
+
+      // Reset the resolved flag to ensure we only capture post-audio responses
+      let audioSent = false
+
+      // Analyze and strip WAV headers if present to get raw PCM data
+      const audioFormat = analyzeWavFormat(audioData)
+      console.log('Audio format analysis:', audioFormat)
+
+      let pcmData = stripWavHeaders(audioData)
+      console.log(`Original audio: ${audioData.length} bytes, PCM data: ${pcmData.length} bytes`)
+
+      // Debug: Check if audio contains any actual content
+      const sampleView = pcmData.slice(0, Math.min(100, pcmData.length))
+      const nonZeroSamples = sampleView.filter(byte => byte !== 0).length
       console.log(
-        `Resampling audio from ${originalSampleRate}Hz to ${targetSampleRate}Hz for Gemini Live API compatibility`
+        `Audio content check: ${nonZeroSamples}/${sampleView.length} non-zero bytes in first 100 bytes`
       )
-      pcmData = resamplePcmAudio(pcmData, originalSampleRate, targetSampleRate, channels, bitDepth)
-      console.log(`Resampled PCM data: ${pcmData.length} bytes`)
-    } else {
-      console.log(`Audio sample rate is already ${targetSampleRate}Hz, no resampling needed`)
-    }
 
-    // Validate audio format for Gemini Live API compatibility
-    if (audioFormat.isWav) {
-      if (channels !== 1) {
-        console.warn(
-          `Audio has ${channels} channels, but Gemini Live API expects mono (1 channel). This may cause issues.`
+      // Optimized audio metrics calculation with strategic sampling
+      const audioMetrics = calculateAudioMetrics(pcmData)
+
+      // Early silence detection with optimized metrics calculation
+      const isSilent = audioMetrics.isSilent
+      if (isSilent) {
+        console.warn('⚠️ WARNING: Audio appears to be silent or very quiet - returning early to save resources')
+        // Return early result for silent audio to avoid expensive WebSocket processing
+        return {
+          text: '[Silent audio detected]',
+          duration: Date.now() - startTime,
+          source: 'websocket' as const,
+          confidence: 0.1
+        }
+      }
+
+      console.log(`Audio metrics: ${audioMetrics.nonZeroBytes}/${audioMetrics.totalBytes} non-zero bytes, max amplitude: ${audioMetrics.maxAmplitude}, avg: ${audioMetrics.avgAmplitude.toFixed(1)}`)
+
+      // Get audio format information
+      const originalSampleRate = audioFormat.sampleRate || 16000
+      const channels = audioFormat.channels || 1
+      const bitDepth = audioFormat.bitDepth || 16
+
+      // Gemini Live API requires 16000Hz sample rate
+      const targetSampleRate = 16000
+
+      if (originalSampleRate !== targetSampleRate) {
+        console.log(
+          `Resampling audio from ${originalSampleRate}Hz to ${targetSampleRate}Hz for Gemini Live API compatibility`
         )
-      }
-      if (bitDepth !== 16) {
-        console.warn(
-          `Audio has ${bitDepth}-bit depth, but Gemini Live API expects 16-bit. This may cause issues.`
+        pcmData = resamplePcmAudio(
+          pcmData,
+          originalSampleRate,
+          targetSampleRate,
+          channels,
+          bitDepth
         )
-      }
-    }
-
-    // Check audio data size - Gemini Live API is designed for chunked streaming
-    const maxChunkSize = 32 * 1024 // 32KB chunks for optimized streaming performance with Live API
-    if (pcmData.length > maxChunkSize) {
-      console.log(
-        `Audio data is ${pcmData.length} bytes, chunking into ${maxChunkSize} byte segments for streaming`
-      )
-      // Send audio in chunks for better compatibility with Live API
-      const chunks = []
-      for (let i = 0; i < pcmData.length; i += maxChunkSize) {
-        chunks.push(pcmData.subarray(i, i + maxChunkSize))
+        console.log(`Resampled PCM data: ${pcmData.length} bytes`)
+      } else {
+        console.log(`Audio sample rate is already ${targetSampleRate}Hz, no resampling needed`)
       }
 
-      console.log(`Chunked audio data into ${chunks.length} chunks of ${maxChunkSize} bytes each`)
+      // Validate audio format for Gemini Live API compatibility
+      if (audioFormat.isWav) {
+        if (channels !== 1) {
+          console.warn(
+            `Audio has ${channels} channels, but Gemini Live API expects mono (1 channel). This may cause issues.`
+          )
+        }
+        if (bitDepth !== 16) {
+          console.warn(
+            `Audio has ${bitDepth}-bit depth, but Gemini Live API expects 16-bit. This may cause issues.`
+          )
+        }
+      }
 
-      // Send audio chunks sequentially
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i]
-        const base64Audio = chunk.toString('base64')
+      // Check audio data size - Gemini Live API is designed for chunked streaming
+      const maxChunkSize = 32 * 1024 // 32KB chunks for optimized streaming performance with Live API
+      if (pcmData.length > maxChunkSize) {
+        console.log(
+          `Audio data is ${pcmData.length} bytes, streaming in ${maxChunkSize} byte chunks for optimal performance`
+        )
+        
+        // Stream audio chunks efficiently without storing all in memory
+        const totalChunks = Math.ceil(pcmData.length / maxChunkSize)
+        console.log(`Streaming audio data in ${totalChunks} chunks of up to ${maxChunkSize} bytes each`)
 
-        console.log(`Sending chunk ${i + 1}/${chunks.length}: ${chunk.length} bytes`)
+        // Send audio chunks sequentially with optimized streaming
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+          const startPos = chunkIndex * maxChunkSize
+          const endPos = Math.min(startPos + maxChunkSize, pcmData.length)
+          const chunk = pcmData.subarray(startPos, endPos)
+          const base64Audio = chunk.toString('base64')
+
+          console.log(`Streaming chunk ${chunkIndex + 1}/${totalChunks}: ${chunk.length} bytes`)
+
+          await client.sendRealtimeInput({
+            audio: {
+              data: base64Audio,
+              mimeType: 'audio/pcm;rate=16000' // Fixed MIME type per API requirements
+            }
+          })
+
+          // Optimized delay for streaming - shorter for better responsiveness
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+
+        console.log(`Finished streaming all ${totalChunks} audio chunks efficiently`)
+
+        // Mark that audio has been sent so we can process responses appropriately
+        audioSent = true
+
+        // For live streaming, don't send audioStreamEnd - keep connection open
+        console.log('Audio streaming completed - keeping connection open for live responses')
+
+        // Reduced wait time for better responsiveness
+        console.log('Waiting for live streaming responses...')
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } else {
+        // For smaller audio chunks, send as single stream
+        const base64Audio = pcmData.toString('base64')
+        console.log(`Streaming audio data: ${pcmData.length} bytes`)
 
         await client.sendRealtimeInput({
           audio: {
             data: base64Audio,
-            mimeType: 'audio/pcm' // Gemini Live API expects plain "audio/pcm"
+            mimeType: 'audio/pcm;rate=16000'
           }
         })
 
-        // Optional: Add a small delay between chunks to prevent overwhelming the API
-        await new Promise(resolve => setTimeout(resolve, 100))
+        // Mark that audio has been sent
+        audioSent = true
+
+        // For live streaming, don't send audioStreamEnd - keep connection open
+        console.log('Audio streamed - keeping connection open for live responses')
+
+        // Wait briefly for streaming responses
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
-
-      console.log(`Finished sending all ${chunks.length} audio chunks`)
-
-      // Mark that audio has been sent so we can process responses appropriately
-      audioSent = true
-
-      // Add a small delay to let the model process the audio
-      console.log('Waiting for model to process audio chunks...')
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // Signal end of audio input to trigger transcription processing
-      console.log('Sending end-of-audio-stream signal to Gemini Live API')
-      await client.sendRealtimeInput({
-        audioStreamEnd: true
-      })
-
-      // Don't send turn completion - it causes protocol errors in Gemini Live API v1beta
-      console.log('Audio stream ended - waiting for transcription response')
-    } else {
-      // Always use plain audio/pcm MIME type (without rate parameter) for Gemini Live API
-      const mimeType = 'audio/pcm'
-      console.log(`Using MIME type: ${mimeType}`)
-      console.log(
-        `Final audio data size: ${pcmData.length} bytes (${(pcmData.length / (2 * channels * targetSampleRate)).toFixed(2)}s duration)`
-      )
-
-      // Convert resampled PCM data to base64 for WebSocket transmission
-      const base64Audio = pcmData.toString('base64')
-      console.log(
-        `Base64 encoded audio size: ${sanitizeLogMessage(base64Audio.length.toString())} characters`
-      )
-
-      // Send audio data for real-time processing with correct MIME type for Gemini Live API
-      await client.sendRealtimeInput({
-        audio: {
-          data: base64Audio,
-          mimeType // Use plain "audio/pcm" as per API documentation
-        }
-      })
-
-      // Signal end of audio input to trigger transcription processing
-      console.log('Sending end-of-audio-stream signal to Gemini Live API')
-      await client.sendRealtimeInput({
-        audioStreamEnd: true
-      })
-
-      // Don't send turn completion - it causes protocol errors in Gemini Live API v1beta
-      console.log('Audio stream ended - waiting for transcription response')
-    }
-
-    // Wait for transcription response
-    const result = await new Promise<TranscriptionResult>((resolve, reject) => {
-      let resolved = false
-
-      // Cleanup function to disconnect when done
-      const cleanup = async () => {
-        try {
-          await client.disconnect()
-        } catch (error) {
-          console.warn('Error disconnecting WebSocket client:', error)
-        }
-      }
-
-      const timeout = setTimeout(async () => {
-        if (!resolved) {
-          console.log(
-            '🔥 WebSocket transcription: 20 second timeout reached, no responses received'
-          )
-          console.log('🔥 Timeout triggered - starting cleanup and fallback to batch mode')
-          resolved = true
-          await cleanup()
-          reject(new Error('WebSocket transcription timeout'))
-        }
-      }, 20000) // 20 second timeout to give Gemini Live more time to process audio
-
-      // Enhanced transcription handling with partial response support
-      let partialText = ''
-      let bestConfidence = 0
-      let lastUpdateTime = Date.now()
 
       console.log('WebSocket transcription: Waiting for responses...')
 
-      // Fallback: resolve with partial text if we have reasonable content after some time
-      const partialTimeout = setTimeout(async () => {
-        if (!resolved && partialText && Date.now() - lastUpdateTime > 1000) {
-          console.log('WebSocket transcription: Resolving with partial text after timeout')
-          resolved = true
-          clearTimeout(timeout)
-          await cleanup()
+      // For live streaming, set up event handlers and return immediately
+      // Don't wait for completion - let streaming events handle real-time updates
 
-          const duration = Date.now() - startTime
-          resolve({
-            text: partialText,
-            duration,
-            confidence: bestConfidence,
-            source: 'websocket-partial'
-          })
-        }
-      }, 5000) // Check for partial results after 5 seconds, be more aggressive
+      // Performance optimization: throttle partial updates to prevent flooding
+      let lastPartialUpdate = 0
+      const PARTIAL_UPDATE_THROTTLE_MS = 100 // Limit partial updates to 10 FPS max
+      let pendingPartialText = ''
+      let pendingPartialTimeout: NodeJS.Timeout | null = null
 
-      client.on(
-        'transcriptionUpdate',
-        async (data: {text?: string; confidence?: number; isFinal?: boolean}) => {
-          console.log('WebSocket transcription: Received transcriptionUpdate:', data)
-          if (!resolved && data.text?.trim()) {
-            partialText = data.text.trim()
-            bestConfidence = Math.max(bestConfidence, data.confidence || 0)
-            lastUpdateTime = Date.now()
-
-            // If this is a final transcription, high confidence, or any reasonable text, resolve
-            if (
-              data.isFinal ||
-              (data.confidence && data.confidence > 0.5) ||
-              (partialText.length > 3 && Date.now() - lastUpdateTime > 1000)
-            ) {
-              console.log('WebSocket transcription: Resolving with final result')
-              resolved = true
-              clearTimeout(timeout)
-              clearTimeout(partialTimeout)
-              await cleanup()
-
-              const duration = Date.now() - startTime
-              resolve({
-                text: partialText,
-                duration,
-                confidence: data.confidence || bestConfidence,
-                source: 'websocket'
-              })
-            }
-          }
-        }
-      )
-
-      // Also listen for direct textResponse events from the WebSocket client
-      client.on(
-        'textResponse',
-        async (data: {content?: string; metadata?: {confidence?: number}; isPartial?: boolean}) => {
-          console.log('WebSocket transcription: Received textResponse:', data)
-          // Only process responses that come after we've sent audio (not context responses)
-          if (!resolved && audioSent && data.content?.trim()) {
-            const text = data.content.trim()
-            const confidence = data.metadata?.confidence || 0.9
-            const isFinal = !data.isPartial
-
-            partialText = text
-            bestConfidence = Math.max(bestConfidence, confidence)
-            lastUpdateTime = Date.now()
-
-            // If this is a final response or good content, resolve
-            if (isFinal || text.length > 3) {
-              console.log('WebSocket transcription: Resolving with textResponse result')
-              resolved = true
-              clearTimeout(timeout)
-              clearTimeout(partialTimeout)
-              await cleanup()
-
-              const duration = Date.now() - startTime
-              resolve({
-                text: text,
-                duration,
-                confidence: confidence,
-                source: 'websocket-text'
-              })
-            }
-          } else if (!audioSent) {
-            console.log(
-              'WebSocket transcription: Ignoring pre-audio textResponse:',
-              data.content?.substring(0, 50) + '...'
-            )
-          }
-        }
-      )
-
-      client.on('error', async (error: Error) => {
-        console.log('WebSocket transcription: Received error:', error)
-        if (!resolved) {
-          resolved = true
-          clearTimeout(timeout)
-          clearTimeout(partialTimeout)
-          await cleanup()
-          reject(error)
-        }
-      })
-
-      client.on('text', (response: unknown) => {
-        console.log('WebSocket transcription: Received text response:', response)
-      })
-
-      client.on('serverContent', (response: unknown) => {
-        console.log('WebSocket transcription: Received serverContent:', response)
-      })
-
-      // Add a raw message listener to see everything we receive
-      client.on('message', (message: unknown) => {
-        console.log('WebSocket transcription: Raw message received:', message)
-      })
-
-      // Listen for geminiResponse events (the primary event from parseResponse)
+      // Handle streaming responses with optimized processing
       client.on(
         'geminiResponse',
         async (response: {
@@ -635,83 +681,112 @@ async function transcribeAudioViaWebSocket(
           content?: string
           metadata?: {confidence?: number; isPartial?: boolean}
         }) => {
-          console.log('WebSocket transcription: Received geminiResponse:', response)
-          // Only process text responses that come after we've sent audio
-          if (!resolved && audioSent && response.type === 'text' && response.content?.trim()) {
-            const text = response.content.trim()
-            const confidence = response.metadata?.confidence || 0.8
-            const isFinal = !response.metadata?.isPartial
+          // Early return for non-text responses to reduce processing overhead
+          if (!audioSent || response.type !== 'text' || !response.content?.trim()) {
+            return
+          }
 
-            partialText = text
-            bestConfidence = Math.max(bestConfidence, confidence)
-            lastUpdateTime = Date.now()
+          const text = response.content.trim()
+          const confidence = response.metadata?.confidence || 0.8
+          const isFinal = !response.metadata?.isPartial
+          const now = Date.now()
 
-            console.log(
-              `WebSocket transcription: Got text response: "${text}" (final: ${isFinal}, confidence: ${confidence})`
-            )
-
-            // If this is a final response or good content, resolve
-            if (isFinal || text.length > 2) {
-              console.log('WebSocket transcription: Resolving with geminiResponse result')
-              resolved = true
-              clearTimeout(timeout)
-              clearTimeout(partialTimeout)
-              await cleanup()
-
-              const duration = Date.now() - startTime
-              resolve({
-                text: text,
-                duration,
-                confidence: confidence,
-                source: 'websocket-gemini'
-              })
+          // Handle final transcriptions immediately
+          if (isFinal) {
+            // Clear any pending partial update
+            if (pendingPartialTimeout) {
+              clearTimeout(pendingPartialTimeout)
+              pendingPartialTimeout = null
             }
-          } else if (!audioSent && response.type === 'text') {
-            console.log(
-              'WebSocket transcription: Ignoring pre-audio geminiResponse:',
-              response.content?.substring(0, 50) + '...'
-            )
+            
+            await streamTranscriptionToWindows(text, true, confidence)
+          } else {
+            // Throttle partial updates to prevent UI flooding
+            pendingPartialText = text
+            
+            if (now - lastPartialUpdate >= PARTIAL_UPDATE_THROTTLE_MS) {
+              lastPartialUpdate = now
+              await streamTranscriptionToWindows(text, false, confidence)
+            } else if (!pendingPartialTimeout) {
+              // Schedule delayed update if not already scheduled
+              pendingPartialTimeout = setTimeout(async () => {
+                pendingPartialTimeout = null
+                lastPartialUpdate = Date.now()
+                await streamTranscriptionToWindows(pendingPartialText, false, confidence)
+              }, PARTIAL_UPDATE_THROTTLE_MS - (now - lastPartialUpdate))
+            }
           }
         }
       )
 
-      // Listen for turnComplete events to know when transcription is finished
-      client.on('turnComplete', async () => {
-        console.log('WebSocket transcription: Received turnComplete event')
-        if (!resolved && partialText) {
-          console.log('WebSocket transcription: Resolving with turn complete')
-          resolved = true
-          clearTimeout(timeout)
-          clearTimeout(partialTimeout)
-          await cleanup()
-
-          const duration = Date.now() - startTime
-          resolve({
-            text: partialText,
-            duration,
-            confidence: bestConfidence,
-            source: 'websocket-turn-complete'
-          })
-        } else if (!resolved) {
-          console.log('WebSocket transcription: Turn complete but no text received')
-          resolved = true
-          clearTimeout(timeout)
-          clearTimeout(partialTimeout)
-          await cleanup()
-          reject(new Error('Turn completed but no transcription text received'))
+      // Optimized streaming function to reduce code duplication
+      async function streamTranscriptionToWindows(text: string, isFinal: boolean, confidence: number) {
+        try {
+          const WindowManager = (await import('../services/window-manager')).default
+          const windowManager = WindowManager.getInstance()
+          
+          // Batch the broadcast data to reduce object creation overhead
+          const broadcastData = {
+            text,
+            isFinal,
+            source: 'websocket',
+            confidence
+          }
+          
+          windowManager.broadcastToAllWindows('inter-window-message', 'streaming-transcription', broadcastData)
+        } catch (streamingError) {
+          console.warn('Failed to stream transcription:', streamingError)
         }
-      })
-    })
+      }
 
-    return result
-  } catch (error) {
-    // Ensure cleanup on any error
-    try {
-      await client.disconnect()
-    } catch (disconnectError) {
-      console.warn('Error disconnecting WebSocket client during error cleanup:', disconnectError)
+      // Auto-disconnect after a reasonable time for live streaming
+      setTimeout(async () => {
+        try {
+          console.log('🔌 Auto-disconnecting WebSocket after streaming period')
+          await client.disconnect()
+        } catch (error) {
+          console.warn('Error auto-disconnecting:', error)
+        }
+      }, 10000) // 10 seconds max for live streaming
+
+      // Return immediately for live streaming - don't wait
+      console.log('🚀 Live streaming enabled - returning immediately')
+      return {
+        text: 'Live streaming session established',
+        duration: Date.now() - startTime,
+        source: 'websocket' as const
+      }
+    } catch (error) {
+      // Track quota errors using QuotaManager for better error handling
+      const quotaManager = QuotaManager.getInstance()
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      
+      if (QuotaManager.isQuotaError(error)) {
+        console.log('🚫 Quota error detected, recording for future WebSocket avoidance')
+        const errorCode = QuotaManager.extractErrorCode(error)
+        quotaManager.recordQuotaError(WEBSOCKET_PROVIDER, errorCode, errorMessage)
+      }
+
+      // Ensure cleanup on any error
+      try {
+        await client.disconnect()
+      } catch (disconnectError) {
+        console.warn('Error disconnecting WebSocket client during error cleanup:', disconnectError)
+      }
+      throw error
     }
-    throw error
+  } catch (mainError) {
+    // Main function error handling - fallback to batch transcription
+    console.error('🚫 WebSocket transcription failed, falling back to batch mode:', mainError)
+
+    // Import proxy transcription module as fallback
+    const {transcribeAudioViaProxy} = await import('./proxy-stt-transcription')
+
+    // Use proxy transcription as fallback
+    return await transcribeAudioViaProxy(audioData, {
+      ...options,
+      mode: TranscriptionMode.BATCH // Force batch mode for fallback
+    })
   }
 }
 
@@ -900,6 +975,127 @@ export async function transcribeAudioWithCompatibility(
   }
 
   return transcribeAudio(audioData, migrationResult.newConfig as TranscriptionOptions)
+}
+
+/**
+ * Get comprehensive performance and quota status report
+ * Useful for debugging and monitoring transcription system health
+ */
+export async function getTranscriptionSystemReport(): Promise<{
+  performance: string
+  quotaStatus: string
+  systemHealth: 'excellent' | 'good' | 'warning' | 'critical'
+  recommendations: string[]
+}> {
+  const performanceService = UnifiedPerformanceService.getInstance()
+  const quotaManager = QuotaManager.getInstance()
+  
+  // Get performance report
+  const performanceReport = performanceService.generatePerformanceReport()
+  const stats = performanceService.getTranscriptionStats()
+  
+  // Get quota statuses
+  const quotaStatuses = quotaManager.getAllQuotaStatuses()
+  let quotaReport = '🔐 Quota Status:\n'
+  
+  if (quotaStatuses.size === 0) {
+    quotaReport += '  • No quota issues recorded\n'
+  } else {
+    for (const [provider, status] of quotaStatuses) {
+      quotaReport += `  • ${provider}: ${status.isBlocked ? '🚫 BLOCKED' : '✅ OK'} (${status.recentErrors.length} recent errors)\n`
+      if (status.isBlocked) {
+        const timeUntilUnblocked = quotaManager.getTimeUntilUnblocked(provider)
+        quotaReport += `    Unblocked in: ${Math.round(timeUntilUnblocked / 1000)}s\n`
+      }
+    }
+  }
+  
+  // Determine system health
+  let systemHealth: 'excellent' | 'good' | 'warning' | 'critical' = 'excellent'
+  const recommendations: string[] = []
+  
+  if (stats.totalSessions > 0) {
+    if (stats.averageLatency > 10000) {
+      systemHealth = 'critical'
+      recommendations.push('Critical: Very high API latency detected')
+    } else if (stats.averageLatency > 5000) {
+      systemHealth = 'warning'
+      recommendations.push('Warning: High API latency detected')
+    }
+    
+    if (stats.averageConfidence < 0.6) {
+      if (systemHealth === 'excellent') systemHealth = 'critical'
+      recommendations.push('Critical: Very low transcription confidence')
+    } else if (stats.averageConfidence < 0.8) {
+      if (systemHealth === 'excellent') systemHealth = 'warning'
+      recommendations.push('Warning: Low transcription confidence')
+    }
+  }
+  
+  // Check quota status
+  let hasBlockedProviders = false
+  for (const [, status] of quotaStatuses) {
+    if (status.isBlocked) {
+      hasBlockedProviders = true
+      break
+    }
+  }
+  
+  if (hasBlockedProviders) {
+    if (systemHealth === 'excellent') systemHealth = 'warning'
+    recommendations.push('Warning: Some transcription providers are quota-blocked')
+  }
+  
+  if (recommendations.length === 0) {
+    recommendations.push('System is operating optimally')
+  }
+  
+  return {
+    performance: performanceReport,
+    quotaStatus: quotaReport.trim(),
+    systemHealth,
+    recommendations
+  }
+}
+
+/**
+ * Test function to manually trigger streaming transcription IPC events
+ * This bypasses Gemini and directly sends test streaming data to verify IPC communication
+ */
+export async function testStreamingTranscriptionIPC(): Promise<void> {
+  console.log('🧪 Testing streaming transcription IPC communication...')
+  
+  try {
+    const WindowManager = (await import('../services/window-manager')).default
+    const windowManager = WindowManager.getInstance()
+    
+    // Send a series of test streaming messages
+    const testMessages = [
+      { text: 'This is a test', isFinal: false, confidence: 0.7 },
+      { text: 'This is a test of the', isFinal: false, confidence: 0.8 },
+      { text: 'This is a test of the streaming', isFinal: false, confidence: 0.85 },
+      { text: 'This is a test of the streaming transcription', isFinal: false, confidence: 0.9 },
+      { text: 'This is a test of the streaming transcription system', isFinal: true, confidence: 0.95 }
+    ]
+    
+    for (let i = 0; i < testMessages.length; i++) {
+      const message = testMessages[i]
+      
+      setTimeout(() => {
+        windowManager.broadcastToAllWindows('inter-window-message', 'streaming-transcription', {
+          text: message.text,
+          isFinal: message.isFinal,
+          source: 'test-ipc',
+          confidence: message.confidence
+        })
+        console.log(`🧪 Test message ${i + 1}/${testMessages.length}: "${message.text}" (${message.isFinal ? 'final' : 'partial'})`)
+      }, i * 500) // 500ms delay between messages
+    }
+    
+    console.log('🧪 Test streaming transcription IPC messages scheduled')
+  } catch (error) {
+    console.error('🧪 Failed to test streaming transcription IPC:', error)
+  }
 }
 
 // Export legacy aliases for backward compatibility

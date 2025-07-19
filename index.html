@@ -3,11 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <title>dao copilot</title>
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self';" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+    />
     <link rel="stylesheet" href="/src/styles/global.css" />
   </head>
   <body>
-    <div id="app" />
+    <div id="app">Loading...</div>
+    <script>
+      console.log('🚀 HTML: Script starting...')
+      console.log('🔍 HTML: App element:', document.getElementById('app'))
+
+      // Test basic functionality
+      setTimeout(() => {
+        const appEl = document.getElementById('app')
+        if (appEl && appEl.innerHTML === 'Loading...') {
+          console.log('🚨 HTML: React app failed to mount after 5 seconds')
+          appEl.innerHTML =
+            '<div style="padding: 20px; color: red;">🚨 React app failed to mount - check console</div>'
+        }
+      }, 5000)
+    </script>
     <script type="module" src="/src/renderer.ts"></script>
   </body>
 </html>

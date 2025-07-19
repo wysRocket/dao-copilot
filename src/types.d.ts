@@ -13,6 +13,7 @@ declare global {
     };
     transcriptionAPI: {
       transcribeAudio: (audioData: Uint8Array) => Promise<TranscriptionResult>;
+      testStreamingIPC: () => Promise<{success: boolean; message?: string; error?: string}>;
     };
     themeAPI: {
       setTheme: (theme: 'light' | 'dark' | 'system') => void;

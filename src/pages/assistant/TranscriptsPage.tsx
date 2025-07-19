@@ -1,190 +1,247 @@
-import React, {useEffect} from 'react'
-import {useTranscriptionState, useWindowCommunication} from '../../hooks/useSharedState'
+import React, {useEffect, useRef, useCallback, useMemo} from 'react'
+
+// Local hooks
+import {useWindowCommunication} from '../../hooks/useSharedState'
+import {useTranscriptionState} from '../../hooks/useTranscriptionState'
+
+// Services and types
 import {TranscriptionResult} from '../../services/main-stt-transcription'
+import {TranscriptionSource} from '../../services/TranscriptionSourceManager'
+
+// Components
+import StreamingTextRenderer from '../../components/StreamingTextRenderer'
 
 export default function TranscriptsPage() {
-  const {transcripts, isProcessing, addTranscript, setProcessingState} = useTranscriptionState()
+  // Use only the unified TranscriptionStateManager
+  const {
+    addTranscript,
+    setProcessingState,
+    startStreaming,
+    updateStreaming,
+    completeStreaming,
+    isStreamingActive,
+    currentStreamingText,
+    isCurrentTextPartial,
+    streamingMode
+  } = useTranscriptionState()
   const {onMessage} = useWindowCommunication()
 
-  // Listen for transcription results from CustomTitleBar (main window)
+  // Add state to track if we should accumulate (only complete on manual stop)
+  const completionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const accumulatedTextRef = useRef<string>('')
+  const isRecordingActiveRef = useRef<boolean>(false)
+
+  // Memoized function to complete transcription manually (triggered by REC/STOP button)
+  const completeCurrentTranscription = useCallback(() => {
+    // Add to permanent transcript list only if we have accumulated text
+    if (accumulatedTextRef.current.trim()) {
+      addTranscript({
+        id: `manual-complete-${Date.now()}`,
+        text: accumulatedTextRef.current,
+        timestamp: Date.now(),
+        confidence: 0.95
+      })
+    }
+
+    // DON'T complete streaming in unified manager - keep current text visible
+    // Only reset accumulated text for next recording session
+    accumulatedTextRef.current = ''
+    isRecordingActiveRef.current = false
+  }, [addTranscript])
+
+  // Listen for recording state changes to trigger transcription completion
   useEffect(() => {
     const unsubscribe = onMessage((channel, ...args) => {
-      if (channel === 'transcription-result' && args[0]) {
-        const result = args[0] as TranscriptionResult
-        addTranscript({
-          text: result.text,
-          confidence: result.confidence as number | undefined
-        })
-        setProcessingState(false)
+      if (channel === 'recording-state-changed' && args[0] !== undefined) {
+        const isRecording = args[0] as boolean
+        
+        if (!isRecording && isRecordingActiveRef.current) {
+          // Recording stopped - complete the current transcription
+          completeCurrentTranscription()
+        } else if (isRecording) {
+          // Recording started - reset for new session
+          accumulatedTextRef.current = ''
+          isRecordingActiveRef.current = true
+        }
       }
     })
 
     return unsubscribe
-  }, [onMessage, addTranscript, setProcessingState])
+  }, [onMessage, completeCurrentTranscription])
 
+  // Listen for transcription results from CustomTitleBar (main window)
+  useEffect(() => {
+    const unsubscribe = onMessage((channel, ...args) => {
+      
+      if (channel === 'transcription-result' && args[0]) {
+        const result = args[0] as TranscriptionResult
+        addTranscript({
+          id: `transcript-${Date.now()}`,
+          text: result.text,
+          timestamp: Date.now(),
+          confidence: result.confidence as number | undefined
+        })
+        setProcessingState(false)
+      } else if (channel === 'streaming-transcription' && args[0]) {
+        // Handle live streaming transcriptions for real-time display
+        const streamingData = args[0] as {text: string; isFinal: boolean; source: string}
+
+        if (streamingData.text.trim()) {
+          // If this is a final transcription, add to permanent list immediately
+          if (streamingData.isFinal) {
+            
+            // Use accumulated text if available, otherwise use the final text
+            const finalText = accumulatedTextRef.current.trim() || streamingData.text
+            
+            // Update accumulated text with final version
+            accumulatedTextRef.current = finalText
+            
+            // Complete the transcription manually (same as REC/STOP)
+            completeCurrentTranscription()
+          } else {
+            // This is a partial/ongoing transcription update
+            
+            // Always accumulate text during recording
+            const currentText = streamingData.text.trim()
+            const previousText = accumulatedTextRef.current.trim()
+            
+            if (!previousText) {
+              // First transcription in this session
+              accumulatedTextRef.current = currentText
+            } else {
+              // Check if this text should be appended or if it's a replacement
+              if (currentText.startsWith(previousText) || previousText.startsWith(currentText)) {
+                // This is an update to the same utterance - use the longer version
+                accumulatedTextRef.current = currentText.length > previousText.length ? currentText : previousText
+              } else {
+                // This is a new utterance - append with space
+                accumulatedTextRef.current = previousText + ' ' + currentText
+              }
+            }
+            
+            // Update the streaming with accumulated text using unified manager
+            updateStreaming(accumulatedTextRef.current, true)
+
+            // Also update the unified TranscriptionStateManager
+            if (isStreamingActive) {
+              updateStreaming(accumulatedTextRef.current, true)
+            } else {
+              startStreaming({
+                id: `websocket-${Date.now()}`,
+                text: accumulatedTextRef.current,
+                timestamp: Date.now(),
+                isPartial: true,
+                confidence: 0.95,
+                source: TranscriptionSource.WEBSOCKET_GEMINI
+              })
+            }
+          }
+        }
+      }
+    })
+
+    return unsubscribe
+  }, [
+    onMessage,
+    addTranscript,
+    setProcessingState,
+    startStreaming,
+    updateStreaming,
+    isStreamingActive,
+    completeStreaming,
+    completeCurrentTranscription
+  ])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (completionTimeoutRef.current) {
+        clearTimeout(completionTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Memoized streaming state computation
+  const streamingState = useMemo(() => ({
+    activeText: currentStreamingText || '',
+    isActive: isStreamingActive,
+    isPartial: isCurrentTextPartial
+  }), [currentStreamingText, isStreamingActive, isCurrentTextPartial])
+
+  // Memoized transcripts for rendering (prevent re-sorts on every render)
   return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div
-        className="border-b px-4 py-4"
-        style={{
-          background: 'var(--glass-heavy)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          borderBottom: '1px solid var(--glass-border)',
-          boxShadow: '0 2px 12px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-        }}
-      >
-        <h2 className="mb-1 text-lg font-bold" style={{color: 'var(--text-primary)'}}>
-          Live Transcriptions
-        </h2>
-        <p className="text-sm" style={{color: 'var(--text-secondary)'}}>
-          Real-time transcription results from audio recording
-        </p>
-      </div>
-
-      {/* Live Transcription Display */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="mx-auto w-full max-w-4xl">
-          <div
-            className="max-h-full min-h-[300px] overflow-y-auto rounded-xl p-4"
-            style={{
-              background: 'var(--glass-medium)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: '1px solid var(--glass-border)',
-              boxShadow: '0 8px 32px var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-            }}
-          >
-            {transcripts.length === 0 && !isProcessing ? (
-              <div className="flex h-full flex-col items-center justify-center space-y-6 py-16 text-center">
-                <div
-                  className="flex h-20 w-20 items-center justify-center rounded-full"
-                  style={{
-                    background: 'var(--glass-medium)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: '1px solid var(--glass-border)',
-                    boxShadow: '0 4px 16px var(--glass-shadow)'
-                  }}
-                >
-                  <svg
-                    width="32"
-                    height="32"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    style={{color: 'var(--text-accent)'}}
-                  >
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                    <line x1="8" y1="23" x2="16" y2="23" />
-                  </svg>
-                </div>
-                <div className="space-y-3">
-                  <p className="text-lg font-medium" style={{color: 'var(--text-primary)'}}>
-                    No transcriptions yet
-                  </p>
-                  <p className="text-sm" style={{color: 'var(--text-secondary)'}}>
-                    Start recording in the main window to see live transcriptions here
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                {transcripts.map(transcript => (
-                  <div
-                    key={transcript.id}
-                    className="mb-4 rounded-xl p-4 transition-all duration-200 hover:scale-[1.01] hover:shadow-lg"
-                    style={{
-                      background: 'var(--glass-light)',
-                      backdropFilter: 'blur(16px)',
-                      WebkitBackdropFilter: 'blur(16px)',
-                      border: '1px solid var(--glass-border)',
-                      boxShadow:
-                        '0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-                    }}
-                  >
-                    <p
-                      className="mb-3 text-sm leading-relaxed"
-                      style={{color: 'var(--text-primary)'}}
-                    >
-                      {transcript.text}
-                    </p>
-                    <div
-                      className="flex items-center justify-between text-xs"
-                      style={{color: 'var(--text-muted)'}}
-                    >
-                      <span>{new Date(transcript.timestamp).toLocaleString()}</span>
-                      {transcript.confidence && (
-                        <span
-                          className="rounded-full px-2 py-1 text-xs font-medium"
-                          style={{
-                            background: 'var(--glass-light)',
-                            color: 'var(--text-accent)'
-                          }}
-                        >
-                          {(transcript.confidence * 100).toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {isProcessing && (
-                  <div
-                    className="flex items-center justify-center rounded-xl p-6"
-                    style={{
-                      background: 'var(--glass-light)',
-                      border: '1px solid var(--glass-border)'
-                    }}
-                  >
-                    <div
-                      className="h-6 w-6 animate-spin rounded-full border-r-2 border-b-2"
-                      style={{borderColor: 'var(--interactive-primary)'}}
-                    ></div>
-                    <span
-                      className="ml-3 text-sm font-medium"
-                      style={{color: 'var(--text-primary)'}}
-                    >
-                      Processing audio...
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+    <div className="flex h-full flex-col">{"\n"}      {/* Header */}
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold" style={{color: 'var(--text-primary)'}}>
+            Live Transcriptions
+          </h1>
+          <p className="text-sm" style={{color: 'var(--text-muted)'}}>
+            Real-time transcription results from audio recording
+          </p>
         </div>
       </div>
 
-      {/* Footer with stats */}
+      {/* WebSocket Status Indicator */}
       <div
-        className="border-t px-4 py-3"
+        className="mb-4 rounded-lg border p-3"
         style={{
-          background: 'var(--glass-medium)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderTop: '1px solid var(--glass-border)',
-          boxShadow: '0 -2px 8px var(--glass-shadow)'
+          backgroundColor: 'var(--glass-light)',
+          borderColor: 'var(--glass-border)',
+          color: 'var(--text-primary)'
         }}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <span className="text-sm font-medium" style={{color: 'var(--text-primary)'}}>
-              {transcripts.length} transcript{transcripts.length !== 1 ? 's' : ''}
-            </span>
-            {isProcessing && (
-              <span className="flex items-center text-sm" style={{color: 'var(--text-accent)'}}>
-                <div className="mr-2 h-2 w-2 animate-pulse rounded-full bg-current"></div>
-                Recording active
-              </span>
-            )}
+        <div className="text-sm">
+          <div className="mb-1">
+            <strong>WebSocket Status:</strong> Ready
+          </div>
+          <div className="mb-1">
+            <strong>Transcription Mode:</strong> Hybrid (WebSocket + Batch Fallback)
           </div>
           <div className="text-xs" style={{color: 'var(--text-muted)'}}>
-            Live updates from main window
+            Note: If quota exceeded, system automatically falls back to batch transcription
           </div>
         </div>
+      </div>
+
+      {/* Live Streaming Area */}
+      <div className="flex-1 overflow-hidden">
+        {streamingState.isActive && streamingState.activeText ? (
+          <div
+            className="h-full rounded-lg border p-4"
+            style={{
+              backgroundColor: 'var(--glass-light)',
+              borderColor: 'var(--glass-border)',
+              color: 'var(--text-primary)'
+            }}
+          >
+            <div className="mb-2 text-sm font-medium">
+              🔴 Live Streaming {streamingState.isPartial ? '(Partial)' : '(Final)'}
+            </div>
+            <StreamingTextRenderer
+              text={streamingState.activeText}
+              isPartial={streamingState.isPartial}
+              mode={streamingMode}
+            />
+          </div>
+        ) : (
+          <div
+            className="flex h-full items-center justify-center rounded-lg border-2 border-dashed"
+            style={{
+              borderColor: 'var(--glass-border)',
+              color: 'var(--text-muted)'
+            }}
+          >
+            <div className="text-center">
+              <div className="mb-2 text-4xl opacity-60">🎙️</div>
+              <div className="mb-2 text-lg font-medium">Waiting for Audio Input</div>
+              <div className="text-sm">
+                Start recording or speaking to see live transcriptions appear here
+              </div>
+              <div className="mt-2 text-xs">WebSocket Connection: Ready</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

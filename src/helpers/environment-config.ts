@@ -41,6 +41,12 @@ export async function loadEnvironmentConfig(): Promise<void> {
  * Get the Google API key from various possible environment variables
  */
 export function getGoogleApiKey(): string | undefined {
+  // Check if we're in a browser environment and process is not available
+  if (typeof process === 'undefined') {
+    console.warn('Running in browser environment - environment variables not available')
+    return undefined
+  }
+
   return (
     process.env.GOOGLE_API_KEY ||
     process.env.VITE_GOOGLE_API_KEY ||

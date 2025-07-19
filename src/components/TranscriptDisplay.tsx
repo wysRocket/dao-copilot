@@ -27,6 +27,7 @@ interface TranscriptDisplayProps {
   enableStreaming?: boolean
   streamingText?: string
   isStreamingPartial?: boolean
+  isStreamingActive?: boolean
   streamingMode?: 'character' | 'word' | 'instant'
   onStreamingComplete?: () => void
   // Accessibility props
@@ -55,6 +56,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
   enableStreaming = false,
   streamingText = '',
   isStreamingPartial = false,
+  isStreamingActive = false,
   streamingMode = 'character',
   onStreamingComplete,
   // Accessibility configuration
@@ -239,14 +241,14 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
                 />
 
                 {/* Live streaming text display */}
-                {enableStreaming && streamingText && (
+                {enableStreaming && (isStreamingActive || streamingText) && (
                   <div
-                    className="mt-4 border-t border-opacity-20 pt-4"
+                    className="border-opacity-20 mt-4 border-t pt-4"
                     style={{borderColor: 'var(--border-secondary)'}}
                   >
                     <LiveStreamingArea
                       streamingText={streamingText}
-                      isStreamingActive={!isStreamingPartial}
+                      isStreamingActive={isStreamingActive}
                       isStreamingPartial={isStreamingPartial}
                       streamingMode={streamingMode}
                       streamingSource="microphone"

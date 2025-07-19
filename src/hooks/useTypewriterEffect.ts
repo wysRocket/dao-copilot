@@ -161,7 +161,7 @@ export const useTypewriterEffect = (
   )
 
   /**
-   * Type the next character
+   * Type the next character - optimized with requestAnimationFrame
    */
   const typeNextCharacter = useCallback(() => {
     if (currentIndex >= text.length) {
@@ -173,16 +173,21 @@ export const useTypewriterEffect = (
     const char = text[currentIndex]
     const newDisplayedText = text.slice(0, currentIndex + 1)
 
-    setDisplayedText(newDisplayedText)
-    setCurrentIndex(prev => prev + 1)
+    // Batch state updates to reduce re-renders
+    requestAnimationFrame(() => {
+      setDisplayedText(newDisplayedText)
+      setCurrentIndex(prev => prev + 1)
+    })
 
-    // Play sound effect
-    playTypingSound(char)
+    // Play sound effect (only if enabled to avoid unnecessary processing)
+    if (mergedConfig.enableSounds) {
+      playTypingSound(char)
+    }
 
     // Call character typed callback
     mergedConfig.onCharacterTyped(char, currentIndex)
 
-    // Schedule next character
+    // Schedule next character with optimized timing
     const interval = getTypingInterval(char)
     typingTimerRef.current = setTimeout(typeNextCharacter, interval)
   }, [currentIndex, text, getTypingInterval, playTypingSound, mergedConfig])
@@ -209,7 +214,7 @@ export const useTypewriterEffect = (
   }, [text, typeNextCharacter, mergedConfig.startDelay])
 
   /**
-   * Manage cursor blinking
+   * Manage cursor blinking - optimized with requestAnimationFrame
    */
   useEffect(() => {
     if (!mergedConfig.showCursor) {
@@ -217,14 +222,23 @@ export const useTypewriterEffect = (
       return
     }
 
-    // Blink cursor every 530ms (realistic cursor blink rate)
-    cursorTimerRef.current = setInterval(() => {
-      setShowCursor(prev => !prev)
-    }, 530)
+    let animationFrameId: number
+    let lastBlinkTime = 0
+    const BLINK_INTERVAL = 530 // Realistic cursor blink rate
+
+    const animateCursor = (timestamp: number) => {
+      if (timestamp - lastBlinkTime >= BLINK_INTERVAL) {
+        setShowCursor(prev => !prev)
+        lastBlinkTime = timestamp
+      }
+      animationFrameId = requestAnimationFrame(animateCursor)
+    }
+
+    animationFrameId = requestAnimationFrame(animateCursor)
 
     return () => {
-      if (cursorTimerRef.current) {
-        clearInterval(cursorTimerRef.current)
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
       }
     }
   }, [mergedConfig.showCursor])

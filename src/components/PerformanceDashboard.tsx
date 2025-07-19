@@ -1,6 +1,6 @@
 import React, {useState} from 'react'
 import {cn} from '@/utils/tailwind'
-import {usePerformance} from '../hooks/usePerformance'
+import {usePerformanceMonitoring} from '../hooks/usePerformanceMonitoring'
 import {WindowStatus} from './ui/window-status'
 import GlassBox from './GlassBox'
 import GlassButton from './GlassButton'
@@ -16,17 +16,16 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
   compact = false
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
-  const {
-    metrics,
-    averageMetrics,
-    getMemoryUsage,
-    runCleanup,
-    getOptimizationSuggestions,
-    generateReport
-  } = usePerformance()
+  const { performanceData, resetMetrics } = usePerformanceMonitoring('PerformanceDashboard', true)
 
-  const memoryUsage = getMemoryUsage()
-  const suggestions = getOptimizationSuggestions()
+  // Handle case when performance monitoring is disabled
+  if (!performanceData) {
+    return (
+      <div className={cn('app-region-no-drag text-xs text-gray-500', className)}>
+        Performance monitoring disabled
+      </div>
+    )
+  }
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B'
@@ -49,7 +48,14 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
   }
 
   const downloadReport = () => {
-    const report = generateReport()
+    const report = {
+      timestamp: new Date().toISOString(),
+      performanceData,
+      system: {
+        userAgent: navigator.userAgent,
+        timestamp: Date.now()
+      }
+    }
     const blob = new Blob([JSON.stringify(report, null, 2)], {type: 'application/json'})
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -69,15 +75,17 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
           <div
             className={cn(
               'h-2 w-2 rounded-full',
-              metrics?.renderTime
-                ? getPerformanceColor(metrics.renderTime, [16, 33])
+              performanceData.renderMetrics.averageRenderTime > 0
+                ? getPerformanceColor(performanceData.renderMetrics.averageRenderTime, [16, 33])
                 : 'bg-muted-foreground/50'
             )}
           ></div>
           <span>Perf</span>
         </div>
 
-        {memoryUsage && <span>{formatBytes(memoryUsage.used)}</span>}
+        {performanceData.memoryMetrics.heapUsed > 0 && (
+          <span>{formatBytes(performanceData.memoryMetrics.heapUsed)}</span>
+        )}
 
         <button
           onClick={() => setIsExpanded(!isExpanded)}
@@ -92,170 +100,172 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
               zIndex: 10,
-              cursor: 'pointer',
-              pointerEvents: 'auto'
+              fontSize: '12px'
             } as React.CSSProperties
           }
         >
           📊
         </button>
-
-        {isExpanded && (
-          <div className="absolute top-8 right-0 z-50 min-w-64">
-            <GlassBox variant="medium" cornerRadius={12} className="p-4 shadow-lg">
-              <PerformanceDashboard className="w-full" compact={false} />
-            </GlassBox>
-          </div>
-        )}
       </div>
     )
   }
 
   return (
-    <GlassBox
-      variant="light"
-      cornerRadius={8}
-      className={cn('app-region-no-drag', className)}
+    <div
+      className={cn('app-region-no-drag flex flex-col space-y-4 p-6', className)}
       style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
     >
-      <div className="space-y-4 p-3">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium" style={{color: 'var(--text-primary)'}}>
-            Performance Monitor
-          </h3>
-          <div className="flex space-x-1">
-            <GlassButton onClick={runCleanup} title="Run memory cleanup" variant="light" size="sm">
-              🧹
-            </GlassButton>
-            <GlassButton
-              onClick={downloadReport}
-              title="Download performance report"
-              variant="light"
-              size="sm"
-            >
-              📁
-            </GlassButton>
-          </div>
-        </div>
-
-        {/* Current Metrics */}
-        {metrics && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <GlassBox variant="light" className="space-y-2 p-2">
-                <div className="flex justify-between">
-                  <span style={{color: 'var(--text-secondary)'}}>Windows:</span>
-                  <span className="font-mono" style={{color: 'var(--text-primary)'}}>
-                    {metrics.windowCount}
-                  </span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span style={{color: 'var(--text-secondary)'}}>Render Time:</span>
-                  <span
-                    className={cn('font-mono', getPerformanceColor(metrics.renderTime, [16, 33]))}
-                  >
-                    {formatTime(metrics.renderTime)}
-                  </span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span style={{color: 'var(--text-secondary)'}}>IPC Latency:</span>
-                  <span
-                    className={cn('font-mono', getPerformanceColor(metrics.ipcLatency, [50, 100]))}
-                  >
-                    {formatTime(metrics.ipcLatency)}
-                  </span>
-                </div>
-              </GlassBox>
-
-              <GlassBox variant="light" className="space-y-2 p-2">
-                {memoryUsage && (
-                  <>
-                    <div className="flex justify-between">
-                      <span style={{color: 'var(--text-secondary)'}}>Memory Used:</span>
-                      <span className="font-mono" style={{color: 'var(--text-primary)'}}>
-                        {formatBytes(memoryUsage.used)}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span style={{color: 'var(--text-secondary)'}}>Memory Total:</span>
-                      <span className="font-mono" style={{color: 'var(--text-primary)'}}>
-                        {formatBytes(memoryUsage.total)}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="bg-muted h-1.5 w-full rounded-full">
-                        <div
-                          className="bg-primary h-1.5 rounded-full transition-all duration-300"
-                          style={{width: `${(memoryUsage.used / memoryUsage.total) * 100}%`}}
-                        ></div>
-                      </div>
-                      <div className="text-center text-xs" style={{color: 'var(--text-muted)'}}>
-                        {((memoryUsage.used / memoryUsage.total) * 100).toFixed(1)}%
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="flex justify-between">
-                  <span style={{color: 'var(--text-secondary)'}}>State Updates:</span>
-                  <span className="font-mono" style={{color: 'var(--text-primary)'}}>
-                    {metrics.stateUpdates}
-                  </span>
-                </div>
-              </GlassBox>
-            </div>
-          </div>
-        )}
-
-        {/* Averages */}
-        {Object.keys(averageMetrics).length > 0 && (
-          <div className="border-t pt-3">
-            <div className="text-muted-foreground mb-2 text-xs">1-minute averages:</div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {averageMetrics.renderTime && (
-                <div className="flex justify-between">
-                  <span>Avg Render:</span>
-                  <span className="font-mono">{formatTime(averageMetrics.renderTime)}</span>
-                </div>
-              )}
-              {averageMetrics.ipcLatency && (
-                <div className="flex justify-between">
-                  <span>Avg IPC:</span>
-                  <span className="font-mono">{formatTime(averageMetrics.ipcLatency)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Optimization Suggestions */}
-        {suggestions.length > 0 && (
-          <div className="border-t pt-3">
-            <div className="text-muted-foreground mb-2 text-xs">Suggestions:</div>
-            <div className="space-y-1">
-              {suggestions.map((suggestion, index) => (
-                <div
-                  key={index}
-                  className="flex items-start text-xs text-yellow-600 dark:text-yellow-400"
-                >
-                  <span className="mr-1">⚠️</span>
-                  <span>{suggestion}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Window Status */}
-        <div className="border-t pt-3" style={{borderColor: 'var(--border-primary)'}}>
-          <WindowStatus showWindowInfo showRecordingStatus showTranscriptCount compact />
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-foreground">Performance Dashboard</h2>
+        <div className="flex space-x-2">
+          <GlassButton onClick={resetMetrics} title="Reset metrics" variant="light" size="sm">
+            Reset
+          </GlassButton>
+          <GlassButton onClick={downloadReport} title="Download performance report" variant="light" size="sm">
+            Export
+          </GlassButton>
         </div>
       </div>
-    </GlassBox>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* Transcription Performance */}
+        <GlassBox className="p-4">
+          <h3 className="mb-3 text-sm font-medium text-muted-foreground">Transcription Performance</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Updates</span>
+              <span className="text-xs font-mono">
+                {performanceData.transcriptionMetrics.updateCount}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Avg Update Time</span>
+              <span 
+                className={cn('text-xs font-mono', 
+                  getPerformanceColor(performanceData.transcriptionMetrics.averageUpdateTime, [16, 33])
+                )}
+              >
+                {formatTime(performanceData.transcriptionMetrics.averageUpdateTime)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Max Update Time</span>
+              <span 
+                className={cn('text-xs font-mono', 
+                  getPerformanceColor(performanceData.transcriptionMetrics.maxUpdateTime, [50, 100])
+                )}
+              >
+                {formatTime(performanceData.transcriptionMetrics.maxUpdateTime)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Throttled Updates</span>
+              <span className="text-xs font-mono">
+                {performanceData.transcriptionMetrics.throttledUpdates}
+              </span>
+            </div>
+          </div>
+        </GlassBox>
+
+        {/* Memory Usage */}
+        <GlassBox className="p-4">
+          <h3 className="mb-3 text-sm font-medium text-muted-foreground">Memory Usage</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Heap Used</span>
+              <span className="text-xs font-mono">
+                {formatBytes(performanceData.memoryMetrics.heapUsed)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Heap Total</span>
+              <span className="text-xs font-mono">
+                {formatBytes(performanceData.memoryMetrics.heapTotal)}
+              </span>
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-muted-foreground">Usage</span>
+                <span className="text-xs font-mono">
+                  {performanceData.memoryMetrics.memoryUsagePercent.toFixed(1)}%
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-muted">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all duration-300',
+                    performanceData.memoryMetrics.memoryUsagePercent > 80 ? 'bg-red-500' :
+                    performanceData.memoryMetrics.memoryUsagePercent > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                  )}
+                  style={{width: `${Math.min(100, performanceData.memoryMetrics.memoryUsagePercent)}%`}}
+                />
+              </div>
+            </div>
+          </div>
+        </GlassBox>
+
+        {/* Render Performance */}
+        <GlassBox className="p-4">
+          <h3 className="mb-3 text-sm font-medium text-muted-foreground">Render Performance</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Render Count</span>
+              <span className="text-xs font-mono">
+                {performanceData.renderMetrics.renderCount}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Avg Render Time</span>
+              <span 
+                className={cn('text-xs font-mono', 
+                  getPerformanceColor(performanceData.renderMetrics.averageRenderTime, [16, 33])
+                )}
+              >
+                {formatTime(performanceData.renderMetrics.averageRenderTime)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Frame Rate</span>
+              <span 
+                className={cn('text-xs font-mono', 
+                  getPerformanceColor(60 - performanceData.frameRate, [10, 30])
+                )}
+              >
+                {performanceData.frameRate.toFixed(1)} FPS
+              </span>
+            </div>
+          </div>
+        </GlassBox>
+
+        {/* System Status */}
+        <GlassBox className="p-4">
+          <h3 className="mb-3 text-sm font-medium text-muted-foreground">System Status</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Performance Status</span>
+              <span className={cn(
+                'text-xs font-medium px-2 py-1 rounded',
+                performanceData.isHighLoad 
+                  ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                  : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+              )}>
+                {performanceData.isHighLoad ? 'High Load' : 'Normal'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Last Update</span>
+              <span className="text-xs font-mono">
+                {performanceData.transcriptionMetrics.lastUpdateTime > 0 
+                  ? `${((Date.now() - performanceData.transcriptionMetrics.lastUpdateTime) / 1000).toFixed(1)}s ago`
+                  : 'Never'
+                }
+              </span>
+            </div>
+          </div>
+        </GlassBox>
+      </div>
+
+      <WindowStatus />
+    </div>
   )
 }
