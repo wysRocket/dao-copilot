@@ -3,6 +3,8 @@ import {useWindowPortal} from '../hooks/useWindowPortal'
 import {useWindowCommunication, useSharedState} from '../hooks/useSharedState'
 import {useWindowState} from '../contexts/WindowStateProvider'
 import {getAudioRecordingService, TranscriptionResult} from '../services/audio-recording'
+import useGeminiConnection from '../hooks/useGeminiConnection'
+import {TranscriptionMode} from '../services/gemini-live-integration'
 import RecordingControls from './RecordingControls'
 import ToggleTheme from '../components/ToggleTheme'
 import {PerformanceDashboard} from './PerformanceDashboard'
@@ -20,6 +22,31 @@ const CustomTitleBar: React.FC = () => {
 
   // Use the audio recording service
   const audioService = getAudioRecordingService()
+
+  // Initialize Gemini WebSocket for real-time transcription
+  const [geminiState, geminiControls] = useGeminiConnection({
+    mode: TranscriptionMode.HYBRID, // Use hybrid mode for fallback
+    autoConnect: false, // Don't auto-connect, connect when recording starts
+    fallbackToBatch: true,
+    enableLogging: true
+  })
+
+  // Monitor WebSocket quota issues and adjust behavior
+  useEffect(() => {
+    console.log('🔌 Gemini WebSocket State:', {
+      connectionState: geminiState.connectionState,
+      isStreaming: geminiState.isStreaming,
+      errors: geminiState.errors,
+      reconnectionAttempts: geminiState.reconnectionAttempts
+    })
+
+    // If we're getting quota errors, we should avoid WebSocket for a while
+    if (geminiState.errors > 3) {
+      console.warn(
+        '🚫 Multiple WebSocket errors detected, likely quota issues. Using batch-only mode.'
+      )
+    }
+  }, [geminiState])
 
   // Subscribe to recording state changes
   useEffect(() => {
@@ -55,6 +82,67 @@ const CustomTitleBar: React.FC = () => {
 
     console.log('🎯 Transcription handling complete')
   }
+
+  // Handle real-time streaming transcriptions differently than batch
+  const handleStreamingTranscription = (text: string, isFinal: boolean) => {
+    console.log('🎯 CustomTitleBar: Received streaming transcription:', {
+      text: text.substring(0, 50) + '...',
+      isFinal
+    })
+
+    if (isFinal && text.trim()) {
+      // Handle final streaming transcription as a regular transcription result
+      const result: TranscriptionResult = {
+        text: text.trim(),
+        confidence: 0.95,
+        source: 'websocket-live'
+      }
+      handleTranscription(result)
+    } else if (text.trim()) {
+      // Handle partial streaming transcription for live display
+      console.log('🎯 Broadcasting partial streaming transcription for live display')
+      broadcast('streaming-transcription', {
+        text: text.trim(),
+        isFinal: false,
+        source: 'websocket-live'
+      })
+    }
+  }
+
+  // Set up WebSocket transcription bridge
+  useEffect(() => {
+    if (geminiState.connectionState === 'connected' && geminiControls.getClient()) {
+      const client = geminiControls.getClient()
+      if (client) {
+        console.log('🔌 Setting up WebSocket transcription bridge')
+
+        // Listen for real-time transcriptions from WebSocket
+        const handleWebSocketTranscription = (text: string, isFinal: boolean) => {
+          console.log('🎯 WebSocket transcription received:', {
+            text: text.substring(0, 50) + '...',
+            isFinal
+          })
+          handleStreamingTranscription(text, isFinal)
+        }
+
+        // Subscribe to transcription events
+        // Note: This is a simplified integration - you may need to adjust based on your WebSocket client's actual event system
+        client.on?.('transcription', handleWebSocketTranscription)
+        client.on?.('partial-transcription', (text: string) =>
+          handleWebSocketTranscription(text, false)
+        )
+        client.on?.('final-transcription', (text: string) =>
+          handleWebSocketTranscription(text, true)
+        )
+
+        return () => {
+          client.off?.('transcription', handleWebSocketTranscription)
+          client.off?.('partial-transcription', handleWebSocketTranscription)
+          client.off?.('final-transcription', handleWebSocketTranscription)
+        }
+      }
+    }
+  }, [geminiState.connectionState, geminiControls, handleStreamingTranscription])
 
   const handleToggleAssistant = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -165,7 +253,7 @@ const CustomTitleBar: React.FC = () => {
   return (
     <div
       ref={titleBarRef}
-      className="app-region-drag flex w-full select-none items-center overflow-hidden px-4"
+      className="app-region-drag flex w-full items-center overflow-hidden px-4 select-none"
       style={
         {
           WebkitAppRegion: 'drag',
@@ -190,7 +278,13 @@ const CustomTitleBar: React.FC = () => {
           {WebkitAppRegion: 'no-drag', zIndex: 20, position: 'relative'} as React.CSSProperties
         }
       >
-        <RecordingControls onTranscription={handleTranscription} />
+        <RecordingControls
+          onTranscription={handleTranscription}
+          geminiConnection={{
+            state: geminiState,
+            controls: geminiControls
+          }}
+        />
       </div>
 
       {/* Spacer */}

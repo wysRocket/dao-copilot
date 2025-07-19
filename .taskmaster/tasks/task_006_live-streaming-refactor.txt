@@ -1,6 +1,6 @@
 # Task ID: 6
 # Title: Implement Live Streaming UI with Visual Separation
-# Status: in-progress
+# Status: done
 # Dependencies: None
 # Priority: medium
 # Description: Implement visual separation between live streaming content and static transcripts with proper transitions and UI indicators.
@@ -63,25 +63,25 @@ Current UI doesn't clearly distinguish between live streaming content and histor
 
 
 # Subtasks:
-## 1. Design Live Streaming Area Layout [pending]
+## 1. Design Live Streaming Area Layout [done]
 ### Dependencies: None
 ### Description: Design and implement a dedicated live streaming area that visually separates from static transcripts
 ### Details:
 Create a fixed-height streaming area at the top of the transcript display with distinct visual styling, animated borders, and clear separation from the scrollable static transcript list below.
 
-## 2. Implement Completion Transition Animations [pending]
+## 2. Implement Completion Transition Animations [done]
 ### Dependencies: None
 ### Description: Create smooth transition animations when streaming text completes and moves to static transcript list
 ### Details:
 Implement fade/slide animations when live streaming text finishes, transitioning from the streaming area to the static transcript list with proper timing and visual feedback.
 
-## 3. Create Status Indicators and Feedback [pending]
+## 3. Create Status Indicators and Feedback [done]
 ### Dependencies: None
 ### Description: Create visual status indicators and feedback components for live transcription activity
 ### Details:
 Design and implement status indicators including 'Live Transcribing...' messages, transcription source badges, confidence scores, and animated progress indicators for active streaming.
 
-## 4. Apply Styling and Responsive Design [pending]
+## 4. Apply Styling and Responsive Design [done]
 ### Dependencies: None
 ### Description: Apply glass morphism styling and responsive design to live streaming UI components
 ### Details:

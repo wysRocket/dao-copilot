@@ -20,11 +20,7 @@ import {
 } from './audio-recording'
 import {convertFloat32ToPCM16, validateAudioFormat} from './gemini-audio-utils'
 import {logger} from './gemini-logger'
-import {
-  isAudioCaptureSupported,
-  isBrowserEnvironment,
-  isNodeEnvironment
-} from '../helpers/environment-config'
+import {isAudioCaptureSupported, isNodeEnvironment} from '../helpers/environment-config'
 import type {ProcessedMessage} from './gemini-message-handler'
 
 export enum TranscriptionMode {
@@ -757,6 +753,13 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     }
 
     return this.websocketClient.getConnectionMetrics()
+  }
+
+  /**
+   * Get the underlying WebSocket client for advanced operations
+   */
+  getWebSocketClient(): GeminiLiveWebSocketClient | null {
+    return this.websocketClient
   }
 
   async destroy(): Promise<void> {

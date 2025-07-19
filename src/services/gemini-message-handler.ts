@@ -3,7 +3,7 @@
  * Processes incoming and outgoing WebSocket messages with advanced features
  */
 
-import EventEmitter from 'eventemitter3'
+import {EventEmitter} from 'events'
 
 export enum MessageType {
   // Outgoing message types

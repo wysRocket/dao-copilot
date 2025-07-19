@@ -76,8 +76,8 @@ const LiveStreamingArea: React.FC<LiveStreamingAreaProps> = ({
   showConfidenceScore = true,
   animate = true
 }) => {
-  const [isVisible, setIsVisible] = useState(false)
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isVisible, setIsVisible] = useState(!!streamingText || isStreamingActive)
+  const [isExpanded, setIsExpanded] = useState(!!streamingText || isStreamingActive)
   const containerRef = useRef<HTMLDivElement>(null)
   const [animationPhase, setAnimationPhase] = useState<
     'entering' | 'active' | 'completing' | 'exiting'
@@ -122,8 +122,8 @@ const LiveStreamingArea: React.FC<LiveStreamingAreaProps> = ({
     }
   }
 
-  // Don't render if not visible
-  if (!isVisible) {
+  // Don't render if not visible and no streaming text
+  if (!isVisible && !streamingText) {
     return null
   }
 
@@ -188,7 +188,7 @@ const LiveStreamingArea: React.FC<LiveStreamingAreaProps> = ({
         <div
           className={cn(
             'flex items-center justify-between p-3 pb-2',
-            'sm:flex-col sm:items-start sm:space-x-0 sm:space-y-2 md:flex-row',
+            'sm:flex-col sm:items-start sm:space-y-2 sm:space-x-0 md:flex-row',
             'streaming-header-mobile'
           )}
         >
@@ -394,7 +394,7 @@ const LiveStreamingArea: React.FC<LiveStreamingAreaProps> = ({
 
         {/* Progress indicator */}
         {animate && animationPhase === 'active' && (
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 overflow-hidden rounded-b-[16px]">
+          <div className="absolute right-0 bottom-0 left-0 h-0.5 overflow-hidden rounded-b-[16px]">
             <div className="streaming-progress-bar h-full" />
           </div>
         )}

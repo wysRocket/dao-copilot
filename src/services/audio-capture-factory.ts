@@ -32,7 +32,8 @@ export interface UniversalAudioCapture {
  * Determines the current Electron process type
  */
 function getElectronProcessType(): 'main' | 'renderer' | 'unknown' {
-  if (typeof process !== 'undefined') {
+  // Safe check for Node.js/Electron environment
+  if (typeof process !== 'undefined' && process && typeof process.type === 'string') {
     if (process.type === 'browser') {
       return 'main'
     } else if (process.type === 'renderer') {
@@ -40,16 +41,17 @@ function getElectronProcessType(): 'main' | 'renderer' | 'unknown' {
     }
   }
 
-  // Enhanced fallback detection with process.type check
+  // Enhanced fallback detection for browser/renderer environment
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     return 'renderer'
   }
 
-  if (typeof require !== 'undefined' && typeof process !== 'undefined') {
-    // Check process.type explicitly to distinguish main vs. renderer in Electron
-    if ('type' in process) {
-      return process.type === 'renderer' ? 'renderer' : 'main'
-    }
+  // Check if we're in a Node.js environment (main process)
+  if (
+    typeof require !== 'undefined' &&
+    typeof global !== 'undefined' &&
+    typeof window === 'undefined'
+  ) {
     return 'main'
   }
 

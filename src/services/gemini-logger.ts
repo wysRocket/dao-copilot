@@ -3,9 +3,9 @@
  * Centralized logging with multiple outputs and formatting
  */
 
-import EventEmitter from 'eventemitter3'
+import {EventEmitter} from 'events'
 import {LogLevel, LogEntry} from './gemini-error-handler'
-import * as crypto from 'crypto'
+import {BrowserCrypto} from '../utils/browser-crypto'
 
 export interface LoggerConfig {
   level: LogLevel
@@ -371,10 +371,12 @@ export class GeminiLogger extends EventEmitter {
    */
   private generateSecureLogId(): string {
     try {
-      if (crypto.randomUUID) {
-        return `log_${Date.now()}_${crypto.randomUUID()}`
+      const uuid = BrowserCrypto.randomUUID()
+      if (uuid) {
+        return `log_${Date.now()}_${uuid}`
       } else {
-        return `log_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`
+        const randomHex = BrowserCrypto.randomHex(16)
+        return `log_${Date.now()}_${randomHex}`
       }
     } catch {
       // Fallback using high-resolution timestamp

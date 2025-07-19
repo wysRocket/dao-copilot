@@ -3,7 +3,7 @@
  * Handles session tracking, persistence, and resumption for WebSocket connections
  */
 
-import EventEmitter from 'eventemitter3'
+import {EventEmitter} from 'events'
 import {logger} from './gemini-logger'
 import {sanitizeLogMessage} from './log-sanitizer'
 

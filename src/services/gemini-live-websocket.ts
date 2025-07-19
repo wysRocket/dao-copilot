@@ -3,7 +3,7 @@
  * Handles real-time bidirectional communication with Google's Gemini Live API
  */
 
-import EventEmitter from 'eventemitter3'
+import {EventEmitter} from 'events'
 import {GeminiMessageHandler, MessageType, MessagePriority} from './gemini-message-handler'
 import {GeminiErrorHandler, ErrorType, type GeminiError} from './gemini-error-handler'
 import {logger} from './gemini-logger'
