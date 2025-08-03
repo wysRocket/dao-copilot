@@ -16,7 +16,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
   compact = false
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
-  const { performanceData, resetMetrics } = usePerformanceMonitoring('PerformanceDashboard', true)
+  const {performanceData, resetMetrics} = usePerformanceMonitoring('PerformanceDashboard', true)
 
   // Handle case when performance monitoring is disabled
   if (!performanceData) {
@@ -116,12 +116,17 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
       style={{WebkitAppRegion: 'no-drag'} as React.CSSProperties}
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Performance Dashboard</h2>
+        <h2 className="text-foreground text-lg font-semibold">Performance Dashboard</h2>
         <div className="flex space-x-2">
           <GlassButton onClick={resetMetrics} title="Reset metrics" variant="light" size="sm">
             Reset
           </GlassButton>
-          <GlassButton onClick={downloadReport} title="Download performance report" variant="light" size="sm">
+          <GlassButton
+            onClick={downloadReport}
+            title="Download performance report"
+            variant="light"
+            size="sm"
+          >
             Export
           </GlassButton>
         </div>
@@ -130,37 +135,44 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* Transcription Performance */}
         <GlassBox className="p-4">
-          <h3 className="mb-3 text-sm font-medium text-muted-foreground">Transcription Performance</h3>
+          <h3 className="text-muted-foreground mb-3 text-sm font-medium">
+            Transcription Performance
+          </h3>
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Updates</span>
-              <span className="text-xs font-mono">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Updates</span>
+              <span className="font-mono text-xs">
                 {performanceData.transcriptionMetrics.updateCount}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Avg Update Time</span>
-              <span 
-                className={cn('text-xs font-mono', 
-                  getPerformanceColor(performanceData.transcriptionMetrics.averageUpdateTime, [16, 33])
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Avg Update Time</span>
+              <span
+                className={cn(
+                  'font-mono text-xs',
+                  getPerformanceColor(
+                    performanceData.transcriptionMetrics.averageUpdateTime,
+                    [16, 33]
+                  )
                 )}
               >
                 {formatTime(performanceData.transcriptionMetrics.averageUpdateTime)}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Max Update Time</span>
-              <span 
-                className={cn('text-xs font-mono', 
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Max Update Time</span>
+              <span
+                className={cn(
+                  'font-mono text-xs',
                   getPerformanceColor(performanceData.transcriptionMetrics.maxUpdateTime, [50, 100])
                 )}
               >
                 {formatTime(performanceData.transcriptionMetrics.maxUpdateTime)}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Throttled Updates</span>
-              <span className="text-xs font-mono">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Throttled Updates</span>
+              <span className="font-mono text-xs">
                 {performanceData.transcriptionMetrics.throttledUpdates}
               </span>
             </div>
@@ -169,35 +181,40 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
 
         {/* Memory Usage */}
         <GlassBox className="p-4">
-          <h3 className="mb-3 text-sm font-medium text-muted-foreground">Memory Usage</h3>
+          <h3 className="text-muted-foreground mb-3 text-sm font-medium">Memory Usage</h3>
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Heap Used</span>
-              <span className="text-xs font-mono">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Heap Used</span>
+              <span className="font-mono text-xs">
                 {formatBytes(performanceData.memoryMetrics.heapUsed)}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Heap Total</span>
-              <span className="text-xs font-mono">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Heap Total</span>
+              <span className="font-mono text-xs">
                 {formatBytes(performanceData.memoryMetrics.heapTotal)}
               </span>
             </div>
             <div className="space-y-1">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground">Usage</span>
-                <span className="text-xs font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground text-xs">Usage</span>
+                <span className="font-mono text-xs">
                   {performanceData.memoryMetrics.memoryUsagePercent.toFixed(1)}%
                 </span>
               </div>
-              <div className="h-2 w-full rounded-full bg-muted">
+              <div className="bg-muted h-2 w-full rounded-full">
                 <div
                   className={cn(
                     'h-full rounded-full transition-all duration-300',
-                    performanceData.memoryMetrics.memoryUsagePercent > 80 ? 'bg-red-500' :
-                    performanceData.memoryMetrics.memoryUsagePercent > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                    performanceData.memoryMetrics.memoryUsagePercent > 80
+                      ? 'bg-red-500'
+                      : performanceData.memoryMetrics.memoryUsagePercent > 60
+                        ? 'bg-yellow-500'
+                        : 'bg-green-500'
                   )}
-                  style={{width: `${Math.min(100, performanceData.memoryMetrics.memoryUsagePercent)}%`}}
+                  style={{
+                    width: `${Math.min(100, performanceData.memoryMetrics.memoryUsagePercent)}%`
+                  }}
                 />
               </div>
             </div>
@@ -206,28 +223,28 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
 
         {/* Render Performance */}
         <GlassBox className="p-4">
-          <h3 className="mb-3 text-sm font-medium text-muted-foreground">Render Performance</h3>
+          <h3 className="text-muted-foreground mb-3 text-sm font-medium">Render Performance</h3>
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Render Count</span>
-              <span className="text-xs font-mono">
-                {performanceData.renderMetrics.renderCount}
-              </span>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Render Count</span>
+              <span className="font-mono text-xs">{performanceData.renderMetrics.renderCount}</span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Avg Render Time</span>
-              <span 
-                className={cn('text-xs font-mono', 
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Avg Render Time</span>
+              <span
+                className={cn(
+                  'font-mono text-xs',
                   getPerformanceColor(performanceData.renderMetrics.averageRenderTime, [16, 33])
                 )}
               >
                 {formatTime(performanceData.renderMetrics.averageRenderTime)}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Frame Rate</span>
-              <span 
-                className={cn('text-xs font-mono', 
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Frame Rate</span>
+              <span
+                className={cn(
+                  'font-mono text-xs',
                   getPerformanceColor(60 - performanceData.frameRate, [10, 30])
                 )}
               >
@@ -239,26 +256,27 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({
 
         {/* System Status */}
         <GlassBox className="p-4">
-          <h3 className="mb-3 text-sm font-medium text-muted-foreground">System Status</h3>
+          <h3 className="text-muted-foreground mb-3 text-sm font-medium">System Status</h3>
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Performance Status</span>
-              <span className={cn(
-                'text-xs font-medium px-2 py-1 rounded',
-                performanceData.isHighLoad 
-                  ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                  : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-              )}>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Performance Status</span>
+              <span
+                className={cn(
+                  'rounded px-2 py-1 text-xs font-medium',
+                  performanceData.isHighLoad
+                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                    : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                )}
+              >
                 {performanceData.isHighLoad ? 'High Load' : 'Normal'}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Last Update</span>
-              <span className="text-xs font-mono">
-                {performanceData.transcriptionMetrics.lastUpdateTime > 0 
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Last Update</span>
+              <span className="font-mono text-xs">
+                {performanceData.transcriptionMetrics.lastUpdateTime > 0
                   ? `${((Date.now() - performanceData.transcriptionMetrics.lastUpdateTime) / 1000).toFixed(1)}s ago`
-                  : 'Never'
-                }
+                  : 'Never'}
               </span>
             </div>
           </div>

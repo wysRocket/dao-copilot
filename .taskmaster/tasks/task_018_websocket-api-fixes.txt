@@ -1,0 +1,153 @@
+# Task ID: 18
+# Title: Debug and Fix Livestreaming Text Rendering Issue
+# Status: done
+# Dependencies: 17, 13, 11
+# Priority: high
+# Description: Investigate and fix the issue where the UI displays "Listening... Please speak clearly and loudly" instead of actual transcribed text, despite the WebSocket connection working correctly and showing "Live Streaming (Final)".
+# Details:
+1. Diagnostic Investigation:
+   - Add detailed console logging at each step of the data flow from WebSocket response to UI rendering
+   - Trace the complete lifecycle of transcription data from receipt to display
+   - Inspect the TranscriptsPage.tsx component to understand the previous fix attempt and why it's failing
+   - Check for conditional rendering logic that might be preventing transcription text display
+
+2. Data Flow Analysis:
+   - Verify that transcription data is correctly being received from the WebSocket
+   - Examine the state management for transcription text (Redux store or React state)
+   - Check if there are any transformation or filtering functions modifying the transcription data
+   - Verify that the UI component responsible for displaying transcriptions is subscribed to the correct data source
+
+3. UI Component Inspection:
+   - Review the rendering logic in TranscriptsPage.tsx and related components
+   - Identify where the "Listening..." message is being generated and under what conditions
+   - Check for race conditions or timing issues in UI updates
+   - Verify that the component is correctly handling the "Live Streaming (Final)" state
+
+4. Fix Implementation:
+   - Update the conditional rendering logic to properly display transcription text
+   - Ensure proper state updates when new transcription data arrives
+   - Implement proper fallback to "Listening..." only when appropriate
+   - Add safeguards to prevent UI from getting stuck in the "Listening..." state
+
+5. Performance Considerations:
+   - Check for any unnecessary re-renders that might be affecting the UI update
+   - Ensure efficient state updates to prevent UI lag
+   - Verify that large transcription payloads are handled properly
+
+6. Documentation:
+   - Document the root cause of the issue
+   - Update component documentation to explain the rendering logic
+   - Add comments to explain the fix and prevent future regressions
+
+# Test Strategy:
+1. Manual Testing:
+   - Test the transcription flow with various audio inputs (short phrases, long sentences, different languages)
+   - Verify that transcription text appears correctly in the UI for all test cases
+   - Test edge cases like very short audio inputs, silence, and background noise
+   - Verify the transition from "Listening..." to actual transcription text is smooth and timely
+
+2. UI Component Testing:
+   - Create unit tests for the TranscriptsPage.tsx component focusing on rendering logic
+   - Test with mock WebSocket responses containing different transcription payloads
+   - Verify correct rendering for all possible WebSocket response states
+   - Test the component with empty or malformed transcription data
+
+3. Integration Testing:
+   - Set up end-to-end tests that simulate the complete flow from audio input to UI display
+   - Verify that the entire pipeline works correctly with real WebSocket connections
+   - Test the system under various network conditions (good connection, latency, packet loss)
+
+4. Regression Testing:
+   - Ensure that the fix doesn't break any other functionality
+   - Verify that all other components that consume transcription data still work correctly
+   - Test the system with previously problematic inputs that triggered the bug
+
+5. Visual Verification:
+   - Compare screenshots before and after the fix to confirm proper text rendering
+   - Verify that the UI correctly handles different lengths of transcription text
+   - Check that text formatting and styling is preserved
+
+6. Performance Testing:
+   - Measure UI responsiveness during continuous transcription
+   - Verify that the UI remains responsive with large volumes of transcription data
+
+# Subtasks:
+## 1. Add Comprehensive Logging to WebSocket Data Flow [done]
+### Dependencies: None
+### Description: Implement detailed console logging throughout the WebSocket data flow to track the journey of transcription data from receipt to UI rendering.
+### Details:
+Add console.log statements at key points in the data flow: 1) When WebSocket messages are received, 2) When data is processed/transformed, 3) When state updates occur, 4) When the UI rendering logic is triggered. Log the complete data object at each step, including timestamps. Pay special attention to the 'Live Streaming (Final)' state and how it's being handled. Create a logging utility function to standardize log format and include context information.
+<info added on 2025-07-30T09:23:41.468Z>
+Enhanced logging in TranscriptsPage.tsx to track streaming text rendering issues:
+
+1. Added detailed state logging with timestamps for:
+   - currentStreamingText value and length
+   - isStreamingActive flag state
+   - hasRealText calculation results
+   - Full streaming context object
+
+2. Implemented conditional logging for streaming state computation:
+   - All boolean flags that determine streaming state
+   - Intermediate calculation results for isActive determination
+   - State transition events (when streaming starts/stops)
+
+3. Added decision path tracing:
+   - Log entry when Path A (streaming content) is selected
+   - Log entry when Path B (waiting state) is selected
+   - Complete rendering context at decision points
+
+4. Created debug helper for isActive condition:
+   - Decomposed complex boolean logic into individual checks
+   - Logged each sub-condition with its value
+   - Added trace for which specific condition is causing isActive to be false
+
+5. Implemented correlation IDs to track specific transcription segments through the rendering pipeline.
+</info added on 2025-07-30T09:23:41.468Z>
+
+## 2. Analyze State Management for Transcription Text [done]
+### Dependencies: 18.1
+### Description: Examine how transcription text state is managed and updated throughout the application, focusing on the conditions that trigger the 'Listening...' message.
+### Details:
+Review the Redux store or React state implementation for transcription data. Identify all action creators, reducers, and selectors related to transcription text. Trace how the 'Listening...' message is conditionally displayed and what flags or state values control this behavior. Check for any race conditions in state updates that might cause the UI to get stuck in the 'Listening...' state even after receiving transcription data. Verify that the 'Live Streaming (Final)' state correctly triggers state updates.
+<info added on 2025-07-30T09:28:17.051Z>
+ROOT CAUSE IDENTIFIED:
+State Management Issue with Transcription Clearing
+
+The problem was found in the TranscriptionStateManager.completeStreaming() method. When transcription completes:
+
+1. completeStreaming() moves the text to static transcripts 
+2. Then calls clearStreamingState() which sets streaming.current = null and isActive = false
+3. This makes currentStreamingText empty and isStreamingActive false
+4. UI logic "(isStreamingActive && showGuidanceMessage) || hasRealText" becomes false
+5. Result: Guidance message shows instead of transcription text
+
+SOLUTION IMPLEMENTED:
+Modified the streaming state computation to check for recent completed transcriptions:
+
+1. Added transcripts to useTranscriptionState destructuring
+2. Added hasRecentTranscript check (within last 10 seconds)
+3. Updated display logic to prioritize: streaming text > recent transcript > guidance
+4. Modified isActive condition: hasRealText || hasRecentTranscript || guidance
+5. Enhanced logging to track recent transcript availability
+
+This ensures completed transcriptions remain visible immediately after completion instead of being hidden by the guidance message.
+</info added on 2025-07-30T09:28:17.051Z>
+
+## 3. Fix Conditional Rendering Logic in TranscriptsPage.tsx [done]
+### Dependencies: 18.1, 18.2
+### Description: Update the conditional rendering logic in TranscriptsPage.tsx to properly display transcription text when available instead of showing the 'Listening...' message.
+### Details:
+Modify the rendering conditions in TranscriptsPage.tsx to prioritize displaying actual transcription text. Ensure the 'Listening...' message only appears when genuinely waiting for user input. Implement a proper state transition from 'Listening...' to displaying transcription text when data becomes available. Add safeguards to prevent the UI from getting stuck in the 'Listening...' state, such as timeout mechanisms or forced re-evaluation of rendering conditions when new WebSocket data arrives.
+
+## 4. Implement Robust Error Handling for Transcription Flow [done]
+### Dependencies: 18.3
+### Description: Add comprehensive error handling throughout the transcription flow to prevent UI from getting stuck in intermediate states when errors occur.
+### Details:
+Implement try-catch blocks around critical sections of the transcription flow. Create specific error states that can be displayed to users when transcription fails. Add recovery mechanisms to reset the UI state when errors occur. Ensure WebSocket errors are properly propagated to the UI layer. Implement a heartbeat mechanism to detect stalled connections and reset the UI appropriately. Add specific handling for the case where 'Live Streaming (Final)' is received but no transcription text follows.
+
+## 5. Optimize Performance and Document the Fix [done]
+### Dependencies: 18.3, 18.4
+### Description: Optimize the transcription rendering performance and thoroughly document the issue's root cause and the implemented solution.
+### Details:
+Review the component for unnecessary re-renders using React DevTools Profiler. Implement memoization for expensive computations or renders using React.memo, useMemo, or useCallback. Ensure efficient state updates by using functional updates where appropriate. Document the root cause of the issue in comments and project documentation. Add clear comments explaining the rendering logic and state management approach. Create a troubleshooting guide for similar issues in the future. Update any relevant documentation about the transcription feature.
+

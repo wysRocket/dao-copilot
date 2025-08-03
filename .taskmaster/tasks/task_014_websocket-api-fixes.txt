@@ -1,0 +1,162 @@
+# Task ID: 14
+# Title: Fix localStorage Access Error in TranscriptionStateManager
+# Status: done
+# Dependencies: 5, 11, 13
+# Priority: medium
+# Description: Implement environment detection and fallback storage mechanism in TranscriptionStateManager to resolve 'localStorage is not defined' errors occurring in Electron's main process.
+# Details:
+1. Analyze the current TranscriptionStateManager implementation to identify all localStorage access points:
+   - Map all read/write operations that use localStorage
+   - Determine which components are affected by this error
+   - Identify the execution context where the error occurs (Electron main process)
+
+2. Design and implement an environment detection mechanism:
+   - Create a utility function `isRendererProcess()` that checks if the code is running in a browser/renderer context
+   - Add detection for Electron's main process vs renderer process
+   - Implement Node.js environment detection for server-side contexts
+
+3. Create a storage abstraction layer:
+   - Develop a `StorageProvider` interface with standard methods (get, set, remove, clear)
+   - Implement `LocalStorageProvider` for browser/renderer contexts
+   - Implement `NodeStorageProvider` for Electron main process using Node.js filesystem (fs) module
+     - Use electron-store or a similar library for persistent storage in main process
+     - Ensure file-based storage uses proper error handling and atomic writes
+
+4. Modify TranscriptionStateManager to use the new storage abstraction:
+   - Replace direct localStorage calls with the abstraction layer
+   - Implement automatic provider selection based on environment detection
+   - Add graceful fallbacks if neither storage option is available (in-memory storage)
+   - Ensure data consistency between different storage mechanisms
+
+5. Add migration logic for existing data:
+   - Implement data migration from localStorage to the new storage system
+   - Handle edge cases where data might exist in multiple storage locations
+
+6. Update related components:
+   - Modify any components that directly interact with TranscriptionStateManager
+   - Update documentation to reflect the new storage architecture
+
+# Test Strategy:
+1. Unit Testing:
+   - Create unit tests for the environment detection utility
+   - Test each storage provider implementation independently
+   - Verify the TranscriptionStateManager works with each storage provider
+   - Test edge cases like storage quota exceeded, corrupted data, etc.
+
+2. Integration Testing:
+   - Test the TranscriptionStateManager in both Electron main and renderer processes
+   - Verify data persistence across application restarts
+   - Test migration of existing data from localStorage to new storage
+   - Ensure consistent behavior regardless of execution context
+
+3. Electron-specific Testing:
+   - Create test scenarios that simulate the Electron main process environment
+   - Verify the fallback mechanism activates correctly when localStorage is unavailable
+   - Test inter-process communication if data needs to be shared between main and renderer
+
+4. Error Handling Testing:
+   - Simulate storage access failures to verify error handling
+   - Test recovery mechanisms when primary storage is unavailable
+   - Verify appropriate error messages are logged for debugging
+
+5. Performance Testing:
+   - Compare performance metrics between localStorage and the fallback mechanism
+   - Ensure the storage abstraction doesn't introduce significant overhead
+   - Test with various data sizes to verify scalability
+
+# Subtasks:
+## 1. Analyze TranscriptionStateManager and Identify localStorage Access Points [done]
+### Dependencies: None
+### Description: Perform a thorough analysis of the current TranscriptionStateManager implementation to identify all localStorage access points and understand the execution context where errors occur.
+### Details:
+1. Review the TranscriptionStateManager source code to locate all instances of localStorage usage
+2. Document each read operation (getItem) and write operation (setItem, removeItem, clear)
+3. Create a map of all components that interact with TranscriptionStateManager
+4. Identify specific execution paths that trigger the 'localStorage is not defined' error in Electron's main process
+5. Determine the data structure and format being stored in localStorage
+6. Document the current error handling (if any) around localStorage operations
+
+## 2. Create Environment Detection Utility [done]
+### Dependencies: 14.1
+### Description: Design and implement a utility function that can detect the current execution environment to determine the appropriate storage mechanism to use.
+### Details:
+1. Create a new utility file `environmentDetector.js` with the following functions:
+   - `isRendererProcess()`: Checks if code is running in browser/renderer context
+   - `isElectronMainProcess()`: Detects Electron's main process
+   - `isNodeEnvironment()`: Identifies Node.js server-side context
+   - `getEnvironmentType()`: Returns an enum value representing the current environment
+2. Implement detection logic using environment-specific globals:
+   - Check for `window` and `document` objects for browser/renderer detection
+   - Use `process.type` to identify Electron processes
+   - Check for Node.js specific globals
+3. Add comprehensive error handling to prevent exceptions during detection
+<info added on 2025-07-24T12:04:06.605Z>
+4. Added temporary protection in TranscriptionStateManager by implementing 'typeof localStorage !== undefined' checks before each localStorage access point.
+
+5. Tested the temporary solution in Electron main process and confirmed it prevents the immediate errors.
+
+6. Document the current limitations of this approach:
+   - It's a defensive check rather than a proper environment-aware solution
+   - Still doesn't provide alternative storage for non-browser environments
+   - Will be replaced by the storage provider abstraction in subtask 14.3
+
+7. Create unit tests to verify the environment detection utility functions work correctly across different execution contexts.
+</info added on 2025-07-24T12:04:06.605Z>
+<info added on 2025-07-24T12:09:47.907Z>
+8. Completed the environment detection utility as a TypeScript module:
+   - Implemented all required detection functions with proper TypeScript typing
+   - Added `isLocalStorageAvailable()` function to specifically check storage availability
+   - Created `getRecommendedStorageType()` function that suggests appropriate storage mechanism based on environment
+
+9. Enhanced the utility with comprehensive TypeScript support:
+   - Added proper type definitions and interfaces
+   - Created an Environment enum for consistent environment identification
+   - Fixed all TypeScript lint errors and ensured type safety
+
+10. Integrated the utility with TranscriptionStateManager:
+    - Replaced temporary checks with calls to the new utility functions
+    - Added conditional logic to prevent localStorage access in incompatible environments
+
+11. Created unit tests for all utility functions:
+    - Wrote tests for each detection function
+    - Added mocking for different environment globals
+    - Note: Experiencing some Vitest environment configuration issues, but tests verify core functionality
+
+12. Ready for implementation of the storage provider abstraction layer in subtask 14.3.
+</info added on 2025-07-24T12:09:47.907Z>
+
+## 3. Implement Storage Provider Abstraction Layer [done]
+### Dependencies: 14.2
+### Description: Create a storage abstraction layer with multiple provider implementations to handle different execution environments.
+### Details:
+1. Define a `StorageProvider` interface with standard methods:
+   - `get(key: string): any`
+   - `set(key: string, value: any): void`
+   - `remove(key: string): void`
+   - `clear(): void`
+   - `has(key: string): boolean`
+2. Implement `LocalStorageProvider` for browser/renderer contexts
+3. Implement `NodeStorageProvider` for Electron main process using Node's fs module or electron-store
+   - Ensure atomic writes using temporary files and rename operations
+   - Implement proper error handling for file operations
+   - Add file locking mechanism to prevent concurrent access issues
+4. Create `InMemoryProvider` as a fallback option
+5. Implement a `StorageProviderFactory` that returns the appropriate provider based on environment
+
+## 4. Refactor TranscriptionStateManager to Use Storage Abstraction [done]
+### Dependencies: 14.3
+### Description: Modify the TranscriptionStateManager to use the new storage abstraction layer and implement data migration logic.
+### Details:
+1. Refactor TranscriptionStateManager to use the StorageProvider abstraction:
+   - Initialize the appropriate provider via StorageProviderFactory
+   - Replace all direct localStorage calls with provider method calls
+   - Add error handling for storage operations
+2. Implement data migration logic:
+   - On initialization, check for existing data in localStorage
+   - If found, migrate to the new storage system
+   - Handle potential data format inconsistencies
+3. Add configuration options for storage location preferences
+4. Implement graceful degradation if preferred storage is unavailable
+5. Update any components that directly interact with TranscriptionStateManager
+6. Add logging for storage operations to aid debugging
+

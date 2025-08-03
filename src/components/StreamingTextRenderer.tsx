@@ -96,7 +96,7 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
   const containerRef = useRef<HTMLDivElement>(null)
   const isVisibleRef = useRef<boolean>(true)
   const intersectionObserverRef = useRef<IntersectionObserverManager | null>(null)
-  
+
   // Use props directly - no context dependency needed
   const currentStreamingText = text || ''
   const isCurrentTextPartial = isPartial
@@ -104,23 +104,27 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
 
   // Map context state to expected interface for compatibility
   // PRIORITY: Use context text if it has real content, then prop text, then fallback
-  const hasRealContextText = currentStreamingText && 
-    currentStreamingText.length > 3 && 
-    !currentStreamingText.includes('Live streaming active') && 
-    !currentStreamingText.includes('...') && 
+  const hasRealContextText =
+    currentStreamingText &&
+    currentStreamingText.length > 3 &&
+    !currentStreamingText.includes('Live streaming active') &&
+    !currentStreamingText.includes('...') &&
     currentStreamingText.trim().length > 0
-    
-  const hasRealPropText = text && 
-    text.length > 3 && 
-    !text.includes('Live streaming active') && 
-    !text.includes('...') && 
+
+  const hasRealPropText =
+    text &&
+    text.length > 3 &&
+    !text.includes('Live streaming active') &&
+    !text.includes('...') &&
     text.trim().length > 0
 
   // Prioritize real content from context first, then props
-  const effectiveDisplayText = hasRealContextText ? currentStreamingText : 
-                              hasRealPropText ? text : 
-                              (currentStreamingText || text || '')
-  
+  const effectiveDisplayText = hasRealContextText
+    ? currentStreamingText
+    : hasRealPropText
+      ? text
+      : currentStreamingText || text || ''
+
   const streamingState = {
     displayedText: effectiveDisplayText,
     targetText: text,
@@ -135,20 +139,23 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
   }
 
   // Memoized streaming controls to prevent recreation on every render
-  const streamingControls = useMemo(() => ({
-    updateText: (newText: string, partial: boolean = false) => {
-      // Functionality moved to parent component via props
-      onTextUpdate?.(newText, partial)
-    },
-    clearText: () => {
-      // Functionality moved to parent component
-      onAnimationComplete?.()
-    },
-    completeAnimation: () => {
-      // Functionality moved to parent component
-      onAnimationComplete?.()
-    }
-  }), [onTextUpdate, onAnimationComplete])
+  const streamingControls = useMemo(
+    () => ({
+      updateText: (newText: string, partial: boolean = false) => {
+        // Functionality moved to parent component via props
+        onTextUpdate?.(newText, partial)
+      },
+      clearText: () => {
+        // Functionality moved to parent component
+        onAnimationComplete?.()
+      },
+      completeAnimation: () => {
+        // Functionality moved to parent component
+        onAnimationComplete?.()
+      }
+    }),
+    [onTextUpdate, onAnimationComplete]
+  )
 
   // Memoized typewriter configuration
   const memoizedTypewriterConfig = useMemo(

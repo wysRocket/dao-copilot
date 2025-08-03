@@ -1,0 +1,92 @@
+# Task ID: 22
+# Title: Update Gemini Live Model Name to gemini-2.5-flash-live
+# Status: done
+# Dependencies: 21, 20, 17
+# Priority: high
+# Description: Update all references in the codebase to use the correct Gemini Live model name: gemini-2.5-flash-live instead of gemini-live-2.5-flash-preview, as identified in Google AI Studio for real-time transcription.
+# Details:
+1. Codebase Analysis:
+   - Perform a comprehensive search across the entire codebase for all instances of "gemini-live-2.5-flash-preview"
+   - Identify all files that need updates, including WebSocket client code, configuration files, and documentation
+   - Create a detailed inventory of all locations requiring changes
+
+2. WebSocket Client Updates:
+   - Update the model name parameter in WebSocket connection initialization
+   - Modify any request payload templates that include the model name
+   - Update any model-specific configuration parameters or headers
+   - Ensure proper error handling for any model-specific error codes
+
+3. Configuration File Updates:
+   - Update environment variables or configuration constants that specify the model name
+   - Modify any fallback or default model settings
+   - Update any model selection logic that might reference the old model name
+   - Ensure configuration validation still works with the new model name
+
+4. Documentation Updates:
+   - Update all developer documentation referencing the model name
+   - Modify any user-facing documentation or help text
+   - Update any API documentation or integration guides
+   - Ensure README files and setup instructions reflect the correct model
+
+5. Testing Configuration:
+   - Update test fixtures and mock responses to use the new model name
+   - Modify any test assertions that check for specific model names
+   - Update any test configuration files
+
+6. Deployment Considerations:
+   - Coordinate with the operations team for any environment variable updates needed in production
+   - Plan for a controlled rollout to verify the model name change works as expected
+   - Prepare rollback procedures in case of unexpected issues
+
+# Test Strategy:
+1. Static Code Analysis:
+   - Use grep or similar tools to verify all instances of the old model name have been replaced
+   - Run linting tools to ensure no syntax errors were introduced during the updates
+   - Perform a code review to confirm all changes are correct
+
+2. Unit Testing:
+   - Run existing unit tests to verify they pass with the updated model name
+   - Add specific tests to verify the WebSocket client correctly uses the new model name in requests
+   - Test error handling to ensure proper behavior with the new model name
+
+3. Integration Testing:
+   - Perform end-to-end tests of the transcription flow using the new model name
+   - Verify successful WebSocket connections to the Gemini API with the updated model
+   - Test transcription quality and performance with the new model
+   - Compare results between old and new model names to identify any differences
+
+4. Environment Testing:
+   - Test in development, staging, and production-like environments
+   - Verify configuration loading works correctly across all environments
+   - Test with different API keys to ensure proper authentication with the new model
+
+5. Documentation Verification:
+   - Review all updated documentation for accuracy
+   - Verify any code examples in documentation use the correct model name
+   - Ensure consistency across all documentation sources
+
+# Subtasks:
+## 1. Perform Codebase Search and Create Inventory of Occurrences [done]
+### Dependencies: None
+### Description: Conduct a comprehensive search across the entire codebase to identify all instances of 'gemini-live-2.5-flash-preview' and create a detailed inventory of files and locations requiring updates.
+### Details:
+Use grep or similar search tools to find all occurrences of 'gemini-live-2.5-flash-preview' in the codebase. Create a structured inventory document listing each file path, line number, and context of the occurrence. Categorize findings into: WebSocket client code, API request payloads, configuration files, environment variables, documentation, and test files. Include code snippets for each occurrence to provide context. This inventory will serve as a checklist for the subsequent update tasks.
+
+## 2. Update WebSocket Client and API Request Code [done]
+### Dependencies: 22.1
+### Description: Modify all WebSocket connection initialization code, request payloads, and API client implementations to use the new model name 'gemini-2.5-flash-live'.
+### Details:
+Using the inventory from subtask 1, update all WebSocket client code that initializes connections to the Gemini API. Modify request payload templates and any model-specific parameters in API requests. Update any error handling logic that might reference the model name. Ensure all WebSocket message construction and parsing logic is updated to work with the new model name. Pay special attention to any model-specific configuration parameters or headers that might need adjustment.
+
+## 3. Update Configuration Files and Environment Variables [done]
+### Dependencies: 22.1
+### Description: Modify all configuration files, environment variables, constants, and model selection logic to use the new model name 'gemini-2.5-flash-live'.
+### Details:
+Based on the inventory from subtask 1, update all configuration files containing the old model name. Modify environment variables or configuration constants that specify the model name. Update any fallback or default model settings in the configuration. Revise any model selection logic that references the old model name. Ensure configuration validation still works with the new model name. Update any deployment configuration files or scripts that might reference the model name.
+
+## 4. Update Documentation and Test Files [done]
+### Dependencies: 22.1, 22.2, 22.3
+### Description: Update all documentation, README files, test fixtures, mock responses, and test assertions to reference the new model name 'gemini-2.5-flash-live'.
+### Details:
+Using the inventory from subtask 1, update all developer documentation referencing the old model name. Modify any user-facing documentation or help text. Update API documentation, integration guides, and README files to reflect the correct model name. Revise test fixtures and mock responses to use the new model name. Update any test assertions that check for specific model names. Modify test configuration files as needed. Create a pull request with all changes and coordinate with the team for review.
+

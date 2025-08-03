@@ -14,9 +14,11 @@ import ReconnectionManager, {
 } from './gemini-reconnection-manager'
 import {WebSocketHeartbeatMonitor, HeartbeatStatus} from './websocket-heartbeat-monitor'
 import GeminiSessionManager, {type SessionData} from './gemini-session-manager'
+import {apiKeyManager} from './api-key-manager'
+import {webSocketMonitor} from './websocket-monitor'
 
 // Model configuration constants
-export const GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
+export const GEMINI_LIVE_MODEL = 'gemini-2.0-flash-live-001'
 // Default API version for Gemini Live API (use config.apiVersion to override)
 export const GEMINI_LIVE_API_VERSION = 'v1beta'
 
@@ -41,7 +43,7 @@ interface ServerErrorData {
   type?: string
 }
 
-// Enhanced data models for gemini-live-2.5-flash-preview responses
+// Enhanced data models for gemini-2.5-flash-live responses
 export interface ParsedGeminiResponse {
   type:
     | 'text'
@@ -61,6 +63,7 @@ export interface ParsedGeminiResponse {
     isPartial?: boolean
     modelTurn?: boolean
     inputTranscription?: boolean
+    outputTranscription?: boolean
     turnId?: string
     // v1beta specific metadata
     toolCallIds?: string[]
@@ -233,6 +236,9 @@ export interface SetupMessage {
       }>
     }
     tools?: Array<object>
+    // Add transcription configurations as per v1beta API documentation
+    inputAudioTranscription?: object // AudioTranscriptionConfig
+    outputAudioTranscription?: object // AudioTranscriptionConfig
   }
 }
 
@@ -242,7 +248,7 @@ export interface GeminiLiveApiResponse {
 }
 
 /**
- * Enhanced message parser for gemini-live-2.5-flash-preview model
+ * Enhanced message parser for gemini-2.5-flash-live model
  * Handles various response formats including text, audio, and tool calls
  */
 export class Gemini2FlashMessageParser {
@@ -360,14 +366,28 @@ export class Gemini2FlashMessageParser {
     serverContent: Record<string, unknown>,
     timestamp: number
   ): ParsedGeminiResponse {
+    // 🐛 DEBUG: Log server content structure to diagnose empty transcriptions
+    console.log('🔊 DEBUG: parseServerContent received:', {
+      serverContent: JSON.stringify(serverContent, null, 2),
+      keys: Object.keys(serverContent),
+      hasModelTurn: !!serverContent.modelTurn,
+      hasTurnComplete: !!serverContent.turnComplete,
+      hasInputTranscription: !!serverContent.inputTranscription,
+      hasOutputTranscription: !!serverContent.outputTranscription
+    })
+
     const modelTurn = serverContent.modelTurn as Record<string, unknown> | undefined
     const turnComplete = serverContent.turnComplete as boolean | undefined
     const inputTranscription = serverContent.inputTranscription as
       | Record<string, unknown>
       | undefined
+    const outputTranscription = serverContent.outputTranscription as
+      | Record<string, unknown>
+      | undefined
 
-    // Check for input transcription first (for speech-to-text)
+    // Check for input transcription first (for speech-to-text - user's voice)
     if (inputTranscription && typeof inputTranscription.text === 'string') {
+      console.log('🔊 DEBUG: Found inputTranscription with text:', inputTranscription.text)
       return {
         type: 'text',
         content: inputTranscription.text,
@@ -383,6 +403,24 @@ export class Gemini2FlashMessageParser {
       }
     }
 
+    // Check for output transcription (model's voice transcription)
+    if (outputTranscription && typeof outputTranscription.text === 'string') {
+      console.log('🔊 DEBUG: Found outputTranscription with text:', outputTranscription.text)
+      return {
+        type: 'text',
+        content: outputTranscription.text,
+        metadata: {
+          timestamp,
+          outputTranscription: true,
+          isPartial: !turnComplete,
+          confidence:
+            typeof outputTranscription.confidence === 'number'
+              ? outputTranscription.confidence
+              : undefined
+        }
+      }
+    }
+
     if (modelTurn && Array.isArray(modelTurn.parts)) {
       // Extract text from parts
       const textParts = modelTurn.parts
@@ -390,6 +428,12 @@ export class Gemini2FlashMessageParser {
         .filter((text: unknown): text is string => typeof text === 'string')
 
       const content = textParts.join(' ')
+
+      console.log('🔊 DEBUG: Found modelTurn with parts:', {
+        parts: modelTurn.parts,
+        textParts,
+        content
+      })
 
       return {
         type: 'text',
@@ -403,6 +447,7 @@ export class Gemini2FlashMessageParser {
       }
     }
 
+    console.log('🔊 DEBUG: No text content found in server content, returning empty')
     return {
       type: 'text',
       content: '',
@@ -739,6 +784,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private sessionManager: GeminiSessionManager
   private currentSession: SessionData | null = null
   private isSetupComplete = false // Track setup completion to prevent audio before acknowledgment
+  private monitoringConnectionId: string | null = null // For WebSocket monitoring
 
   /**
    * Validate configuration for v1beta compatibility
@@ -828,17 +874,32 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     // Validate configuration before proceeding
     this.validateConfig(config)
 
+    // Ensure correct model priority: force use of correct model if override detected
+    const finalModel =
+      config.model && config.model !== 'gemini-live-2.5-flash-preview'
+        ? config.model
+        : GEMINI_LIVE_MODEL
+
     this.config = {
-      model: GEMINI_LIVE_MODEL,
       responseModalities: [ResponseModality.TEXT],
-      systemInstruction: 'You are a helpful assistant and answer in a friendly tone.',
+      systemInstruction: 'You are a real-time speech transcription assistant. Your primary task is to accurately transcribe spoken audio input into text. Always provide transcriptions of what you hear, even for partial or incomplete speech. Respond immediately with transcription results without waiting for complete sentences. For empty or silent audio, respond with empty text but maintain the streaming connection.',
       reconnectAttempts: 5,
       heartbeatInterval: 30000, // 30 seconds
       connectionTimeout: 10000, // 10 seconds
       maxQueueSize: 100, // Limit message queue size to prevent memory issues
       apiVersion: 'v1beta', // Default to v1beta as per Google documentation
-      ...config
+      ...config,
+      // Force correct model to prevent override issues
+      model: finalModel
     }
+
+    // Log configuration for debugging
+    logger.info('WebSocket client configuration finalized', {
+      model: this.config.model,
+      configuredModel: config.model,
+      defaultModel: GEMINI_LIVE_MODEL,
+      overrideDetected: config.model === 'gemini-live-2.5-flash-preview'
+    })
     this.maxReconnectAttempts = this.config.reconnectAttempts!
     this.heartbeatInterval = this.config.heartbeatInterval!
     this.connectionTimeout = this.config.connectionTimeout!
@@ -926,6 +987,10 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.isClosingIntentionally = false
 
     try {
+      // Start monitoring connection
+      const apiKey = this.config.apiKey
+      this.monitoringConnectionId = webSocketMonitor.startConnection(apiKey)
+
       // Construct WebSocket URL for Gemini Live API
       const wsUrl = this.buildWebSocketUrl()
 
@@ -936,6 +1001,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       // Set up connection timeout
       const timeoutId = setTimeout(() => {
         if (this.connectionState === ConnectionState.CONNECTING) {
+          if (this.monitoringConnectionId) {
+            webSocketMonitor.connectionTimeout(this.monitoringConnectionId)
+          }
           const timeoutError = this.errorHandler.handleError(
             new Error('Connection timeout'),
             {timeout: this.connectionTimeout},
@@ -948,6 +1016,12 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       if (this.ws) {
         this.ws.onopen = () => {
           clearTimeout(timeoutId)
+
+          // Record successful connection
+          if (this.monitoringConnectionId) {
+            webSocketMonitor.connectionEstablished(this.monitoringConnectionId)
+          }
+
           logger.info('WebSocket connected to Gemini Live API', {
             connectionState: this.connectionState,
             attempts: this.reconnectAttempts
@@ -977,6 +1051,14 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         }
 
         this.ws.onmessage = event => {
+          // Record message activity
+          if (this.monitoringConnectionId) {
+            webSocketMonitor.recordMessage(
+              this.monitoringConnectionId,
+              'received',
+              'websocket-message'
+            )
+          }
           this.handleMessage(event)
         }
 
@@ -1241,10 +1323,28 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       logger.debug('Sending message to Gemini Live API', {
         messageLength: message.length,
         inputType: input.audioStreamEnd ? 'audioStreamEnd' : input.audio ? 'audio' : 'text',
-        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
+        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state,
+        // CRITICAL DEBUG: Log audio details if present
+        audioDetails: input.audio ? {
+          mimeType: input.audio.mimeType,
+          dataLength: input.audio.data ? input.audio.data.length : 0,
+          dataPreview: input.audio.data ? input.audio.data.substring(0, 50) + '...' : 'no data'
+        } : null,
+        // CRITICAL DEBUG: Log text details if present
+        textDetails: input.text ? {
+          textLength: input.text.length,
+          textPreview: input.text.substring(0, 100)
+        } : null
       })
 
       this.ws.send(message)
+
+      // Record message activity in monitor
+      if (this.monitoringConnectionId) {
+        const messageType = input.audioStreamEnd ? 'audioStreamEnd' : input.audio ? 'audio' : 'text'
+        webSocketMonitor.recordMessage(this.monitoringConnectionId, 'sent', messageType)
+      }
+
       this.emit('messageSent', input)
 
       // Record successful operation for circuit breaker
@@ -1367,6 +1467,12 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
    * Handle incoming WebSocket messages
    */
   private handleMessage(event: MessageEvent): void {
+    // 🚨 Emergency circuit breaker - stop all processing if stack overflow detected
+    if (this.emergencyStopProcessing) {
+      console.error('🚨 EMERGENCY STOP: Message processing halted due to stack overflow detection')
+      return
+    }
+
     try {
       // Record successful message receipt for circuit breaker
       this.errorHandler.recordSuccess()
@@ -1399,15 +1505,30 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         throw new Error(`Unsupported message data type: ${typeof event.data}`)
       }
     } catch (error) {
+      // 🚨 Check for stack overflow and activate emergency circuit breaker
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      if (errorMessage.includes('Maximum call stack size exceeded')) {
+        console.error('🚨 STACK OVERFLOW DETECTED: Activating emergency circuit breaker')
+        this.emergencyStopProcessing = true
+        this.stackOverflowDetected = true
+
+        // Emit error event for external handling
+        this.emit('stackOverflow', {
+          message: 'Stack overflow detected in WebSocket message processing',
+          timestamp: Date.now()
+        })
+        return
+      }
+
       const parseError = this.errorHandler.handleError(
         error instanceof Error ? error : new Error('Unknown message parsing error'),
-        {error: error instanceof Error ? error.message : 'Unknown error'},
+        {error: errorMessage},
         {type: ErrorType.PARSE_ERROR, retryable: false}
       )
 
       logger.error('Failed to handle WebSocket message', {
         errorId: parseError.id,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage
       })
     }
   }
@@ -1446,7 +1567,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         return
       }
 
-      // Use enhanced message parser for gemini-live-2.5-flash-preview
+      // Use enhanced message parser for gemini-2.5-flash-live
       const geminiResponse = Gemini2FlashMessageParser.parseResponse(rawMessage)
       const validation = Gemini2FlashMessageParser.validateResponse(geminiResponse)
 
@@ -1510,136 +1631,333 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     }
   }
 
+  // 🛡️ Recursion guard to prevent stack overflow from event loops
+  private isProcessingResponse = false
+
+  // 🛡️ Rate limiting for event emission to prevent recursive loops
+  private lastEventEmissionTime = 0
+  private readonly EVENT_EMISSION_THROTTLE_MS = 25 // Reduced from 100ms to allow proper streaming updates
+
+  // 🛡️ Circuit breaker for message processing to detect excessive recursion
+  private messageProcessingCount = 0
+  private readonly MAX_MESSAGES_PER_SECOND = 100
+  private messageCountResetTime = Date.now()
+
+  // 🚨 Emergency circuit breaker to stop all processing when stack overflow detected
+  private emergencyStopProcessing = false
+  private stackOverflowDetected = false
+
   /**
    * Handle valid parsed response
    */
   private handleValidResponse(geminiResponse: ParsedGeminiResponse): void {
-    // Check for server-side errors in the message
-    if (geminiResponse.type === 'error' && geminiResponse.error) {
-      const serverError = this.errorHandler.handleError(
-        new Error(`Server error: ${geminiResponse.error.message || 'Unknown server error'}`),
-        {
-          serverErrorCode: geminiResponse.error.code,
-          serverErrorDetails: geminiResponse.error.details,
-          sessionId: this.currentSession?.sessionId
-        },
-        {
-          type: this.classifyServerError(geminiResponse.error),
-          retryable: this.isServerErrorRetryable(geminiResponse.error)
-        }
+    // 🛡️ CRITICAL: Prevent recursive processing that causes stack overflow
+    if (this.isProcessingResponse) {
+      console.warn(
+        '🚨 Recursion detected in handleValidResponse - skipping to prevent stack overflow'
       )
-
-      logger.error('Received server error from Gemini Live API', {
-        errorId: serverError.id,
-        serverError: geminiResponse.error,
-        sessionId: this.currentSession?.sessionId
-      })
-
-      this.emit('geminiError', {
-        ...geminiResponse.error,
-        handledError: serverError
-      })
-
-      if (this.shouldReconnectOnServerError(geminiResponse.error)) {
-        this.handleServerErrorRecovery(serverError)
-      }
       return
     }
 
-    // Process the message with the original handler for backwards compatibility
-    const messageText = JSON.stringify(geminiResponse)
-    const processed = this.messageHandler.processIncomingMessage(messageText)
-
-    // Emit both formats for different consumers
-    this.emit('message', processed)
-    this.emit('geminiResponse', geminiResponse)
-
-    // Track message received in session
-    if (this.currentSession) {
-      this.sessionManager.recordMessage('received', this.currentSession.sessionId)
-      this.sessionManager.updateActivity(this.currentSession.sessionId)
-
-      if (geminiResponse.type === 'turn_complete') {
-        this.sessionManager.recordTurn(this.currentSession.sessionId)
-      }
+    // 🛡️ Circuit breaker: Track message processing rate to detect runaway loops
+    const now = Date.now()
+    if (now - this.messageCountResetTime >= 1000) {
+      // Reset counter every second
+      this.messageProcessingCount = 0
+      this.messageCountResetTime = now
     }
 
-    // Emit specific events based on enhanced message type
-    switch (geminiResponse.type) {
-      case 'text':
-        this.emit('textResponse', {
-          content: geminiResponse.content,
-          metadata: geminiResponse.metadata,
-          isPartial: geminiResponse.metadata.isPartial
-        })
+    this.messageProcessingCount++
+    if (this.messageProcessingCount > this.MAX_MESSAGES_PER_SECOND) {
+      console.error(
+        '🚨 Circuit breaker triggered: Too many messages processed per second, possible recursive loop detected'
+      )
+      return
+    }
 
-        // Also emit transcriptionUpdate for backward compatibility with transcription services
-        this.emit('transcriptionUpdate', {
-          text: geminiResponse.content,
-          confidence: geminiResponse.metadata.confidence,
-          isFinal: !geminiResponse.metadata.isPartial
-        })
+    this.isProcessingResponse = true
 
-        logger.debug('Emitted transcription events', {
-          textLength:
-            typeof geminiResponse.content === 'string' ? geminiResponse.content.length : 0,
-          isPartial: geminiResponse.metadata.isPartial,
-          confidence: geminiResponse.metadata.confidence,
-          isFinal: !geminiResponse.metadata.isPartial
-        })
-        break
-      case 'audio':
-        this.emit('audioResponse', {
-          content: geminiResponse.content,
-          metadata: geminiResponse.metadata
-        })
-        break
-      case 'tool_call':
-        this.emit('toolCall', geminiResponse.toolCall)
-        break
-      case 'turn_complete':
-        this.emit('turnComplete', {
-          turnId: geminiResponse.metadata.turnId,
-          metadata: geminiResponse.metadata
-        })
-        break
-      case 'setup_complete':
-        // CRITICAL: Set setup complete flag immediately upon receiving the message
-        this.isSetupComplete = true
-        logger.info('Setup complete message received - marking as complete')
+    try {
+      // � TASK 20.3: Enhanced WebSocket Message Handler for All Response Types
+      console.log('🔊 TASK 20.3: Enhanced Gemini response debugging:', {
+        type: geminiResponse.type,
+        contentType: typeof geminiResponse.content,
+        contentLength: geminiResponse.content ? String(geminiResponse.content).length : 0,
+        contentPreview: geminiResponse.content
+          ? String(geminiResponse.content).substring(0, 100)
+          : 'null',
+        contentFull: geminiResponse.content, // Log full content for debugging empty responses
+        metadata: geminiResponse.metadata,
+        hasError: !!geminiResponse.error,
+        error: geminiResponse.error,
+        setupComplete: this.isSetupComplete,
+        messageCount: this.messageProcessingCount,
+        rawResponseKeys: Object.keys(geminiResponse),
+        timestamp: new Date().toISOString()
+      })
 
-        this.emit('setupComplete', {
-          metadata: geminiResponse.metadata
-        })
-        break
-      case 'tool_call_cancellation':
-        this.emit('toolCallCancellation', {
-          ids: geminiResponse.toolCallCancellation?.ids || [],
-          metadata: geminiResponse.metadata
-        })
-        break
-      case 'go_away':
-        this.emit('goAway', {
-          timeLeft: geminiResponse.goAway?.timeLeft,
-          metadata: geminiResponse.metadata
-        })
-        // Handle graceful disconnect when server requests go away
-        this.handleGoAwayMessage(geminiResponse.goAway?.timeLeft)
-        break
-      case 'session_resumption_update':
-        this.emit('sessionResumptionUpdate', {
-          newHandle: geminiResponse.sessionResumptionUpdate?.newHandle || '',
-          resumable: geminiResponse.sessionResumptionUpdate?.resumable || false,
-          metadata: geminiResponse.metadata
-        })
-        // Update session manager with new resumption data
-        this.handleSessionResumptionUpdate(geminiResponse.sessionResumptionUpdate)
-        break
-      default:
-        logger.debug('Unhandled enhanced message type', {
+      // 🔧 TASK 20.3: Detect and handle silent API failures (empty responses with 200 status)
+      if (
+        geminiResponse.type === 'text' &&
+        (!geminiResponse.content ||
+          (typeof geminiResponse.content === 'string' && geminiResponse.content.trim() === ''))
+      ) {
+        console.warn('🚨 TASK 20.3: SILENT API FAILURE DETECTED - Empty text response:', {
           type: geminiResponse.type,
-          messageId: geminiResponse.metadata.messageId
+          content: geminiResponse.content,
+          contentLength: geminiResponse.content ? String(geminiResponse.content).length : 0,
+          metadata: geminiResponse.metadata,
+          setupComplete: this.isSetupComplete,
+          possibleCauses: [
+            'API key lacks transcription permissions',
+            'Audio format incompatibility',
+            'Gemini Live API quota exhausted',
+            'Audio data is silent or corrupted',
+            'API configuration mismatch'
+          ]
         })
+
+        // Emit a specific event for empty transcription responses
+        this.emit('emptyTranscription', {
+          type: geminiResponse.type,
+          metadata: geminiResponse.metadata,
+          timestamp: Date.now(),
+          debugInfo: {
+            setupComplete: this.isSetupComplete,
+            messageCount: this.messageProcessingCount
+          }
+        })
+      }
+
+      // 🔧 TASK 20.3: Enhanced timeout mechanism for detecting when no transcription is received
+      this.handleTranscriptionTimeout(geminiResponse)
+
+      // Check for server-side errors in the message
+      if (geminiResponse.type === 'error' && geminiResponse.error) {
+        const serverError = this.errorHandler.handleError(
+          new Error(`Server error: ${geminiResponse.error.message || 'Unknown server error'}`),
+          {
+            serverErrorCode: geminiResponse.error.code,
+            serverErrorDetails: geminiResponse.error.details,
+            sessionId: this.currentSession?.sessionId
+          },
+          {
+            type: this.classifyServerError(geminiResponse.error),
+            retryable: this.isServerErrorRetryable(geminiResponse.error)
+          }
+        )
+
+        logger.error('Received server error from Gemini Live API', {
+          errorId: serverError.id,
+          serverError: geminiResponse.error,
+          sessionId: this.currentSession?.sessionId
+        })
+
+        this.emit('geminiError', {
+          ...geminiResponse.error,
+          handledError: serverError
+        })
+
+        if (this.shouldReconnectOnServerError(geminiResponse.error)) {
+          this.handleServerErrorRecovery(serverError)
+        }
+
+        // 🛡️ Reset recursion guard before returning
+        this.isProcessingResponse = false
+        return
+      }
+
+      // Emit response directly - avoid recursive message processing
+      this.emit('geminiResponse', geminiResponse)
+
+      // 🛡️ Rate limit transcription event emission to prevent recursive loops
+      const now = Date.now()
+      const shouldEmitTranscriptionEvents =
+        now - this.lastEventEmissionTime >= this.EVENT_EMISSION_THROTTLE_MS
+
+      // Track message received in session
+      if (this.currentSession) {
+        this.sessionManager.recordMessage('received', this.currentSession.sessionId)
+        this.sessionManager.updateActivity(this.currentSession.sessionId)
+
+        if (geminiResponse.type === 'turn_complete') {
+          this.sessionManager.recordTurn(this.currentSession.sessionId)
+        }
+      }
+
+      // 🔧 TASK 20.3: Enhanced handling for all response types with explicit error detection
+      switch (geminiResponse.type) {
+        case 'text':
+          // � TASK 20.3: Enhanced text response processing with comprehensive validation
+          if (shouldEmitTranscriptionEvents) {
+            this.lastEventEmissionTime = now
+
+            // Enhanced text content validation and debugging
+            const textContent =
+              typeof geminiResponse.content === 'string'
+                ? geminiResponse.content
+                : String(geminiResponse.content || '')
+            const hasValidContent = textContent && textContent.trim().length > 0
+
+            console.log('� TASK 20.3: Enhanced text response processing:', {
+              content: textContent,
+              contentType: typeof geminiResponse.content,
+              contentLength: textContent.length,
+              trimmedLength: textContent.trim().length,
+              hasValidContent,
+              isPartial: geminiResponse.metadata.isPartial,
+              confidence: geminiResponse.metadata.confidence,
+              metadata: geminiResponse.metadata,
+              setupComplete: this.isSetupComplete,
+              sessionActive: !!this.currentSession
+            })
+
+            // Always emit textResponse event for debugging, even if content is empty
+            this.emit('textResponse', {
+              content: textContent,
+              metadata: geminiResponse.metadata,
+              isPartial: geminiResponse.metadata.isPartial,
+              hasValidContent
+            })
+
+            // Only emit transcriptionUpdate if we have valid content OR if it's an explicit final result
+            if (hasValidContent || !geminiResponse.metadata.isPartial) {
+              this.emit('transcriptionUpdate', {
+                text: textContent,
+                confidence: geminiResponse.metadata.confidence || 0.8,
+                isFinal: !geminiResponse.metadata.isPartial,
+                isEmpty: !hasValidContent
+              })
+
+              console.log('� TASK 20.3: Emitted transcriptionUpdate:', {
+                text: textContent,
+                textLength: textContent.length,
+                confidence: geminiResponse.metadata.confidence || 0.8,
+                isFinal: !geminiResponse.metadata.isPartial,
+                isEmpty: !hasValidContent,
+                timestamp: new Date().toISOString()
+              })
+            } else {
+              console.log('🔧 TASK 20.3: Skipping transcriptionUpdate for empty partial result')
+            }
+
+            // Log comprehensive transcription event details
+            logger.debug('Enhanced transcription events processed', {
+              textLength: textContent.length,
+              hasValidContent,
+              isPartial: geminiResponse.metadata.isPartial,
+              confidence: geminiResponse.metadata.confidence,
+              isFinal: !geminiResponse.metadata.isPartial,
+              setupComplete: this.isSetupComplete
+            })
+          } else {
+            console.log('🛡️ Rate limit: Skipping transcription event emission to prevent recursion')
+          }
+          break
+
+        case 'audio':
+          // 🔧 TASK 20.3: Enhanced audio response handling
+          console.log('🔧 TASK 20.3: Audio response received:', {
+            contentType: typeof geminiResponse.content,
+            hasContent: !!geminiResponse.content,
+            metadata: geminiResponse.metadata
+          })
+          this.emit('audioResponse', {
+            content: geminiResponse.content,
+            metadata: geminiResponse.metadata
+          })
+          break
+
+        case 'tool_call':
+          // 🔧 TASK 20.3: Enhanced tool call handling
+          console.log('🔧 TASK 20.3: Tool call received:', {
+            toolCall: geminiResponse.toolCall,
+            metadata: geminiResponse.metadata
+          })
+          this.emit('toolCall', geminiResponse.toolCall)
+          break
+
+        case 'turn_complete':
+          // 🔧 TASK 20.3: Enhanced turn complete handling
+          console.log('🔧 TASK 20.3: Turn complete received:', {
+            turnId: geminiResponse.metadata.turnId,
+            metadata: geminiResponse.metadata
+          })
+          this.emit('turnComplete', {
+            turnId: geminiResponse.metadata.turnId,
+            metadata: geminiResponse.metadata
+          })
+          break
+
+        case 'setup_complete':
+          // 🔧 TASK 20.3: Enhanced setup complete handling with timeout reset
+          console.log('🔧 TASK 20.3: Setup complete received - resetting transcription timeout')
+          this.isSetupComplete = true
+          this.resetTranscriptionTimeout() // Reset timeout when setup is complete
+
+          logger.info('Setup complete message received - marking as complete')
+
+          // Report successful API key usage to the manager
+          if (this.config.apiKey) {
+            apiKeyManager.reportSuccess(this.config.apiKey)
+          }
+
+          this.emit('setupComplete', {
+            metadata: geminiResponse.metadata
+          })
+          break
+
+        case 'tool_call_cancellation':
+          // 🔧 TASK 20.3: Enhanced tool call cancellation handling
+          console.log('🔧 TASK 20.3: Tool call cancellation received:', {
+            ids: geminiResponse.toolCallCancellation?.ids,
+            metadata: geminiResponse.metadata
+          })
+          this.emit('toolCallCancellation', {
+            ids: geminiResponse.toolCallCancellation?.ids || [],
+            metadata: geminiResponse.metadata
+          })
+          break
+
+        case 'go_away':
+          // 🔧 TASK 20.3: Enhanced go away handling
+          console.log('🔧 TASK 20.3: Go away message received:', {
+            timeLeft: geminiResponse.goAway?.timeLeft,
+            metadata: geminiResponse.metadata
+          })
+          this.emit('goAway', {
+            timeLeft: geminiResponse.goAway?.timeLeft,
+            metadata: geminiResponse.metadata
+          })
+          // Handle graceful disconnect when server requests go away
+          this.handleGoAwayMessage(geminiResponse.goAway?.timeLeft)
+          break
+
+        case 'session_resumption_update':
+          // 🔧 TASK 20.3: Enhanced session resumption update handling
+          console.log('🔧 TASK 20.3: Session resumption update received:', {
+            newHandle: geminiResponse.sessionResumptionUpdate?.newHandle,
+            resumable: geminiResponse.sessionResumptionUpdate?.resumable,
+            metadata: geminiResponse.metadata
+          })
+          this.emit('sessionResumptionUpdate', {
+            newHandle: geminiResponse.sessionResumptionUpdate?.newHandle || '',
+            resumable: geminiResponse.sessionResumptionUpdate?.resumable || false,
+            metadata: geminiResponse.metadata
+          })
+          // Update session manager with new resumption data
+          this.handleSessionResumptionUpdate(geminiResponse.sessionResumptionUpdate)
+          break
+          break
+        default:
+          logger.debug('Unhandled enhanced message type', {
+            type: geminiResponse.type,
+            messageId: geminiResponse.metadata.messageId
+          })
+      }
+    } finally {
+      // 🛡️ Always reset recursion guard
+      this.isProcessingResponse = false
     }
   }
 
@@ -2267,9 +2585,22 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     this.setConnectionState(ConnectionState.DISCONNECTED)
     this.stopHeartbeat()
 
+    // Record connection close in monitor
+    if (this.monitoringConnectionId) {
+      webSocketMonitor.connectionClosed(this.monitoringConnectionId, event.code, event.reason)
+    }
+
     // Handle session disconnection
     const reason = `WebSocket closed: ${event.code} - ${event.reason}`
     this.handleSessionDisconnection(reason)
+
+    // Report API key error to the manager for quota tracking and rotation
+    if (this.config.apiKey) {
+      apiKeyManager.reportError(this.config.apiKey, {
+        code: event.code,
+        message: event.reason || 'WebSocket connection closed'
+      })
+    }
 
     this.emit('disconnected', event)
 
@@ -2281,6 +2612,12 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
 
       if (shouldReconnect) {
         this.setConnectionState(ConnectionState.RECONNECTING)
+
+        // Record reconnection attempt
+        if (this.monitoringConnectionId) {
+          webSocketMonitor.recordReconnectionAttempt(this.monitoringConnectionId)
+        }
+
         this.reconnectionManager.startReconnection(() => this.connect())
       }
     }
@@ -2424,9 +2761,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   }
 
   /**
-   * Get connection metrics from reconnection manager
+   * Get reconnection metrics from reconnection manager
    */
-  getConnectionMetrics() {
+  getReconnectionMetrics() {
     return this.reconnectionManager.getMetrics()
   }
 
@@ -2701,22 +3038,23 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         model: `models/${this.config.model}`,
         generationConfig: {
           responseModalities: this.config.responseModalities || [ResponseModality.TEXT],
-          // Use configured values or defaults optimized for speech transcription
-          candidateCount: this.config.generationConfig?.candidateCount ?? 1, // Single response for transcription
-          maxOutputTokens: this.config.generationConfig?.maxOutputTokens ?? 8192, // Sufficient for transcription responses
-          temperature: this.config.generationConfig?.temperature ?? 0.1, // Low temperature for consistent transcription
-          topP: this.config.generationConfig?.topP ?? 0.95, // Focused but not overly restrictive
-          ...(this.config.generationConfig?.topK && {topK: this.config.generationConfig.topK}),
+          // CRITICAL FIX: Optimized parameters for speech-to-text transcription
+          candidateCount: 1, // Always 1 for transcription - we want single, consistent output
+          maxOutputTokens: 2048, // Reduced from 8192 - transcription responses are typically short
+          temperature: 0.0, // CRITICAL: Set to 0 for deterministic transcription (was 0.1)
+          topP: 1.0, // Use full vocabulary for transcription accuracy (was 0.95)
+          // Remove topK to allow full vocabulary access for transcription
           ...(this.config.generationConfig?.presencePenalty && {
             presencePenalty: this.config.generationConfig.presencePenalty
           }),
           ...(this.config.generationConfig?.frequencyPenalty && {
             frequencyPenalty: this.config.generationConfig.frequencyPenalty
           })
-          // Note: speechConfig removed as it's not needed for speech-to-text transcription
-          // The speechConfig with voiceName is only needed for text-to-speech generation
-        }
-        // Note: inputAudioTranscription removed - not part of v1beta setup message format
+        },
+        // CRITICAL FIX: Enable input audio transcription - this IS part of v1beta format!
+        inputAudioTranscription: {},
+        // Also enable output audio transcription for completeness
+        outputAudioTranscription: {}
       }
     }
 
@@ -2765,7 +3103,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         responseModalities: this.config.responseModalities,
         hasSystemInstruction: !!this.config.systemInstruction,
         hasActiveSession: !!this.currentSession,
-        sessionId: this.currentSession?.sessionId
+        sessionId: this.currentSession?.sessionId,
+        // CRITICAL DEBUG: Log the full setup message for inspection
+        setupMessagePreview: JSON.stringify(setupMessage, null, 2).substring(0, 1000)
       })
 
       this.ws.send(message)
@@ -2934,6 +3274,13 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         // Now that setup is complete, process any queued messages
         this.processMessageQueue()
 
+        // CRITICAL FIX: Send transcription context message to establish intent
+        this.sendTranscriptionContextMessage().catch((error: unknown) => {
+          logger.warn('Failed to send transcription context message', {
+            error: error instanceof Error ? error.message : 'Unknown error'
+          })
+        })
+
         clearTimeout(timeout)
         this.off('setupComplete', onSetupComplete)
         this.off('error', onError)
@@ -3077,7 +3424,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   // ===== Enhanced Message Parsing Methods =====
 
   /**
-   * Parse a response using the enhanced gemini-live-2.5-flash-preview parser
+   * Parse a response using the enhanced gemini-2.5-flash-live parser
    */
   parseGeminiResponse(rawMessage: unknown): ParsedGeminiResponse {
     return Gemini2FlashMessageParser.parseResponse(rawMessage)
@@ -3354,6 +3701,159 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       logger.info('Session resumption disabled', {
         sessionId: this.currentSession.sessionId
       })
+    }
+  }
+
+  /**
+   * Reset emergency circuit breaker (use with caution)
+   */
+  resetEmergencyCircuitBreaker(): void {
+    console.log('🔄 Resetting emergency circuit breaker')
+    this.emergencyStopProcessing = false
+    this.stackOverflowDetected = false
+    this.isProcessingResponse = false
+    this.messageProcessingCount = 0
+    this.messageCountResetTime = Date.now()
+  }
+
+  /**
+   * Get circuit breaker status
+   */
+  getCircuitBreakerStatus(): {
+    emergencyStop: boolean
+    stackOverflowDetected: boolean
+    isProcessing: boolean
+    messageCount: number
+  } {
+    return {
+      emergencyStop: this.emergencyStopProcessing,
+      stackOverflowDetected: this.stackOverflowDetected,
+      isProcessing: this.isProcessingResponse,
+      messageCount: this.messageProcessingCount
+    }
+  }
+
+  /**
+   * Get WebSocket connection monitoring health report
+   */
+  getMonitoringHealth(): ReturnType<typeof webSocketMonitor.getHealthReport> | null {
+    return webSocketMonitor.getHealthReport()
+  }
+
+  /**
+   * Get current connection metrics
+   */
+  getConnectionMetrics(): ReturnType<typeof webSocketMonitor.getConnectionMetrics> | null {
+    if (!this.monitoringConnectionId) {
+      return null
+    }
+    return webSocketMonitor.getConnectionMetrics(this.monitoringConnectionId)
+  }
+
+  /**
+   * Get quota usage metrics
+   */
+  getQuotaMetrics(): ReturnType<typeof webSocketMonitor.getQuotaMetrics> {
+    return webSocketMonitor.getQuotaMetrics()
+  }
+
+  /**
+   * Export comprehensive monitoring data
+   */
+  exportMonitoringData(): ReturnType<typeof webSocketMonitor.exportMetrics> {
+    return webSocketMonitor.exportMetrics()
+  }
+
+  /**
+   * 🔧 TASK 20.3: Handle transcription timeout detection
+   * Detects when no transcription is received within expected timeframe
+   */
+  private transcriptionTimeout: NodeJS.Timeout | null = null
+  private lastTranscriptionTime: number = 0
+  private readonly TRANSCRIPTION_TIMEOUT_MS = 15000 // 15 seconds without transcription
+
+  private handleTranscriptionTimeout(geminiResponse: ParsedGeminiResponse): void {
+    // Clear existing timeout if we receive any text response
+    if (
+      geminiResponse.type === 'text' &&
+      geminiResponse.content &&
+      typeof geminiResponse.content === 'string' &&
+      geminiResponse.content.trim().length > 0
+    ) {
+      if (this.transcriptionTimeout) {
+        clearTimeout(this.transcriptionTimeout)
+        this.transcriptionTimeout = null
+      }
+      this.lastTranscriptionTime = Date.now()
+      return
+    }
+
+    // Start timeout if we haven't received transcription yet and setup is complete
+    if (this.isSetupComplete && !this.transcriptionTimeout && this.lastTranscriptionTime === 0) {
+      console.log('🔧 TASK 20.3: Starting transcription timeout detection')
+      this.transcriptionTimeout = setTimeout(() => {
+        console.warn(
+          '🚨 TASK 20.3: TRANSCRIPTION TIMEOUT - No transcription received within timeout period:',
+          {
+            timeoutMs: this.TRANSCRIPTION_TIMEOUT_MS,
+            setupComplete: this.isSetupComplete,
+            lastTranscriptionTime: this.lastTranscriptionTime,
+            possibleIssues: [
+              'Audio data is silent or corrupted',
+              'API key lacks transcription permissions',
+              'Gemini Live API quota exhausted',
+              'Network connectivity issues',
+              'Audio format incompatibility'
+            ]
+          }
+        )
+
+        // Emit timeout event for external handling
+        this.emit('transcriptionTimeout', {
+          timeoutMs: this.TRANSCRIPTION_TIMEOUT_MS,
+          timestamp: Date.now(),
+          setupComplete: this.isSetupComplete
+        })
+
+        this.transcriptionTimeout = null
+      }, this.TRANSCRIPTION_TIMEOUT_MS)
+    }
+  }
+
+  /**
+   * 🔧 TASK 20.3: Reset transcription timeout (call when starting new transcription)
+   */
+  resetTranscriptionTimeout(): void {
+    if (this.transcriptionTimeout) {
+      clearTimeout(this.transcriptionTimeout)
+      this.transcriptionTimeout = null
+    }
+    this.lastTranscriptionTime = 0
+    console.log('🔧 TASK 20.3: Transcription timeout reset')
+  }
+
+  /**
+   * 🔧 CRITICAL FIX: Send initial transcription context message to establish intent
+   * This tells Gemini we want speech-to-text transcription, not conversation
+   */
+  private async sendTranscriptionContextMessage(): Promise<void> {
+    try {
+      const contextMessage: RealtimeInput = {
+        text: 'I will be sending you audio data for real-time transcription. Please transcribe all speech you receive into text format. Begin transcribing now.'
+      }
+      
+      logger.info('Sending transcription context message to establish intent')
+      await this.sendRealtimeInput(contextMessage, { priority: QueuePriority.HIGH })
+      
+      // Also send turn completion to trigger model acknowledgment
+      await this.sendTurnCompletion()
+      
+      logger.info('Transcription context established - Gemini should now understand to transcribe speech')
+    } catch (error) {
+      logger.error('Failed to send transcription context message', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
     }
   }
 }

@@ -7,7 +7,10 @@
 
 import {EventEmitter} from 'events'
 import GeminiLiveWebSocketClient from './gemini-live-websocket'
-import {getTranscriptionEventMiddleware} from '../middleware/TranscriptionEventMiddleware'
+import {
+  getTranscriptionEventMiddleware,
+  TranscriptionEventMiddleware
+} from '../middleware/TranscriptionEventMiddleware'
 import {logger} from './gemini-logger'
 
 export interface TranscriptionEvent {
@@ -51,19 +54,28 @@ export interface BridgeConfig {
  */
 export class GeminiTranscriptionBridge extends EventEmitter {
   private client: GeminiLiveWebSocketClient | null = null
-  private middleware = getTranscriptionEventMiddleware()
-  private config: BridgeConfig
+  private middleware: TranscriptionEventMiddleware
   private isConnected = false
+  private config: BridgeConfig = {
+    enableEventForwarding: true, // Re-enable for WebSocket transcription
+    enableLogging: true,
+    bufferTimeout: 100
+  }
 
-  constructor(config: Partial<BridgeConfig> = {}) {
+  // 🛡️ Circuit breaker to prevent feedback loops
+  private isForwardingEvent = false
+  private lastForwardTime = 0
+  private lastEventSignature = '' // Track last event to prevent duplicates
+  private readonly FORWARD_THROTTLE_MS = 25 // Reduced from 50ms to allow proper streaming updates
+
+  // 🚨 Emergency circuit breaker for stack overflow detection
+  private emergencyStop = false
+  private errorCount = 0
+  private readonly MAX_ERRORS_BEFORE_STOP = 3
+
+  constructor() {
     super()
-
-    this.config = {
-      enableEventForwarding: true,
-      enableLogging: true,
-      bufferTimeout: 100,
-      ...config
-    }
+    this.middleware = getTranscriptionEventMiddleware()
   }
 
   /**
@@ -152,7 +164,7 @@ export class GeminiTranscriptionBridge extends EventEmitter {
    * Handle completed text responses
    */
   private handleTextResponse(data: TextResponseData): void {
-    if (!this.config.enableEventForwarding) return
+    if (!this.config.enableEventForwarding || this.emergencyStop) return
 
     const transcriptionEvent: TranscriptionEvent = {
       text: data.content || '',
@@ -180,7 +192,7 @@ export class GeminiTranscriptionBridge extends EventEmitter {
    * Handle transcription updates (partial results)
    */
   private handleTranscriptionUpdate(data: TranscriptionUpdateData): void {
-    if (!this.config.enableEventForwarding) return
+    if (!this.config.enableEventForwarding || this.emergencyStop) return
 
     const transcriptionEvent: TranscriptionEvent = {
       text: data.text || '',
@@ -228,16 +240,84 @@ export class GeminiTranscriptionBridge extends EventEmitter {
    * Forward transcription event to middleware
    */
   private forwardToMiddleware(event: TranscriptionEvent): void {
+    // � Emergency stop if stack overflow detected
+    if (this.emergencyStop) {
+      console.error('🚨 Bridge: Emergency stop active - all event forwarding disabled')
+      return
+    }
+
+    // �🛡️ Circuit breaker to prevent feedback loops
+    if (this.isForwardingEvent) {
+      console.warn('🚨 Bridge: Skipping event forward to prevent feedback loop')
+      this.errorCount++
+      if (this.errorCount >= this.MAX_ERRORS_BEFORE_STOP) {
+        this.activateEmergencyStop()
+      }
+      return
+    }
+
+    const now = Date.now()
+    if (now - this.lastForwardTime < this.FORWARD_THROTTLE_MS) {
+      console.warn('🚨 Bridge: Throttling event forward to prevent excessive activity')
+      return
+    }
+
+    // Check for identical consecutive events to prevent loops
+    const eventSignature = `${event.text.slice(0, 50)}-${event.isPartial}-${event.source}`
+    if (this.lastEventSignature === eventSignature) {
+      console.warn('🚨 Bridge: Duplicate event detected - skipping to prevent loop')
+      return
+    }
+
     try {
-      // Use the middleware's simulation method to inject the event
+      this.isForwardingEvent = true
+      this.lastForwardTime = now
+      this.lastEventSignature = eventSignature
+
+      // CRITICAL FIX: Use simulateTranscription which exists in the middleware
+      console.log('🔗 Bridge: Forwarding event via simulateTranscription')
+
+      // Use the existing simulateTranscription method
       this.middleware.simulateTranscription(event.text, event.source, event.isPartial)
 
       this.emit('eventForwarded', event)
+
+      // Reset error count on successful forward
+      this.errorCount = 0
     } catch (error) {
+      this.errorCount++
+
+      // Check for stack overflow specifically
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (errorMessage.includes('Maximum call stack size exceeded')) {
+        console.error('🚨 Bridge: Stack overflow detected - activating emergency stop')
+        this.activateEmergencyStop()
+      }
+
+      if (this.errorCount >= this.MAX_ERRORS_BEFORE_STOP) {
+        this.activateEmergencyStop()
+      }
+
       logger.error('Bridge: Failed to forward event to middleware', {
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage,
+        errorCount: this.errorCount
       })
+    } finally {
+      this.isForwardingEvent = false
     }
+  }
+
+  /**
+   * Activate emergency stop to prevent all further event processing
+   */
+  private activateEmergencyStop(): void {
+    this.emergencyStop = true
+    console.error('🚨 Bridge: EMERGENCY STOP ACTIVATED - Bridge disabled due to errors')
+    this.emit('emergencyStop', {
+      reason: 'Multiple errors or stack overflow detected',
+      errorCount: this.errorCount,
+      timestamp: Date.now()
+    })
   }
 
   /**
@@ -247,12 +327,28 @@ export class GeminiTranscriptionBridge extends EventEmitter {
     isConnected: boolean
     hasClient: boolean
     config: BridgeConfig
+    emergencyStop: boolean
+    errorCount: number
   } {
     return {
       isConnected: this.isConnected,
       hasClient: this.client !== null,
-      config: this.config
+      config: this.config,
+      emergencyStop: this.emergencyStop,
+      errorCount: this.errorCount
     }
+  }
+
+  /**
+   * Reset emergency stop (use with caution)
+   */
+  resetEmergencyStop(): void {
+    this.emergencyStop = false
+    this.errorCount = 0
+    console.log('🔄 Bridge: Emergency stop reset - bridge re-enabled')
+    this.emit('emergencyStopReset', {
+      timestamp: Date.now()
+    })
   }
 
   /**

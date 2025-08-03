@@ -50,7 +50,7 @@ function generateUpdatedEnvContent(currentEnv: Record<string, string>): string {
   const updatedEnv = {...currentEnv, ...migration.migrated}
 
   // Apply v1beta optimizations
-  updatedEnv.GEMINI_MODEL_NAME = 'gemini-live-2.5-flash-preview'
+  updatedEnv.GEMINI_MODEL_NAME = 'gemini-2.5-flash-live'
   updatedEnv.GEMINI_API_VERSION = 'v1beta'
   updatedEnv.GEMINI_USE_V1BETA = 'true'
 

@@ -1,0 +1,121 @@
+# Task ID: 11
+# Title: Fix Stack Overflow in WebSocket Transcription System
+# Status: done
+# Dependencies: 5, 2
+# Priority: high
+# Description: Identify and fix the infinite recursion causing "Maximum call stack size exceeded" errors in performTranscription and transcribeAudioViaWebSocket functions, which is blocking all WebSocket functionality.
+# Details:
+1. Analyze the call stack in the performTranscription and transcribeAudioViaWebSocket functions to identify the recursive pattern causing the stack overflow.
+2. Review all function calls within these methods, paying special attention to callback functions, promises, and event handlers that might create circular references.
+3. Check for direct recursion (function calling itself without proper termination condition) and indirect recursion (function A calls function B which eventually calls function A again).
+4. Examine event listeners that might be duplicated or not properly removed, potentially causing multiple callback executions.
+5. Implement the fix by:
+   - Adding proper termination conditions to recursive functions
+   - Restructuring callback chains to avoid circular references
+   - Ensuring event listeners are properly managed (added once, removed when no longer needed)
+   - Converting recursive algorithms to iterative approaches where appropriate
+   - Implementing proper error boundaries to prevent cascading failures
+6. Add defensive programming techniques:
+   - Add depth counters to prevent excessive recursion
+   - Implement circuit breakers for recursive operations
+   - Add validation checks before recursive calls
+7. Document the root cause of the issue and the implemented solution in code comments and the project documentation.
+8. Update any related error handling to provide more descriptive messages if similar issues occur in the future.
+
+# Test Strategy:
+1. Create unit tests specifically targeting the fixed functions with various input scenarios:
+   - Normal operation cases
+   - Edge cases that previously triggered the stack overflow
+   - Boundary conditions with large data payloads
+   - Rapid successive calls to test concurrency handling
+
+2. Implement stress tests that:
+   - Make repeated calls to the transcription functions
+   - Simulate high-frequency WebSocket events
+   - Test with varying network conditions
+   - Verify memory usage remains stable during extended operation
+
+3. Add instrumentation to measure:
+   - Call stack depth during operation
+   - Memory usage patterns
+   - Function execution time
+
+4. Create integration tests that verify:
+   - End-to-end WebSocket transcription flow works correctly
+   - Error handling properly manages exceptional conditions
+   - No regression in related WebSocket functionality
+
+5. Verify logging is comprehensive by:
+   - Checking that appropriate debug information is recorded
+   - Confirming error states are properly logged
+   - Ensuring stack traces are captured for any remaining errors
+
+6. Conduct manual testing of the WebSocket transcription system with real audio input to verify the fix resolves the issue in production-like environments.
+
+# Subtasks:
+## 1. Analyze Call Stack and Identify Recursion Patterns [done]
+### Dependencies: None
+### Description: Examine the call stack in performTranscription and transcribeAudioViaWebSocket functions to identify the specific patterns causing the stack overflow error.
+### Details:
+1. Use browser developer tools or Node.js debugging to capture the full call stack when the error occurs.
+2. Map out the function call sequence leading to the overflow.
+3. Identify if the issue is direct recursion (self-calling) or indirect recursion (circular dependency).
+4. Document all callback chains, promise handlers, and event listeners involved in the recursion.
+5. Create a visual diagram of the call flow to pinpoint exact recursion points.
+6. Check for event listeners that might be duplicated or not properly removed.
+
+## 2. Fix Circular References in Callback Chains [done]
+### Dependencies: 11.1
+### Description: Restructure callback chains and promise handlers to eliminate circular references that lead to infinite recursion.
+### Details:
+1. Refactor callback patterns to use proper termination conditions.
+2. Replace nested callbacks with promise chains or async/await patterns where appropriate.
+3. Implement guards against re-entry into critical sections of code.
+4. Ensure all promise rejection scenarios are properly handled.
+5. Add state tracking to prevent redundant processing of the same data.
+6. Implement proper cleanup of resources after processing completes.
+
+## 3. Implement Event Listener Management [done]
+### Dependencies: 11.1
+### Description: Fix issues with WebSocket event listeners that may be causing duplicate registrations or failing to unregister, leading to cascading calls.
+### Details:
+1. Audit all event listener registrations in the WebSocket connection lifecycle.
+2. Implement a tracking mechanism to ensure listeners are registered only once.
+3. Add explicit cleanup code to remove listeners when they're no longer needed.
+4. Use named functions instead of anonymous functions for listeners to facilitate proper removal.
+5. Implement a centralized event management system if multiple components need to listen to the same events.
+6. Add validation to prevent attaching listeners to already closed connections.
+
+## 4. Add Recursion Depth Tracking and Circuit Breakers [done]
+### Dependencies: 11.2, 11.3
+### Description: Implement safety mechanisms to prevent excessive recursion depth and add circuit breakers to halt processing when potential infinite loops are detected.
+### Details:
+1. Add a recursion depth counter to key functions that tracks call depth.
+2. Implement maximum depth thresholds with appropriate error handling when exceeded.
+3. Add circuit breaker pattern to abort processing after a configurable number of iterations.
+4. Implement exponential backoff for retry mechanisms to prevent rapid recursive retries.
+5. Add runtime assertions to validate function parameters and state before proceeding with recursive operations.
+6. Create a recovery mechanism that can reset the system to a known good state when circuit breakers trigger.
+
+## 5. Convert Recursive Algorithms to Iterative Approaches [done]
+### Dependencies: 11.1
+### Description: Refactor any inherently recursive algorithms in the transcription system to use iterative approaches that don't consume stack space.
+### Details:
+1. Identify algorithms that use recursion for traversal or processing.
+2. Reimplement these using loops and explicit stack data structures where needed.
+3. For complex operations, implement a state machine approach that can process data incrementally.
+4. Use generators or async iterators for processing large streams of audio data.
+5. Implement chunking strategies to break large processing tasks into smaller units.
+6. Ensure all iterative implementations maintain the same functional behavior as the original recursive versions.
+
+## 6. Implement Comprehensive Error Handling and Documentation [done]
+### Dependencies: 11.2, 11.3, 11.4, 11.5
+### Description: Enhance error handling throughout the WebSocket transcription system and document the root causes and fixes for the stack overflow issues.
+### Details:
+1. Add specific error types for different failure scenarios in the WebSocket transcription flow.
+2. Implement more descriptive error messages that include context about the failure.
+3. Add logging at key points in the transcription process to aid in future debugging.
+4. Create recovery paths for common error scenarios without requiring connection reestablishment.
+5. Document the root causes of the stack overflow in code comments and project documentation.
+6. Update architecture diagrams to reflect the new, more robust implementation.
+

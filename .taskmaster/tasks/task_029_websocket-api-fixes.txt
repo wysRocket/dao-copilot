@@ -1,0 +1,99 @@
+# Task ID: 29
+# Title: Fix Gemini Live API WebSocket Transcription Timeout Issue
+# Status: pending
+# Dependencies: 20, 22, 27, 11, 5
+# Priority: high
+# Description: Resolve the issue where the WebSocket connection shows "Listening..." but auto-completes as "Final" after 3 seconds instead of waiting for actual transcription responses from the Gemini Live API.
+# Details:
+1. Diagnostic Analysis:
+   - Add detailed logging to capture the exact timing of events in the WebSocket lifecycle
+   - Log all message types received from the Gemini Live API, including timestamps
+   - Identify where the 3-second timeout is being triggered (client-side or server-side)
+   - Verify if any response messages are being received but not properly processed
+
+2. Timeout Configuration Review:
+   - Examine all timeout settings in the WebSocket client configuration
+   - Check for hardcoded timeout values in the transcription processing logic
+   - Review any auto-completion or "Final" state transition logic that might be prematurely triggered
+   - Identify if there are any idle connection timeouts being enforced
+
+3. WebSocket Message Handler Fixes:
+   - Update the message handler to properly wait for transcription responses
+   - Remove or extend any premature timeout conditions
+   - Implement proper state tracking to distinguish between "no response yet" and "transcription complete"
+   - Ensure the UI accurately reflects the actual connection state rather than assuming completion
+
+4. Idle Connection Handling:
+   - Implement proper idle connection detection that doesn't interfere with waiting for responses
+   - Add heartbeat messages if necessary to keep the connection alive during longer transcription waits
+   - Distinguish between connection problems and normal waiting periods
+
+5. Error Recovery Implementation:
+   - Add specific error handling for timeout scenarios
+   - Implement graceful recovery if the connection times out unexpectedly
+   - Provide clear user feedback when waiting for responses versus when an actual timeout occurs
+
+6. Testing with Various Audio Inputs:
+   - Test with short, medium, and long audio samples to verify timeout behavior
+   - Verify behavior with different languages and audio qualities
+   - Test edge cases like very quiet audio or background noise only
+
+# Test Strategy:
+1. Unit Testing:
+   - Create unit tests for the updated WebSocket message handler with mocked API responses
+   - Test various timing scenarios including delayed responses and no responses
+   - Verify correct state transitions between "Listening", "Processing", and "Final" states
+   - Test the timeout handling logic with simulated connection issues
+
+2. Integration Testing:
+   - Test the complete audio capture and transcription flow with the Gemini Live API
+   - Verify that the system correctly waits for transcription responses without timing out prematurely
+   - Test with audio samples of varying lengths (1s, 5s, 10s, 30s) to ensure consistent behavior
+   - Verify that the UI correctly shows "Listening..." until actual transcription is received
+
+3. Stress Testing:
+   - Test with rapid successive transcription requests to verify stability
+   - Test with very long audio samples to ensure the connection remains stable
+   - Simulate poor network conditions to verify timeout handling
+
+4. Manual Testing:
+   - Perform manual tests with real-time audio input in various environments
+   - Verify the user experience when speaking for different durations
+   - Test with intentional pauses to ensure the system doesn't prematurely finalize
+
+5. Logging Verification:
+   - Review logs to confirm correct timing of events and message processing
+   - Verify that all WebSocket messages are being properly received and processed
+   - Confirm that timeout events are properly logged with diagnostic information
+
+# Subtasks:
+## 1. Implement Comprehensive WebSocket Lifecycle Logging [pending]
+### Dependencies: None
+### Description: Add detailed logging throughout the WebSocket connection lifecycle to identify the exact point where the 3-second timeout occurs and determine if it's client-side or server-side.
+### Details:
+Add timestamp logging at key points: connection initialization, audio transmission start/end, message receipt, and connection state changes. Log all message types from Gemini Live API with their payloads and timestamps. Create a diagnostic mode that can be enabled to produce verbose logs. Implement a log analyzer function to calculate time differences between events. Focus on identifying if any messages are being received but not properly processed, or if no messages are arriving at all.
+
+## 2. Review and Modify Timeout Configuration [pending]
+### Dependencies: 29.1
+### Description: Examine all timeout settings in the WebSocket client and transcription processing logic to identify and fix any hardcoded 3-second timeout values.
+### Details:
+Search codebase for all timeout-related constants and configurations. Check for setTimeout calls, idle connection timeouts, and auto-completion logic. Review WebSocket client configuration for any default timeout settings. Identify the specific code that triggers the 'Final' state after 3 seconds. Replace any hardcoded timeout values with configurable parameters. Extend the default waiting period for transcription responses to at least 30 seconds or make it configurable based on audio length.
+
+## 3. Update WebSocket Message Handler Logic [pending]
+### Dependencies: 29.2
+### Description: Refactor the WebSocket message handler to properly wait for transcription responses and implement accurate state tracking.
+### Details:
+Implement a state machine for tracking the transcription process with states like 'Connecting', 'Listening', 'Receiving', 'Processing', and 'Final'. Update the message handler to transition between states based on actual message receipt rather than time-based assumptions. Add logic to distinguish between 'no response yet' and 'transcription complete' scenarios. Ensure the UI accurately reflects the current state. Implement a mechanism to detect when the Gemini API has actually completed transcription rather than assuming completion after a timeout.
+
+## 4. Implement Heartbeat Mechanism for Connection Maintenance [pending]
+### Dependencies: 29.3
+### Description: Add a heartbeat mechanism to keep the WebSocket connection alive during longer transcription waits without interfering with the actual transcription process.
+### Details:
+Implement a periodic heartbeat message sender that runs on a configurable interval (e.g., every 10 seconds). Create a corresponding heartbeat response handler. Ensure heartbeats don't interfere with the transcription state tracking. Add connection health monitoring based on heartbeat responses. Implement idle connection detection that distinguishes between normal waiting periods and actual connection problems. Update the UI to show connection health status separately from transcription status.
+
+## 5. Develop Robust Error Recovery and User Feedback [pending]
+### Dependencies: 29.3, 29.4
+### Description: Implement specific error handling for timeout scenarios with graceful recovery options and clear user feedback.
+### Details:
+Create distinct error handlers for different failure scenarios: no initial response, connection dropped, server error responses, etc. Implement automatic retry logic with exponential backoff for recoverable errors. Add user-facing notifications that clearly distinguish between 'still waiting for response' and 'timeout occurred'. Provide actionable feedback to users when timeouts occur, such as retry options or fallback suggestions. Implement graceful degradation to alternative transcription methods if Gemini Live API consistently fails to respond.
+

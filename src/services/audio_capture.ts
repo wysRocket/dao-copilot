@@ -1,4 +1,4 @@
-import { Observable } from 'rxjs'
+import {Observable} from 'rxjs'
 
 export class Capturer {
   private recording_stream?: MediaStream
@@ -56,19 +56,30 @@ export class Capturer {
     return stream.getAudioTracks()[0].getSettings().sampleRate
   }
 
-  startRecording = async (cb: (buffer: number[]) => void): Promise<void> => {
+  startRecording = async (cb: (buffer: number[]) => void, config?: {sampleRate?: number, targetDurationMs?: number}): Promise<void> => {
     if (this.recording_stream) {
       return
     }
 
-    this.audio_context = new AudioContext({ sampleRate: 44100 })
+    const sampleRate = config?.sampleRate || 44100;
+    const targetDurationMs = config?.targetDurationMs || 500; // 500ms chunks for optimal Gemini Live API performance
+
+    this.audio_context = new AudioContext({sampleRate})
     this.recording_stream = new MediaStream(
       this.mergeAudioStreams(this.audio_context, await this.audio(), await this.mic())
     )
     const audioSource = this.audio_context.createMediaStreamSource(this.recording_stream)
 
     await this.audio_context.audioWorklet.addModule(new URL('wave-loopback.js', import.meta.url))
-    const waveLoopbackNode = new AudioWorkletNode(this.audio_context, 'wave-loopback')
+    
+    // Pass configuration to AudioWorklet
+    const waveLoopbackNode = new AudioWorkletNode(this.audio_context, 'wave-loopback', {
+      processorOptions: {
+        sampleRate,
+        targetDurationMs
+      }
+    })
+    
     waveLoopbackNode.port.onmessage = (event): void => {
       const inputFrame = event.data
       cb(inputFrame)
@@ -77,7 +88,7 @@ export class Capturer {
     audioSource.connect(waveLoopbackNode)
     waveLoopbackNode.connect(this.audio_context.destination)
 
-    console.log('Recording started')
+    console.log(`Recording started with ${targetDurationMs}ms chunks at ${sampleRate}Hz`)
   }
 
   stopRecording = async (): Promise<void> => {
@@ -85,7 +96,7 @@ export class Capturer {
       return
     }
 
-    this.recording_stream.getTracks().forEach((track) => track.stop())
+    this.recording_stream.getTracks().forEach(track => track.stop())
     this.recording_stream = undefined
 
     if (this.audio_context) {
@@ -98,15 +109,15 @@ export class Capturer {
 }
 
 export function audio_stream(): Observable<number[]> {
-    const capturer = new Capturer()
-    return new Observable<number[]>((subscriber) => {
-      capturer.startRecording((buffer) => {
-        subscriber.next(buffer)
-      })
-  
-      return (): void => {
-        capturer.stopRecording()
-        subscriber.complete()
-      }}
-    )    
+  const capturer = new Capturer()
+  return new Observable<number[]>(subscriber => {
+    capturer.startRecording(buffer => {
+      subscriber.next(buffer)
+    })
+
+    return (): void => {
+      capturer.stopRecording()
+      subscriber.complete()
+    }
+  })
 }

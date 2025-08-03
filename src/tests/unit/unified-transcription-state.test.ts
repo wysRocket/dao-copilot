@@ -142,9 +142,19 @@ describe('Unified Transcription State Management', () => {
     })
 
     it('should perform garbage collection', () => {
+      // Create a state manager with test configuration for garbage collection
+      const testStateManager = new TranscriptionStateManager({
+        maxStaticTranscripts: 1000, // Lower threshold to trigger GC
+        enableGarbageCollection: true,
+        memoryThreshold: 1024 * 1024 // 1MB threshold
+      })
+      
+      // Clear any existing transcripts
+      testStateManager.clearTranscripts()
+      
       // Add many transcripts to trigger garbage collection
       for (let i = 0; i < 1100; i++) {
-        stateManager.addTranscript({
+        testStateManager.addTranscript({
           id: `transcript-${i}`,
           text: `Transcript ${i}`,
           timestamp: Date.now() - (1100 - i) * 1000, // Older timestamps first
@@ -153,12 +163,12 @@ describe('Unified Transcription State Management', () => {
         })
       }
 
-      const stateBeforeGC = stateManager.getState()
+      const stateBeforeGC = testStateManager.getState()
       expect(stateBeforeGC.static.transcripts.length).toBe(1100)
 
-      stateManager.performGarbageCollection()
+      testStateManager.performGarbageCollection()
 
-      const stateAfterGC = stateManager.getState()
+      const stateAfterGC = testStateManager.getState()
       expect(stateAfterGC.static.transcripts.length).toBe(800) // Should keep only 80% of 1000 (target: 800)
     })
   })

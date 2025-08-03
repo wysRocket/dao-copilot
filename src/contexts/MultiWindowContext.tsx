@@ -252,15 +252,23 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
       )
 
       // Convert legacy format to TranscriptionWithSource
+      const parsedSource = transcript.source
+        ? TranscriptionSourceManager.parseSource(transcript.source)
+        : TranscriptionSource.BATCH
+      
+      // 🔧 FIX: For WebSocket streaming sources, determine isPartial based on whether we have text
+      // Empty results from WebSocket should be marked as partial to maintain streaming behavior
+      const isWebSocketStreaming = parsedSource === TranscriptionSource.WEBSOCKET
+      const hasText = transcript.text && transcript.text.trim().length > 0
+      const shouldBePartial = isWebSocketStreaming && !hasText
+      
       const transcriptionWithSource: TranscriptionWithSource = {
         id: `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         text: transcript.text,
         timestamp: Date.now(),
         confidence: transcript.confidence,
-        source: transcript.source
-          ? TranscriptionSourceManager.parseSource(transcript.source)
-          : TranscriptionSource.BATCH,
-        isPartial: false
+        source: parsedSource,
+        isPartial: shouldBePartial
       }
 
       // Route through the new method

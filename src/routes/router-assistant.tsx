@@ -5,6 +5,7 @@ import ChatPage from '../pages/assistant/ChatPage'
 import TranscriptsPage from '../pages/assistant/TranscriptsPage'
 import AnalysisPage from '../pages/assistant/AnalysisPage'
 import SettingsPage from '../pages/assistant/SettingsPage'
+import AudioDebugPage from '../pages/assistant/AudioDebugPage'
 
 declare module '@tanstack/react-router' {
   interface Register {
@@ -37,6 +38,12 @@ const SettingsRoute = createRoute({
   component: SettingsPage
 })
 
+const AudioDebugRoute = createRoute({
+  getParentRoute: () => AssistantRootRoute,
+  path: '/debug/audio',
+  component: AudioDebugPage
+})
+
 // Default route that redirects to transcripts
 const AssistantIndexRoute = createRoute({
   getParentRoute: () => AssistantRootRoute,
@@ -50,7 +57,8 @@ const assistantRouteTree = AssistantRootRoute.addChildren([
   ChatRoute,
   TranscriptsRoute,
   AnalysisRoute,
-  SettingsRoute
+  SettingsRoute,
+  AudioDebugRoute
 ])
 
 // Create assistant router

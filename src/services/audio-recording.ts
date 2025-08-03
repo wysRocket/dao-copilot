@@ -142,6 +142,21 @@ export class AudioRecordingService {
         return null
       }
 
+      // Send immediate streaming feedback while processing
+      const streamingFeedback = {
+        text: 'Processing audio input...',
+        isFinal: false,
+        source: 'audio-processing',
+        confidence: 0.5,
+        timestamp: Date.now()
+      }
+
+      // Broadcast processing feedback
+      if (typeof window !== 'undefined' && window.electronWindow?.broadcast) {
+        window.electronWindow.broadcast('streaming-transcription', streamingFeedback)
+        console.log('📡 Sent audio processing feedback')
+      }
+
       // Combine all audio buffers from chunks
       const combinedAudio = chunks.reduce((acc, chunk) => {
         acc.push(...chunk.buffer)
@@ -172,6 +187,20 @@ export class AudioRecordingService {
       const wavData = await renderAudioToWav(resampledAudio)
       console.log(`Generated WAV file: ${wavData.length} bytes`)
 
+      // Send transcription in progress feedback
+      const transcriptionFeedback = {
+        text: 'Transcribing speech...',
+        isFinal: false,
+        source: 'transcription-processing',
+        confidence: 0.7,
+        timestamp: Date.now()
+      }
+
+      if (typeof window !== 'undefined' && window.electronWindow?.broadcast) {
+        window.electronWindow.broadcast('streaming-transcription', transcriptionFeedback)
+        console.log('📡 Sent transcription processing feedback')
+      }
+
       // Send for transcription via IPC
       if (window.transcriptionAPI?.transcribeAudio) {
         console.log(
@@ -194,6 +223,22 @@ export class AudioRecordingService {
           textTruthyCheck: !!result?.text?.trim()
         })
         console.log('🎤 AudioRecording: onTranscription callback exists:', !!onTranscription)
+
+        // Send the actual transcription result via streaming if we got text
+        if (result?.text?.trim()) {
+          const streamingResult = {
+            text: result.text.trim(),
+            isFinal: true,
+            source: 'batch-transcription',
+            confidence: result.confidence || 0.9,
+            timestamp: Date.now()
+          }
+
+          if (typeof window !== 'undefined' && window.electronWindow?.broadcast) {
+            window.electronWindow.broadcast('streaming-transcription', streamingResult)
+            console.log('📡 Sent final transcription result:', streamingResult.text)
+          }
+        }
 
         if (onTranscription && result?.text?.trim()) {
           console.log('🎤 AudioRecording: ✅ CALLING onTranscription callback with result')
@@ -219,6 +264,20 @@ export class AudioRecordingService {
     } catch (error) {
       console.error('Error processing audio chunks:', error)
       this.updateState({status: 'Error processing audio'})
+
+      // Send error feedback via streaming
+      const errorFeedback = {
+        text: 'Error processing audio - please try again',
+        isFinal: true,
+        source: 'error',
+        confidence: 0.0,
+        timestamp: Date.now()
+      }
+
+      if (typeof window !== 'undefined' && window.electronWindow?.broadcast) {
+        window.electronWindow.broadcast('streaming-transcription', errorFeedback)
+      }
+
       return null
     } finally {
       this.updateState({
@@ -282,7 +341,9 @@ export class AudioRecordingService {
       const audioCapture = await getAudioCapture({
         sampleRate: DEVICE_SAMPLE_RATE,
         channels: 1,
-        bufferSize: 4096,
+        // 🔧 CRITICAL FIX: Increase buffer size to generate 500ms chunks for Gemini Live API
+        // Calculation: 500ms * 16000 samples/sec = 8000 samples
+        bufferSize: 8000, // Generate 500ms audio chunks (was 4096)
         intervalSeconds: INTERVAL_SECONDS
       })
 

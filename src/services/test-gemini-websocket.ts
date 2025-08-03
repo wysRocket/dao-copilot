@@ -4,9 +4,11 @@
  */
 
 import GeminiLiveWebSocketClient, {ConnectionState, ResponseModality} from './gemini-live-websocket'
+import { getGoogleApiKeys, getEnvVar } from '../utils/env-utils'
 
 async function testGeminiWebSocket() {
-  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY
+  const keys = getGoogleApiKeys()
+  const apiKey = keys.primary || keys.secondary
 
   if (!apiKey) {
     console.error(
@@ -20,13 +22,13 @@ async function testGeminiWebSocket() {
 
   const client = new GeminiLiveWebSocketClient({
     apiKey,
-    model: 'gemini-live-2.5-flash-preview',
+    model: 'gemini-2.5-flash-live',
     responseModalities: [ResponseModality.TEXT],
     systemInstruction: 'You are a helpful AI assistant. Please respond briefly.',
     reconnectAttempts: 3,
     heartbeatInterval: 30000,
     connectionTimeout: 15000,
-    apiVersion: process.env.GEMINI_API_VERSION || 'v1beta' // Use configured API version or default to v1beta
+    apiVersion: getEnvVar('GEMINI_API_VERSION', 'v1beta') // Use configured API version or default to v1beta
   })
 
   // Set up event listeners
@@ -69,12 +71,26 @@ async function testGeminiWebSocket() {
     if (client.getConnectionState() === ConnectionState.CONNECTED) {
       console.log('✅ Connection established successfully')
 
-      // Test sending a simple text message
-      console.log('\n2️⃣ Testing text message sending...')
-      await client.sendRealtimeInput({
-        text: 'Hello! Can you confirm that you received this message?'
-      })
-      console.log('✅ Text message sent successfully')
+      // Debug: Log audio buffer details before sending
+      const fs = require('fs')
+      const path = require('path')
+      const testAudioPath = path.resolve(__dirname, '../male.wav')
+      if (fs.existsSync(testAudioPath)) {
+        const audioBuffer = fs.readFileSync(testAudioPath)
+        console.log('🔊 Audio buffer length:', audioBuffer.length)
+        console.log('🔊 First 32 bytes:', audioBuffer.slice(0, 32).toString('hex'))
+        console.log('🔊 Last 32 bytes:', audioBuffer.slice(-32).toString('hex'))
+        // Example: send audio buffer to Gemini
+        await client.sendRealtimeInput({
+          audio: audioBuffer,
+          encoding: 'LINEAR16',
+          sampleRate: 16000,
+          channels: 1
+        })
+        console.log('✅ Audio buffer sent to Gemini')
+      } else {
+        console.warn('⚠️ Test audio file not found:', testAudioPath)
+      }
 
       // Wait for response
       console.log('\n3️⃣ Waiting for response...')
@@ -94,6 +110,14 @@ async function testGeminiWebSocket() {
 
   console.log('\n' + '='.repeat(70))
   console.log('🏁 Test completed')
+
+  // Debug: Log raw Gemini API response
+  client.on('serverContent', content => {
+    console.log('📥 [RAW Gemini API Response]:', JSON.stringify(content, null, 2))
+  })
+  client.on('textResponse', data => {
+    console.log('📥 [Parsed Text Response]:', JSON.stringify(data, null, 2))
+  })
 }
 
 // Run the test if this file is executed directly

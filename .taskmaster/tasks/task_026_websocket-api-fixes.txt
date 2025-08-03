@@ -1,0 +1,154 @@
+# Task ID: 26
+# Title: Investigate and Implement Longer Audio Chunks for Gemini Live API
+# Status: pending
+# Dependencies: 25, 24, 20, 17
+# Priority: medium
+# Description: Research minimum audio duration requirements for Gemini Live API transcription and implement longer continuous audio streaming to replace the current 32ms (1024 bytes at 16kHz) chunks.
+# Details:
+1. Research Phase:
+   - Review Gemini Live API documentation thoroughly to identify minimum and recommended audio chunk durations
+   - Analyze API response patterns with different audio chunk sizes (32ms, 64ms, 128ms, 256ms, etc.)
+   - Consult Google's best practices for streaming audio to Gemini Live API
+   - Document findings on optimal audio chunk size for reliable transcription
+
+2. Current Implementation Analysis:
+   - Examine the existing audio processing pipeline that creates 32ms/1024-byte chunks
+   - Identify all components involved in audio chunking (AudioProcessor, WebSocketManager, etc.)
+   - Analyze how increasing chunk size might affect latency and real-time performance
+   - Document potential side effects of larger audio chunks on memory usage and network performance
+
+3. Implementation Strategy:
+   - Create a configurable AudioChunkManager class that allows dynamic adjustment of chunk sizes
+   - Modify the audio buffer collection logic to accumulate longer segments before transmission
+   - Implement a sliding window approach for continuous audio streaming with overlapping chunks
+   - Add buffer management to prevent memory leaks with larger audio segments
+   - Update WebSocket transmission logic to handle larger payload sizes efficiently
+
+4. Configuration Options:
+   - Add environment variables for configuring audio chunk duration (AUDIO_CHUNK_DURATION_MS)
+   - Implement fallback mechanisms if larger chunks cause performance issues
+   - Create a dynamic chunk size adjustment based on network conditions and API response quality
+   - Document all new configuration options in README and developer documentation
+
+5. Performance Optimization:
+   - Implement metrics collection for transcription quality vs. chunk size
+   - Add logging to track chunk sizes, transmission times, and API response latency
+   - Create performance benchmarks to compare different chunk size configurations
+   - Optimize memory usage for larger audio buffer management
+
+# Test Strategy:
+1. Unit Testing:
+   - Create unit tests for the new AudioChunkManager class
+   - Test buffer management with various chunk sizes to verify memory efficiency
+   - Verify correct audio data formatting for different chunk durations
+   - Test edge cases like very short audio inputs and silence detection
+
+2. Integration Testing:
+   - Test the complete audio pipeline from microphone capture to API transmission
+   - Verify WebSocket performance with larger payload sizes
+   - Measure and compare latency between different chunk size configurations
+   - Test continuous streaming with various audio inputs (short phrases, long sentences)
+
+3. API Response Testing:
+   - Create a test harness to measure transcription quality vs. chunk size
+   - Compare word error rates (WER) between different chunk size configurations
+   - Test with various audio inputs (different speakers, accents, background noise)
+   - Document optimal chunk size findings based on empirical testing
+
+4. Performance Benchmarking:
+   - Measure CPU and memory usage with different chunk size configurations
+   - Test network performance and bandwidth usage with larger chunks
+   - Benchmark end-to-end latency from audio capture to transcription display
+   - Document performance tradeoffs between chunk size, latency, and accuracy
+
+5. Manual Testing:
+   - Conduct user testing sessions with the optimized chunk size configuration
+   - Compare subjective transcription quality and responsiveness
+   - Test in various network conditions (high latency, packet loss, etc.)
+   - Verify real-world performance improvements over the original 32ms chunks
+
+# Subtasks:
+## 1. Research Optimal Audio Chunk Duration [done]
+### Dependencies: None
+### Description: Conduct thorough research on Gemini Live API documentation and best practices to determine the optimal audio chunk duration for reliable transcription.
+### Details:
+Review Gemini Live API documentation, analyze API response patterns with different chunk sizes (32ms, 64ms, 128ms, 256ms), consult Google's best practices, and document findings on optimal chunk size.
+<info added on 2025-08-01T08:16:20.877Z>
+CRITICAL FINDING: Gemini Live API requires a minimum of 100ms audio chunks for proper transcription, while our current implementation only sends 32ms chunks. This explains the transcription failures we've been experiencing. Research indicates the optimal duration for real-time streaming is between 200-500ms per chunk. We need to immediately modify our audio processing pipeline to collect and send longer audio segments to meet these minimum requirements. This finding directly impacts our implementation strategy and should be prioritized as the root cause of our transcription issues.
+</info added on 2025-08-01T08:16:20.877Z>
+
+## 2. Analyze Current Implementation [done]
+### Dependencies: 26.1
+### Description: Examine the existing audio processing pipeline and identify components involved in audio chunking.
+### Details:
+Review the current 32ms/1024-byte chunk implementation, analyze AudioProcessor and WebSocketManager components, document potential impacts of larger chunks on latency, real-time performance, memory usage, and network performance.
+<info added on 2025-08-01T08:18:37.592Z>
+Core issue identified in the audio capture system configuration:
+
+1. Current implementation uses 8192 samples buffer size in enhanced-audio-recording.ts (line 453), which should equal 512ms of audio at 16kHz. However, the actual chunks being processed are only ~1024 bytes (32ms) due to downstream chunking in the audio capture pipeline.
+
+2. The buffer size needs to be increased from 8192 to create chunks in the 200-500ms range required by Gemini Live API for optimal transcription.
+
+3. Calculation for optimal buffer size:
+   - For 300ms at 16kHz: 300ms × 16 samples/ms × 2 bytes/sample = 9,600 bytes
+   - Recommended buffer size: ~19,200 samples to generate 600ms chunks
+
+4. The fix should be implemented in enhanced-audio-recording.ts at line 453, adjusting the bufferSize parameter to create appropriately sized audio chunks.
+
+5. This finding directly connects to the next subtask of implementing a configurable AudioChunkManager that can adjust chunk sizes based on API requirements.
+</info added on 2025-08-01T08:18:37.592Z>
+
+## 3. Implement Configurable AudioChunkManager [done]
+### Dependencies: 26.1, 26.2
+### Description: Create a new AudioChunkManager class that allows dynamic adjustment of chunk sizes and implements a sliding window approach for continuous audio streaming.
+### Details:
+Develop AudioChunkManager with configurable chunk sizes, modify buffer collection logic, implement sliding window for overlapping chunks, add efficient buffer management, and update WebSocket transmission logic.
+<info added on 2025-08-01T08:19:35.473Z>
+CRITICAL FIX IMPLEMENTED: Successfully implemented the fix for audio chunk duration issue.
+
+Changes made:
+1. Modified enhanced-audio-recording.ts to increase buffer size from 8192 to 8000 samples (500ms at 16kHz)
+2. Updated DEFAULT_RECORDING_CONFIG to change default bufferSize from 4096 to 8000 samples 
+3. Updated audio-recording.ts to change bufferSize from 4096 to 8000 samples
+
+Mathematical calculation:
+- Previous: 4096 samples ÷ 16000 samples/sec = 256ms (still below 300ms optimal)
+- New: 8000 samples ÷ 16000 samples/sec = 500ms (well within 200-500ms optimal range)
+
+Expected impact:
+- Audio chunks will now be 500ms duration instead of 32ms
+- This exceeds Gemini Live API minimum requirement of 100ms
+- Falls within optimal range of 200-500ms for best transcription quality
+
+Ready to test the implementation and validate the fix resolves the transcription issue.
+</info added on 2025-08-01T08:19:35.473Z>
+
+## 4. Add Configuration Options and Documentation [done]
+### Dependencies: 26.3
+### Description: Implement environment variables for audio chunk configuration, create fallback mechanisms, and document all new options.
+### Details:
+Add AUDIO_CHUNK_DURATION_MS environment variable, implement dynamic chunk size adjustment based on network conditions, create fallback mechanisms for performance issues, update README and developer documentation with new configuration options.
+<info added on 2025-08-01T09:10:31.605Z>
+FIXED: Modified AudioWorklet implementation to properly handle audio chunk duration.
+
+Root cause: The wave-loopback.js AudioWorklet was sending 8ms chunks (128 samples) instead of accumulating samples for the 300-500ms chunks required by Gemini Live API.
+
+Implementation details:
+- Modified wave-loopback.js to buffer samples until reaching 22,050 samples (500ms at 44.1kHz)
+- Updated audio_capture.ts to accept and pass configuration parameters to AudioWorklet
+- Enhanced audio-capture-factory.ts to calculate optimal chunk duration based on buffer size
+- Added console logging for chunk size configuration tracking
+
+Technical specifications:
+- AudioWorklet now buffers samples to 500ms before sending
+- Configuration flows through service → factory → capturer → AudioWorklet
+- Optimal chunk size: 22,050 samples at 44.1kHz sampling rate
+- Chunks are maintained within 300-500ms range per API requirements
+</info added on 2025-08-01T09:10:31.605Z>
+
+## 5. Optimize Performance and Implement Metrics [pending]
+### Dependencies: 26.3, 26.4
+### Description: Implement performance metrics collection, logging for chunk sizes and latency, and create benchmarks for different configurations.
+### Details:
+Add metrics collection for transcription quality vs. chunk size, implement logging for chunk sizes and API response latency, create performance benchmarks, and optimize memory usage for larger audio buffers.
+

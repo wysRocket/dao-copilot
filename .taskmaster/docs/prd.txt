@@ -1,91 +1,75 @@
-# Live Transcription System Optimization & Cleanup PRD
+# Live Streaming Transcription Refactor - Product Requirements Document
 
 ## Project Overview
-The live transcription system using Gemini Live WebSocket API is now functionally complete with proper text accumulation controlled by REC/STOP buttons. This PRD outlines optimization and cleanup tasks to improve code quality, performance, and maintainability.
+Refactor and fix the live streaming transcription system in dao-copilot to provide real-time audio transcription with immediate visual feedback and proper session management.
 
-## Current State Assessment
-- ✅ Gemini Live WebSocket integration working
-- ✅ Real-time transcription streaming implemented
-- ✅ Text accumulation during recording sessions
-- ✅ Manual transcription completion via REC/STOP button
-- ✅ Dual state management (unified + context) functioning
-- ✅ Garbage collection disabled to prevent transcript loss
-- ✅ localStorage persistence for transcript history
+## Current Problems
+1. **30-second delay**: Transcription only appears after 30 seconds due to competing transcription services
+2. **Text overwriting**: Final transcription immediately overwrites streaming text instead of staying visible
+3. **Multiple competing services**: EnhancedAudioRecordingService, interval-based service, and WebSocket streaming conflict
+4. **Poor session management**: Streaming sessions are created and destroyed inconsistently
+5. **Complex service architecture**: Too many overlapping transcription systems causing confusion
 
-## Optimization & Cleanup Goals
+## Core Requirements
 
-### 1. Code Architecture Cleanup
-**Objective**: Simplify and consolidate the transcription state management system
-- Remove redundant state management systems (currently using both unified TranscriptionStateManager and StreamingTextContext)
-- Consolidate to single source of truth for transcription state
-- Clean up unused imports and variables
-- Standardize naming conventions across components
+### 1. Immediate Transcription Display
+- **Real-time streaming**: Text should appear within 1-2 seconds of speaking
+- **Progressive display**: Show partial results as user speaks, then final results
+- **No 30-second delays**: Eliminate batch processing delays
+- **Visual feedback**: Clear indication of streaming vs final transcription state
 
-### 2. Performance Optimization
-**Objective**: Improve real-time transcription performance and reduce memory usage
-- Optimize WebSocket message handling and processing
-- Implement efficient text accumulation algorithms
-- Reduce React re-renders during streaming
-- Optimize component update cycles
-- Implement proper memoization where needed
+### 2. Proper Session Management
+- **Session lifecycle**: Clear start/stop/update flow for streaming sessions
+- **State consistency**: Single source of truth for streaming state
+- **Session persistence**: Final transcription stays visible until manually cleared
+- **Error handling**: Graceful fallback when streaming fails
 
-### 3. Error Handling & Resilience
-**Objective**: Make the system more robust and user-friendly
-- Improve WebSocket connection error handling
-- Add proper fallback mechanisms for quota exceeded scenarios
-- Implement retry logic for failed connections
-- Add user feedback for connection states and errors
-- Handle edge cases in text accumulation logic
+### 3. Unified Audio Service Architecture
+- **Single audio service**: Consolidate to one primary transcription service
+- **Clean interfaces**: Clear separation between audio capture and transcription
+- **Service abstraction**: Abstract transcription backends (WebSocket, batch, etc.)
+- **Configuration management**: Centralized audio/transcription settings
 
-### 4. Code Quality & Maintainability
-**Objective**: Improve code readability, testing, and documentation
-- Remove debug console logs from production code
-- Add proper TypeScript types and interfaces
-- Implement unit tests for core transcription logic
-- Add comprehensive JSDoc documentation
-- Refactor large functions into smaller, testable units
+### 4. Event System Refactor
+- **Standardized events**: Consistent streaming event format across services
+- **Event flow optimization**: Direct communication between audio service and UI
+- **Debug visibility**: Comprehensive logging for troubleshooting
+- **Performance monitoring**: Track transcription latency and accuracy
 
-### 5. User Experience Enhancements
-**Objective**: Polish the transcription interface and interactions
-- Improve visual feedback during recording states
-- Add keyboard shortcuts for recording control
-- Implement better loading states and progress indicators
-- Enhance accessibility features
-- Add configuration options for transcription behavior
+## Technical Architecture
 
-### 6. Technical Debt Reduction
-**Objective**: Address accumulated technical debt
-- Remove commented-out code and unused files
-- Update deprecated dependencies
-- Standardize error handling patterns
-- Implement consistent logging strategy
-- Clean up file organization and imports
+### Audio Service Layer
+- **Primary Service**: EnhancedAudioRecordingService with real-time configuration
+- **Fallback Strategy**: Graceful degradation to batch processing if real-time fails
+- **Audio Processing**: Optimized buffer sizes and chunk processing for low latency
+
+### Transcription Management
+- **Unified Manager**: Single TranscriptionStateManager handles all streaming state
+- **Session Types**: Distinguish between streaming sessions and final transcripts
+- **Result Processing**: Convert various transcription formats to standardized streaming events
+
+### UI Components
+- **StreamingTextRenderer**: Optimized for real-time text display
+- **TranscriptsPage**: Clean streaming area with proper state management
+- **RecordingControls**: Simplified start/stop with clear visual feedback
 
 ## Success Criteria
-- Single, clean state management system for transcriptions
-- Improved performance with faster real-time updates
-- Robust error handling with graceful degradation
-- Clean, well-documented codebase
-- Comprehensive test coverage
-- Enhanced user experience with better feedback
+1. **Latency**: Transcription appears within 2 seconds of speaking
+2. **Persistence**: Final transcription remains visible until manually cleared
+3. **Reliability**: 95% success rate for streaming transcription start
+4. **Performance**: No UI blocking during transcription processing
+5. **User Experience**: Clear visual feedback for all transcription states
+
+## Implementation Priority
+1. **High**: Fix 30-second delay and text overwriting issues
+2. **High**: Consolidate to single audio service architecture
+3. **Medium**: Implement proper session lifecycle management
+4. **Medium**: Add comprehensive error handling and fallbacks
+5. **Low**: Performance optimizations and monitoring
 
 ## Technical Constraints
-- Maintain backward compatibility with existing transcription data
-- Preserve localStorage persistence functionality
-- Keep WebSocket integration functional
-- Maintain current UI/UX patterns
-- Ensure cross-platform Electron compatibility
-
-## Priority Levels
-1. **High**: Code architecture cleanup and state management consolidation
-2. **High**: Performance optimization for real-time streaming
-3. **Medium**: Error handling and resilience improvements
-4. **Medium**: Code quality and maintainability
-5. **Low**: User experience enhancements
-6. **Low**: Technical debt reduction
-
-## Implementation Phases
-**Phase 1**: State management consolidation and architecture cleanup
-**Phase 2**: Performance optimization and error handling
-**Phase 3**: Code quality improvements and testing
-**Phase 4**: User experience enhancements and final polish
+- Must work with existing Electron app architecture
+- Compatible with current Gemini Live API integration
+- Maintain backward compatibility with existing transcription storage
+- Support both WebSocket and batch transcription modes
+- Work across different audio input devices and quality levels

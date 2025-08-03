@@ -1,4 +1,13 @@
 {
   "Codegeex.RepoIndex": true,
-  "postman.settings.dotenv-detection-notification-visibility": false
+  "postman.settings.dotenv-detection-notification-visibility": false,
+  "chat.mcp.serverSampling": {
+    "dao-copilot/.vscode/mcp.json: task-master-ai": {
+      "allowedModels": [
+        "github.copilot-chat/gpt-4.1",
+        "github.copilot-chat/claude-sonnet-4",
+        "github.copilot-chat/gemini-2.5-pro"
+      ]
+    }
+  }
 }

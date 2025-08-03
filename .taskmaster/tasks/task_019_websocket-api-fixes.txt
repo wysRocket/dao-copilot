@@ -1,0 +1,207 @@
+# Task ID: 19
+# Title: Implement Robust Transcript Detection and Rendering Logic
+# Status: in-progress
+# Dependencies: 17, 18, 13
+# Priority: high
+# Description: Fix the critical issue where transcribed text isn't displaying in the UI despite the WebSocket showing "Live Streaming (Final)" status, by implementing a more robust transcript detection and rendering solution.
+# Details:
+1. Root Cause Analysis:
+   - ✅ Identified that inputAudioTranscription was missing from the WebSocket setup message
+   - ✅ Confirmed through Gemini Live API documentation that this field is required for transcription
+   - Analyze the data flow between WebSocket responses and UI rendering
+   - Identify why the "Listening..." message persists despite active transcription
+   - Examine potential race conditions or state management issues
+
+2. Implement Enhanced Transcript Detection:
+   - ✅ Added inputAudioTranscription: {} to setup message configuration in createSetupMessage()
+   - ✅ Added outputAudioTranscription: {} for model's voice transcription
+   - ✅ Updated SetupMessage TypeScript interface to include transcription fields
+   - ✅ Enhanced parseServerContent() to handle both inputTranscription and outputTranscription
+   - ✅ Updated ParsedGeminiResponse metadata interface to include outputTranscription flag
+   - Refactor the transcript detection logic to be more resilient
+   - Add explicit state tracking for different transcription phases (idle, listening, transcribing, final)
+   - Create a dedicated TranscriptStateManager to centralize state management
+
+3. UI Rendering Improvements:
+   - Modify the UI component to directly subscribe to transcript state changes
+   - Implement a priority-based rendering system that always shows transcription text when available
+   - Add visual indicators for different transcription states
+   - Ensure the "Listening..." message is only shown during actual listening phases
+
+4. Debugging Instrumentation:
+   - Add comprehensive logging throughout the transcript processing pipeline
+   - Implement transcript event tracking with timestamps
+   - Create a debug panel (toggled via keyboard shortcut) to show real-time transcription state
+   - Add performance metrics to identify potential bottlenecks
+
+5. Error Recovery Mechanisms:
+   - Implement automatic recovery for stalled transcription states
+   - Add timeout-based state transitions to prevent UI from getting stuck
+   - Create fallback rendering options when transcription data is inconsistent
+   - Implement a manual reset option for users to recover from edge cases
+
+# Test Strategy:
+1. Unit Testing:
+   - Create comprehensive unit tests for the new TranscriptStateManager
+   - Test all state transitions with mock WebSocket data
+   - Verify correct handling of edge cases (empty transcripts, malformed data)
+   - Test timeout and recovery mechanisms
+   - Verify proper parsing of inputTranscription and outputTranscription fields
+
+2. Integration Testing:
+   - Develop integration tests that verify the complete flow from WebSocket to UI
+   - Test with recorded WebSocket response patterns from production
+   - Verify correct UI updates across different transcription scenarios
+   - Test concurrent operations and potential race conditions
+   - Validate that transcription text is properly extracted and displayed
+
+3. End-to-End Testing:
+   - Create automated E2E tests using real audio inputs
+   - Verify transcription appears correctly in the UI for various speech patterns
+   - Test with different network conditions (latency, packet loss)
+   - Verify recovery from connection interruptions
+   - Confirm that the "Listening..." message is replaced by actual transcription text
+
+4. Manual Verification:
+   - Conduct live testing sessions with various speech patterns and durations
+   - Verify the UI correctly transitions between states
+   - Test edge cases like very short utterances, background noise, and silence
+   - Verify the debug panel shows accurate state information
+   - Confirm that transcription works consistently across multiple sessions
+
+5. Regression Testing:
+   - Ensure all previously working transcription scenarios still function correctly
+   - Verify no new issues are introduced in related functionality
+   - Test backward compatibility with existing WebSocket response formats
+   - Validate that the fixes don't impact other aspects of the application
+
+# Subtasks:
+## 2. Implement UI rendering for transcription text [todo]
+### Dependencies: 19.1
+### Description: Now that the core transcription enablement is complete, implement the UI rendering logic to properly display the transcription text received from the Gemini Live API.
+### Details:
+With the transcription API configuration fixed, we need to ensure the UI properly displays the transcription text:
+
+1. Update the UI component to properly subscribe to and display transcription text from inputTranscription field
+2. Replace the "Listening..." message with actual transcription text when available
+3. Implement visual indicators for different transcription states (idle, listening, transcribing, final)
+4. Add smooth transitions between transcription states
+5. Ensure proper handling of empty or partial transcription results
+6. Implement error states and recovery UI for transcription failures
+7. Add visual feedback when transcription is successfully enabled
+
+## 3. Create TranscriptStateManager for centralized state management [todo]
+### Dependencies: 19.1
+### Description: Develop a dedicated TranscriptStateManager class to centralize the management of transcription states and provide a consistent interface for UI components.
+### Details:
+The TranscriptStateManager should:
+
+1. Track different transcription states (idle, listening, transcribing, final)
+2. Provide a clean API for UI components to subscribe to state changes
+3. Handle the parsing and processing of transcription data from WebSocket responses
+4. Manage timeouts and automatic state transitions
+5. Implement error recovery mechanisms
+6. Provide debugging information and metrics
+7. Support manual reset functionality for edge cases
+8. Properly handle the inputTranscription and outputTranscription fields from Gemini Live API
+
+## 4. Implement comprehensive logging and debugging for transcription [todo]
+### Dependencies: 19.1, 19.2, 19.3
+### Description: Add comprehensive logging and debugging tools throughout the transcription pipeline to facilitate troubleshooting and performance optimization.
+### Details:
+Implement the following debugging features:
+
+1. Add detailed logging at each step of the transcription process
+2. Create a debug panel that can be toggled via keyboard shortcut
+3. Display real-time transcription state and events in the debug panel
+4. Add timestamps to transcription events for performance analysis
+5. Implement metrics collection for transcription quality and performance
+6. Create a log export feature for sharing debugging information
+7. Add visual indicators in the UI for transcription state changes
+8. Implement console commands for manual testing and debugging
+
+## 1. Fix transcription text not rendering in UI despite successful WebSocket connections [done]
+### Dependencies: None
+### Description: Investigate and fix the specific issue where WebSocket connections are working (Status: Ready, Live Streaming Final), audio is being sent successfully, but the UI continues to show 'Listening... Please speak clearly and loudly' instead of displaying the actual transcription text returned from Gemini Live API.
+### Details:
+Root cause analysis shows:
+1. WebSocket connections are successfully established with gemini-2.0-flash-live-001 model ✅
+2. Setup complete messages are received ✅  
+3. Audio data is being sent successfully (1024 bytes PCM resampled) ✅
+4. Connection closes normally after streaming period ✅
+5. However, transcription text is empty in final result: text: '', textLength: 0 ❌
+
+The issue appears to be that either:
+- Gemini Live API is not returning transcripttion responses for the sent audio
+- The WebSocket message parser is not correctly extracting text from Gemini responses  
+- The response timeout is causing disconnection before transcription results arrive
+- The system instruction or audio format is not compatible with transcription
+
+Need to:
+1. Add comprehensive logging of all WebSocket messages received from Gemini
+2. Extend the connection timeout to allow more time for transcription processing
+3. Test with different audio samples (longer, louder, clearer speech)
+4. Verify the system instruction and response modalities are correct for transcription
+5. Implement proper parsing of Gemini Live API transcription response format
+<info added on 2025-07-31T09:13:51.450Z>
+MAJOR BREAKTHROUGH: Found the root cause! The issue was that we removed inputAudioTranscription from the setup message thinking it wasn't part of v1beta format, but according to official Gemini Live API documentation, it IS required for transcription.
+
+Fixed:
+1. Added inputAudioTranscription: {} to setup message configuration
+2. Added outputAudioTranscription: {} for completeness  
+3. Updated SetupMessage TypeScript interface to include these fields
+4. This enables the Gemini Live API to send inputTranscription messages in serverContent responses
+
+The empty transcription responses were happening because we never enabled audio transcription in the first place. Now the API should actually return transcript text in the inputTranscription field of serverContent messages.
+</info added on 2025-07-31T09:13:51.450Z>
+
+## 5. Fix model configuration, audio input empty, and system instruction issues [pending]
+### Dependencies: None
+### Description: Fix the critical issues preventing transcription from working: 1) Model name configuration override using wrong model 2) Audio input appearing as empty to Gemini API 3) Problematic system instruction confusing the model
+### Details:
+Analysis of console logs reveals multiple critical issues:
+
+ISSUE 1: Wrong Model Being Used
+- Logs show "model":"gemini-live-2.5-flash-preview" 
+- Code configuration shows "gemini-2.0-flash-live-001"
+- Need to trace and fix configuration override
+
+ISSUE 2: Audio Input Empty Error  
+- Logs show audio being sent: "Audio data is 319972 bytes"
+- Gemini responds: "I cannot fulfill that request. The audio input was empty"
+- This suggests audio format/encoding issue or timing problem
+
+ISSUE 3: Confusing System Instruction
+- Current: "Wait for audio input, then transcribe exactly what..."
+- This is sending a text message before audio that confuses the model
+- Should use proper transcription-focused system instruction
+
+ISSUE 4: Initial Context Message Problem
+- Code sends "Wait for audio input, then transcribe exactly what..." as text message
+- This causes Gemini to respond with "I'm sorry, I cannot fulfill..." before audio
+- Should remove or fix this context establishment
+
+Fixes needed:
+1. Force correct model name to be used (gemini-2.0-flash-live-001)
+2. Fix audio encoding/format issues  
+3. Remove or fix problematic initial context message
+4. Ensure proper system instruction for transcription
+5. Add debugging to trace audio input processing
+<info added on 2025-07-31T09:47:59.066Z>
+ROOT CAUSE IDENTIFIED:
+The WebSocket client configuration override issue has been traced to the constructor implementation. The configuration merge pattern `{model: GEMINI_LIVE_MODEL, ...config}` is causing the default model to be overridden by the passed config object.
+
+DETAILED FINDINGS:
+1. WebSocket client is receiving and using "gemini-live-2.5-flash-preview" instead of the correct "gemini-2.0-flash-live-001"
+2. The constructor's configuration merge is incorrectly prioritizing passed config values over defaults
+3. This explains the model mismatch between code configuration and actual runtime behavior
+
+IMPLEMENTATION PLAN:
+1. Fix configuration merge in WebSocket client constructor to prioritize defaults: `{...config, model: GEMINI_LIVE_MODEL}`
+2. Clear any cached configurations in localStorage that might contain the incorrect model name
+3. Add validation check to reject invalid model names at initialization time
+4. Implement proper audio encoding format verification before transmission
+5. Revise system instructions to be transcription-specific without confusing pre-audio messages
+6. Add detailed logging of configuration values at initialization to catch future overrides
+</info added on 2025-07-31T09:47:59.066Z>
+

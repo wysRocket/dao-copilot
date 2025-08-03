@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState, useCallback} from 'react'
 import {TranscriptionResult} from '../services/main-stt-transcription'
 import GlassBox from './GlassBox'
 import VirtualizedTranscript from './VirtualizedTranscript'
-import StreamingTextRenderer from './StreamingTextRenderer'
+import {FastTranscriptionDisplay} from './FastTranscriptionDisplay'  // 🚀 PERFORMANCE FIX
 import {useWebSocketStreaming, WebSocketStreamingConfig} from '../hooks/useWebSocketStreaming'
 import {cn} from '../utils/tailwind'
 
@@ -283,28 +283,10 @@ export const EnhancedTranscriptDisplay: React.FC<EnhancedTranscriptDisplayProps>
                       )}
                     </div>
 
-                    <StreamingTextRenderer
+                    {/* 🚀 PERFORMANCE FIX: Replace complex StreamingTextRenderer with FastTranscriptionDisplay */}
+                    <FastTranscriptionDisplay 
                       text={streamingState.streamingText}
                       isPartial={streamingState.isPartial}
-                      mode="character"
-                      animationSpeed={40}
-                      showCursor={true}
-                      highlightCorrections={true}
-                      partialStyle={{
-                        color: 'var(--text-muted)',
-                        opacity: 0.8,
-                        fontStyle: 'italic'
-                      }}
-                      finalStyle={{
-                        color: 'var(--text-primary)',
-                        opacity: 1
-                      }}
-                      correctionStyle={{
-                        backgroundColor: 'rgba(255, 215, 0, 0.2)',
-                        borderRadius: '2px',
-                        padding: '1px 2px',
-                        boxShadow: '0 0 4px rgba(255, 215, 0, 0.3)'
-                      }}
                     />
 
                     {renderStreamingStats()}

@@ -1,23 +1,18 @@
 import React from 'react'
 import TranscriptDisplay from '../components/TranscriptDisplay'
 import TranscriptionEventTest from '../components/TranscriptionEventTest'
+import RecordingControls from '../components/RecordingControls'
 import {useTranscriptionState} from '../hooks/useTranscriptionState'
 
 export default function HomePage() {
-  // Use unified transcription state management
+  // Use unified transcription state management - only for completed transcripts
   const {
     // Static transcripts
     transcripts,
     isProcessing,
 
-    // Streaming state
-    currentStreamingText,
-    isCurrentTextPartial,
-    isStreamingActive,
-    streamingMode,
-
-    // Actions
-    completeStreaming
+    // Actions for recording controls
+    addTranscript
   } = useTranscriptionState()
 
   // Convert TranscriptionStateManager.TranscriptionResult to main-stt-transcription.TranscriptionResult
@@ -29,17 +24,24 @@ export default function HomePage() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex w-full flex-1 flex-col p-8">
-        {/* Main Transcript Display */}
+        {/* Recording Controls - Main interface for starting/stopping recording */}
+        <div className="mb-6">
+          <RecordingControls 
+            onTranscription={addTranscript}
+          />
+        </div>
+
+        {/* Main Transcript Display - Shows completed transcripts only */}
         <div className="mb-8 flex-1">
           <TranscriptDisplay
             transcripts={convertedTranscripts}
             isProcessing={isProcessing}
-            enableStreaming={true}
-            streamingText={currentStreamingText}
-            isStreamingPartial={isCurrentTextPartial}
-            isStreamingActive={isStreamingActive}
-            streamingMode={streamingMode}
-            onStreamingComplete={completeStreaming}
+            enableStreaming={false}
+            streamingText=""
+            isStreamingPartial={false}
+            isStreamingActive={false}
+            streamingMode="character"
+            onStreamingComplete={() => {}}
             autoScroll={true}
             showScrollToBottom={true}
           />
