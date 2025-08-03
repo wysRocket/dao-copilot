@@ -68,6 +68,14 @@ Object.defineProperty(global, 'window', {
           confidence: 0.95,
           duration: 1000
         })
+      ),
+      transcribeAudioBatch: vi.fn(() =>
+        Promise.resolve({
+          text: 'Test batch transcription',
+          confidence: 0.95,
+          duration: 1000,
+          source: 'batch'
+        })
       )
     }
   },

@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react'
+import React, {useEffect, useRef, useMemo, useCallback} from 'react'
 import {useWindowPortal} from '../hooks/useWindowPortal'
 import {useWindowCommunication, useSharedState} from '../hooks/useSharedState'
 import {useWindowState} from '../contexts/WindowStateProvider'
@@ -7,7 +7,7 @@ import useGeminiConnection from '../hooks/useGeminiConnection'
 import {TranscriptionMode} from '../services/gemini-live-integration'
 import RecordingControls from './RecordingControls'
 import ToggleTheme from '../components/ToggleTheme'
-import {PerformanceDashboard} from './PerformanceDashboard'
+import {SimplePerformanceIndicator} from './SimplePerformanceIndicator'
 
 // Note: You may need to add the following to your global CSS:
 // .app-region-drag { -webkit-app-region: drag; }
@@ -20,14 +20,14 @@ const CustomTitleBar: React.FC = () => {
   const {setProcessingState, addTranscript} = useSharedState()
   const {windowState} = useWindowState()
 
-  // Use the audio recording service
-  const audioService = getAudioRecordingService()
+  // Use the audio recording service (memoized to prevent recreation)
+  const audioService = useMemo(() => getAudioRecordingService(), [])
 
-  // Initialize Gemini WebSocket for real-time transcription
+  // Initialize Gemini WebSocket for real-time transcription with improved configuration
   const [geminiState, geminiControls] = useGeminiConnection({
-    mode: TranscriptionMode.HYBRID, // Use hybrid mode for fallback
-    autoConnect: false, // Don't auto-connect, connect when recording starts
-    fallbackToBatch: true,
+    mode: TranscriptionMode.WEBSOCKET, // Force WebSocket mode explicitly
+    autoConnect: true, // Auto-connect to establish connection early
+    fallbackToBatch: false, // Disable fallback to force WebSocket usage
     enableLogging: true
   })
 
@@ -54,14 +54,14 @@ const CustomTitleBar: React.FC = () => {
       setProcessingState(newState.isTranscribing)
     })
 
-    // Cleanup on unmount
+    // Cleanup on unmount only - don't destroy the shared service
     return () => {
       unsubscribe()
-      audioService.destroy()
+      // Note: Don't call audioService.destroy() here as it's a shared service
     }
-  }, [audioService, setProcessingState])
+  }, [setProcessingState]) // Remove audioService from dependencies
 
-  const handleTranscription = (result: TranscriptionResult) => {
+  const handleTranscription = useCallback((result: TranscriptionResult) => {
     console.log('🎯 CustomTitleBar: Received transcription result:', result)
     console.log('🎯 Adding to shared state with addTranscript:', {
       text: result.text,
@@ -81,10 +81,10 @@ const CustomTitleBar: React.FC = () => {
     broadcast('transcription-result', result)
 
     console.log('🎯 Transcription handling complete')
-  }
+  }, [addTranscript, broadcast])
 
   // Handle real-time streaming transcriptions differently than batch
-  const handleStreamingTranscription = (text: string, isFinal: boolean) => {
+  const handleStreamingTranscription = useCallback((text: string, isFinal: boolean) => {
     console.log('🎯 CustomTitleBar: Received streaming transcription:', {
       text: text.substring(0, 50) + '...',
       isFinal
@@ -107,7 +107,7 @@ const CustomTitleBar: React.FC = () => {
         source: 'websocket-live'
       })
     }
-  }
+  }, [handleTranscription, broadcast])
 
   // Set up WebSocket transcription bridge
   useEffect(() => {
@@ -250,6 +250,12 @@ const CustomTitleBar: React.FC = () => {
     }
   }, [])
 
+  // Memoize the geminiConnection object to prevent unnecessary re-renders
+  const geminiConnection = useMemo(() => ({
+    state: geminiState,
+    controls: geminiControls
+  }), [geminiState, geminiControls])
+
   return (
     <div
       ref={titleBarRef}
@@ -280,10 +286,7 @@ const CustomTitleBar: React.FC = () => {
       >
         <RecordingControls
           onTranscription={handleTranscription}
-          geminiConnection={{
-            state: geminiState,
-            controls: geminiControls
-          }}
+          geminiConnection={geminiConnection}
         />
       </div>
 
@@ -298,7 +301,7 @@ const CustomTitleBar: React.FC = () => {
         }
       >
         <ToggleTheme />
-        <PerformanceDashboard compact />
+        <SimplePerformanceIndicator />
 
         <button
           onClick={handleToggleAssistant}

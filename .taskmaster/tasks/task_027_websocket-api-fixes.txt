@@ -1,0 +1,69 @@
+# Task ID: 27
+# Title: Fix WebSocket Response Message Processing
+# Status: pending
+# Dependencies: 25, 11, 5
+# Priority: medium
+# Description: Ensure the system correctly handles inputTranscription responses from serverContent and modelTurn messages, not just simple text type responses, to properly process all WebSocket message types.
+# Details:
+1. Message Type Analysis:
+   - Review the Gemini Live API documentation to identify all possible message types (serverContent, modelTurn, inputTranscription, etc.)
+   - Create a comprehensive mapping of message types to their expected structure and content
+   - Document the specific format of inputTranscription responses within serverContent and modelTurn messages
+
+2. Response Handler Implementation:
+   - Refactor the existing WebSocket message handler to properly parse and process all message types
+   - Implement specialized handlers for inputTranscription responses embedded within serverContent and modelTurn messages
+   - Create a MessageTypeIdentifier class that can accurately determine the message type and structure before processing
+   - Ensure proper extraction of transcription content regardless of the containing message type
+
+3. Error Handling Improvements:
+   - Implement robust error handling for malformed or unexpected message structures
+   - Add detailed logging for message parsing failures to aid in debugging
+   - Create fallback processing for partial or incomplete messages
+
+4. State Management:
+   - Implement proper state tracking to handle multi-part messages that may arrive across multiple WebSocket frames
+   - Ensure the system can correlate related messages (e.g., matching inputTranscription with corresponding modelTurn)
+   - Add safeguards against processing duplicate or out-of-order messages
+
+5. Performance Optimization:
+   - Optimize message parsing for efficiency, especially for high-frequency transcription updates
+   - Implement message buffering if needed to handle bursts of incoming messages
+   - Consider using worker threads for message processing to prevent UI blocking
+
+6. Integration with Rendering:
+   - Update the rendering pipeline to properly display transcription content from all message types
+   - Ensure consistent formatting and presentation regardless of the source message type
+   - Implement smooth transitions between different message types in the UI
+
+# Test Strategy:
+1. Unit Testing:
+   - Create comprehensive unit tests for each message type handler
+   - Test with sample payloads representing all known message structures from the Gemini Live API
+   - Implement tests for edge cases such as empty messages, partial messages, and malformed JSON
+   - Verify correct extraction of inputTranscription data from different container message types
+
+2. Integration Testing:
+   - Set up integration tests that simulate the full WebSocket communication flow
+   - Create mock server responses that include various combinations of message types
+   - Test the end-to-end flow from receiving a WebSocket message to displaying the transcription
+   - Verify correct handling of mixed message sequences (e.g., serverContent followed by modelTurn)
+
+3. Performance Testing:
+   - Measure processing time for different message types and sizes
+   - Test system behavior under high message volume scenarios
+   - Verify that message processing doesn't block the UI thread
+
+4. Regression Testing:
+   - Ensure that existing functionality for simple text responses still works correctly
+   - Verify that no regressions are introduced in the WebSocket connection handling
+   - Test backward compatibility with older message formats if applicable
+
+5. Manual Testing:
+   - Create a test harness that allows manual testing of different message scenarios
+   - Implement a message type simulator to generate various response patterns
+   - Perform visual verification of transcription rendering for all message types
+
+6. Logging Verification:
+   - Review logs to ensure proper tracking of message processing
+   - Verify that error conditions are properly logged with sufficient context for debugging

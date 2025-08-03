@@ -98,7 +98,7 @@ function getWebSocketClient(options: ProxyTranscriptionOptions): GeminiLiveWebSo
         process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
         process.env.GEMINI_API_KEY ||
         '',
-      model: 'gemini-live-2.5-flash-preview', // Use v1beta model
+      model: 'gemini-2.0-flash-live-001', // Use correct Live API model
       responseModalities: [ResponseModality.TEXT], // Primary mode for transcription
       systemInstruction:
         'You are a speech-to-text transcription service. Provide accurate transcriptions of audio input.',
@@ -205,7 +205,7 @@ async function transcribeAudioViaWebSocketProxy(
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         reject(new Error('WebSocket proxy transcription timeout'))
-      }, 30000) // 30 second timeout
+      }, 5000) // Reduced from 30 seconds to 5 seconds for real-time streaming
 
       let responseText = ''
 
@@ -883,8 +883,8 @@ export async function transcribeAudioViaWebSocketProxyWithPooling(
     const transcriptionPromise = new Promise<string>((resolve, reject) => {
       let transcribedText = ''
       const timeout = setTimeout(() => {
-        reject(new Error('WebSocket proxy transcription timeout after 30 seconds'))
-      }, 30000)
+        reject(new Error('WebSocket proxy transcription timeout after 5 seconds'))
+      }, 5000) // Reduced from 30 seconds to 5 seconds for real-time streaming
 
       const messageHandler = (message: {
         serverContent?: {

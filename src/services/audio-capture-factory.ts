@@ -138,6 +138,10 @@ async function createRendererWrapper(config?: AudioCaptureConfig): Promise<Unive
       }
 
       try {
+        // Calculate target duration from buffer size
+        // bufferSize samples / sampleRate = duration in seconds
+        const targetDurationMs = ((currentConfig.bufferSize || 22050) / (currentConfig.sampleRate || 44100)) * 1000;
+        
         await capturer.startRecording((buffer: number[]) => {
           const chunkData: AudioChunkData = {
             buffer,
@@ -147,12 +151,15 @@ async function createRendererWrapper(config?: AudioCaptureConfig): Promise<Unive
           }
 
           listeners.audioChunk.forEach(fn => fn(chunkData))
+        }, {
+          sampleRate: currentConfig.sampleRate || 44100,
+          targetDurationMs: Math.max(300, Math.min(500, targetDurationMs)) // Clamp between 300-500ms
         })
 
         isRecording = true
         listeners.stateChange.forEach(fn => fn({isCapturing: true}))
 
-        console.log('Audio capture started in renderer process wrapper')
+        console.log(`Audio capture started in renderer process wrapper with ${Math.max(300, Math.min(500, targetDurationMs))}ms chunks`)
       } catch (error) {
         const errorObj = error instanceof Error ? error : new Error(String(error))
         listeners.error.forEach(fn => fn(errorObj))

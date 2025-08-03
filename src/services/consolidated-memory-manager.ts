@@ -29,11 +29,11 @@ export class ConsolidatedMemoryManager {
   private cleanupInterval: NodeJS.Timeout | null = null
   private monitoringInterval: NodeJS.Timeout | null = null
   private isMonitoring = false
-  
+
   private readonly defaultThresholds: MemoryThresholds = {
     warning: 100 * 1024 * 1024, // 100MB
     critical: 200 * 1024 * 1024, // 200MB
-    cleanup: 150 * 1024 * 1024   // 150MB
+    cleanup: 150 * 1024 * 1024 // 150MB
   }
 
   private constructor() {
@@ -52,11 +52,15 @@ export class ConsolidatedMemoryManager {
    */
   public getMemoryUsage(): MemoryUsage | null {
     if (typeof window !== 'undefined' && 'performance' in window) {
-      const memory = (performance as unknown as {memory?: {
-        usedJSHeapSize: number
-        totalJSHeapSize: number
-        jsHeapSizeLimit: number
-      }}).memory
+      const memory = (
+        performance as {
+          memory?: {
+            usedJSHeapSize: number
+            totalJSHeapSize: number
+            jsHeapSizeLimit: number
+          }
+        }
+      ).memory
       if (memory) {
         return {
           used: memory.usedJSHeapSize,
@@ -66,7 +70,7 @@ export class ConsolidatedMemoryManager {
         }
       }
     }
-    
+
     // Fallback for Node.js environment
     if (typeof process !== 'undefined' && process.memoryUsage) {
       const memUsage = process.memoryUsage()
@@ -77,7 +81,7 @@ export class ConsolidatedMemoryManager {
         percentage: (memUsage.heapUsed / (memUsage.heapTotal * 2)) * 100
       }
     }
-    
+
     return null
   }
 
@@ -87,7 +91,7 @@ export class ConsolidatedMemoryManager {
   public registerCleanupTask(task: CleanupTask): () => void {
     this.cleanupTasks.set(task.id, task)
     console.log(`🧹 Registered cleanup task: ${task.name} (${task.priority} priority)`)
-    
+
     // Return unregister function
     return () => {
       this.cleanupTasks.delete(task.id)
@@ -100,20 +104,23 @@ export class ConsolidatedMemoryManager {
    */
   public async executeCleanup(priorityLevel: 'low' | 'medium' | 'high' = 'medium'): Promise<void> {
     console.log(`🧹 Starting memory cleanup (${priorityLevel} priority)`)
-    
-    const priorities = priorityLevel === 'low' ? ['low'] 
-                    : priorityLevel === 'medium' ? ['low', 'medium']
-                    : ['low', 'medium', 'high']
-    
+
+    const priorities =
+      priorityLevel === 'low'
+        ? ['low']
+        : priorityLevel === 'medium'
+          ? ['low', 'medium']
+          : ['low', 'medium', 'high']
+
     const tasksToRun = Array.from(this.cleanupTasks.values())
       .filter(task => priorities.includes(task.priority))
       .sort((a, b) => {
         const priorityOrder = {low: 1, medium: 2, high: 3}
         return priorityOrder[b.priority] - priorityOrder[a.priority]
       })
-    
+
     console.log(`🧹 Executing ${tasksToRun.length} cleanup tasks`)
-    
+
     for (const task of tasksToRun) {
       try {
         console.log(`🧹 Running cleanup task: ${task.name}`)
@@ -122,10 +129,10 @@ export class ConsolidatedMemoryManager {
         console.warn(`⚠️ Cleanup task ${task.name} failed:`, error)
       }
     }
-    
+
     // Force garbage collection if available
     this.triggerGarbageCollection()
-    
+
     console.log(`✅ Memory cleanup completed`)
   }
 
@@ -134,21 +141,19 @@ export class ConsolidatedMemoryManager {
    */
   public triggerGarbageCollection(): void {
     // Browser environment
-    const windowWithGC = window as unknown as {gc?: () => void}
-    if (typeof window !== 'undefined' && windowWithGC.gc) {
+    if (typeof window !== 'undefined' && (window as {gc?: () => void}).gc) {
       console.log('🗑️ Triggering browser garbage collection')
-      windowWithGC.gc()
+      ;(window as {gc: () => void}).gc()
       return
     }
-    
+
     // Node.js environment
-    const globalWithGC = global as unknown as {gc?: () => void}
-    if (typeof global !== 'undefined' && globalWithGC.gc) {
+    if (typeof global !== 'undefined' && (global as {gc?: () => void}).gc) {
       console.log('🗑️ Triggering Node.js garbage collection')
-      globalWithGC.gc()
+      ;(global as {gc: () => void}).gc()
       return
     }
-    
+
     console.log('ℹ️ Garbage collection not available in this environment')
   }
 
@@ -157,10 +162,10 @@ export class ConsolidatedMemoryManager {
    */
   public startMonitoring(intervalMs: number = 30000): void {
     if (this.isMonitoring) return
-    
+
     console.log('👁️ Starting automatic memory monitoring')
     this.isMonitoring = true
-    
+
     this.monitoringInterval = setInterval(() => {
       this.checkMemoryThresholds()
     }, intervalMs)
@@ -171,10 +176,10 @@ export class ConsolidatedMemoryManager {
    */
   public stopMonitoring(): void {
     if (!this.isMonitoring) return
-    
+
     console.log('⏹️ Stopping memory monitoring')
     this.isMonitoring = false
-    
+
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval)
       this.monitoringInterval = null
@@ -187,15 +192,19 @@ export class ConsolidatedMemoryManager {
   private checkMemoryThresholds(): void {
     const memoryUsage = this.getMemoryUsage()
     if (!memoryUsage) return
-    
+
     const usedMB = memoryUsage.used / 1024 / 1024
     const percentageUsed = memoryUsage.percentage
-    
+
     if (memoryUsage.used > this.defaultThresholds.critical) {
-      console.warn(`🚨 CRITICAL memory usage: ${usedMB.toFixed(2)}MB (${percentageUsed.toFixed(1)}%)`)
+      console.warn(
+        `🚨 CRITICAL memory usage: ${usedMB.toFixed(2)}MB (${percentageUsed.toFixed(1)}%)`
+      )
       this.executeCleanup('high')
     } else if (memoryUsage.used > this.defaultThresholds.cleanup) {
-      console.warn(`⚠️ High memory usage: ${usedMB.toFixed(2)}MB (${percentageUsed.toFixed(1)}%) - running cleanup`)
+      console.warn(
+        `⚠️ High memory usage: ${usedMB.toFixed(2)}MB (${percentageUsed.toFixed(1)}%) - running cleanup`
+      )
       this.executeCleanup('medium')
     } else if (memoryUsage.used > this.defaultThresholds.warning) {
       console.log(`📊 Memory usage warning: ${usedMB.toFixed(2)}MB (${percentageUsed.toFixed(1)}%)`)
@@ -214,10 +223,10 @@ export class ConsolidatedMemoryManager {
     const usage = this.getMemoryUsage()
     let status: 'excellent' | 'good' | 'warning' | 'critical' = 'excellent'
     const recommendations: string[] = []
-    
+
     if (usage) {
       const usedMB = usage.used / 1024 / 1024
-      
+
       if (usage.used > this.defaultThresholds.critical) {
         status = 'critical'
         recommendations.push(`Critical memory usage: ${usedMB.toFixed(2)}MB`)
@@ -235,7 +244,7 @@ export class ConsolidatedMemoryManager {
     } else {
       recommendations.push('Memory monitoring not available in this environment')
     }
-    
+
     return {
       usage,
       status,
@@ -249,20 +258,20 @@ export class ConsolidatedMemoryManager {
    */
   public shutdown(): void {
     console.log('🔄 Shutting down memory manager')
-    
+
     this.stopMonitoring()
-    
+
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval)
       this.cleanupInterval = null
     }
-    
+
     // Run final cleanup
     this.executeCleanup('high')
-    
+
     // Clear all tasks
     this.cleanupTasks.clear()
-    
+
     ConsolidatedMemoryManager.instance = null
   }
 }

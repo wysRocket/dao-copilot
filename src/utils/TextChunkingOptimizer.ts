@@ -1,6 +1,6 @@
 /**
  * Text Chunking Optimizer
- * 
+ *
  * Efficiently processes streaming text for optimal rendering performance
  * Implements intelligent chunking, diff algorithms, and memory optimization
  */
@@ -43,7 +43,7 @@ export interface ChunkingMetrics {
 
 const DEFAULT_CHUNKING_OPTIONS: ChunkingOptions = {
   maxChunkSize: 1000, // Maximum characters per chunk
-  minChunkSize: 50,   // Minimum characters per chunk
+  minChunkSize: 50, // Minimum characters per chunk
   preferWordBoundaries: true,
   enableHashing: true,
   enableDiffOptimization: true
@@ -61,7 +61,7 @@ export class TextChunkingOptimizer {
   private diffCache: Map<string, TextDiff[]> = new Map()
 
   constructor(options: Partial<ChunkingOptions> = {}) {
-    this.options = { ...DEFAULT_CHUNKING_OPTIONS, ...options }
+    this.options = {...DEFAULT_CHUNKING_OPTIONS, ...options}
     this.metrics = {
       totalChunks: 0,
       averageChunkSize: 0,
@@ -96,7 +96,7 @@ export class TextChunkingOptimizer {
     }
 
     const newChunks = this.createOptimalChunks(text, timestamp, isComplete)
-    
+
     // Update cache
     if (this.options.enableHashing && textHash) {
       this.textCache.set(textHash, text)
@@ -111,7 +111,7 @@ export class TextChunkingOptimizer {
    */
   getDifferences(oldText: string, newText: string): TextDiff[] {
     const cacheKey = `${this.hashText(oldText)}-${this.hashText(newText)}`
-    
+
     if (this.options.enableDiffOptimization && this.diffCache.has(cacheKey)) {
       this.metrics.cacheHits++
       return this.diffCache.get(cacheKey)!
@@ -119,7 +119,7 @@ export class TextChunkingOptimizer {
 
     this.metrics.cacheMisses++
     const diffs = this.computeTextDifferences(oldText, newText)
-    
+
     if (this.options.enableDiffOptimization) {
       // Only cache small diffs to prevent memory bloat
       if (diffs.length < 10) {
@@ -196,8 +196,8 @@ export class TextChunkingOptimizer {
    * Get chunks for a specific text range
    */
   getChunksInRange(startIndex: number, endIndex: number): TextChunk[] {
-    return this.getAllChunks().filter(chunk => 
-      chunk.startIndex < endIndex && chunk.endIndex > startIndex
+    return this.getAllChunks().filter(
+      chunk => chunk.startIndex < endIndex && chunk.endIndex > startIndex
     )
   }
 
@@ -214,7 +214,7 @@ export class TextChunkingOptimizer {
    * Get current performance metrics
    */
   getMetrics(): ChunkingMetrics {
-    return { ...this.metrics }
+    return {...this.metrics}
   }
 
   /**
@@ -265,15 +265,15 @@ export class TextChunkingOptimizer {
     while (currentIndex < text.length) {
       const chunkSize = this.calculateOptimalChunkSize(text, currentIndex)
       const chunkEnd = Math.min(currentIndex + chunkSize, text.length)
-      
+
       // Adjust to word boundaries if enabled
-      const adjustedEnd = this.options.preferWordBoundaries 
+      const adjustedEnd = this.options.preferWordBoundaries
         ? this.adjustToWordBoundary(text, chunkEnd, currentIndex)
         : chunkEnd
 
       const chunkText = text.slice(currentIndex, adjustedEnd)
       const chunkId = this.generateChunkId(startOffset + currentIndex, adjustedEnd)
-      
+
       const chunk: TextChunk = {
         id: chunkId,
         text: chunkText,
@@ -296,7 +296,7 @@ export class TextChunkingOptimizer {
 
   private calculateOptimalChunkSize(text: string, currentIndex: number): number {
     const remainingLength = text.length - currentIndex
-    
+
     // Use minimum chunk size for small remaining text
     if (remainingLength <= this.options.minChunkSize) {
       return remainingLength
@@ -307,7 +307,7 @@ export class TextChunkingOptimizer {
 
     // Adjust based on text characteristics
     const textSlice = text.slice(currentIndex, currentIndex + chunkSize)
-    
+
     // Prefer breaking at sentence boundaries
     const lastSentenceEnd = Math.max(
       textSlice.lastIndexOf('.'),
@@ -345,15 +345,20 @@ export class TextChunkingOptimizer {
 
   private shouldResetChunks(text: string): boolean {
     // Reset if text is significantly different from current chunks
-    const currentText = this.getAllChunks().map(chunk => chunk.text).join('')
-    
+    const currentText = this.getAllChunks()
+      .map(chunk => chunk.text)
+      .join('')
+
     // If new text is much shorter, likely a reset
     if (text.length < currentText.length * 0.5) {
       return true
     }
 
     // If text doesn't start with current text, likely a reset
-    if (currentText.length > 0 && !text.startsWith(currentText.slice(0, Math.min(100, currentText.length)))) {
+    if (
+      currentText.length > 0 &&
+      !text.startsWith(currentText.slice(0, Math.min(100, currentText.length)))
+    ) {
       return true
     }
 
@@ -362,7 +367,7 @@ export class TextChunkingOptimizer {
 
   private computeTextDifferences(oldText: string, newText: string): TextDiff[] {
     const diffs: TextDiff[] = []
-    
+
     // Simple diff algorithm - can be enhanced with more sophisticated algorithms
     let oldIndex = 0
     let newIndex = 0
@@ -412,7 +417,7 @@ export class TextChunkingOptimizer {
       } else {
         // Characters differ, find the next matching point
         const nextMatch = this.findNextMatch(oldText, newText, oldIndex, newIndex)
-        
+
         if (nextMatch) {
           if (nextMatch.oldIndex > oldIndex && nextMatch.newIndex > newIndex) {
             // Replace operation
@@ -475,11 +480,11 @@ export class TextChunkingOptimizer {
     oldStart: number,
     newStart: number,
     minMatchLength: number = 3
-  ): { oldIndex: number; newIndex: number } | null {
+  ): {oldIndex: number; newIndex: number} | null {
     for (let oldIndex = oldStart; oldIndex < oldText.length - minMatchLength; oldIndex++) {
       for (let newIndex = newStart; newIndex < newText.length - minMatchLength; newIndex++) {
         if (this.textsMatch(oldText, newText, oldIndex, newIndex, minMatchLength)) {
-          return { oldIndex, newIndex }
+          return {oldIndex, newIndex}
         }
       }
     }
@@ -501,7 +506,11 @@ export class TextChunkingOptimizer {
     return true
   }
 
-  private retainChunksInRange(startIndex: number, endIndex: number, targetArray: TextChunk[]): void {
+  private retainChunksInRange(
+    startIndex: number,
+    endIndex: number,
+    targetArray: TextChunk[]
+  ): void {
     const chunksInRange = this.getChunksInRange(startIndex, endIndex)
     targetArray.push(...chunksInRange)
   }
@@ -537,7 +546,7 @@ export class TextChunkingOptimizer {
     let hash = 0
     for (let i = 0; i < text.length; i++) {
       const char = text.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
+      hash = (hash << 5) - hash + char
       hash = hash & hash // Convert to 32-bit integer
     }
     return hash.toString(16)
@@ -546,7 +555,7 @@ export class TextChunkingOptimizer {
   private updateMetrics(): void {
     const chunks = this.getAllChunks()
     this.metrics.totalChunks = chunks.length
-    
+
     if (chunks.length > 0) {
       const chunkSizes = chunks.map(chunk => chunk.text.length)
       this.metrics.averageChunkSize = chunkSizes.reduce((a, b) => a + b, 0) / chunkSizes.length
@@ -559,7 +568,7 @@ export class TextChunkingOptimizer {
 
   private estimateMemoryUsage(): number {
     let totalSize = 0
-    
+
     // Estimate chunk storage
     this.chunks.forEach(chunk => {
       totalSize += chunk.text.length * 2 // Assuming 2 bytes per character
@@ -587,8 +596,8 @@ export class TextChunkingOptimizer {
  */
 export function createStreamingTextOptimizer(): TextChunkingOptimizer {
   return new TextChunkingOptimizer({
-    maxChunkSize: 500,     // Smaller chunks for responsive streaming
-    minChunkSize: 20,      // Allow small chunks for real-time updates
+    maxChunkSize: 500, // Smaller chunks for responsive streaming
+    minChunkSize: 20, // Allow small chunks for real-time updates
     preferWordBoundaries: true,
     enableHashing: true,
     enableDiffOptimization: true
@@ -600,8 +609,8 @@ export function createStreamingTextOptimizer(): TextChunkingOptimizer {
  */
 export function createDocumentTextOptimizer(): TextChunkingOptimizer {
   return new TextChunkingOptimizer({
-    maxChunkSize: 2000,    // Larger chunks for documents
-    minChunkSize: 100,     // Reasonable minimum for readability
+    maxChunkSize: 2000, // Larger chunks for documents
+    minChunkSize: 100, // Reasonable minimum for readability
     preferWordBoundaries: true,
     enableHashing: true,
     enableDiffOptimization: false // Disable for large documents
@@ -622,7 +631,5 @@ export function mergeChunks(chunks: TextChunk[]): string {
  * Utility function to find chunks containing specific text positions
  */
 export function findChunksAtPosition(chunks: TextChunk[], position: number): TextChunk[] {
-  return chunks.filter(chunk => 
-    position >= chunk.startIndex && position < chunk.endIndex
-  )
+  return chunks.filter(chunk => position >= chunk.startIndex && position < chunk.endIndex)
 }

@@ -1,0 +1,222 @@
+/**
+ * Optimized Streaming Text Renderer CSS
+ * High-performance styles for real-time transcription display
+ */
+
+/* Base optimized streaming renderer styles */
+.optimized-streaming-renderer {
+  /* Use CSS transforms for better performance */
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  
+  /* Optimize text rendering */
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+  
+  /* Enable hardware acceleration */
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Streaming text content optimization */
+.streaming-text-content {
+  /* Use contain for better performance */
+  contain: layout style paint;
+  
+  /* Optimize text layout */
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  
+  /* Prevent layout thrashing */
+  min-height: 1.5em;
+  display: inline-block;
+  vertical-align: top;
+}
+
+/* Text chunk optimization */
+.text-chunk {
+  /* Enable efficient updates */
+  contain: layout style;
+  display: inline;
+  
+  /* Smooth transitions */
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.text-chunk.partial {
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.text-chunk.final {
+  opacity: 1;
+  font-weight: 500;
+}
+
+/* Optimized cursor animation */
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.streaming-cursor {
+  /* Hardware accelerated animation */
+  transform: translateZ(0);
+  animation: cursor-blink 1s infinite;
+  display: inline-block;
+  
+  /* Prevent layout shifts */
+  width: 1ch;
+  text-align: center;
+}
+
+/* Performance states */
+.streaming-animating {
+  /* Optimize for animations */
+  will-change: transform, opacity, content;
+}
+
+.streaming-partial {
+  /* Indicate partial state */
+  position: relative;
+}
+
+.streaming-partial::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.3;
+  animation: partial-indicator 2s ease-in-out infinite;
+}
+
+@keyframes partial-indicator {
+  0%, 100% { opacity: 0.3; transform: scaleX(1); }
+  50% { opacity: 0.6; transform: scaleX(0.8); }
+}
+
+.streaming-final {
+  /* Final state styling */
+  position: relative;
+}
+
+/* Text truncation indicator */
+.text-truncation-indicator {
+  display: block;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.5px;
+}
+
+/* Responsive optimizations */
+@media (max-width: 768px) {
+  .optimized-streaming-renderer {
+    /* Mobile optimizations */
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  
+  .streaming-cursor {
+    /* Smaller cursor on mobile */
+    width: 0.8ch;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .text-chunk.partial {
+    opacity: 0.7;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+  }
+  
+  .streaming-cursor {
+    background: currentColor;
+    color: transparent;
+    width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .streaming-cursor {
+    animation: none;
+    opacity: 1;
+  }
+  
+  .text-chunk {
+    transition: none;
+  }
+  
+  .streaming-partial::after {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* Dark mode optimizations */
+@media (prefers-color-scheme: dark) {
+  .optimized-streaming-renderer {
+    /* Better text rendering in dark mode */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  .text-truncation-indicator {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* Print styles */
+@media print {
+  .optimized-streaming-renderer {
+    /* Optimize for printing */
+    color: black !important;
+    background: white !important;
+  }
+  
+  .streaming-cursor,
+  .text-truncation-indicator {
+    display: none !important;
+  }
+  
+  .text-chunk.partial::after {
+    display: none;
+  }
+}
+
+/* Focus and accessibility */
+.optimized-streaming-renderer:focus {
+  outline: 2px solid var(--focus-color, #0066cc);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.optimized-streaming-renderer:focus-visible {
+  outline: 2px solid var(--focus-color, #0066cc);
+  outline-offset: 2px;
+}
+
+/* Performance debugging (development only) */
+.performance-debug {
+  position: absolute;
+  bottom: -20px;
+  right: 0;
+  font-size: 10px;
+  color: #888;
+  font-family: monospace;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 2px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+}

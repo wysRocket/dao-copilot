@@ -732,7 +732,7 @@ export class AudioWebSocketIntegration extends EventEmitter {
 
     switch (format) {
       case 'pcm16':
-        return 'audio/pcm' // Gemini Live API expects plain "audio/pcm" without rate parameter
+        return 'audio/pcm;rate=16000' // CRITICAL FIX: Include sample rate for Gemini Live API
       case 'opus':
         return 'audio/opus'
       case 'aac':
@@ -740,7 +740,7 @@ export class AudioWebSocketIntegration extends EventEmitter {
       case 'mp3':
         return 'audio/mpeg'
       default:
-        return 'audio/pcm' // Default to plain PCM format for Gemini Live API
+        return 'audio/pcm;rate=16000' // Default to PCM with sample rate for Gemini Live API
     }
   }
 

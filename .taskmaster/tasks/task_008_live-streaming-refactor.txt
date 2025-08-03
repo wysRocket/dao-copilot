@@ -1,6 +1,6 @@
 # Task ID: 8
 # Title: Implement Error Handling and Fallback Mechanisms
-# Status: pending
+# Status: in-progress
 # Dependencies: None
 # Priority: medium
 # Description: Add comprehensive error handling and fallback mechanisms for streaming transcription failures.
@@ -83,4 +83,24 @@ interface ErrorHandlingStrategy {
 - Minimal impact on user experience during errors
 
 # Test Strategy:
+
+
+# Subtasks:
+## 1. Force WebSocket-Only Mode [pending]
+### Dependencies: None
+### Description: Ensure main transcription service uses ONLY WebSockets, disable all batch fallbacks completely
+### Details:
+Check main-stt-transcription.ts and force WebSocket mode. Remove any batch fallback logic.
+
+## 2. Debug WebSocket Event Flow [pending]
+### Dependencies: None
+### Description: Debug WebSocket event flow from connection establishment to UI component delivery
+### Details:
+Trace the complete path: WebSocket -> Bridge -> Middleware -> Frontend components. Identify where transcription events are lost.
+
+## 3. Fix Bridge Event Forwarding [pending]
+### Dependencies: None
+### Description: Fix transcription bridge event forwarding and ensure proper result delivery
+### Details:
+Check gemini-transcription-bridge.ts enableEventForwarding and ensure transcription events reach the frontend properly.
 

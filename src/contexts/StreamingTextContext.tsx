@@ -146,9 +146,8 @@ export const StreamingTextProvider: React.FC<StreamingTextProviderProps> = ({
       }
 
       // Only set auto-completion timeout for non-real content
-      const isRealContent = text.trim() && 
-                           !text.includes('Live streaming active') &&
-                           text.length > 10
+      const isRealContent =
+        text.trim() && !text.includes('Live streaming active') && text.length > 10
 
       if (!isRealContent) {
         const completionDelay = isPartial ? 5000 : 2000
@@ -175,9 +174,8 @@ export const StreamingTextProvider: React.FC<StreamingTextProviderProps> = ({
       }
 
       // Only set auto-completion timeout for non-real content
-      const isRealContent = text.trim() && 
-                           !text.includes('Live streaming active') &&
-                           text.length > 10
+      const isRealContent =
+        text.trim() && !text.includes('Live streaming active') && text.length > 10
 
       if (!isRealContent) {
         const completionDelay = isPartial ? 5000 : 2000
@@ -185,7 +183,9 @@ export const StreamingTextProvider: React.FC<StreamingTextProviderProps> = ({
           completeStreamingTranscription()
         }, completionDelay)
       } else {
-        console.log('🔴 StreamingTextContext: Real content detected (new ref), no auto-completion timeout')
+        console.log(
+          '🔴 StreamingTextContext: Real content detected (new ref), no auto-completion timeout'
+        )
       }
     }
   }, [])
@@ -220,15 +220,19 @@ export const StreamingTextProvider: React.FC<StreamingTextProviderProps> = ({
 
         // DON'T auto-clear if we have real transcription content
         // Only clear if it's fallback/template text
-        const isRealContent = finalTranscription.text.trim() && 
-                             !finalTranscription.text.includes('Live streaming active') &&
-                             finalTranscription.text.length > 10
+        const isRealContent =
+          finalTranscription.text.trim() &&
+          !finalTranscription.text.includes('Live streaming active') &&
+          finalTranscription.text.length > 10
 
         if (!isRealContent) {
           console.log('🔴 StreamingTextContext: Auto-clearing fallback content')
           clearStreaming()
         } else {
-          console.log('🔴 StreamingTextContext: Preserving real transcription content:', finalTranscription.text.substring(0, 50))
+          console.log(
+            '🔴 StreamingTextContext: Preserving real transcription content:',
+            finalTranscription.text.substring(0, 50)
+          )
           // Just mark as not streaming but keep the text
           setIsStreamingActive(false)
           currentTranscriptionRef.current = null

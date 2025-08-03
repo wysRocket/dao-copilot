@@ -15,6 +15,7 @@ import {promises as fs} from 'fs'
 
 import {createProxyServer, stopProxyServer} from './helpers/proxy-server'
 import {loadEnvironmentConfig, validateEnvironmentConfig} from './helpers/environment-config'
+import {initializeApiKeyManager} from './services/api-key-manager'
 import WindowManager from './services/window-manager'
 import registerListeners from './helpers/ipc/listeners-register'
 
@@ -156,6 +157,14 @@ function createWindow(): string {
 app.whenReady().then(async () => {
   // Load environment configuration first
   await loadEnvironmentConfig()
+
+  // Initialize API key manager after environment is loaded
+  try {
+    initializeApiKeyManager()
+    console.log('✅ API key manager initialized successfully')
+  } catch (error) {
+    console.error('❌ Failed to initialize API key manager:', error)
+  }
 
   // Validate that required environment variables are present
   const isConfigValid = validateEnvironmentConfig()

@@ -124,7 +124,7 @@ export function migrateLegacyEnvironment(): {
     const useExperimental = process.env.USE_EXPERIMENTAL_MODEL?.toLowerCase()
     if (useExperimental === 'true' || useExperimental === '1') {
       migrated.GEMINI_USE_V1BETA = 'true'
-      migrated.GEMINI_MODEL_NAME = 'gemini-live-2.5-flash-preview'
+      migrated.GEMINI_MODEL_NAME = 'gemini-2.5-flash-live'
       migrated.GEMINI_API_VERSION = 'v1beta'
     }
     warnings.push('USE_EXPERIMENTAL_MODEL is deprecated. Use GEMINI_USE_V1BETA=true instead.')
@@ -134,7 +134,7 @@ export function migrateLegacyEnvironment(): {
     const useV1Alpha = process.env.USE_V1_ALPHA?.toLowerCase()
     if (useV1Alpha === 'true' || useV1Alpha === '1') {
       migrated.GEMINI_API_VERSION = 'v1alpha'
-      migrated.GEMINI_MODEL_NAME = 'gemini-live-2.5-flash-preview'
+      migrated.GEMINI_MODEL_NAME = 'gemini-2.5-flash-live'
     }
     warnings.push(
       'USE_V1_ALPHA is deprecated. Set GEMINI_API_VERSION=v1alpha explicitly if needed.'
@@ -205,7 +205,7 @@ export function migrateLegacyConfig(
     deprecations.push(
       'The "useV1Alpha" option is deprecated. v1beta is now the default API version.'
     )
-    newConfig.modelName = 'gemini-live-2.5-flash-preview' // Upgrade to v1beta model
+    newConfig.modelName = 'gemini-2.5-flash-live' // Upgrade to v1beta model
     warnings.push('Automatically upgraded from v1alpha to v1beta model for better performance.')
   }
 
@@ -213,16 +213,16 @@ export function migrateLegacyConfig(
     deprecations.push(
       'The "useExperimentalModel" option is deprecated. v1beta models are now stable.'
     )
-    newConfig.modelName = 'gemini-live-2.5-flash-preview'
+    newConfig.modelName = 'gemini-2.5-flash-live'
   }
 
   if ('geminiModel' in legacyConfig && legacyConfig.geminiModel) {
     // Migrate legacy model names to v1beta equivalents
     const modelMigrations: Record<string, string> = {
-      'gemini-live-2.5-flash-preview': 'gemini-live-2.5-flash-preview',
-      'gemini-live-experimental': 'gemini-live-2.5-flash-preview',
-      'gemini-pro-vision': 'gemini-live-2.5-flash-preview',
-      'gemini-pro': 'gemini-live-2.5-flash-preview'
+      'gemini-live-2.5-flash-preview': 'gemini-live-2.5-flash',
+      'gemini-live-experimental': 'gemini-2.5-flash-live',
+      'gemini-pro-vision': 'gemini-2.5-flash-live',
+      'gemini-pro': 'gemini-2.5-flash-live'
     }
 
     const legacyModel = legacyConfig.geminiModel as string
@@ -334,7 +334,7 @@ export function generateMigrationGuide(currentConfig?: LegacyTranscriptionOption
   guide += '- Automatic fallback and error recovery\n'
   guide += '- Connection quality monitoring\n'
   guide += '- Improved error handling and logging\n'
-  guide += '- v1beta API compatibility with `gemini-live-2.5-flash-preview` model\n'
+  guide += '- v1beta API compatibility with `gemini-2.5-flash-live` model\n'
   guide += '- Enhanced WebSocket connection pooling and cleanup\n'
   guide += '- Automatic legacy model migration to v1beta equivalents\n\n'
 
@@ -345,13 +345,13 @@ export function generateMigrationGuide(currentConfig?: LegacyTranscriptionOption
   guide += '  apiKey, \n'
   guide += '  batchMode: true,\n'
   guide += '  useV1Alpha: true,\n'
-  guide += '  geminiModel: "gemini-live-2.5-flash-preview"\n'
+  guide += '  geminiModel: "gemini-2.5-flash-live"\n'
   guide += '})\n\n'
   guide += '// New usage (v1beta)\n'
   guide += 'transcribeAudio(buffer, { \n'
   guide += '  apiKey, \n'
   guide += '  mode: TranscriptionMode.BATCH,\n'
-  guide += '  modelName: "gemini-live-2.5-flash-preview"\n'
+  guide += '  modelName: "gemini-2.5-flash-live"\n'
   guide += '})\n\n'
   guide += '// Hybrid mode (recommended)\n'
   guide += 'transcribeAudio(buffer, { \n'
@@ -384,9 +384,9 @@ export function migrateToV1Beta(currentConfig: LegacyTranscriptionOptions): {
 
   // Migrate model to v1beta
   const currentModel =
-    currentConfig.modelName || currentConfig.geminiModel || 'gemini-live-2.5-flash-preview'
-  newConfig.modelName = 'gemini-live-2.5-flash-preview'
-  migrationSteps.push(`✓ Model upgraded: ${currentModel} → gemini-live-2.5-flash-preview`)
+    currentConfig.modelName || currentConfig.geminiModel || 'gemini-2.5-flash-live'
+  newConfig.modelName = 'gemini-2.5-flash-live'
+  migrationSteps.push(`✓ Model upgraded: ${currentModel} → gemini-2.5-flash-live`)
   benefits.push('Improved accuracy and performance with v1beta model')
 
   // Migrate mode settings

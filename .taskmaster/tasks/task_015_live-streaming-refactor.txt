@@ -1,0 +1,43 @@
+# Task ID: 15
+# Title: Fix Live Transcription Service Conflicts and Delays
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Resolve the 30-second delay and text overwriting issues in live transcription by eliminating competing services, fixing EnhancedAudioRecordingService integration, and implementing proper session lifecycle management.
+# Details:
+Current issues: 1) 30-second delay before transcription appears, 2) Transcription immediately overwrites instead of staying visible, 3) Multiple competing transcription services causing conflicts. Need to consolidate to single audio service, fix event broadcasting, and ensure proper streaming session management.
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Remove Competing Transcription Services [done]
+### Dependencies: None
+### Description: Identify and remove competing transcription services that are causing conflicts and delays
+### Details:
+Analyze RecordingControls and related services to identify multiple competing transcription systems (EnhancedAudioRecordingService, interval-based service, WebSocket streaming, batch fallback). Remove or consolidate redundant services.
+
+## 2. Fix EnhancedAudioRecordingService Real-time Configuration [done]
+### Dependencies: None
+### Description: Fix EnhancedAudioRecordingService configuration for real-time streaming
+### Details:
+Configure EnhancedAudioRecordingService with proper real-time settings, ensure it calls onTranscription callback immediately, and verify it produces streaming-compatible result format with proper isFinal/isPartial flags.
+
+## 3. Debug 30-second Timeout Sources [done]
+### Dependencies: None
+### Description: Debug and eliminate 30-second timeout sources
+### Details:
+Identify the source of 30-second timeouts in proxy-stt-transcription.ts and other services. Remove or reduce these timeouts for real-time streaming. Ensure immediate transcription response rather than batch processing delays.
+
+## 4. Fix Streaming Session Lifecycle Management [done]
+### Dependencies: None
+### Description: Fix streaming session lifecycle to prevent overwriting
+### Details:
+Modify TranscriptsPage streaming event handler to prevent automatic session completion after final transcription. Ensure final transcription results stay visible until manually stopped, not overwritten by subsequent events.
+
+## 5. Test Live Transcription Fixes [done]
+### Dependencies: None
+### Description: Test and validate live transcription fixes
+### Details:
+Test the complete live transcription flow after fixes: 1) Verify transcription appears within 2 seconds, 2) Confirm text stays visible until manually stopped, 3) Validate no competing services interfere, 4) Check proper streaming event flow from RecordingControls to TranscriptsPage.
+

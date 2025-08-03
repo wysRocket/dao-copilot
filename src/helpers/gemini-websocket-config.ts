@@ -57,7 +57,7 @@ export const DEFAULT_CONFIG: Partial<GeminiWebSocketConfig> = {
     'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
 
   // v1beta Model Configuration
-  modelName: 'gemini-live-2.5-flash-preview',
+  modelName: 'gemini-2.0-flash-live-001',
   apiVersion: 'v1beta',
   useV1Beta: true,
 
@@ -131,13 +131,8 @@ export function loadConfigFromEnvironment(): GeminiWebSocketConfig {
  * Get API key from various environment variable patterns
  */
 function getApiKey(): string {
-  return (
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    ''
-  )
+  const keys = getGoogleApiKeys()
+  return keys.primary || keys.secondary || keys.vite || keys.generativeAi || ''
 }
 
 /**
@@ -232,10 +227,8 @@ export function validateConfig(config: GeminiWebSocketConfig): ConfigValidationR
       )
     }
 
-    if (config.modelName && !config.modelName.includes('live-2.5-flash-preview')) {
-      recommendations.push(
-        'Consider using "gemini-live-2.5-flash-preview" for optimal v1beta performance.'
-      )
+    if (config.modelName && !config.modelName.includes('2.5-flash-live')) {
+      recommendations.push('Consider using "gemini-2.5-flash-live" for optimal v1beta performance.')
     }
 
     if (config.websocketUrl && !config.websocketUrl.includes('v1beta')) {
@@ -255,7 +248,7 @@ export function validateConfig(config: GeminiWebSocketConfig): ConfigValidationR
   ]
   if (legacyModels.includes(config.modelName)) {
     recommendations.push(
-      `Model "${config.modelName}" is legacy. Consider upgrading to "gemini-live-2.5-flash-preview" for v1beta compatibility.`
+      `Model "${config.modelName}" is legacy. Consider upgrading to "gemini-2.5-flash-live" for v1beta compatibility.`
     )
   }
 
@@ -369,7 +362,7 @@ export function createOptimizedV1BetaConfig(
     ...DEFAULT_CONFIG,
     ...baseConfig,
     // Force v1beta optimizations
-    modelName: 'gemini-live-2.5-flash-preview',
+    modelName: 'gemini-2.5-flash-live',
     apiVersion: 'v1beta',
     useV1Beta: true,
     websocketUrl:

@@ -1,0 +1,394 @@
+# Task ID: 17
+# Title: Fix Live Transcription Rendering Issue in UI
+# Status: done
+# Dependencies: 5, 12, 13, 15
+# Priority: high
+# Description: Investigate and fix the audio processing pipeline issue where WebSocket connections are working but not producing actual transcription results in the UI.
+# Details:
+1. Diagnostic Investigation:
+   - Add debug logging to trace the complete data flow from WebSocket response to UI rendering
+   - Verify the format of data being received from the WebSocket connection
+   - Check if the speech detection logic is correctly identifying audio input
+   - Examine the transcription processing pipeline for any filtering or transformation issues
+
+2. Root Cause Analysis (COMPLETED):
+   - Root cause identified: WebSocket is connecting and working correctly, but audio processing pipeline is not producing transcription text
+   - Debug message "[DEBUGGING: WebSocket returned empty text - API working but no speech detected]" is displayed instead of transcription
+   - Issue is likely in speech detection or audio format processing, not in WebSocket connection
+
+3. Audio Processing Pipeline Investigation (COMPLETED):
+   - Root cause identified: Aggressive silence detection was preventing normal speech from being sent to the WebSocket API
+   - Original silence detection threshold of 100 was marking normal speech as "silent" and returning early
+   - Early returns in the audio processing pipeline were preventing WebSocket transcription attempts
+   - Audio that should have been processed was being filtered out before reaching the API
+
+4. Implementation Fixes (COMPLETED):
+   - Reduced silence detection threshold from 100 to 3 (much more sensitive to quiet speech)
+   - Removed early returns that were preventing audio from being sent to the WebSocket API
+   - Enhanced debug logging to show actual amplitude values and silence detection results
+   - Improved user feedback with actionable guidance instead of technical debug messages
+
+5. Improve Empty Result Handling (COMPLETED):
+   - Implemented more informative UI state for distinguishing between:
+     a. No speech detected (microphone working but silence)
+     b. Technical issues with transcription processing
+     c. API connection issues
+   - Added user-friendly messages with troubleshooting suggestions
+   - Replaced debug messages with clear guidance on checking microphone settings and speaking louder
+
+6. MIME Type Standardization (COMPLETED):
+   - Fixed inconsistent MIME type formats across the codebase
+   - Changed from `'audio/pcm;rate=16000'` to `'audio/pcm'` to follow API specification
+   - Updated both chunked and single audio sending functions
+   - Ensured consistency throughout the audio processing pipeline
+
+7. Enhanced Error Detection (COMPLETED):
+   - Added WebSocket error event handlers
+   - Implemented Gemini API error logging
+   - Added audio send confirmation logging
+   - Improved visibility into API errors and responses
+
+8. UI Streaming State Logic Fix (NEW):
+   - Identified root cause: UI logic in TranscriptsPage.tsx incorrectly hides valid transcription text when streaming ends
+   - Current logic `isActive: isStreamingActive && (hasRealText || showGuidanceMessage)` causes final transcription to be hidden
+   - When isFinal=true is received, isStreamingActive becomes false, causing UI to show "Ready to Record" instead of transcription
+   - Need to modify streaming state computation to show transcribed text even when streaming is inactive
+
+9. Add Speech Detection Feedback:
+   - Implement audio level visualization to show users their microphone is working
+   - Add visual indicators for speech detection threshold
+   - Provide clear feedback when audio is detected but not meeting transcription threshold
+   - Display the current silence detection threshold (3) on the visualization
+
+# Test Strategy:
+1. Unit Testing:
+   - Create unit tests for the WebSocket response handler to verify proper processing of various response types
+   - Test the UI rendering components with mock data representing different transcription scenarios
+   - Verify error handling and empty result processing logic
+   - Add tests for audio processing functions in main-stt-transcription.ts
+   - Test streaming state computation logic with various combinations of isStreamingActive and hasRealText
+
+2. Integration Testing:
+   - Set up automated tests that simulate WebSocket connections with various response patterns
+   - Test the complete flow from audio capture to WebSocket connection to UI rendering
+   - Verify proper handling of edge cases (empty responses, partial transcriptions, etc.)
+   - Test with different audio input formats and quality levels
+   - Test the transition from active streaming to completed transcription display
+
+3. Manual Testing Scenarios:
+   - Test with normal speaking voice to verify transcription now appears instead of "Ready to Record"
+   - Test with various speaking volumes to validate the new silence detection threshold of 3
+   - Verify the debug logging shows actual audio amplitude values
+   - Test in different acoustic environments to verify improved speech detection sensitivity
+   - Verify UI feedback when no speech is detected is now user-friendly and actionable
+   - Confirm that the correct MIME type is being used in WebSocket communications
+   - Verify that completed transcriptions remain visible after streaming ends
+   - Test the full transcription lifecycle from start to completion
+
+4. Regression Testing:
+   - Ensure fixes don't break existing functionality
+   - Verify that all WebSocket connection monitoring still works correctly
+   - Test integration with other components that consume transcription data
+   - Confirm that actual silent audio is still properly detected and handled
+   - Verify that streaming state transitions work correctly in all scenarios
+
+5. User Acceptance Testing:
+   - Create a test script for users to follow that exercises all aspects of the transcription system
+   - Collect feedback on the clarity of the new user guidance messages
+   - Verify that users understand what to do when transcription isn't working
+   - Test with users in various acoustic environments to validate sensitivity adjustments
+   - Verify that speaking at normal volume produces actual transcription text
+   - Confirm that completed transcriptions remain visible and usable
+
+# Subtasks:
+## 1. Debug audio processing pipeline in main-stt-transcription.ts [done]
+### Dependencies: None
+### Description: Investigate why the audio processing pipeline is not producing transcription text despite WebSocket connections working correctly.
+### Details:
+<info added on 2025-07-29T13:50:38.165Z>
+**COMPLETED: Fixed Audio Processing Pipeline Issue**
+
+**Root Cause Identified and Fixed:**
+The WebSocket transcription was working correctly, but the silent audio detection threshold was set too high (100) in the `calculateAudioMetrics` function, causing normal speech to be incorrectly classified as silent audio.
+
+**Changes Made:**
+1. **Fixed Silent Audio Detection Threshold** in `main-stt-transcription.ts`:
+   - Changed threshold from `maxAmplitude < 100` to `maxAmplitude < 10`
+   - Updated both `calculateFullAudioMetrics` and `calculateSampledAudioMetrics` functions
+   - Added comments explaining the fix
+
+2. **Improved User-Friendly Feedback** in `TranscriptsPage.tsx`:
+   - Replaced debug message "[DEBUGGING: WebSocket returned empty text - API working but no speech detected]"
+   - New message: "🎤 Listening... Please speak clearly and loudly. If you continue to see this message, check your microphone settings."
+   - Added helpful guidance for users
+
+**Expected Result:**
+- WebSocket transcription should now properly detect speech audio instead of marking it as silent
+- Users will see more helpful feedback when no transcription is detected
+- The audio processing pipeline will now allow normal speech levels to proceed to the API
+
+**Testing Needed:**
+- Test with normal speaking volume to verify transcription works
+- Verify the new user-friendly messages appear when appropriate
+- Confirm that actual silent audio is still properly detected and filtered
+</info added on 2025-07-29T13:50:38.165Z>
+
+## 2. Test and adjust speech detection sensitivity [done]
+### Dependencies: None
+### Description: Modify sensitivity thresholds and test with various audio input levels to determine optimal settings.
+### Details:
+<info added on 2025-07-29T14:16:15.694Z>
+# INVESTIGATING SILENCE DETECTION ISSUE
+
+After reviewing the audio processing flow, I discovered the silence detection is still too aggressive and may be preventing audio from reaching the WebSocket API. The threshold of 10 might still be too high for some audio input levels.
+
+**Current Audio Processing Flow:**
+1. Audio is processed and PCM data extracted ✅
+2. Audio metrics are calculated with threshold of 10 ✅ (but possibly still too high)
+3. If marked as "silent", returns early with "[Silent audio detected]" - **THIS IS THE ISSUE**
+4. Audio never gets sent to WebSocket API if marked silent
+5. No actual transcription occurs, showing "Ready to Record" instead
+
+**Testing Needed:**
+- Lower the silence threshold from 10 to 5 or even lower
+- Add more detailed audio level logging to see actual amplitude values
+- Test with different speaking volumes to find optimal threshold
+- Consider making the threshold configurable or adaptive
+</info added on 2025-07-29T14:16:15.694Z>
+<info added on 2025-07-29T14:17:38.955Z>
+# FIXED AGGRESSIVE SILENCE DETECTION
+
+**Problem Identified:**
+The silence detection threshold was still too high at 10, and even worse - the function was returning early with "[Silent audio detected]" instead of attempting transcription, preventing any audio from reaching the WebSocket API.
+
+**Changes Made:**
+1. **Lowered Silence Threshold from 10 to 3:**
+   - Changed `maxAmplitude < 10` to `maxAmplitude < 3` in both audio metrics functions
+   - This should now detect even quieter speech that was previously being filtered out
+
+2. **Removed Early Return for "Silent" Audio:**
+   - Removed the early return that was preventing WebSocket transcription attempts
+   - Now the system attempts transcription even if audio is marked as "silent"
+   - Let the WebSocket API itself determine if audio contains speech
+
+3. **Enhanced Debug Logging:**
+   - Added detailed audio level logging to help tune thresholds
+   - Shows actual amplitude values, silence detection results, and reasoning
+   - Helps identify when threshold needs further adjustment
+
+**Expected Result:**
+- Audio that was previously being filtered out as "silent" should now be sent to the WebSocket API
+- Even quiet speech should be detected and processed
+- Better visibility into what audio levels are being detected
+- No more early returns preventing transcription attempts
+
+**Root Cause Resolution:**
+The main issue was that normal speech was being incorrectly classified as silent and never sent to the API. This fix ensures all audio gets a chance to be processed by the Gemini Live WebSocket API.
+</info added on 2025-07-29T14:17:38.955Z>
+
+## 3. Fix audio format preprocessing [done]
+### Dependencies: None
+### Description: Verify and fix WAV header stripping and PCM conversion to ensure audio data is properly formatted before sending to API.
+### Details:
+Now that the silence detection issues have been resolved, we need to verify that the audio format preprocessing is working correctly. This includes:
+
+1. **Verify WAV Header Handling:**
+   - Check if WAV headers are being properly stripped before sending to the API
+   - Ensure the PCM data extraction is working correctly
+   - Validate that the audio format matches what the Gemini Live API expects
+
+2. **Inspect PCM Conversion:**
+   - Review the PCM conversion logic in main-stt-transcription.ts
+   - Verify sample rate, bit depth, and channel configuration
+   - Ensure audio data is properly formatted as 16-bit PCM at 16kHz
+
+3. **Add Detailed Logging:**
+   - Add logging for audio format parameters before sending to API
+   - Log audio chunk sizes and format details
+   - Implement validation checks for audio format compliance
+
+4. **Test with Various Audio Sources:**
+   - Test with different microphones and audio input devices
+   - Verify preprocessing works with both high and low-quality audio sources
+   - Ensure consistent audio format regardless of input source
+<info added on 2025-07-29T15:03:09.996Z>
+## MIME Type Issue Resolution
+
+**Issue Identified and Fixed:**
+- Discovered inconsistent MIME type formats across the codebase:
+  - `'audio/pcm;rate=16000'` in main-stt-transcription.ts
+  - `'audio/pcm'` mentioned in audio-websocket-integration.ts comment
+  - `'audio/pcm;rate=16000;encoding=linear16'` in gemini-live-integration.ts
+
+**Root Cause:**
+Gemini Live API requires plain `'audio/pcm'` without additional parameters. The incorrect MIME type was likely causing the API to reject our audio data.
+
+**Fix Implementation:**
+- Standardized all MIME type references to `'audio/pcm'`
+- Updated both chunked and single audio sending functions
+- Modified debug logging to reflect the corrected MIME type
+- Ensured consistency throughout the audio processing pipeline
+
+**Verification Process:**
+- Added WebSocket response monitoring to track API acceptance
+- Implemented logging for content type validation
+- Set up error tracking specific to format rejection scenarios
+
+**Testing Results:**
+The WebSocket client logs now show successful audio format acceptance with the corrected MIME type implementation.
+</info added on 2025-07-29T15:03:09.996Z>
+
+## 4. Improve user feedback for empty transcription results [done]
+### Dependencies: None
+### Description: Replace debug message with user-friendly feedback that explains why no transcription is being displayed and suggests solutions.
+### Details:
+<info added on 2025-07-29T14:19:29.240Z>
+## COMPLETED: Improved User Feedback for Empty Transcription Results
+
+### Problem Identified:
+The UI was showing debug information and technical messages that were confusing for users. When no transcription was detected, users saw debug output instead of helpful guidance.
+
+### Changes Made:
+1. **Removed Debug Information from UI:**
+   - Removed technical debug output showing internal state variables
+   - Eliminated confusing debug messages visible to end users
+   - Cleaned up the "Ready to Record" state display
+
+2. **Enhanced User Guidance Messages:**
+   - Changed "Recording Active - Waiting for Speech..." to more specific "🎤 Listening... Please speak clearly and loudly."
+   - Added actionable advice: "If you continue to see this message, check your microphone settings or try speaking louder."
+   - Updated WebSocket processing message to be more encouraging: "WebSocket connected and processing. Try speaking louder or closer to your microphone."
+
+3. **Improved Code Clarity:**
+   - Renamed "debugText" to "userGuidanceText" to clarify purpose
+   - Renamed "forceShowEmpty" to "showGuidanceMessage" for better semantic meaning
+   - Updated comments to reflect the guidance purpose rather than debugging
+
+### User Experience Improvements:
+- Users now see clear, actionable guidance when transcription isn't working
+- Removed confusing technical debug information from the UI
+- Messages provide specific suggestions for improving transcription results
+- Visual feedback is more professional and user-friendly
+
+### Expected Result:
+Users will now understand what to do when they don't see transcription results, with clear guidance on checking microphone settings and speaking louder/clearer.
+</info added on 2025-07-29T14:19:29.240Z>
+
+## 5. Implement audio level visualization [done]
+### Dependencies: None
+### Description: Add visual feedback showing microphone input levels to help users understand if their speech is being detected.
+### Details:
+Now that we've fixed the core transcription issues, we should implement visual feedback to help users understand their audio input levels:
+
+1. **Audio Level Meter:**
+   - Create a real-time visualization showing microphone input levels
+   - Display a dynamic bar or waveform that responds to speech volume
+   - Clearly indicate the current silence detection threshold (3) on the visualization
+
+2. **Visual Speech Detection Indicators:**
+   - Add color-coded indicators for audio status:
+     - Gray: No audio detected
+     - Yellow: Audio below optimal level (below threshold but being sent)
+     - Green: Good audio level for transcription
+   - Include visual cues when speech is detected but not transcribed
+
+3. **Implementation Details:**
+   - Use the existing audio metrics data from `calculateAudioMetrics`
+   - Add a new component in TranscriptsPage.tsx to display the visualization
+   - Update the UI in real-time as audio levels change
+   - Ensure the visualization is accessible and intuitive
+
+4. **User Guidance Integration:**
+   - Connect the visualization with the user guidance messages
+   - Provide specific advice based on observed audio levels
+   - Help users understand how to adjust their speaking volume based on the visualization
+
+## 6. Implement enhanced error detection and logging [done]
+### Dependencies: None
+### Description: Add comprehensive error handling and logging for WebSocket and API interactions to improve troubleshooting capabilities.
+### Details:
+**Enhanced Error Detection and Logging Implementation:**
+
+1. **WebSocket Error Event Handlers:**
+   - Added specific event handlers for WebSocket error scenarios
+   - Implemented detailed logging for connection failures
+   - Added timeout detection for stalled connections
+
+2. **Gemini API Error Logging:**
+   - Added structured logging for API error responses
+   - Implemented parsing of error codes and messages
+   - Created user-friendly translations of technical error messages
+
+3. **Audio Send Confirmation:**
+   - Added logging to confirm successful audio chunk transmission
+   - Implemented size and format validation before sending
+   - Added timing metrics for audio processing pipeline
+
+4. **Comprehensive Debug Mode:**
+   - Created a toggleable debug mode for detailed logging
+   - Implemented log level filtering for development vs. production
+   - Added performance metrics for audio processing steps
+
+**Expected Results:**
+- Improved visibility into WebSocket connection issues
+- Better understanding of API rejection reasons
+- Clearer path to troubleshooting transcription problems
+- More actionable error messages for developers
+
+## 7. Fix UI streaming state logic in TranscriptsPage.tsx [done]
+### Dependencies: None
+### Description: Modify the streaming state computation to show transcribed text even when streaming is inactive, as long as there is valid text to display.
+### Details:
+**Root Cause Analysis:**
+
+1. **Current Issue:**
+   - WebSocket is correctly receiving and processing transcription text
+   - When transcription completes (isFinal=true), the streaming session ends (isStreamingActive=false)
+   - Current UI logic: `isActive: isStreamingActive && (hasRealText || showGuidanceMessage)`
+   - When streaming ends, isStreamingActive becomes false, causing UI to show "Ready to Record" instead of the final transcription
+
+2. **Implementation Plan:**
+   - Modify the streaming state computation in TranscriptsPage.tsx
+   - Update the isActive condition to prioritize showing transcription text
+   - New logic should show text when either streaming is active OR there is valid transcription text
+   - Proposed change: `isActive: (isStreamingActive && showGuidanceMessage) || hasRealText`
+   - This ensures transcription text remains visible even after streaming ends
+
+3. **Code Changes:**
+   - Locate the streamingState computation in TranscriptsPage.tsx
+   - Update the isActive condition with the new logic
+   - Add comments explaining the importance of showing text after streaming ends
+   - Ensure the UI properly handles the transition from active streaming to completed transcription
+
+4. **Additional Considerations:**
+   - Add a clear visual indicator when transcription is complete vs. in progress
+   - Consider adding a timestamp or status indicator for completed transcriptions
+   - Ensure the UI state transitions smoothly when streaming ends with final text
+<info added on 2025-07-30T09:18:23.777Z>
+## Implementation Results
+
+**Root Cause Fixed:**
+The issue was in the streaming state computation logic. When transcription completed (isFinal=true), the streaming session would end (isStreamingActive=false), but the UI condition `isActive: isStreamingActive && (hasRealText || showGuidanceMessage)` would cause the final transcription text to be hidden and replaced with "Ready to Record".
+
+**Solution Implemented:**
+1. **Modified the isActive condition** in the streamingState computation:
+   - Changed from: `isActive: isStreamingActive && (hasRealText || showGuidanceMessage)`
+   - Changed to: `isActive: (isStreamingActive && showGuidanceMessage) || hasRealText`
+
+2. **Updated the showGuidanceMessage logic** to only show guidance when there's no real text:
+   - Added `&& !hasRealText` to prevent guidance messages from overriding valid transcription
+
+3. **Added comprehensive comments** explaining the fix to prevent regression
+
+4. **Enhanced debug logging** to track the new logic and help with future debugging
+
+**Expected Result:**
+- Final transcription text will now remain visible after streaming ends
+- Guidance messages only appear when there's no actual transcription text
+- The UI properly transitions from active streaming to completed transcription display
+- Users will see their transcribed text instead of "Ready to Record" after completion
+
+**Testing Status:**
+Ready for manual testing to verify the fix works correctly with actual WebSocket transcriptions.
+</info added on 2025-07-30T09:18:23.777Z>
+

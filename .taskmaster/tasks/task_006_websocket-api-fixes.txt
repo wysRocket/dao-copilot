@@ -1,0 +1,43 @@
+# Task ID: 6
+# Title: Smart Retry Logic with Exponential Backoff
+# Status: done
+# Dependencies: None
+# Priority: medium
+# Description: Implement proper exponential backoff and smart retry logic for WebSocket connection failures with quota awareness
+# Details:
+
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Implement Exponential Backoff Algorithm [done]
+### Dependencies: None
+### Description: Create a robust exponential backoff algorithm with jitter for WebSocket connection retries
+### Details:
+Implement an exponential backoff algorithm that starts with a base delay (1-2 seconds) and doubles with each retry attempt, adding random jitter to prevent thundering herd problems. Include configurable maximum delay and maximum retry attempts.
+
+## 2. Add Quota-Aware Retry Logic [done]
+### Dependencies: None
+### Description: Add quota-aware logic that prevents retries when API quota is exceeded
+### Details:
+Integrate with the existing QuotaManager to detect quota exceeded errors and skip retries for these scenarios. Instead, implement a longer cooldown period and notify the user about quota limits.
+
+## 3. Implement Circuit Breaker Pattern [done]
+### Dependencies: None
+### Description: Implement circuit breaker pattern to prevent endless retry loops
+### Details:
+Create a circuit breaker that opens after a certain number of consecutive failures, preventing further retry attempts for a cooldown period. Include states: closed (normal), open (blocked), and half-open (testing).
+
+## 4. Implement Error-Specific Retry Strategies [done]
+### Dependencies: None
+### Description: Create different retry strategies for different error types
+### Details:
+Implement error classification to handle network errors (retry with backoff), quota errors (no retry, wait for quota reset), authentication errors (retry with API key rotation), and unknown errors (limited retries with longer backoff).
+
+## 5. Add Retry Logging and Monitoring [done]
+### Dependencies: None
+### Description: Add comprehensive retry logging and monitoring
+### Details:
+Implement detailed logging for retry attempts including error types, retry count, backoff duration, and circuit breaker state. Add metrics for monitoring retry success/failure rates and system health.
+

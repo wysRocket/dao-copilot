@@ -33,6 +33,20 @@ export interface TranscriptionPerformanceMetrics {
   source: 'websocket' | 'batch' | 'proxy'
 }
 
+/**
+ * Streaming performance metrics interface
+ */
+export interface StreamingPerformanceMetrics {
+  activeSessions: number
+  totalChunksProcessed: number
+  averageProcessingTime: number
+  successRate: number
+  memoryUsage: number
+  backpressureActivations: number
+  qualityScore: number
+  timestamp?: number
+}
+
 export interface PerformanceThresholds {
   maxAudioProcessingTime: number // ms
   maxApiLatency: number // ms
@@ -45,6 +59,7 @@ export class UnifiedPerformanceService {
   private static instance: UnifiedPerformanceService | null = null
   private performanceMonitor: PerformanceMonitor
   private transcriptionMetrics: TranscriptionPerformanceMetrics[] = []
+  private streamingMetrics: StreamingPerformanceMetrics[] = []
   private readonly maxMetricsHistory = 100
   
   private readonly defaultThresholds: PerformanceThresholds = {
@@ -315,7 +330,146 @@ ${this.generatePerformanceRecommendations(stats)}
    */
   public clearMetrics(): void {
     this.transcriptionMetrics = []
+    this.streamingMetrics = []
     console.log('🧹 Cleared all transcription performance metrics')
+  }
+
+  /**
+   * Add streaming performance metrics
+   */
+  public addStreamingMetrics(metrics: StreamingPerformanceMetrics): void {
+    const timestampedMetrics = {
+      ...metrics,
+      timestamp: Date.now()
+    }
+    
+    this.streamingMetrics.push(timestampedMetrics)
+    
+    // Keep only recent metrics
+    if (this.streamingMetrics.length > this.maxMetricsHistory) {
+      this.streamingMetrics.shift()
+    }
+    
+    console.log('📊 Streaming metrics updated:', {
+      activeSessions: metrics.activeSessions,
+      chunksProcessed: metrics.totalChunksProcessed,
+      successRate: metrics.successRate.toFixed(1) + '%',
+      qualityScore: metrics.qualityScore.toFixed(1)
+    })
+  }
+
+  /**
+   * Get streaming metrics statistics
+   */
+  public getStreamingStats(): {
+    currentMetrics: StreamingPerformanceMetrics | null
+    averageQualityScore: number
+    totalChunksProcessed: number
+    averageSuccessRate: number
+    memoryTrend: 'increasing' | 'decreasing' | 'stable'
+    recommendations: string[]
+  } {
+    if (this.streamingMetrics.length === 0) {
+      return {
+        currentMetrics: null,
+        averageQualityScore: 0,
+        totalChunksProcessed: 0,
+        averageSuccessRate: 0,
+        memoryTrend: 'stable',
+        recommendations: ['No streaming metrics available']
+      }
+    }
+
+    const current = this.streamingMetrics[this.streamingMetrics.length - 1]
+    const avgQuality = this.streamingMetrics.reduce((sum, m) => sum + m.qualityScore, 0) / this.streamingMetrics.length
+    const totalChunks = Math.max(...this.streamingMetrics.map(m => m.totalChunksProcessed))
+    const avgSuccess = this.streamingMetrics.reduce((sum, m) => sum + m.successRate, 0) / this.streamingMetrics.length
+
+    // Calculate memory trend
+    let memoryTrend: 'increasing' | 'decreasing' | 'stable' = 'stable'
+    if (this.streamingMetrics.length >= 3) {
+      const recent = this.streamingMetrics.slice(-3)
+      const trend = recent[2].memoryUsage - recent[0].memoryUsage
+      if (trend > 5 * 1024 * 1024) { // 5MB increase
+        memoryTrend = 'increasing'
+      } else if (trend < -5 * 1024 * 1024) { // 5MB decrease
+        memoryTrend = 'decreasing'
+      }
+    }
+
+    // Generate recommendations
+    const recommendations: string[] = []
+    if (avgQuality < 70) {
+      recommendations.push('Quality score is low - check audio input and processing settings')
+    }
+    if (avgSuccess < 95) {
+      recommendations.push('Success rate is below optimal - investigate error patterns')
+    }
+    if (memoryTrend === 'increasing') {
+      recommendations.push('Memory usage is trending upward - consider enabling memory optimizations')
+    }
+    if (current.backpressureActivations > 10) {
+      recommendations.push('Frequent backpressure detected - consider adjusting buffer settings')
+    }
+    if (recommendations.length === 0) {
+      recommendations.push('Streaming performance looks good!')
+    }
+
+    return {
+      currentMetrics: current,
+      averageQualityScore: avgQuality,
+      totalChunksProcessed: totalChunks,
+      averageSuccessRate: avgSuccess,
+      memoryTrend,
+      recommendations
+    }
+  }
+
+  /**
+   * Get combined performance report including streaming metrics
+   */
+  public getCombinedPerformanceReport(): {
+    transcription: ReturnType<UnifiedPerformanceService['getPerformanceStats']>
+    streaming: ReturnType<UnifiedPerformanceService['getStreamingStats']>
+    overall: {
+      systemHealth: 'excellent' | 'good' | 'degraded' | 'poor'
+      recommendations: string[]
+    }
+  } {
+    const transcriptionStats = this.getPerformanceStats()
+    const streamingStats = this.getStreamingStats()
+
+    // Calculate overall system health
+    let systemHealth: 'excellent' | 'good' | 'degraded' | 'poor' = 'excellent'
+    
+    const transcriptionScore = transcriptionStats.averageConfidence * 100
+    const streamingScore = streamingStats.averageQualityScore
+    const memoryScore = streamingStats.memoryTrend === 'increasing' ? 70 : 90
+    
+    const overallScore = (transcriptionScore + streamingScore + memoryScore) / 3
+    
+    if (overallScore < 60) {
+      systemHealth = 'poor'
+    } else if (overallScore < 75) {
+      systemHealth = 'degraded'
+    } else if (overallScore < 90) {
+      systemHealth = 'good'
+    }
+
+    // Combined recommendations
+    const overallRecommendations = [
+      ...transcriptionStats.recommendations.split('\n').filter(r => r.trim()),
+      ...streamingStats.recommendations
+    ].filter((rec, index, arr) => arr.indexOf(rec) === index) // Remove duplicates
+
+    return {
+      transcription: transcriptionStats,
+      streaming: streamingStats,
+      overall: {
+        systemHealth,
+        recommendations: overallRecommendations
+      }
+    }
   }
 }
 

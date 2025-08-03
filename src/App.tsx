@@ -8,6 +8,7 @@ import {router} from './routes/router'
 import {assistantRouter} from './routes/router-assistant'
 import {RouterProvider} from '@tanstack/react-router'
 import {initializeTranscriptionEventMiddleware} from './middleware/TranscriptionEventMiddleware'
+import {autoResetCircuitBreakersOnStartup} from './utils/auto-reset-circuit-breakers'
 
 function AppContent() {
   const {windowState} = useWindowState()
@@ -20,6 +21,9 @@ function AppContent() {
 
 export default function App() {
   useEffect(() => {
+    // 🔄 Auto-reset circuit breakers on app startup for clean transcription operation
+    autoResetCircuitBreakersOnStartup()
+    
     // Initialize transcription event middleware on app startup
     const middleware = initializeTranscriptionEventMiddleware()
 

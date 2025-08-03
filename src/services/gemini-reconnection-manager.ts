@@ -6,6 +6,7 @@
 import {EventEmitter} from 'events'
 import {logger} from './gemini-logger'
 import {GeminiErrorHandler, ErrorType} from './gemini-error-handler'
+import {apiKeyManager} from './api-key-manager'
 
 export enum ReconnectionStrategy {
   EXPONENTIAL = 'exponential',
@@ -312,10 +313,28 @@ export class ReconnectionManager extends EventEmitter {
   }
 
   /**
-   * Calculate delay based on strategy
+   * Calculate delay based on strategy with quota-aware backoff
    */
-  private calculateDelay(): number {
+  private calculateDelay(isQuotaRelated: boolean = false): number {
     let delay: number
+
+    // For quota-related errors, use more aggressive backoff
+    if (isQuotaRelated) {
+      // Start with 5 seconds for quota issues and increase exponentially
+      const quotaBaseDelay = Math.max(5000, this.config.baseDelay * 2)
+      delay = quotaBaseDelay * Math.pow(3, this.state.attemptCount - 1) // 3x multiplier for quota
+      
+      // Cap at 5 minutes for quota errors
+      delay = Math.min(delay, 300000)
+      
+      logger.info('Using quota-aware exponential backoff', {
+        attempt: this.state.attemptCount,
+        delay: delay,
+        delayMinutes: (delay / 60000).toFixed(1)
+      })
+      
+      return Math.round(delay)
+    }
 
     switch (this.config.strategy) {
       case ReconnectionStrategy.EXPONENTIAL:
@@ -391,17 +410,51 @@ export class ReconnectionManager extends EventEmitter {
    * Determine if reconnection should be attempted
    */
   private shouldAttemptReconnection(reason?: string): boolean {
+    // Check if API key manager has circuit breaker active for quota issues
+    if (!apiKeyManager.hasValidKeys()) {
+      logger.warn('No valid API keys available, postponing reconnection')
+      return false
+    }
+
+    // Check if all keys are quota blocked (circuit breaker)
+    const keyStatus = apiKeyManager.getKeyStatus()
+    const availableKeys = keyStatus.filter(key => key.available)
+    
+    if (availableKeys.length === 0 && keyStatus.length > 0) {
+      logger.warn('All API keys are quota blocked, postponing reconnection')
+      return false
+    }
+
     // Don't reconnect if we've reached max attempts
     if (this.state.attemptCount >= this.config.maxAttempts) {
       return false
     }
 
-    // Don't reconnect for certain error types
-    const nonRetryableReasons = ['unauthorized', 'forbidden', 'invalid_api_key', 'quota_exceeded']
+    // Enhanced quota handling - check for various quota error patterns
+    const quotaPatterns = [
+      'quota exceeded', 'quota_exceeded', 'rate limit', 'rate_limit',
+      'billing', 'usage limit', 'too many requests'
+    ]
+    
+    const authPatterns = [
+      'unauthorized', 'forbidden', 'invalid_api_key', 'authentication failed'
+    ]
 
-    if (reason && nonRetryableReasons.some(nr => reason.toLowerCase().includes(nr))) {
-      logger.info('Not attempting reconnection due to non-retryable reason', {reason})
-      return false
+    if (reason) {
+      const lowerReason = reason.toLowerCase()
+      
+      // Check for quota errors
+      if (quotaPatterns.some(pattern => lowerReason.includes(pattern))) {
+        logger.info('Quota-related error detected, implementing exponential backoff', {reason})
+        // Allow reconnection with longer delays for quota issues
+        return this.state.attemptCount < Math.ceil(this.config.maxAttempts * 0.8) // Allow 80% of max attempts
+      }
+      
+      // Check for authentication errors
+      if (authPatterns.some(pattern => lowerReason.includes(pattern))) {
+        logger.info('Authentication error detected, allowing limited reconnection attempts', {reason})
+        return this.state.attemptCount < 3 // Only 3 attempts for auth issues
+      }
     }
 
     // Consider connection quality

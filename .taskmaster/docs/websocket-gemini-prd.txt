@@ -1,0 +1,119 @@
+# WebSocket Gemini Live API Fix - Product Requirements Document
+
+## Project Overview
+Fix WebSocket connectivity issues with Google's Gemini Live API to enable real-time speech-to-text transcription in the DAO Copilot application.
+
+## Problem Statement
+The current WebSocket implementation faces several critical issues:
+1. **API Quota Exceeded**: Primary Google API key hits quota limits causing immediate connection closures
+2. **Setup Timeout**: 15-second timeouts when waiting for setup response from Gemini Live API  
+3. **Reconnection Loop**: Continuous failed reconnection attempts causing resource waste
+4. **Poor Error Handling**: Insufficient quota-aware error handling and circuit breaking
+
+## Current State
+- ✅ Stack overflow recursion issue RESOLVED
+- ✅ Batch transcription fallback working properly
+- ❌ WebSocket connections fail with code 1011 (quota exceeded)
+- ❌ Setup timeouts after WebSocket connection establishment
+- ❌ Reconnection loops consume resources unnecessarily
+
+## Success Criteria
+1. **WebSocket Connections**: Successful connection to Gemini Live API without quota errors
+2. **Real-time Transcription**: Live streaming audio transcription working end-to-end
+3. **Error Recovery**: Graceful handling of quota limits with proper fallback mechanisms
+4. **Performance**: No resource leaks from failed reconnection attempts
+5. **User Experience**: Clear status indicators for connection state and quota issues
+
+## Technical Requirements
+
+### API Key Management
+- Implement proper API key rotation between GOOGLE_API_KEY and VITE_GOOGLE_API_KEY
+- Add quota monitoring and circuit breaker patterns
+- Validate API key permissions for Gemini Live API access
+
+### WebSocket Connection Flow
+- Fix setup timeout issues (currently 15 seconds)
+- Implement proper connection state management
+- Add connection quality monitoring and health checks
+
+### Error Handling & Recovery
+- Implement quota-aware error handling with exponential backoff
+- Add circuit breaker for quota exceeded scenarios
+- Provide clear user feedback for different error states
+
+### Monitoring & Observability
+- Add comprehensive logging for connection lifecycle
+- Implement metrics for connection success rates
+- Create debugging tools for WebSocket troubleshooting
+
+### Testing & Validation
+- Unit tests for WebSocket connection flow
+- Integration tests with actual Gemini Live API
+- Load testing for quota limit scenarios
+
+## Architecture Components
+
+### Core Services
+- `GeminiLiveWebSocketClient`: Main WebSocket client implementation
+- `TranscriptionEventMiddleware`: Event routing and state management
+- `GeminiErrorHandler`: Error categorization and recovery logic
+- `WebSocketHeartbeatMonitor`: Connection health monitoring
+
+### Configuration Management
+- Environment variable validation and loading
+- API key rotation and quota tracking
+- WebSocket configuration optimization
+
+### State Management
+- `TranscriptionStateManager`: Unified state for transcription flow
+- Connection state tracking and updates
+- Real-time UI status indicators
+
+## Acceptance Criteria
+
+### Must Have
+1. WebSocket connections succeed without quota errors
+2. Real-time transcription streams audio to text successfully  
+3. Proper fallback to batch mode when WebSocket fails
+4. No infinite reconnection loops or resource leaks
+
+### Should Have
+1. Circuit breaker prevents quota exhaustion
+2. Clear user feedback for connection states
+3. Automatic API key rotation when quota exceeded
+4. Performance monitoring and metrics
+
+### Nice to Have
+1. Advanced debugging tools for WebSocket issues
+2. Predictive quota monitoring
+3. Connection quality optimization
+4. Enhanced error recovery strategies
+
+## Timeline & Priorities
+
+### Phase 1 (High Priority): Connection Stability
+- Fix API key quota issues
+- Implement proper setup flow
+- Add basic error handling
+
+### Phase 2 (Medium Priority): Error Recovery  
+- Circuit breaker implementation
+- API key rotation logic
+- Enhanced reconnection strategy
+
+### Phase 3 (Low Priority): Monitoring & UX
+- Advanced monitoring tools
+- User feedback improvements
+- Performance optimizations
+
+## Dependencies
+- Google Cloud API access with proper billing
+- Valid API keys with Gemini Live API permissions
+- WebSocket infrastructure stability
+- Electron IPC communication working properly
+
+## Risks & Mitigation
+- **API Quota Limits**: Use multiple API keys and implement rotation
+- **Network Connectivity**: Implement robust retry mechanisms
+- **WebSocket Protocol Changes**: Version pinning and compatibility testing
+- **Performance Impact**: Resource monitoring and cleanup procedures

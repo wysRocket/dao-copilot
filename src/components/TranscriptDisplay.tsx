@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState} from 'react'
 import {TranscriptionResult} from '../services/main-stt-transcription'
 import GlassBox from './GlassBox'
 import VirtualizedTranscript from './VirtualizedTranscript'
-import LiveStreamingArea from './LiveStreamingArea'
+import {FastTranscriptionDisplay} from './FastTranscriptionDisplay'  // 🚀 PERFORMANCE FIX
 import {TextStreamBuffer} from '../services/TextStreamBuffer'
 import {useAutoScroll} from '../hooks/useAutoScroll'
 import {NewContentIndicator, ScrollControls} from './AutoScrollComponents'
@@ -246,20 +246,10 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
                     className="border-opacity-20 mt-4 border-t pt-4"
                     style={{borderColor: 'var(--border-secondary)'}}
                   >
-                    <LiveStreamingArea
-                      streamingText={streamingText}
-                      isStreamingActive={isStreamingActive}
-                      isStreamingPartial={isStreamingPartial}
-                      streamingMode={streamingMode}
-                      streamingSource="microphone"
-                      confidence={0.85} // Default confidence, should come from props
-                      accessibilityConfig={mergedAccessibilityConfig}
-                      onStreamingComplete={onStreamingComplete}
-                      onClearStreaming={() => onStreamingComplete?.()}
-                      animate={true}
-                      showSourceBadge={true}
-                      showConfidenceScore={true}
-                      className="w-full"
+                    {/* 🚀 PERFORMANCE FIX: Replace complex LiveStreamingArea with FastTranscriptionDisplay */}
+                    <FastTranscriptionDisplay
+                      text={streamingText}
+                      isPartial={isStreamingPartial}
                     />
                   </div>
                 )}

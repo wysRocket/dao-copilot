@@ -1,0 +1,170 @@
+# Task ID: 24
+# Title: Debug Live Transcription Display Issues in TranscriptsPage
+# Status: pending
+# Dependencies: 17, 13, 22
+# Priority: medium
+# Description: Investigate and fix the issue where live transcription text is not displaying in TranscriptsPage despite the WebSocket connection showing "Ready" and the bridge being initialized. Root cause identified: incorrect model name was being used for the Gemini Live API.
+# Details:
+1. Root Cause Identified and Fixed:
+   - Initially app was using incorrect model name: `gemini-live-2.5-flash`
+   - Then updated to: `gemini-2.0-flash-live-preview-04-09` which was also incorrect
+   - API validation logs showed the actual available Live API models
+   - Correct Live API model is: `gemini-2.5-flash` (confirmed by API validation)
+   - WebSocket was consistently failing with model not found errors
+   - Updated model name references across multiple files to the correct model
+
+2. Available Live API Models (confirmed by API validation):
+   - 'models/gemini-2.5-flash-preview-05-20'
+   - 'models/gemini-2.5-flash' ✅ USING THIS ONE
+   - 'models/gemini-2.5-flash-lite-preview-06-17'
+   - 'models/gemini-2.5-flash-preview-tts'
+   - 'models/gemini-2.5-flash-lite'
+
+3. Files Updated:
+   - `src/services/gemini-live-websocket.ts` - Updated GEMINI_LIVE_MODEL constant
+   - `src/services/main-stt-transcription.ts` - Updated DEFAULT_GEMINI_LIVE_MODEL
+   - `src/helpers/gemini-websocket-config.ts` - Updated default modelName
+   - `src/services/audio-streaming-pipeline.ts` - Updated model references
+   - `src/services/proxy-stt-transcription.ts` - Updated model reference
+   - `.env.example` - Updated GEMINI_MODEL_NAME example
+
+4. Circuit Breaker Reset:
+   - Reset circuit breaker to clear previous error states
+   - App restarted successfully with new model configuration
+
+5. Verify WebSocket Event Emission:
+   - Add console.debug statements in the WebSocket message handler to log raw incoming messages
+   - Verify that onTranscript and onTranscriptionComplete events are being triggered
+   - Check message format and content against expected schema
+   - Confirm events contain valid transcription data
+
+6. Debug GeminiTranscriptionBridge:
+   - Verify bridge initialization is complete before transcription starts
+   - Check event listener registration and callback execution
+   - Confirm bridge is correctly forwarding events to registered handlers
+   - Test bridge with mock events to isolate potential issues
+
+7. Analyze TranscriptionEventMiddleware:
+   - Trace event flow through middleware processing
+   - Verify middleware is correctly transforming events into the expected format
+   - Check for any filtering logic that might be blocking events
+   - Ensure events are being properly queued and dispatched
+
+8. Debug Window Message Broadcasting:
+   - Add logging for postMessage calls with transcription data
+   - Verify message format matches what TranscriptsPage expects
+   - Check origin and target window configurations
+   - Test with manual postMessage calls to isolate communication issues
+
+9. Fix TranscriptsPage Streaming State Logic:
+   - Review state management for streaming transcription
+   - Check conditional rendering logic for transcription text
+   - Verify state updates are triggering re-renders
+   - Test with mock state changes to confirm UI responsiveness
+
+10. End-to-End Testing:
+    - Create a test harness that simulates the complete transcription flow
+    - Step through each component with breakpoints to identify where the flow breaks
+    - Fix identified issues and verify end-to-end functionality
+    - Document the complete data flow for future reference
+
+# Test Strategy:
+1. Verify Model Name Fix:
+   - Test WebSocket connection establishment with the corrected model name `gemini-2.5-flash`
+   - Confirm no more "model not found" errors in the console
+   - Verify successful connection to the Gemini Live API
+   - Test with both environment variable configuration and default values
+
+2. Component-Level Testing:
+   - Create unit tests for each component in the transcription flow
+   - Test GeminiLiveWebSocketClient with mock WebSocket messages
+   - Verify GeminiTranscriptionBridge correctly forwards events with mock sources
+   - Test TranscriptionEventMiddleware with various event types
+   - Validate TranscriptsPage rendering with different streaming states
+
+3. Integration Testing:
+   - Set up an integration test environment with all components connected
+   - Use mock WebSocket server to simulate transcription events
+   - Verify events flow correctly through the entire pipeline
+   - Test with various transcription scenarios (short/long text, multiple segments)
+
+4. UI Verification:
+   - Create visual regression tests for TranscriptsPage
+   - Verify transcription text appears correctly in the UI
+   - Test streaming updates with different update frequencies
+   - Confirm UI handles empty, partial, and complete transcriptions correctly
+
+5. Error Handling Testing:
+   - Test behavior when WebSocket disconnects during transcription
+   - Verify recovery when connection is re-established
+   - Test with malformed transcription data
+   - Confirm appropriate error messages are displayed to users
+
+6. Performance Testing:
+   - Measure rendering performance with large transcription updates
+   - Test with rapid succession of transcription events
+   - Verify UI remains responsive during continuous streaming
+
+7. Manual Verification:
+   - Perform end-to-end testing with actual audio input
+   - Verify transcription appears in real-time as expected
+   - Test with different browsers and devices
+   - Document any browser-specific issues or inconsistencies
+
+# Subtasks:
+## 1. Update model name references across codebase [done]
+### Dependencies: None
+### Description: Fix the incorrect model name from 'gemini-live-2.5-flash' to 'gemini-2.0-flash-live-preview-04-09' in all relevant files
+### Details:
+
+
+## 2. Verify WebSocket connection with correct model name [pending]
+### Dependencies: None
+### Description: Test that WebSocket connections successfully establish with the corrected model name and no longer show the 'model not found' error
+### Details:
+
+
+## 3. Test transcription event flow through bridge to UI [pending]
+### Dependencies: None
+### Description: Verify that transcription events are now properly flowing from the WebSocket through the bridge to the TranscriptsPage UI
+### Details:
+
+
+## 4. Update documentation with correct model name [pending]
+### Dependencies: None
+### Description: Update any internal documentation, README files, or developer guides to reference the correct Gemini Live API model name
+### Details:
+
+
+## 5. Update model name to 'gemini-2.5-flash' across codebase [done]
+### Dependencies: None
+### Description: Fix the previously updated but still incorrect model name from 'gemini-2.0-flash-live-preview-04-09' to 'gemini-2.5-flash' in all relevant files based on API validation logs
+### Details:
+Update the following files:
+1. src/services/gemini-live-websocket.ts - GEMINI_LIVE_MODEL constant
+2. src/services/main-stt-transcription.ts - DEFAULT_GEMINI_LIVE_MODEL constant
+3. src/helpers/gemini-websocket-config.ts - modelName default
+4. src/services/audio-streaming-pipeline.ts - model defaults (2 locations)
+5. src/services/proxy-stt-transcription.ts - model configuration
+6. .env.example - GEMINI_LIVE_MODEL example
+
+## 6. Reset circuit breaker and test with new model configuration [done]
+### Dependencies: 24.5
+### Description: Reset the circuit breaker to clear previous error states and restart the app with the new model configuration
+### Details:
+1. Reset the circuit breaker state
+2. Restart the application
+3. Verify the app initializes correctly with the new model configuration
+4. Check logs for any initialization errors
+
+## 7. Document available Live API models for future reference [pending]
+### Dependencies: None
+### Description: Create documentation that lists all available Gemini Live API models confirmed by API validation to prevent future model selection errors
+### Details:
+Document the following available models:
+- 'models/gemini-2.5-flash-preview-05-20'
+- 'models/gemini-2.5-flash'
+- 'models/gemini-2.5-flash-lite-preview-06-17'
+- 'models/gemini-2.5-flash-preview-tts'
+- 'models/gemini-2.5-flash-lite'
+

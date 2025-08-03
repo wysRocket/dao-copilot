@@ -22,6 +22,10 @@ import {convertFloat32ToPCM16, validateAudioFormat} from './gemini-audio-utils'
 import {logger} from './gemini-logger'
 import {isAudioCaptureSupported, isNodeEnvironment} from '../helpers/environment-config'
 import type {ProcessedMessage} from './gemini-message-handler'
+import StreamingTranscriptionParser, {
+  type StreamingTranscriptionResult,
+  TranscriptionState
+} from './streaming-transcription-parser'
 
 export enum TranscriptionMode {
   BATCH = 'batch', // Traditional batch processing
@@ -56,6 +60,7 @@ export interface IntegrationState {
 export class GeminiLiveIntegrationService extends EventEmitter {
   private websocketClient: GeminiLiveWebSocketClient | null = null
   private audioService: AudioRecordingService | null = null
+  private streamingParser: StreamingTranscriptionParser | null = null
   private config: IntegrationConfig
   private state: IntegrationState
   private audioBuffer: Float32Array[] = []
@@ -130,10 +135,15 @@ export class GeminiLiveIntegrationService extends EventEmitter {
 
     this.initializeServices()
 
+    // Initialize streaming parser
+    this.streamingParser = new StreamingTranscriptionParser(`integration_${Date.now()}`)
+    this.setupStreamingParserHandlers()
+
     logger.info('GeminiLiveIntegrationService initialized', {
       mode: this.config.mode,
       fallbackEnabled: this.config.fallbackToBatch,
-      streamingEnabled: this.config.enableAudioStreaming
+      streamingEnabled: this.config.enableAudioStreaming,
+      parserInitialized: !!this.streamingParser
     })
   }
 
@@ -230,6 +240,60 @@ export class GeminiLiveIntegrationService extends EventEmitter {
   }
 
   /**
+   * Set up streaming parser event handlers
+   */
+  private setupStreamingParserHandlers(): void {
+    if (!this.streamingParser) return
+
+    this.streamingParser.on('transcriptionResult', (result: StreamingTranscriptionResult) => {
+      logger.debug('Streaming transcription result received', {
+        textLength: result.text.length,
+        state: result.state,
+        language: result.language,
+        confidence: result.confidence,
+        isComplete: result.isComplete
+      })
+
+      // Convert to legacy TranscriptionResult format for compatibility
+      const legacyResult: TranscriptionResult = {
+        text: result.text,
+        confidence: result.confidence,
+        duration: result.metadata?.duration,
+        timestamp: result.timestamp,
+        source: 'websocket'
+      }
+
+      // Update state
+      this.updateState({
+        lastTranscription: legacyResult,
+        isProcessing: !result.isComplete
+      })
+
+      // Emit legacy event for compatibility
+      this.emit('transcription', legacyResult, 'websocket')
+      
+      // Emit enhanced event for new features
+      this.emit('streamingTranscription', result)
+    })
+
+    this.streamingParser.on('transcriptionPartial', (result: StreamingTranscriptionResult) => {
+      this.emit('partialTranscription', result)
+    })
+
+    this.streamingParser.on('transcriptionComplete', (result: StreamingTranscriptionResult) => {
+      this.emit('completeTranscription', result)
+    })
+
+    this.streamingParser.on('transcriptionError', (result: StreamingTranscriptionResult, error: Error) => {
+      logger.error('Streaming parser error', {
+        error: error.message,
+        result
+      })
+      this.emit('transcriptionError', error, result)
+    })
+  }
+
+  /**
    * Set up audio service event handlers
    */
   private setupAudioServiceHandlers(): void {
@@ -261,22 +325,70 @@ export class GeminiLiveIntegrationService extends EventEmitter {
 
     logger.debug('Processing WebSocket message', {
       type: message.type,
-      isValid: message.isValid
+      isValid: message.isValid,
+      hasPayload: !!message.payload
     })
 
     if (message.isValid && message.payload) {
-      // Extract transcription text if available
-      const payload = message.payload as Record<string, unknown>
-      if (payload.text) {
+      // Use the enhanced streaming parser for better text extraction
+      if (this.streamingParser) {
+        const streamingResult = this.streamingParser.parseMessage(message.original)
+        
+        if (streamingResult && streamingResult.text) {
+          logger.info('Enhanced parser extracted transcription', {
+            text: streamingResult.text,
+            state: streamingResult.state,
+            language: streamingResult.language,
+            confidence: streamingResult.confidence,
+            chunkText: streamingResult.metadata?.chunkText
+          })
+          
+          // The streaming parser will emit events that are handled by setupStreamingParserHandlers
+          return
+        }
+      }
+
+      // Fallback to legacy parsing if streaming parser doesn't extract content
+      let text: string = ''
+      
+      // Try different payload formats
+      if (typeof message.payload === 'string') {
+        text = message.payload.trim()
+      } else if (message.payload && typeof message.payload === 'object') {
+        const payload = message.payload as Record<string, unknown>
+        
+        if (typeof payload.text === 'string') {
+          text = payload.text.trim()
+        } else if (typeof payload.content === 'string') {
+          text = payload.content.trim()
+        } else if (typeof payload.transcript === 'string') {
+          text = payload.transcript.trim()
+        }
+      }
+      
+      if (text) {
+        // Safe confidence extraction
+        let confidence: number | undefined
+        if (message.payload && typeof message.payload === 'object') {
+          const payload = message.payload as Record<string, unknown>
+          confidence = typeof payload.confidence === 'number' ? payload.confidence : undefined
+        }
+        
         this.handleTranscriptionResult(
           {
-            text: payload.text,
-            confidence: payload.confidence,
+            text: text,
+            confidence: confidence,
             timestamp: Date.now()
           },
           'websocket'
         )
       }
+    } else {
+      logger.debug('Invalid or empty WebSocket message', {
+        isValid: message.isValid,
+        hasPayload: !!message.payload,
+        errors: message.errors
+      })
     }
   }
 
@@ -779,6 +891,12 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     if (this.fallbackTimer) {
       clearTimeout(this.fallbackTimer)
       this.fallbackTimer = null
+    }
+
+    // Cleanup streaming parser
+    if (this.streamingParser) {
+      this.streamingParser.removeAllListeners()
+      this.streamingParser = null
     }
 
     // Cleanup WebSocket client
