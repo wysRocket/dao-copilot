@@ -10,8 +10,7 @@ import {takeUntil} from 'rxjs/operators'
 import {getAudioCapture, type AudioChunkData} from './audio-capture-factory'
 import {
   RealTimeAudioStreamingService,
-  createRealTimeAudioStreaming,
-  type StreamingMetrics
+  createRealTimeAudioStreaming
 } from './real-time-audio-streaming'
 import {GeminiLiveIntegrationService} from './gemini-live-integration'
 import {sanitizeLogMessage} from './log-sanitizer'
@@ -504,29 +503,7 @@ export class EnhancedAudioRecordingService {
 
       // Send for transcription via IPC
       if (window.transcriptionAPI?.transcribeAudio) {
-        console.log(
-          '🎤 EnhancedAudioRecording: Calling transcriptionAPI.transcribeAudio with',
-          wavData.length,
-          'bytes'
-        )
         const result = await window.transcriptionAPI.transcribeAudio(wavData)
-        console.log('🎤 EnhancedAudioRecording: RAW IPC RESULT STRUCTURE:', {
-          type: typeof result,
-          keys: result ? Object.keys(result) : 'null',
-          fullResult: JSON.stringify(result, null, 2)
-        })
-        console.log('🎤 EnhancedAudioRecording: Result text analysis:', {
-          text: result?.text,
-          textType: typeof result?.text,
-          textLength: result?.text?.length,
-          textTrimmed: result?.text?.trim(),
-          textTrimmedLength: result?.text?.trim()?.length,
-          textTruthyCheck: !!result?.text?.trim()
-        })
-        console.log(
-          '🎤 EnhancedAudioRecording: onTranscription callback exists:',
-          !!onTranscription
-        )
 
         if (onTranscription && result?.text?.trim()) {
           console.log('🎤 EnhancedAudioRecording: ✅ CALLING onTranscription callback with result')

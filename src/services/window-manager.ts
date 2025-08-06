@@ -4,6 +4,13 @@ import icon from '../../resources/icon.png'
 
 export type WindowType = 'main' | 'assistant'
 
+export type ComponentType =
+  | 'transcription-display'
+  | 'websocket-diagnostics'
+  | 'transcription-events'
+  | 'streaming-text'
+  | 'transcript-list'
+
 export interface WindowConfig {
   width: number
   height: number
@@ -25,6 +32,14 @@ export interface WindowConfig {
   titleBarStyle?: 'default' | 'hidden' | 'hiddenInset' | 'customButtonsOnHover'
 }
 
+export interface ComponentRoutingRule {
+  componentType: ComponentType
+  targetWindow: WindowType
+  fallbackWindow?: WindowType
+  developmentOnly?: boolean
+  conditions?: (windowState: WindowState) => boolean
+}
+
 interface WindowState {
   id: string
   type: WindowType
@@ -41,6 +56,36 @@ export class WindowManager {
   private windows: Map<string, WindowState> = new Map()
   private isShuttingDown: boolean = false
   private readonly ASSISTANT_WINDOW_OFFSET = 80 // Distance in pixels below main window
+
+  // Component routing configuration
+  private componentRoutingRules: ComponentRoutingRule[] = [
+    {
+      componentType: 'transcription-display',
+      targetWindow: 'assistant',
+      fallbackWindow: 'main'
+    },
+    {
+      componentType: 'websocket-diagnostics',
+      targetWindow: 'assistant',
+      developmentOnly: true
+    },
+    {
+      componentType: 'transcription-events',
+      targetWindow: 'assistant',
+      fallbackWindow: 'main'
+    },
+    {
+      componentType: 'streaming-text',
+      targetWindow: 'assistant',
+      fallbackWindow: 'main'
+    },
+    {
+      componentType: 'transcript-list',
+      targetWindow: 'assistant',
+      fallbackWindow: 'main'
+    }
+  ]
+
   private windowConfigs: Record<WindowType, WindowConfig> = {
     main: {
       width: 900,
@@ -443,6 +488,98 @@ export class WindowManager {
 
   public positionAssistantRelativeToMain(): void {
     this.updateAssistantWindowPosition()
+  }
+
+  /**
+   * Check if a component should render in a specific window type
+   */
+  public shouldComponentRenderInWindow(
+    componentType: ComponentType,
+    windowType: WindowType,
+    isDevelopment: boolean = process.env.NODE_ENV === 'development'
+  ): boolean {
+    const rule = this.componentRoutingRules.find(r => r.componentType === componentType)
+
+    if (!rule) {
+      // No specific rule, allow rendering in any window
+      return true
+    }
+
+    // Check development-only restriction
+    if (rule.developmentOnly && !isDevelopment) {
+      return false
+    }
+
+    // Check if this is the target window
+    if (rule.targetWindow === windowType) {
+      return true
+    }
+
+    // Check if this is the fallback window and target window is not available
+    if (rule.fallbackWindow === windowType) {
+      const targetWindows = this.getWindowsByType(rule.targetWindow)
+      return targetWindows.length === 0 || !targetWindows.some(w => w.isVisible)
+    }
+
+    return false
+  }
+
+  /**
+   * Get the preferred window type for a component
+   */
+  public getPreferredWindowForComponent(
+    componentType: ComponentType,
+    isDevelopment: boolean = process.env.NODE_ENV === 'development'
+  ): WindowType | null {
+    const rule = this.componentRoutingRules.find(r => r.componentType === componentType)
+
+    if (!rule) {
+      return null
+    }
+
+    // Check development-only restriction
+    if (rule.developmentOnly && !isDevelopment) {
+      return null
+    }
+
+    // Check if target window is available
+    const targetWindows = this.getWindowsByType(rule.targetWindow)
+    if (targetWindows.length > 0 && targetWindows.some(w => w.isVisible)) {
+      return rule.targetWindow
+    }
+
+    // Fall back to fallback window if available
+    if (rule.fallbackWindow) {
+      const fallbackWindows = this.getWindowsByType(rule.fallbackWindow)
+      if (fallbackWindows.length > 0 && fallbackWindows.some(w => w.isVisible)) {
+        return rule.fallbackWindow
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Send transcription data specifically to assistant window
+   */
+  public sendTranscriptionToAssistant(channel: string, ...args: unknown[]): void {
+    const assistantWindows = this.getWindowsByType('assistant')
+    assistantWindows.forEach(state => {
+      if (!state.window.isDestroyed() && state.isVisible) {
+        state.window.webContents.send(channel, ...args)
+      }
+    })
+  }
+
+  /**
+   * Check if assistant window is available for transcription display
+   */
+  public isAssistantWindowAvailable(): boolean {
+    const assistantWindows = this.getWindowsByType('assistant')
+    return (
+      assistantWindows.length > 0 &&
+      assistantWindows.some(w => w.isVisible && !w.window.isDestroyed())
+    )
   }
 
   public cleanup(): void {

@@ -1,91 +1,157 @@
-# Live Transcription System Optimization & Cleanup PRD
+# Product Requirements Document: UI Cleanup and Rendering Optimization
 
-## Project Overview
-The live transcription system using Gemini Live WebSocket API is now functionally complete with proper text accumulation controlled by REC/STOP buttons. This PRD outlines optimization and cleanup tasks to improve code quality, performance, and maintainability.
+## Executive Summary
+Clean up and optimize the UI components in the DAO Copilot application, fixing rendering issues and improving overall user experience for the live transcription features. This project focuses on consolidating duplicate components, improving performance, and enhancing accessibility.
 
-## Current State Assessment
-- ✅ Gemini Live WebSocket integration working
-- ✅ Real-time transcription streaming implemented
-- ✅ Text accumulation during recording sessions
-- ✅ Manual transcription completion via REC/STOP button
-- ✅ Dual state management (unified + context) functioning
-- ✅ Garbage collection disabled to prevent transcript loss
-- ✅ localStorage persistence for transcript history
+## Project Background
+The dao-copilot application has accumulated multiple duplicate components and complex rendering patterns that impact performance and maintainability. Based on analysis of the current codebase, there are opportunities to consolidate components, improve rendering efficiency, and create better user experiences.
 
-## Optimization & Cleanup Goals
+## Goals and Objectives
 
-### 1. Code Architecture Cleanup
-**Objective**: Simplify and consolidate the transcription state management system
-- Remove redundant state management systems (currently using both unified TranscriptionStateManager and StreamingTextContext)
-- Consolidate to single source of truth for transcription state
-- Clean up unused imports and variables
-- Standardize naming conventions across components
+### Primary Goals
+1. Consolidate duplicate UI components into reusable, optimized versions
+2. Fix rendering performance issues and memory leaks
+3. Improve responsive design across all screen sizes
+4. Enhance accessibility for live transcription features
+5. Optimize component reusability and maintainability
 
-### 2. Performance Optimization
-**Objective**: Improve real-time transcription performance and reduce memory usage
-- Optimize WebSocket message handling and processing
-- Implement efficient text accumulation algorithms
-- Reduce React re-renders during streaming
-- Optimize component update cycles
-- Implement proper memoization where needed
+### Secondary Goals
+1. Implement consistent design patterns and styling
+2. Add proper TypeScript types for all components
+3. Optimize bundle size through code splitting
+4. Add comprehensive testing for UI components
+5. Create design system documentation
 
-### 3. Error Handling & Resilience
-**Objective**: Make the system more robust and user-friendly
-- Improve WebSocket connection error handling
-- Add proper fallback mechanisms for quota exceeded scenarios
-- Implement retry logic for failed connections
-- Add user feedback for connection states and errors
-- Handle edge cases in text accumulation logic
+## Current System Analysis
 
-### 4. Code Quality & Maintainability
-**Objective**: Improve code readability, testing, and documentation
-- Remove debug console logs from production code
-- Add proper TypeScript types and interfaces
-- Implement unit tests for core transcription logic
-- Add comprehensive JSDoc documentation
-- Refactor large functions into smaller, testable units
+### Existing Implementation
+- Multiple duplicate streaming components (`LiveStreamingArea`, `EnhancedLiveStreamingArea`)
+- Complex component hierarchies with performance issues
+- Inconsistent glass effect implementations
+- Mixed styling approaches (Tailwind, CSS-in-JS, inline styles)
+- Multiple transcription display components with overlapping functionality
 
-### 5. User Experience Enhancements
-**Objective**: Polish the transcription interface and interactions
-- Improve visual feedback during recording states
-- Add keyboard shortcuts for recording control
-- Implement better loading states and progress indicators
-- Enhance accessibility features
-- Add configuration options for transcription behavior
+### Current Issues
+1. **Component Duplication**: `LiveStreamingArea` and `EnhancedLiveStreamingArea` serve similar purposes
+2. **Performance Issues**: Excessive re-renders in streaming components
+3. **Memory Leaks**: Missing cleanup in useEffect hooks
+4. **Responsive Issues**: Poor mobile layout and touch interaction
+5. **Accessibility Gaps**: Missing ARIA labels and keyboard navigation
+6. **State Management**: Redundant state updates and race conditions
 
-### 6. Technical Debt Reduction
-**Objective**: Address accumulated technical debt
-- Remove commented-out code and unused files
-- Update deprecated dependencies
-- Standardize error handling patterns
-- Implement consistent logging strategy
-- Clean up file organization and imports
+## Technical Requirements
 
-## Success Criteria
-- Single, clean state management system for transcriptions
-- Improved performance with faster real-time updates
-- Robust error handling with graceful degradation
-- Clean, well-documented codebase
-- Comprehensive test coverage
-- Enhanced user experience with better feedback
+### Core Features
+1. **Component Consolidation**
+   - Merge `LiveStreamingArea` and `EnhancedLiveStreamingArea` into single optimized component
+   - Create unified transcription display component
+   - Consolidate glass effect implementations (`GlassBox`, `GlassButton`, etc.)
+   - Standardize form components (inputs, buttons, selectors)
 
-## Technical Constraints
-- Maintain backward compatibility with existing transcription data
-- Preserve localStorage persistence functionality
-- Keep WebSocket integration functional
-- Maintain current UI/UX patterns
-- Ensure cross-platform Electron compatibility
+2. **Performance Optimization**
+   - Implement React.memo for expensive components
+   - Optimize re-rendering patterns with useMemo and useCallback
+   - Fix memory leaks in streaming components
+   - Implement proper cleanup in useEffect hooks
+   - Use React 18 features (Suspense, concurrent rendering)
 
-## Priority Levels
-1. **High**: Code architecture cleanup and state management consolidation
-2. **High**: Performance optimization for real-time streaming
-3. **Medium**: Error handling and resilience improvements
-4. **Medium**: Code quality and maintainability
-5. **Low**: User experience enhancements
-6. **Low**: Technical debt reduction
+3. **Responsive Design**
+   - Fix mobile layout issues in `LiveStreamingArea`
+   - Implement proper breakpoint handling
+   - Optimize component sizing for different screens
+   - Improve touch interaction support
+   - Add mobile-first design patterns
+
+4. **Accessibility Improvements**
+   - Add proper ARIA labels and roles
+   - Implement keyboard navigation for all interactive elements
+   - Improve screen reader support for live transcription
+   - Add focus management for dynamic content
+   - Implement proper live regions for announcements
+
+5. **State Management Cleanup**
+   - Consolidate transcription state logic in `useTranscriptionState`
+   - Remove redundant state updates in `TranscriptsPage`
+   - Implement proper state synchronization between windows
+   - Fix race conditions in streaming updates
+   - Optimize context usage to prevent unnecessary re-renders
+
+### Technical Architecture
+1. **Component Layer**
+   - Unified `LiveTranscriptionDisplay` component
+   - Optimized `GlassComponent` library
+   - Responsive layout system
+   - Accessibility wrapper components
+
+2. **State Management Layer**
+   - Consolidated transcription state hooks
+   - Optimized context providers
+   - Proper state synchronization patterns
+   - Memory-efficient state updates
+
+3. **Styling Layer**
+   - Consistent Tailwind usage
+   - Design system tokens
+   - Optimized CSS bundle
+   - Dark/light theme support
+
+4. **Testing Layer**
+   - Component unit tests
+   - Integration tests for transcription flow
+   - Accessibility testing
+   - Performance testing
 
 ## Implementation Phases
-**Phase 1**: State management consolidation and architecture cleanup
-**Phase 2**: Performance optimization and error handling
-**Phase 3**: Code quality improvements and testing
-**Phase 4**: User experience enhancements and final polish
+
+### Phase 1: Component Audit and Consolidation (Week 1-2)
+- Audit all duplicate components and their usage
+- Create unified `LiveTranscriptionDisplay` component
+- Consolidate glass effect components
+- Remove unused component files
+
+### Phase 2: Performance Optimization (Week 3-4)
+- Implement React.memo and memoization patterns
+- Fix memory leaks in streaming components
+- Optimize re-rendering with proper dependencies
+- Add performance monitoring
+
+### Phase 3: Responsive Design and Accessibility (Week 5-6)
+- Fix mobile layout issues
+- Implement proper breakpoint handling
+- Add comprehensive accessibility features
+- Test with screen readers and keyboard navigation
+
+### Phase 4: State Management Cleanup (Week 7-8)
+- Consolidate transcription state logic
+- Fix race conditions and synchronization issues
+- Optimize context usage and providers
+- Add comprehensive testing
+
+## Success Metrics
+- Reduced component count by 30% through consolidation
+- Improved Lighthouse performance score to 90+
+- Zero accessibility violations in key transcription flows
+- 50% reduction in re-renders for live transcription components
+- Memory usage stays under 100MB during extended transcription sessions
+- Component library reusability increased to 80%
+- Bundle size reduced by 20%
+
+## Risks and Mitigation
+1. **Breaking Changes**: Maintain backward compatibility through gradual migration
+2. **Performance Regression**: Comprehensive performance testing before deployment
+3. **User Experience Disruption**: Maintain existing functionality while improving implementation
+4. **Accessibility Compliance**: Regular testing with accessibility tools and real users
+
+## Dependencies
+- React 18 and TypeScript
+- Tailwind CSS design system
+- Existing transcription services and WebSocket infrastructure
+- Electron desktop application framework
+- Current window communication system
+
+## Constraints
+- Must maintain existing transcription functionality
+- Cannot break WebSocket communication patterns
+- Should support both main and assistant windows
+- Must work across macOS, Windows, and Linux
+- Should maintain current performance levels as minimum baseline

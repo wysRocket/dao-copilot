@@ -8,6 +8,8 @@ import {GeminiMessageHandler, MessageType, MessagePriority} from './gemini-messa
 import {GeminiErrorHandler, ErrorType, type GeminiError} from './gemini-error-handler'
 import {logger} from './gemini-logger'
 import {sanitizeLogMessage, safeLogger} from './log-sanitizer'
+import {markPerformance, PERFORMANCE_MARKERS} from '../utils/performance-profiler'
+import {transcriptionBenchmark} from '../utils/transcription-performance-benchmark'
 import ReconnectionManager, {
   ReconnectionStrategy,
   type ReconnectionConfig
@@ -834,7 +836,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       systemInstruction: 'You are a helpful assistant and answer in a friendly tone.',
       reconnectAttempts: 5,
       heartbeatInterval: 30000, // 30 seconds
-      connectionTimeout: 10000, // 10 seconds
+      connectionTimeout: 5000, // Reduced to 5 seconds for faster startup
       maxQueueSize: 100, // Limit message queue size to prevent memory issues
       apiVersion: 'v1beta', // Default to v1beta as per Google documentation
       ...config
@@ -922,6 +924,9 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       return
     }
 
+    // Mark WebSocket initialization start
+    markPerformance(PERFORMANCE_MARKERS.WEBSOCKET_INIT_START)
+
     this.setConnectionState(ConnectionState.CONNECTING)
     this.isClosingIntentionally = false
 
@@ -948,6 +953,10 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       if (this.ws) {
         this.ws.onopen = () => {
           clearTimeout(timeoutId)
+
+          // Mark WebSocket connection complete
+          markPerformance(PERFORMANCE_MARKERS.WEBSOCKET_CONNECTED)
+
           logger.info('WebSocket connected to Gemini Live API', {
             connectionState: this.connectionState,
             attempts: this.reconnectAttempts
@@ -1431,14 +1440,6 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         currentSetupState: this.isSetupComplete
       })
 
-      // Log ALL message types for debugging
-      console.log('WebSocket message received:', {
-        messageKeys: Object.keys(rawMessage || {}),
-        hasServerContent: !!rawMessage.serverContent,
-        hasModelTurn: !!rawMessage.serverContent?.modelTurn,
-        fullMessage: JSON.stringify(rawMessage, null, 2).substring(0, 1000)
-      })
-
       // Check if heartbeat monitor can handle this message
       if (this.heartbeatMonitor.handleMessage(rawMessage)) {
         // Message was handled by heartbeat monitor (pong response)
@@ -1458,16 +1459,6 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         isPartial: geminiResponse.metadata.isPartial,
         modelTurn: geminiResponse.metadata.modelTurn,
         circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
-      })
-
-      // ENHANCED DEBUG: Log what we're getting vs what we expect
-      console.log('WebSocket transcription: Raw message received:', {
-        original: geminiResponse,
-        type: geminiResponse.type,
-        metadata: geminiResponse.metadata,
-        payload: geminiResponse,
-        isValid: validation.isValid,
-        errors: validation.errors
       })
 
       // Handle validation errors

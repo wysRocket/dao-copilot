@@ -22,6 +22,14 @@ import {getTranscriptionStateManager} from '../state/TranscriptionStateManager'
 import {TranscriptionSource} from '../services/TranscriptionSourceManager'
 import {isWebSocketTranscription, validateWebSocketSource} from '../utils/transcription-detection'
 
+// WebSocket diagnostics
+import {
+  getWebSocketDiagnostics,
+  logWebSocketTiming,
+  startWebSocketTiming,
+  endWebSocketTiming
+} from '../utils/websocket-diagnostics'
+
 // Check if we're in a renderer process
 const isRenderer = typeof window !== 'undefined'
 
@@ -225,34 +233,68 @@ export class TranscriptionEventMiddleware {
     data: IPCTranscriptionData,
     eventType: 'final' | 'partial' | 'complete' | 'legacy'
   ): void {
+    const eventId = `ipc-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
+
+    // Start timing for IPC event processing
+    startWebSocketTiming(`ipc-event-${eventId}`, {
+      eventType,
+      isPartial: data.isPartial,
+      source: data.source,
+      textLength: data.text?.length || 0
+    })
+
     try {
       // Validate and normalize the transcription data
+      startWebSocketTiming(`ipc-normalize-${eventId}`)
       const normalizedData = this.normalizeTranscriptionData(data)
+      endWebSocketTiming(`ipc-normalize-${eventId}`)
 
       if (!normalizedData) {
         console.warn('🔗 TranscriptionEventMiddleware: Invalid transcription data, skipping')
+        endWebSocketTiming(`ipc-event-${eventId}`)
         return
       }
 
       // Determine if this is a WebSocket transcription
+      startWebSocketTiming(`ipc-source-detection-${eventId}`)
       const isWebSocket = isWebSocketTranscription(normalizedData.source)
+      endWebSocketTiming(`ipc-source-detection-${eventId}`)
 
       console.log('🔗 TranscriptionEventMiddleware: Processing transcription:', {
         source: normalizedData.source,
         isWebSocket,
         isPartial: normalizedData.isPartial,
         eventType,
-        textLength: normalizedData.text.length
+        textLength: normalizedData.text.length,
+        eventId
       })
 
       if (isWebSocket) {
         // Route WebSocket transcriptions to streaming state
+        startWebSocketTiming(`ipc-websocket-routing-${eventId}`)
         this.handleWebSocketTranscription(normalizedData, eventType)
+        endWebSocketTiming(`ipc-websocket-routing-${eventId}`)
       } else {
         // Route non-WebSocket transcriptions to static state
+        startWebSocketTiming(`ipc-static-routing-${eventId}`)
         this.handleStaticTranscription(normalizedData)
+        endWebSocketTiming(`ipc-static-routing-${eventId}`)
       }
+
+      // Complete event processing timing
+      const totalEventTime = endWebSocketTiming(`ipc-event-${eventId}`)
+      logWebSocketTiming('ipc-event-processed', totalEventTime, {
+        eventId,
+        eventType,
+        isWebSocket,
+        textLength: normalizedData.text.length
+      })
     } catch (error) {
+      endWebSocketTiming(`ipc-event-${eventId}`)
+      logWebSocketTiming('ipc-event-error', 0, {
+        eventId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
       console.error('🔗 TranscriptionEventMiddleware: Error handling transcription event:', error)
     }
   }
@@ -261,6 +303,9 @@ export class TranscriptionEventMiddleware {
    * Handle WebSocket transcriptions - route to streaming state
    */
   private handleWebSocketTranscription(data: IPCTranscriptionData, eventType: string): void {
+    const wsHandlingId = `ws-handling-${Date.now()}`
+    startWebSocketTiming(wsHandlingId, {eventType, isPartial: data.isPartial})
+
     const validation = validateWebSocketSource(data.source, {
       timestamp: data.timestamp,
       isPartial: data.isPartial,
@@ -284,6 +329,9 @@ export class TranscriptionEventMiddleware {
       isPartial: data.isPartial || false
     }
 
+    // Start state management timing
+    startWebSocketTiming(`state-update-${wsHandlingId}`)
+
     if (data.isPartial || eventType === 'partial') {
       // Start or update streaming transcription
       if (this.stateManager.getState().streaming.isActive) {
@@ -296,19 +344,45 @@ export class TranscriptionEventMiddleware {
     } else {
       // Complete transcription
       if (this.stateManager.getState().streaming.isActive) {
-        console.log('🔗 TranscriptionEventMiddleware: Completing stream with final text')
-        this.stateManager.updateStreaming(data.text, false)
-        setTimeout(() => {
+        // Check if this is a turn completion signal
+        if (data.metadata?.isTurnComplete) {
+          console.log(
+            '🔗 TranscriptionEventMiddleware: Turn completion signal received - completing stream'
+          )
           this.stateManager.completeStreaming()
-        }, 100) // Small delay to show final text
+        } else {
+          console.log('🔗 TranscriptionEventMiddleware: Completing stream with final text')
+          this.stateManager.updateStreaming(data.text, false)
+          setTimeout(() => {
+            this.stateManager.completeStreaming()
+          }, 100) // Small delay to show final text
+        }
       } else {
-        console.log('🔗 TranscriptionEventMiddleware: Starting and immediately completing stream')
-        this.stateManager.startStreaming(transcriptionWithSource)
-        setTimeout(() => {
-          this.stateManager.completeStreaming()
-        }, 1000) // Show streaming briefly before completing
+        // If no active stream but we get a completion signal, ignore it
+        if (data.metadata?.isTurnComplete) {
+          console.log(
+            '🔗 TranscriptionEventMiddleware: Turn completion signal received but no active stream'
+          )
+        } else {
+          console.log('🔗 TranscriptionEventMiddleware: Starting and immediately completing stream')
+          this.stateManager.startStreaming(transcriptionWithSource)
+          setTimeout(() => {
+            this.stateManager.completeStreaming()
+          }, 1000) // Show streaming briefly before completing
+        }
       }
     }
+
+    // Complete state management timing
+    const stateUpdateTime = endWebSocketTiming(`state-update-${wsHandlingId}`)
+    const totalWsHandlingTime = endWebSocketTiming(wsHandlingId)
+
+    logWebSocketTiming('websocket-transcription-handled', totalWsHandlingTime, {
+      eventType,
+      isPartial: data.isPartial,
+      stateUpdateTime,
+      textLength: data.text.length
+    })
   }
 
   /**
@@ -350,6 +424,21 @@ export class TranscriptionEventMiddleware {
    * Normalize and validate transcription data
    */
   private normalizeTranscriptionData(data: IPCTranscriptionData): IPCTranscriptionData | null {
+    // Special case for turn completion signals
+    if (data?.metadata?.isTurnComplete && !data.isPartial) {
+      return {
+        text: '', // Empty text for completion
+        timestamp: data.timestamp || Date.now(),
+        confidence: typeof data.confidence === 'number' ? data.confidence : undefined,
+        source: data.source || 'unknown',
+        isPartial: false,
+        metadata: {
+          ...data.metadata,
+          isTurnComplete: true
+        }
+      }
+    }
+
     // Basic validation
     if (!data || !data.text || typeof data.text !== 'string') {
       return null
@@ -428,7 +517,6 @@ export class TranscriptionEventMiddleware {
     source: string = 'websocket-gemini',
     isPartial: boolean = false
   ): void {
-    console.log('🔗 TranscriptionEventMiddleware: Simulating transcription for testing')
     this.handleTranscriptionEvent(
       {
         text,

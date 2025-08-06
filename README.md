@@ -9,6 +9,53 @@ An Electron-based AI assistant application that can record system audio and micr
 - **Modern Glass UI**: Enhanced with glassmorphism effects using liquid-glass-react
 - **Dark Theme**: Fumadocs-inspired dark theme with glass overlays
 - **AI Assistant**: Integrated AI capabilities for intelligent conversation
+- **Gemini Live API Integration**: Real-time AI communication with Google's Gemini Live API
+
+## 🚀 Gemini Live API Integration
+
+The application includes comprehensive integration with Google's Gemini Live API for real-time AI interactions:
+
+### Key Features
+
+- **Multi-Authentication Support**: API key, service account, and default authentication
+- **Real-time Processing**: Live audio streaming and processing capabilities
+- **TypeScript Support**: Full type safety and IntelliSense support
+- **Comprehensive Testing**: Automated test suites for validation
+- **Production Ready**: Error handling, retry logic, and monitoring
+
+### Quick Setup
+
+1. Get your API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Add to your `.env` file:
+   ```env
+   GEMINI_API_KEY=your_api_key_here
+   ```
+3. Run the test to verify setup:
+   ```bash
+   node simple-api-test.mjs
+   ```
+
+### Documentation
+
+- **[Complete Setup Guide](./docs/GCP_SDK_SETUP_GUIDE.md)** - Detailed installation and configuration
+- **[Quick Reference](./docs/GCP_SDK_QUICK_REFERENCE.md)** - Common code patterns and usage
+- **[Implementation Changelog](./docs/GCP_SDK_CHANGELOG.md)** - Development history and progress
+
+### Usage Example
+
+```typescript
+import {initializeGCPSDK, getGCPSDK} from '@/services/gcp-sdk-manager'
+
+// Initialize SDK
+await initializeGCPSDK()
+
+// Generate text
+const sdk = getGCPSDK()
+const response = await sdk.genAI.models.generateContent({
+  model: 'gemini-2.5-flash',
+  contents: [{parts: [{text: 'Hello, world!'}]}]
+})
+```
 
 ## UI Enhancement with Glassmorphism
 
