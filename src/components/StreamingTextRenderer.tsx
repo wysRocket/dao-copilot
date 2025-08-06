@@ -96,7 +96,7 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
   const containerRef = useRef<HTMLDivElement>(null)
   const isVisibleRef = useRef<boolean>(true)
   const intersectionObserverRef = useRef<IntersectionObserverManager | null>(null)
-  
+
   // Use props directly - no context dependency needed
   const currentStreamingText = text || ''
   const isCurrentTextPartial = isPartial
@@ -104,23 +104,27 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
 
   // Map context state to expected interface for compatibility
   // PRIORITY: Use context text if it has real content, then prop text, then fallback
-  const hasRealContextText = currentStreamingText && 
-    currentStreamingText.length > 3 && 
-    !currentStreamingText.includes('Live streaming active') && 
-    !currentStreamingText.includes('...') && 
+  const hasRealContextText =
+    currentStreamingText &&
+    currentStreamingText.length > 3 &&
+    !currentStreamingText.includes('Live streaming active') &&
+    !currentStreamingText.includes('...') &&
     currentStreamingText.trim().length > 0
-    
-  const hasRealPropText = text && 
-    text.length > 3 && 
-    !text.includes('Live streaming active') && 
-    !text.includes('...') && 
+
+  const hasRealPropText =
+    text &&
+    text.length > 3 &&
+    !text.includes('Live streaming active') &&
+    !text.includes('...') &&
     text.trim().length > 0
 
   // Prioritize real content from context first, then props
-  const effectiveDisplayText = hasRealContextText ? currentStreamingText : 
-                              hasRealPropText ? text : 
-                              (currentStreamingText || text || '')
-  
+  const effectiveDisplayText = hasRealContextText
+    ? currentStreamingText
+    : hasRealPropText
+      ? text
+      : currentStreamingText || text || ''
+
   const streamingState = {
     displayedText: effectiveDisplayText,
     targetText: text,
@@ -135,20 +139,23 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
   }
 
   // Memoized streaming controls to prevent recreation on every render
-  const streamingControls = useMemo(() => ({
-    updateText: (newText: string, partial: boolean = false) => {
-      // Functionality moved to parent component via props
-      onTextUpdate?.(newText, partial)
-    },
-    clearText: () => {
-      // Functionality moved to parent component
-      onAnimationComplete?.()
-    },
-    completeAnimation: () => {
-      // Functionality moved to parent component
-      onAnimationComplete?.()
-    }
-  }), [onTextUpdate, onAnimationComplete])
+  const streamingControls = useMemo(
+    () => ({
+      updateText: (newText: string, partial: boolean = false) => {
+        // Functionality moved to parent component via props
+        onTextUpdate?.(newText, partial)
+      },
+      clearText: () => {
+        // Functionality moved to parent component
+        onAnimationComplete?.()
+      },
+      completeAnimation: () => {
+        // Functionality moved to parent component
+        onAnimationComplete?.()
+      }
+    }),
+    [onTextUpdate, onAnimationComplete]
+  )
 
   // Memoized typewriter configuration
   const memoizedTypewriterConfig = useMemo(
@@ -279,7 +286,7 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
    */
   const getTextStyles = useCallback((): React.CSSProperties => {
     const baseStyles: React.CSSProperties = {
-      transition: 'color 0.3s ease, opacity 0.3s ease',
+      transition: 'all 0.3s ease',
       wordWrap: 'break-word',
       whiteSpace: 'pre-wrap'
     }
@@ -295,17 +302,12 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
     if (streamingState.isPartial) {
       return {
         ...baseStyles,
-        opacity: 0.8,
-        fontStyle: 'italic',
-        color: 'var(--text-muted)',
         ...partialStyle
       }
     }
 
     return {
       ...baseStyles,
-      opacity: 1,
-      color: 'var(--text-primary)',
       ...finalStyle
     }
   }, [
@@ -315,6 +317,32 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
     correctionStyle,
     partialStyle,
     finalStyle
+  ])
+
+  /**
+   * Get CSS classes for text state
+   */
+  const getTextClasses = useCallback((): string => {
+    const classes = ['streaming-text-content']
+
+    if (streamingState.hasCorrection && highlightCorrections) {
+      classes.push('streaming-text-correction')
+    } else if (streamingState.isPartial) {
+      classes.push('streaming-text-partial')
+      if (streamingState.isAnimating) {
+        classes.push('active')
+      }
+    } else if (streamingState.displayedText.length > 0) {
+      classes.push('streaming-text-final')
+    }
+
+    return classes.join(' ')
+  }, [
+    streamingState.hasCorrection,
+    streamingState.isPartial,
+    streamingState.isAnimating,
+    streamingState.displayedText.length,
+    highlightCorrections
   ])
 
   /**
@@ -353,6 +381,7 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
 
   // Get the text to display and process formatting
   const textStyles = getTextStyles()
+  const textClasses = getTextClasses()
 
   return (
     <div
@@ -377,8 +406,23 @@ export const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
         </div>
       )}
 
+      {/* Status indicator for partial/final state */}
+      {streamingState.displayedText.length > 0 && (
+        <div className="mb-2">
+          <div
+            className={cn(
+              'transcript-status-indicator',
+              streamingState.isPartial ? 'transcript-status-partial' : 'transcript-status-final'
+            )}
+          >
+            <div className="status-dot" aria-hidden="true" />
+            <span>{streamingState.isPartial ? 'Live' : 'Complete'}</span>
+          </div>
+        </div>
+      )}
+
       {/* Main text content */}
-      <span className="streaming-text-content">
+      <span className={textClasses}>
         {processedText}
         {/* Show typewriter cursor if enabled and active */}
         {enableTypewriterEffects && typewriterState?.showCursor && (

@@ -1,5 +1,7 @@
 /**
- * Configuration and Environment Setup for Gemini Live API WebSocket Integration
+ * Configuration and Environment Setup for Gemini Live API     fallbackToBatch: false, // Disable batch fallback for real-time streaming
+    realTimeThreshold: 200, // 200ms for immediate real-time response
+    connectionTimeout: 30000, // 30 secondsSocket Integration
  *
  * This module provides comprehensive configuration management for the WebSocket-based
  * Gemini Live API integration, including validation, environment setup, and legacy migration.
@@ -61,8 +63,8 @@ export const DEFAULT_CONFIG: Partial<GeminiWebSocketConfig> = {
   apiVersion: 'v1beta',
   useV1Beta: true,
 
-  fallbackToBatch: true,
-  realTimeThreshold: 3000, // 3 seconds
+  fallbackToBatch: false, // Disable batch fallback for real-time streaming
+  realTimeThreshold: 1000, // 1 second for faster real-time response
   connectionTimeout: 30000, // 30 seconds
   reconnectionEnabled: true,
   maxReconnectionAttempts: 5,
@@ -109,7 +111,7 @@ export function loadConfigFromEnvironment(): GeminiWebSocketConfig {
 
     // Fallback and Reliability
     fallbackToBatch: process.env.GEMINI_FALLBACK_TO_BATCH !== 'false',
-    realTimeThreshold: parseInt(process.env.GEMINI_REALTIME_THRESHOLD || '3000', 10),
+    realTimeThreshold: parseInt(process.env.GEMINI_REALTIME_THRESHOLD || '200', 10),
     connectionTimeout: parseInt(process.env.GEMINI_CONNECTION_TIMEOUT || '30000', 10),
 
     // Reconnection Settings
@@ -197,8 +199,10 @@ export function validateConfig(config: GeminiWebSocketConfig): ConfigValidationR
     warnings.push('Connection timeout is very low. Consider using at least 5 seconds.')
   }
 
-  if (config.realTimeThreshold < 1000) {
-    warnings.push('Real-time threshold is very low. This may cause excessive WebSocket usage.')
+  if (config.realTimeThreshold < 100) {
+    warnings.push(
+      'Real-time threshold is very low (under 100ms). This provides immediate updates but may increase processing load.'
+    )
   }
 
   // Validate Reconnection Settings

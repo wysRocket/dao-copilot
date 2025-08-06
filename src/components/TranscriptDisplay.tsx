@@ -1,13 +1,14 @@
-import React, {useEffect, useRef, useState} from 'react'
+import React, {useEffect, useRef, useState, useMemo} from 'react'
 import {TranscriptionResult} from '../services/main-stt-transcription'
 import GlassBox from './GlassBox'
 import VirtualizedTranscript from './VirtualizedTranscript'
-import LiveStreamingArea from './LiveStreamingArea'
+import UnifiedLiveStreamingDisplay from './UnifiedLiveStreamingDisplay'
 import {TextStreamBuffer} from '../services/TextStreamBuffer'
 import {useAutoScroll} from '../hooks/useAutoScroll'
 import {NewContentIndicator, ScrollControls} from './AutoScrollComponents'
 import {useAccessibility} from '../hooks/useAccessibility'
 import {cn} from '../utils/tailwind'
+import {processTranscripts, generateTranscriptId} from '../utils/transcript-deduplication'
 
 interface TranscriptDisplayProps {
   transcripts: TranscriptionResult[]
@@ -63,6 +64,64 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
   accessibilityConfig = {},
   onScrollStateChange
 }) => {
+  // Process transcripts to ensure no duplicates reach the rendering layer
+  const processedTranscripts = useMemo(() => {
+    if (!Array.isArray(transcripts) || transcripts.length === 0) {
+      return []
+    }
+
+    console.log('🔍 TranscriptDisplay: Processing transcripts for duplicates:', {
+      originalCount: transcripts.length,
+      sampleTranscripts: transcripts.slice(-3).map(t => ({
+        text: t.text?.slice(0, 30) + '...',
+        confidence: t.confidence
+      }))
+    })
+
+    // Convert to compatible format and ensure all have IDs
+    const transcriptsWithIds = transcripts.map((transcript, index) => {
+      const compatibleTranscript = {
+        ...transcript,
+        timestamp: Date.now() + index, // Ensure unique timestamps for ordering
+        id: generateTranscriptId({
+          text: transcript.text,
+          timestamp: Date.now() + index,
+          confidence: transcript.confidence,
+          source: transcript.source
+        })
+      }
+      return compatibleTranscript
+    })
+
+    // Apply duplicate detection
+    const deduplicated = processTranscripts(transcriptsWithIds, {
+      checkIds: true,
+      checkContentAndTimestamp: true,
+      checkFuzzyContent: false, // Disabled for performance in UI
+      fuzzyThreshold: 0.95,
+      timeWindow: 2000 // Shorter window for UI responsiveness
+    })
+
+    const duplicatesRemoved = transcripts.length - deduplicated.length
+    if (duplicatesRemoved > 0) {
+      console.log('🚫 TranscriptDisplay: Removed duplicates before rendering:', {
+        originalCount: transcripts.length,
+        finalCount: deduplicated.length,
+        duplicatesRemoved
+      })
+    }
+
+    // Convert back to the expected format for VirtualizedTranscript
+    const convertedForRendering = deduplicated.map(transcript => ({
+      text: transcript.text,
+      duration: transcript.duration || 0, // Ensure duration is always a number
+      confidence: transcript.confidence,
+      source: transcript.source
+    }))
+
+    return convertedForRendering
+  }, [transcripts])
+
   // Accessibility configuration with defaults
   const mergedAccessibilityConfig = {
     enabled: accessibilityConfig.enabled ?? true,
@@ -139,10 +198,10 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
 
   // Handle new messages and trigger auto-scroll
   useEffect(() => {
-    if (transcripts.length > prevTranscriptCount.current) {
+    if (processedTranscripts.length > prevTranscriptCount.current) {
       // Mark new messages for animation
       const newIndices = new Set<number>()
-      for (let i = prevTranscriptCount.current; i < transcripts.length; i++) {
+      for (let i = prevTranscriptCount.current; i < processedTranscripts.length; i++) {
         newIndices.add(i)
       }
       setNewMessageIndices(newIndices)
@@ -152,7 +211,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
 
       // Announce new transcripts to screen readers
       if (mergedAccessibilityConfig.announceChanges) {
-        const newTranscriptCount = transcripts.length - prevTranscriptCount.current
+        const newTranscriptCount = processedTranscripts.length - prevTranscriptCount.current
         const announcement =
           newTranscriptCount === 1
             ? 'New transcript added'
@@ -166,8 +225,13 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
       }, 500)
     }
 
-    prevTranscriptCount.current = transcripts.length
-  }, [transcripts.length, onNewContent, mergedAccessibilityConfig.announceChanges, accessibility])
+    prevTranscriptCount.current = processedTranscripts.length
+  }, [
+    processedTranscripts.length,
+    onNewContent,
+    mergedAccessibilityConfig.announceChanges,
+    accessibility
+  ])
 
   return (
     <div className="mx-auto mt-4 w-full max-w-4xl">
@@ -212,7 +276,7 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
               }
             }}
           >
-            {transcripts.length === 0 && !isProcessing ? (
+            {processedTranscripts.length === 0 && !isProcessing ? (
               <div
                 className="flex h-full min-h-[150px] flex-col items-center justify-center text-center"
                 role="status"
@@ -235,9 +299,8 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
             ) : (
               <>
                 <VirtualizedTranscript
-                  transcripts={transcripts}
+                  transcripts={processedTranscripts}
                   newMessageIndices={newMessageIndices}
-                  maxVisibleMessages={100}
                 />
 
                 {/* Live streaming text display */}
@@ -246,7 +309,8 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
                     className="border-opacity-20 mt-4 border-t pt-4"
                     style={{borderColor: 'var(--border-secondary)'}}
                   >
-                    <LiveStreamingArea
+                    <UnifiedLiveStreamingDisplay
+                      variant="basic"
                       streamingText={streamingText}
                       isStreamingActive={isStreamingActive}
                       isStreamingPartial={isStreamingPartial}
@@ -256,10 +320,14 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
                       accessibilityConfig={mergedAccessibilityConfig}
                       onStreamingComplete={onStreamingComplete}
                       onClearStreaming={() => onStreamingComplete?.()}
-                      animate={true}
-                      showSourceBadge={true}
-                      showConfidenceScore={true}
-                      className="w-full"
+                      config={{
+                        enableAnimations: true,
+                        showSourceBadge: true,
+                        showConfidenceScore: true,
+                        persistentDisplay: true, // Keep transcription visible after streaming
+                        immediateDisplay: true
+                      }}
+                      className={cn('streaming-area-transition w-full')}
                     />
                   </div>
                 )}

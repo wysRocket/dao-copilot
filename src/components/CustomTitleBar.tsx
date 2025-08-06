@@ -7,7 +7,6 @@ import useGeminiConnection from '../hooks/useGeminiConnection'
 import {TranscriptionMode} from '../services/gemini-live-integration'
 import RecordingControls from './RecordingControls'
 import ToggleTheme from '../components/ToggleTheme'
-import {PerformanceDashboard} from './PerformanceDashboard'
 
 // Note: You may need to add the following to your global CSS:
 // .app-region-drag { -webkit-app-region: drag; }
@@ -298,7 +297,8 @@ const CustomTitleBar: React.FC = () => {
         }
       >
         <ToggleTheme />
-        <PerformanceDashboard compact />
+        {/* PerformanceDashboard disabled for clean UI */}
+        {/* <PerformanceDashboard compact /> */}
 
         <button
           onClick={handleToggleAssistant}

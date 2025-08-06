@@ -22,6 +22,53 @@
   }
 }
 
+@keyframes typing-indicator {
+  0%,
+  40% {
+    opacity: 0.7;
+    transform: translateX(0);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateX(1px);
+  }
+  100% {
+    opacity: 0.7;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-border {
+  0%,
+  100% {
+    border-left-color: rgba(59, 130, 246, 0.5);
+  }
+  50% {
+    border-left-color: rgba(59, 130, 246, 0.9);
+  }
+}
+
+@keyframes stabilize-text {
+  0% {
+    opacity: 0.7;
+    letter-spacing: 0.01em;
+  }
+  100% {
+    opacity: 1;
+    letter-spacing: 0;
+  }
+}
+
+@keyframes partial-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(59, 130, 246, 0);
+  }
+  50% {
+    box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
+  }
+}
+
 .streaming-text-renderer {
   font-family:
     'Inter',
@@ -54,15 +101,76 @@
   opacity: 0.8;
   font-style: italic;
   color: var(--text-muted);
+  border-left: 3px solid rgba(59, 130, 246, 0.6);
+  padding-left: 8px;
+  animation: typing-indicator 2s ease-in-out infinite;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.05) 0%, transparent 100%);
+  transition: all 0.3s ease;
+}
+
+.streaming-text-partial.active {
+  animation:
+    typing-indicator 2s ease-in-out infinite,
+    pulse-border 1.5s ease-in-out infinite;
 }
 
 .streaming-text-final {
   opacity: 1;
   color: var(--text-primary);
+  animation: stabilize-text 0.3s ease-out;
+  transition: all 0.3s ease;
 }
 
 .streaming-text-correction {
   animation: flash-highlight 0.5s ease-out;
+}
+
+/* Status indicator classes */
+.transcript-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.transcript-status-partial {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: rgb(59, 130, 246);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  animation: partial-glow 2s ease-in-out infinite;
+}
+
+.transcript-status-final {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: rgb(34, 197, 94);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.transcript-status-indicator .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.transcript-status-partial .status-dot {
+  animation: blink 1s linear infinite;
+}
+
+/* Transcript container variants */
+.transcript-container-partial {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.02) 0%, transparent 100%);
+  border-left: 2px solid rgba(59, 130, 246, 0.4);
+  transition: all 0.3s ease;
+}
+
+.transcript-container-final {
+  background: rgba(255, 255, 255, 0.01);
+  transition: all 0.3s ease;
 }
 
 /* Reduced motion support */

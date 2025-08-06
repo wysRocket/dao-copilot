@@ -6,6 +6,7 @@
  */
 
 import {EventEmitter} from 'events'
+import {markPerformance, PERFORMANCE_MARKERS} from '../utils/performance-profiler'
 import {
   GeminiLiveWebSocketClient,
   type GeminiLiveConfig,
@@ -190,6 +191,9 @@ export class AudioWebSocketIntegration extends EventEmitter {
     }
 
     try {
+      // Mark audio initialization start
+      markPerformance(PERFORMANCE_MARKERS.AUDIO_INIT_START)
+
       logger.info('Initializing audio WebSocket integration...')
 
       // Initialize format converter
@@ -210,7 +214,11 @@ export class AudioWebSocketIntegration extends EventEmitter {
         lowLatencyMode: true
       }
 
-      await this.formatConverter.initialize()
+      // Initialize services in parallel for faster startup
+      const initPromises: Promise<void>[] = []
+
+      // Initialize format converter
+      initPromises.push(this.formatConverter.initialize())
 
       // Initialize worker manager if enabled
       if (this.config.performance.useWebWorkers) {
@@ -222,10 +230,10 @@ export class AudioWebSocketIntegration extends EventEmitter {
           lowLatencyMode: true
         }
 
-        await this.workerManager.initialize(workerConfig)
+        initPromises.push(this.workerManager.initialize(workerConfig))
       }
 
-      // Initialize audio recording service with proper configuration
+      // Initialize audio recording service configuration
       const recordingConfig: AudioRecordingConfig = {
         mode: RecordingMode.HYBRID,
         intervalSeconds: 10,
@@ -234,9 +242,12 @@ export class AudioWebSocketIntegration extends EventEmitter {
         adaptiveBuffering: this.config.performance.enableBackpressureControl || true
       }
 
-      // Update the audio recording service configuration
+      // Update the audio recording service configuration and initialize in parallel
       this.audioRecording.updateConfig(recordingConfig)
-      await this.audioRecording.initialize() // Initialize real-time streaming service with optimized configuration
+      initPromises.push(this.audioRecording.initialize())
+
+      // Wait for all initializations to complete in parallel
+      await Promise.all(initPromises)
       const streamConfig: AudioStreamingConfig = {
         sampleRate: this.config.audio.sampleRate || 16000,
         channelCount: this.config.audio.channels || 1,
@@ -262,6 +273,9 @@ export class AudioWebSocketIntegration extends EventEmitter {
       }
 
       logger.info('Audio WebSocket integration initialized successfully')
+
+      // Mark audio initialization complete
+      markPerformance(PERFORMANCE_MARKERS.AUDIO_READY)
 
       // Auto-connect if configured
       if (this.config.behavior.autoStart) {

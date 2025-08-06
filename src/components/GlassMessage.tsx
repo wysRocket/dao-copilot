@@ -7,25 +7,35 @@ export interface GlassMessageProps {
   transcript: TranscriptionResult
   className?: string
   isNew?: boolean
+  variant?: 'partial' | 'final'
+  showStatusIndicator?: boolean
 }
 
 export const GlassMessage: React.FC<GlassMessageProps> = ({
   transcript,
   className = '',
-  isNew = false
+  isNew = false,
+  variant = 'final',
+  showStatusIndicator = false
 }) => {
+  const isPartial = variant === 'partial'
+
   return (
     <div
       className={cn(
         'mb-3 w-full transition-all duration-500',
         isNew && 'animate-slide-in-up',
+        isPartial && 'transcript-container-partial',
+        !isPartial && 'transcript-container-final',
         className
       )}
+      role="article"
+      aria-label={`${isPartial ? 'Partial' : 'Final'} transcription`}
     >
       <GlassBox
-        variant="light"
+        variant={isPartial ? 'light' : 'medium'}
         cornerRadius={8}
-        className="w-full p-3"
+        className={cn('relative w-full p-3', isPartial && 'shadow-sm', !isPartial && 'shadow-md')}
         style={{
           // Add subtle animation on new messages
           ...(isNew && {
@@ -34,12 +44,38 @@ export const GlassMessage: React.FC<GlassMessageProps> = ({
         }}
       >
         <div className="space-y-2">
+          {/* Status indicator */}
+          {showStatusIndicator && (
+            <div className="mb-2 flex items-center justify-between">
+              <div
+                className={cn(
+                  'transcript-status-indicator',
+                  isPartial ? 'transcript-status-partial' : 'transcript-status-final'
+                )}
+              >
+                <div className="status-dot" aria-hidden="true" />
+                <span>{isPartial ? 'Live' : 'Final'}</span>
+              </div>
+
+              {/* Screen reader status */}
+              <span className="sr-only">
+                {isPartial ? 'Live transcription in progress' : 'Final transcription complete'}
+              </span>
+            </div>
+          )}
+
           <p
-            className="text-sm leading-relaxed"
+            className={cn(
+              'text-sm leading-relaxed',
+              isPartial && 'streaming-text-partial active',
+              !isPartial && 'streaming-text-final'
+            )}
             style={{
-              color: 'var(--text-primary)',
+              color: isPartial ? 'var(--text-muted)' : 'var(--text-primary)',
               textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
             }}
+            aria-live={isPartial ? 'polite' : 'off'}
+            aria-relevant="additions text"
           >
             {transcript.text}
           </p>
@@ -62,15 +98,16 @@ export const GlassMessage: React.FC<GlassMessageProps> = ({
                 <span>Confidence:</span>
                 <span
                   className={cn(
-                    'font-medium',
+                    'font-medium transition-colors duration-300',
                     transcript.confidence > 0.8
                       ? 'text-green-600 dark:text-green-400'
                       : transcript.confidence > 0.6
                         ? 'text-yellow-600 dark:text-yellow-400'
-                        : 'text-red-600 dark:text-red-400'
+                        : 'text-red-600 dark:text-red-400',
+                    isPartial && 'opacity-70'
                   )}
                 >
-                  {(transcript.confidence * 100).toFixed(1)}%
+                  {(transcript.confidence * 100).toFixed(1)}%{isPartial && ' (updating)'}
                 </span>
               </div>
             )}
