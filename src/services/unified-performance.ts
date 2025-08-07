@@ -4,6 +4,7 @@
  */
 
 import {PerformanceMonitor, MemoryManager} from '../utils/performance'
+import {generateTranscriptionId} from '../utils/secure-random'
 
 export interface TranscriptionPerformanceMetrics {
   // Audio Processing
@@ -74,7 +75,7 @@ export class UnifiedPerformanceService {
     startTime: number
     initialMemory: number
   } {
-    const sessionId = `transcription-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const sessionId = generateTranscriptionId()
     const startTime = Date.now()
     const memoryUsage = MemoryManager.getMemoryUsage()
     const initialMemory = memoryUsage ? memoryUsage.used : 0

@@ -59,6 +59,7 @@ export interface LiveSession {
 import {GoogleGenAI, Modality} from '@google/genai'
 import {GoogleAuth} from 'google-auth-library'
 import {GCPAuthManager, AuthConfig, AuthResult} from './gcp-auth-manager'
+import {generateSessionId} from '../utils/secure-random'
 
 export interface GCPSDKConfig {
   /** Authentication method preference */
@@ -417,7 +418,7 @@ export class GCPSDKManager {
       }
 
       // Generate unique session ID
-      const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const sessionId = generateSessionId()
 
       // Track session state
       let sessionStatus: LiveSession['status'] = 'connecting'

@@ -80,7 +80,7 @@ linux:
       arch: [x64, arm64]
     - target: tar.gz
       arch: [x64, arm64]
-  maintainer: wysRocket <your-email@example.com>
+  maintainer: wysRocket <contact@daocopilot.com>
   vendor: DAO Copilot
   category: Office
   icon: build/icon.png
@@ -168,4 +168,3 @@ publish:
 buildDependenciesFromSource: true
 nodeGypRebuild: false
 electronDist: node_modules/electron/dist
-electronVersion: 37.0.0

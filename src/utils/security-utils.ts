@@ -15,7 +15,7 @@ export function sanitizeForLogging(input: unknown): string {
   // Remove potential log injection patterns
   str = str
     .replace(/[\r\n\t]/g, ' ') // Replace newlines/tabs with spaces
-    .replace(/\${[^}]*}/g, '[TEMPLATE]') // Remove potential template injection
+    .replace(/\$\{[^}]{0,100}\}/g, '[TEMPLATE]') // Remove potential template injection with bounded length
     .replace(/javascript:/gi, '[JS:]') // Remove javascript: URLs
     .replace(/data:/gi, '[DATA:]') // Remove data: URLs
     .replace(/vbscript:/gi, '[VBS:]') // Remove vbscript: URLs

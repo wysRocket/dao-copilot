@@ -27,6 +27,10 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: write
+  actions: read
+
 env:
   ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
   ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.electron-builder-cache
