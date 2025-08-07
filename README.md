@@ -11,6 +11,98 @@ An Electron-based AI assistant application that can record system audio and micr
 - **AI Assistant**: Integrated AI capabilities for intelligent conversation
 - **Gemini Live API Integration**: Real-time AI communication with Google's Gemini Live API
 
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/wysRocket/dao-copilot.git
+cd dao-copilot
+
+# Install dependencies
+npm install
+
+# Start the application
+npm run start
+```
+
+### Build for Production
+
+```bash
+# Build for current platform
+npm run build
+
+# Clean previous builds
+npm run clean
+
+# Run tests before building
+npm run prebuild
+```
+
+## 🔧 Development Workflow
+
+### Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm start` | Start the development application |
+| `npm run build` | Build the application for production |
+| `npm run build:all` | Build for all platforms |
+| `npm test` | Run unit tests |
+| `npm run test:e2e` | Run end-to-end tests |
+| `npm run test:all` | Run all tests |
+| `npm run lint` | Run ESLint |
+| `npm run format` | Check code formatting |
+| `npm run format:write` | Fix code formatting |
+| `npm run clean` | Clean build artifacts |
+
+### Release Management
+
+```bash
+# Patch release (1.0.0 -> 1.0.1)
+npm run release
+
+# Minor release (1.0.0 -> 1.1.0)
+npm run release:minor
+
+# Major release (1.0.0 -> 2.0.0)
+npm run release:major
+```
+
+## 🏗️ CI/CD Pipeline
+
+This project includes comprehensive GitHub Actions workflows:
+
+### Continuous Integration (`ci.yml`)
+- Runs on every push and pull request
+- Executes linting, formatting checks, and tests
+- Security audit and CodeQL analysis
+- Uploads test results as artifacts
+
+### Build and Release (`build.yml`)
+- Triggered by version tags or manual dispatch
+- Cross-platform builds (Windows, macOS, Linux)
+- Automatic GitHub releases
+- Build artifact uploads
+
+### Publishing (`publish.yml`)
+- Publishes to npm and GitHub Packages
+- Triggered by releases or manual dispatch
+
+### Deployment (`deploy.yml`)
+- Documentation deployment to GitHub Pages
+- Release asset management
+- Auto-updates release descriptions
+
+### Automated Workflows
+
+1. **Version Bump**: Update version in `package.json`
+2. **Auto-tagging**: Automatic git tag creation
+3. **Cross-platform Build**: Windows, macOS, Linux binaries
+4. **Release Creation**: Automated GitHub releases
+5. **Asset Upload**: Distribution files attached to releases
+
 ## 🚀 Gemini Live API Integration
 
 The application includes comprehensive integration with Google's Gemini Live API for real-time AI interactions:
@@ -57,7 +149,7 @@ const response = await sdk.genAI.models.generateContent({
 })
 ```
 
-## UI Enhancement with Glassmorphism
+## 🎨 UI Enhancement with Glassmorphism
 
 This application features a modern glassmorphism design system powered by `liquid-glass-react`, providing:
 
@@ -74,78 +166,21 @@ The application includes several glass-enhanced components:
 - Enhanced UI components with liquid-glass styling
 - Consistent glassmorphism theme throughout the application
 
-## Installation
+## 🔧 Configuration
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd dao-copilot
+### Environment Variables
 
-# Install dependencies
-npm install
+Create a `.env` file in the project root:
 
-# Start the application
-npm run start
+```env
+# Google AI/Gemini API
+GEMINI_API_KEY=your_gemini_api_key_here
+GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+
+# Development
+NODE_ENV=development
+ELECTRON_IS_DEV=1
 ```
-
-## Dependencies
-
-### Glass UI Library
-
-- **liquid-glass-react** (v1.1.1): Provides glassmorphism effects and components
-
-### Core Technologies
-
-- **Electron**: Cross-platform desktop app framework
-- **React**: UI library with TypeScript
-- **Vite**: Build tool and development server
-- **Tailwind CSS**: Utility-first CSS framework
-
-## Development
-
-### Running the Application
-
-```bash
-npm run start
-```
-
-### Building for Production
-
-```bash
-npm run make
-```
-
-### Testing
-
-```bash
-npm run test
-```
-
-## Glass UI Usage
-
-### Basic Glass Component
-
-```tsx
-import LiquidGlass from 'liquid-glass-react'
-
-function MyGlassComponent() {
-  return (
-    <LiquidGlass blurAmount={20} saturation={1.2} cornerRadius={12} mode="standard">
-      <div className="bg-white/10 p-6 backdrop-blur-sm">Your content here</div>
-    </LiquidGlass>
-  )
-}
-```
-
-### Available Glass Props
-
-- `blurAmount`: Controls the blur intensity (default: 20)
-- `saturation`: Color saturation level (default: 1.2)
-- `cornerRadius`: Border radius in pixels (default: 12)
-- `mode`: Glass rendering mode ("standard" | "vibrant")
-- `overLight`: Whether component is over light background (default: false)
-
-## Configuration
 
 ### Build Configuration
 
@@ -158,11 +193,65 @@ optimizeDeps: {
 }
 ```
 
-### Theme Configuration
+## 📦 Building & Publishing
 
-The application uses a dark theme with glass overlays. Glass components automatically adapt to the dark theme.
+### Local Build
 
-## Architecture
+```bash
+# Build for current platform
+npm run build
+
+# Build for specific platform
+npm run make -- --platform=win32
+npm run make -- --platform=darwin
+npm run make -- --platform=linux
+```
+
+### Automated Publishing
+
+1. **Version Bump**: Update version in `package.json`
+2. **Push Changes**: `git push origin main`
+3. **Create Release**: GitHub Actions automatically builds and releases
+4. **Download**: Releases available on GitHub Releases page
+
+### Distribution Files
+
+| Platform | File Types | Description |
+|----------|------------|-------------|
+| Windows | `.exe` | Windows installer |
+| macOS | `.dmg` | macOS disk image |
+| Linux | `.AppImage`, `.deb`, `.snap` | Linux packages |
+
+## 🛠️ Dependencies
+
+### Core Technologies
+
+- **Electron**: Cross-platform desktop app framework
+- **React**: UI library with TypeScript
+- **Vite**: Build tool and development server
+- **Tailwind CSS**: Utility-first CSS framework
+
+### Glass UI Library
+
+- **liquid-glass-react** (v1.1.1): Provides glassmorphism effects and components
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+npm run test:all
+
+# Run unit tests only
+npm run test:unit
+
+# Run E2E tests only
+npm run test:e2e
+
+# Watch mode for development
+npm run test:watch
+```
+
+## 🏗️ Architecture
 
 The application follows a multi-window Electron architecture with:
 
@@ -171,27 +260,57 @@ The application follows a multi-window Electron architecture with:
 - IPC communication between processes
 - Glass UI layer for enhanced visual experience
 
-## Troubleshooting
+## 🐛 Troubleshooting
 
-### Glass Effects Not Showing
+### Common Issues
+
+#### Glass Effects Not Showing
 
 - Ensure `liquid-glass-react` is properly installed
 - Check that components are wrapped with appropriate glass containers
 - Verify CSS backdrop-filter support in your environment
 
-### Build Issues
+#### Build Issues
 
 - Run `npm install` to ensure all dependencies are installed
 - Check that Vite configuration includes liquid-glass-react optimization
 - Clear node_modules and reinstall if issues persist
 
-## Contributing
+#### CI/CD Issues
 
-1. Create a feature branch: `git checkout -b feature/your-feature`
-2. Make your changes with glass UI enhancements
-3. Test the application thoroughly
-4. Submit a pull request
+- Verify GitHub secrets are configured (GITHUB_TOKEN is automatic)
+- Check workflow files for syntax errors
+- Ensure branch protection rules allow workflow runs
 
-## License
+### Support
+
+- **Documentation**: Check the `/docs` folder for detailed guides
+- **Issues**: [Open an issue](https://github.com/wysRocket/dao-copilot/issues) on GitHub
+- **Discussions**: Use GitHub Discussions for questions and ideas
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Make your changes with glass UI enhancements
+4. Write tests for your changes
+5. Run the full test suite: `npm run test:all`
+6. Submit a pull request
+
+### Development Guidelines
+
+- Follow the existing code style (ESLint + Prettier)
+- Write tests for new features
+- Update documentation as needed
+- Use conventional commits for commit messages
+
+## 📄 License
 
 [Add your license information here]
+
+## 🙏 Acknowledgments
+
+- **liquid-glass-react**: For the beautiful glassmorphism effects
+- **Google Cloud**: For AI and speech processing APIs
+- **Electron Team**: For the excellent desktop app framework
+- **React Team**: For the powerful UI library
