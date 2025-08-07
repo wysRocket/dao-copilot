@@ -3,6 +3,7 @@
 ## Overview
 
 Based on performance testing, the transcription system has significant startup delays:
+
 - **Baseline**: ~18+ seconds total startup time
 - **Main bottlenecks**: WebSocket connection (8s), Audio initialization (5s), Transcription setup (3s)
 - **Target**: Reduce to under 5 seconds (~75% improvement)
@@ -13,20 +14,20 @@ Based on performance testing, the transcription system has significant startup d
 
 ```tsx
 import useOptimizedStartup from '../hooks/useOptimizedStartup'
-import { GeminiLiveConfig } from '../services/gemini-live-websocket'
+import {GeminiLiveConfig} from '../services/gemini-live-websocket'
 
 const MyTranscriptionComponent = () => {
   const geminiConfig: GeminiLiveConfig = {
     apiKey: process.env.REACT_APP_GEMINI_API_KEY,
     model: 'gemini-live-2.5-flash-preview',
-    connectionTimeout: 3000, // Optimized
+    connectionTimeout: 3000 // Optimized
     // ... other config
   }
 
   const [startupState, startupActions] = useOptimizedStartup(geminiConfig, {
-    enableParallelInitialization: true,  // ~40% improvement
-    enablePreWarming: true,               // ~75% improvement
-    autoStartOnMount: true                // Start immediately
+    enableParallelInitialization: true, // ~40% improvement
+    enablePreWarming: true, // ~75% improvement
+    autoStartOnMount: true // Start immediately
   })
 
   if (startupState.currentPhase === 'ready') {
@@ -50,22 +51,17 @@ const MyTranscriptionComponent = () => {
 ```tsx
 const MyApp = () => {
   const [startupState, startupActions] = useOptimizedStartup(geminiConfig, {
-    autoStartOnMount: false  // Manual control
+    autoStartOnMount: false // Manual control
   })
 
   return (
     <div>
-      <button 
-        onClick={startupActions.startOptimizedSequence}
-        disabled={startupState.isStarting}
-      >
+      <button onClick={startupActions.startOptimizedSequence} disabled={startupState.isStarting}>
         {startupState.isStarting ? 'Starting...' : 'Start Transcription'}
       </button>
-      
+
       {startupState.error && (
-        <button onClick={startupActions.retryWithFallback}>
-          Retry with Fallback
-        </button>
+        <button onClick={startupActions.retryWithFallback}>Retry with Fallback</button>
       )}
     </div>
   )
@@ -77,6 +73,7 @@ const MyApp = () => {
 ### Optimization Levels
 
 **Conservative (Safe)**:
+
 ```tsx
 {
   enableParallelInitialization: true,
@@ -88,6 +85,7 @@ const MyApp = () => {
 ```
 
 **Aggressive (Recommended)**:
+
 ```tsx
 {
   enableParallelInitialization: true,
@@ -101,6 +99,7 @@ const MyApp = () => {
 ```
 
 **Maximum Performance**:
+
 ```tsx
 {
   enableParallelInitialization: true,
@@ -122,15 +121,13 @@ Use the `PerformanceTestComponent` to validate optimizations:
 ```tsx
 import PerformanceTestComponent from '../components/PerformanceTestComponent'
 
-const TestPage = () => (
-  <PerformanceTestComponent geminiConfig={myConfig} />
-)
+const TestPage = () => <PerformanceTestComponent geminiConfig={myConfig} />
 ```
 
 ### Key Metrics to Monitor
 
 1. **Total Startup Time**: Target < 5 seconds
-2. **WebSocket Connection**: Target < 3 seconds  
+2. **WebSocket Connection**: Target < 3 seconds
 3. **Audio Initialization**: Target < 1 second
 4. **Transcription Setup**: Target < 500ms
 
@@ -139,17 +136,20 @@ const TestPage = () => (
 ### Common Issues
 
 **Slow WebSocket Connection (>5s)**:
+
 - Check network connectivity
 - Verify API key validity
 - Consider connection pooling
 - Reduce `connectionTimeout` to fail faster
 
 **Audio Initialization Delays (>2s)**:
+
 - Enable `enableAudioPreInitialization`
 - Check browser permissions
 - Reduce sample rate to 16kHz
 
 **Transcription Setup Delays (>1s)**:
+
 - Enable `enableTranscriptionPreWarming`
 - Reduce buffer sizes
 - Check CPU load
@@ -161,7 +161,7 @@ The system automatically falls back to sequential initialization if parallel fai
 ```tsx
 // Automatic fallback behavior
 {
-  fallbackToSequential: true  // Default: true
+  fallbackToSequential: true // Default: true
 }
 ```
 
@@ -173,7 +173,7 @@ const [startupState, startupActions] = useOptimizedStartup(config)
 useEffect(() => {
   if (startupState.error) {
     console.error('Startup failed:', startupState.error)
-    
+
     // Auto-retry with fallback after 2 seconds
     setTimeout(() => {
       startupActions.retryWithFallback()
@@ -203,7 +203,7 @@ console.log('Best performance:', getBestPerformance())
 ### Custom Performance Tracking
 
 ```tsx
-import { markPerformance, PERFORMANCE_MARKERS } from '../utils/performance-profiler'
+import {markPerformance, PERFORMANCE_MARKERS} from '../utils/performance-profiler'
 
 // Mark custom performance points
 markPerformance('custom_checkpoint')
@@ -217,6 +217,7 @@ const startupTime = performance.getEntriesByName('websocket_connected')[0]?.star
 ### Production Optimizations
 
 1. **Enable all optimizations**:
+
    ```tsx
    const productionConfig = {
      enableParallelInitialization: true,
@@ -229,6 +230,7 @@ const startupTime = performance.getEntriesByName('websocket_connected')[0]?.star
    ```
 
 2. **Monitor performance**:
+
    ```tsx
    {
      enableMetricsCollection: true,
@@ -237,12 +239,13 @@ const startupTime = performance.getEntriesByName('websocket_connected')[0]?.star
    ```
 
 3. **Handle errors gracefully**:
+
    ```tsx
    // Show user-friendly loading states
    if (startupState.isStarting) {
      return <LoadingSpinner message="Initializing transcription..." />
    }
-   
+
    if (startupState.error) {
      return <ErrorMessage onRetry={startupActions.retryWithFallback} />
    }
@@ -319,12 +322,12 @@ useEffect(() => {
 
 Based on testing scenarios:
 
-| Configuration | Startup Time | Improvement | Use Case |
-|---------------|--------------|-------------|----------|
-| Baseline | ~18 seconds | 0% | Unoptimized |
-| Parallel Init | ~10 seconds | 40% | Conservative |
-| Pre-warming | ~5 seconds | 75% | Recommended |
-| Maximum | ~3.5 seconds | 80% | Aggressive |
+| Configuration | Startup Time | Improvement | Use Case     |
+| ------------- | ------------ | ----------- | ------------ |
+| Baseline      | ~18 seconds  | 0%          | Unoptimized  |
+| Parallel Init | ~10 seconds  | 40%         | Conservative |
+| Pre-warming   | ~5 seconds   | 75%         | Recommended  |
+| Maximum       | ~3.5 seconds | 80%         | Aggressive   |
 
 ## Next Steps
 

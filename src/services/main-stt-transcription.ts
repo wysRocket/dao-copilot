@@ -750,26 +750,28 @@ async function transcribeAudioViaWebSocket(
       )
 
       // Also listen for transcriptionUpdate events which contain the actual transcription text
-      client.on('transcriptionUpdate', (update: {
-        text: string
-        confidence: number
-        isFinal: boolean
-      }) => {
-        console.log('🎯 RECEIVED TRANSCRIPTION UPDATE:', {
-          text: update.text,
-          textLength: update.text?.length || 0,
-          confidence: update.confidence,
-          isFinal: update.isFinal,
-          audioSent,
-          timestamp: Date.now()
-        })
-        
-        if (update.text && update.isFinal) {
-          console.log('✅ Captured final transcription text from transcriptionUpdate:', update.text)
-          finalTranscriptionText = update.text
-          transcriptionCompleted = true
+      client.on(
+        'transcriptionUpdate',
+        (update: {text: string; confidence: number; isFinal: boolean}) => {
+          console.log('🎯 RECEIVED TRANSCRIPTION UPDATE:', {
+            text: update.text,
+            textLength: update.text?.length || 0,
+            confidence: update.confidence,
+            isFinal: update.isFinal,
+            audioSent,
+            timestamp: Date.now()
+          })
+
+          if (update.text && update.isFinal) {
+            console.log(
+              '✅ Captured final transcription text from transcriptionUpdate:',
+              update.text
+            )
+            finalTranscriptionText = update.text
+            transcriptionCompleted = true
+          }
         }
-      })
+      )
 
       // Optimized streaming function to reduce code duplication
       async function streamTranscriptionToWindows(
@@ -802,8 +804,8 @@ async function transcribeAudioViaWebSocket(
       // Wait for transcription completion or timeout
       const maxWaitTime = 8000 // 8 seconds max wait
       const startWaitTime = Date.now()
-      
-      while (!transcriptionCompleted && (Date.now() - startWaitTime) < maxWaitTime) {
+
+      while (!transcriptionCompleted && Date.now() - startWaitTime < maxWaitTime) {
         await new Promise(resolve => setTimeout(resolve, 100))
       }
 

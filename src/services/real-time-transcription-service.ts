@@ -1,16 +1,16 @@
-import { EventEmitter } from 'events';
+import {EventEmitter} from 'events'
 
 interface TranscriptionChunk {
-  text: string;
-  isFinal: boolean;
-  confidence?: number;
-  timestamp: number;
+  text: string
+  isFinal: boolean
+  confidence?: number
+  timestamp: number
 }
 
 interface StreamingConfig {
-  model: string;
-  responseModalities: string[];
-  systemInstruction: string;
+  model: string
+  responseModalities: string[]
+  systemInstruction: string
 }
 
 /**
@@ -18,27 +18,28 @@ interface StreamingConfig {
  * Maintains persistent Gemini Live WebSocket connections for instant transcription
  */
 export class RealTimeTranscriptionService extends EventEmitter {
-  private websocket: WebSocket | null = null;
-  private audioContext: AudioContext | null = null;
-  private mediaStream: MediaStream | null = null;
-  private processor: ScriptProcessorNode | null = null;
-  private mediaRecorder: MediaRecorder | null = null;
-  private isConnected = false;
-  private isSetupComplete = false;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 3;
-  private config: StreamingConfig;
-  private connectionStartTime = 0;
-  private audioChunks: Float32Array[] = [];
-  private isRecording = false;
+  private websocket: WebSocket | null = null
+  private audioContext: AudioContext | null = null
+  private mediaStream: MediaStream | null = null
+  private processor: ScriptProcessorNode | null = null
+  private mediaRecorder: MediaRecorder | null = null
+  private isConnected = false
+  private isSetupComplete = false
+  private reconnectAttempts = 0
+  private maxReconnectAttempts = 3
+  private config: StreamingConfig
+  private connectionStartTime = 0
+  private audioChunks: Float32Array[] = []
+  private isRecording = false
 
   constructor() {
-    super();
+    super()
     this.config = {
       model: 'gemini-live-2.5-flash-preview',
       responseModalities: ['TEXT'],
-      systemInstruction: 'You are a real-time speech-to-text transcription system. Provide immediate transcription of spoken words as they are being said. Return only the transcribed text without any additional commentary. Be responsive and provide partial results quickly.'
-    };
+      systemInstruction:
+        'You are a real-time speech-to-text transcription system. Provide immediate transcription of spoken words as they are being said. Return only the transcribed text without any additional commentary. Be responsive and provide partial results quickly.'
+    }
   }
 
   /**
@@ -46,19 +47,21 @@ export class RealTimeTranscriptionService extends EventEmitter {
    */
   async initialize(): Promise<void> {
     try {
-      this.connectionStartTime = performance.now();
-      console.log('🚀 Initializing real-time Gemini transcription service...');
-      
-      await this.setupAudioContext();
-      await this.connectGeminiWebSocket();
-      await this.startAudioCapture();
-      
-      console.log(`✅ Real-time Gemini service initialized in ${(performance.now() - this.connectionStartTime).toFixed(2)}ms`);
-      this.emit('initialized');
+      this.connectionStartTime = performance.now()
+      console.log('🚀 Initializing real-time Gemini transcription service...')
+
+      await this.setupAudioContext()
+      await this.connectGeminiWebSocket()
+      await this.startAudioCapture()
+
+      console.log(
+        `✅ Real-time Gemini service initialized in ${(performance.now() - this.connectionStartTime).toFixed(2)}ms`
+      )
+      this.emit('initialized')
     } catch (error) {
-      console.error('❌ Failed to initialize real-time service:', error);
-      this.emit('error', error);
-      throw error;
+      console.error('❌ Failed to initialize real-time service:', error)
+      this.emit('error', error)
+      throw error
     }
   }
 
@@ -70,17 +73,17 @@ export class RealTimeTranscriptionService extends EventEmitter {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
         sampleRate: 16000, // Gemini Live prefers 16kHz
         latencyHint: 'interactive' // Minimize latency
-      });
+      })
 
       // Resume context if suspended (browser policy)
       if (this.audioContext.state === 'suspended') {
-        await this.audioContext.resume();
+        await this.audioContext.resume()
       }
 
-      console.log('🎤 Audio context initialized for real-time capture');
+      console.log('🎤 Audio context initialized for real-time capture')
     } catch (error) {
-      console.error('❌ Failed to setup audio context:', error);
-      throw error;
+      console.error('❌ Failed to setup audio context:', error)
+      throw error
     }
   }
 
@@ -90,24 +93,26 @@ export class RealTimeTranscriptionService extends EventEmitter {
   private getApiKey(): string | undefined {
     // Primary method: Check Vite environment variables (works in both dev and build)
     if (typeof process !== 'undefined' && process.env) {
-      const viteKey = process.env.VITE_GOOGLE_API_KEY;
-      const regularKey = process.env.GOOGLE_API_KEY;
-      const geminiKey = process.env.GEMINI_API_KEY;
-      
-      return viteKey || regularKey || geminiKey;
+      const viteKey = process.env.VITE_GOOGLE_API_KEY
+      const regularKey = process.env.GOOGLE_API_KEY
+      const geminiKey = process.env.GEMINI_API_KEY
+
+      return viteKey || regularKey || geminiKey
     }
-    
+
     // Fallback: Check if we're in Electron environment
     if (typeof window !== 'undefined') {
-      const electronWindow = window as unknown as { electron?: { env?: Record<string, string> } };
+      const electronWindow = window as unknown as {electron?: {env?: Record<string, string>}}
       if (electronWindow.electron?.env) {
-        return electronWindow.electron.env.GOOGLE_API_KEY || 
-               electronWindow.electron.env.GEMINI_API_KEY ||
-               electronWindow.electron.env.VITE_GOOGLE_API_KEY;
+        return (
+          electronWindow.electron.env.GOOGLE_API_KEY ||
+          electronWindow.electron.env.GEMINI_API_KEY ||
+          electronWindow.electron.env.VITE_GOOGLE_API_KEY
+        )
       }
     }
-    
-    return undefined;
+
+    return undefined
   }
 
   /**
@@ -116,57 +121,56 @@ export class RealTimeTranscriptionService extends EventEmitter {
   private async connectGeminiWebSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const apiKey = this.getApiKey();
-        
+        const apiKey = this.getApiKey()
+
         if (!apiKey) {
-          throw new Error('Gemini API key not found in environment');
+          throw new Error('Gemini API key not found in environment')
         }
 
         // Create persistent WebSocket connection to Gemini Live API
-        const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.StreamGenerateContent?key=${apiKey}`;
-        this.websocket = new WebSocket(wsUrl);
+        const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.StreamGenerateContent?key=${apiKey}`
+        this.websocket = new WebSocket(wsUrl)
 
         this.websocket.onopen = () => {
-          console.log('🔗 Gemini Live WebSocket connected for real-time streaming');
-          this.isConnected = true;
-          this.reconnectAttempts = 0;
-          
+          console.log('🔗 Gemini Live WebSocket connected for real-time streaming')
+          this.isConnected = true
+          this.reconnectAttempts = 0
+
           // Send initial setup configuration
-          this.sendSetupConfig();
-        };
+          this.sendSetupConfig()
+        }
 
-        this.websocket.onmessage = (event) => {
-          this.handleGeminiMessage(event);
-        };
+        this.websocket.onmessage = event => {
+          this.handleGeminiMessage(event)
+        }
 
-        this.websocket.onerror = (error) => {
-          console.error('❌ Gemini WebSocket error:', error);
-          this.isConnected = false;
-          this.isSetupComplete = false;
-          reject(error);
-        };
+        this.websocket.onerror = error => {
+          console.error('❌ Gemini WebSocket error:', error)
+          this.isConnected = false
+          this.isSetupComplete = false
+          reject(error)
+        }
 
-        this.websocket.onclose = (event) => {
-          console.log('🔌 Gemini WebSocket disconnected:', event.code, event.reason);
-          this.isConnected = false;
-          this.isSetupComplete = false;
-          this.handleReconnection();
-        };
+        this.websocket.onclose = event => {
+          console.log('🔌 Gemini WebSocket disconnected:', event.code, event.reason)
+          this.isConnected = false
+          this.isSetupComplete = false
+          this.handleReconnection()
+        }
 
         // Wait for setup completion
         this.once('setup-complete', () => {
-          console.log('✅ Gemini Live setup completed');
-          resolve();
-        });
+          console.log('✅ Gemini Live setup completed')
+          resolve()
+        })
 
-        this.once('setup-error', (error) => {
-          reject(error);
-        });
-
+        this.once('setup-error', error => {
+          reject(error)
+        })
       } catch (error) {
-        reject(error);
+        reject(error)
       }
-    });
+    })
   }
 
   /**
@@ -174,7 +178,7 @@ export class RealTimeTranscriptionService extends EventEmitter {
    */
   private sendSetupConfig(): void {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
-      return;
+      return
     }
 
     const setupMessage = {
@@ -189,10 +193,10 @@ export class RealTimeTranscriptionService extends EventEmitter {
           topP: 1
         }
       }
-    };
+    }
 
-    console.log('📤 Sending Gemini Live setup config...');
-    this.websocket.send(JSON.stringify(setupMessage));
+    console.log('📤 Sending Gemini Live setup config...')
+    this.websocket.send(JSON.stringify(setupMessage))
   }
 
   /**
@@ -208,41 +212,41 @@ export class RealTimeTranscriptionService extends EventEmitter {
           noiseSuppression: true,
           autoGainControl: true
         }
-      });
+      })
 
       // Use MediaRecorder for efficient audio capture
       this.mediaRecorder = new MediaRecorder(this.mediaStream, {
         mimeType: 'audio/webm;codecs=opus',
         audioBitsPerSecond: 16000
-      });
+      })
 
-      let audioBuffer: BlobPart[] = [];
+      let audioBuffer: BlobPart[] = []
 
-      this.mediaRecorder.ondataavailable = (event) => {
+      this.mediaRecorder.ondataavailable = event => {
         if (event.data.size > 0 && this.isSetupComplete) {
-          audioBuffer.push(event.data);
-          
+          audioBuffer.push(event.data)
+
           // Send audio data every 100ms for real-time processing
           if (audioBuffer.length >= 1) {
-            this.sendAudioData(audioBuffer);
-            audioBuffer = [];
+            this.sendAudioData(audioBuffer)
+            audioBuffer = []
           }
         }
-      };
+      }
 
-      this.mediaRecorder.onerror = (event) => {
-        console.error('❌ MediaRecorder error:', event);
-        this.emit('error', new Error('Audio recording failed'));
-      };
+      this.mediaRecorder.onerror = event => {
+        console.error('❌ MediaRecorder error:', event)
+        this.emit('error', new Error('Audio recording failed'))
+      }
 
       // Start recording in 100ms chunks for real-time streaming
-      this.mediaRecorder.start(100);
-      this.isRecording = true;
+      this.mediaRecorder.start(100)
+      this.isRecording = true
 
-      console.log('🎤 Real-time audio capture started with MediaRecorder');
+      console.log('🎤 Real-time audio capture started with MediaRecorder')
     } catch (error) {
-      console.error('❌ Failed to start audio capture:', error);
-      throw error;
+      console.error('❌ Failed to start audio capture:', error)
+      throw error
     }
   }
 
@@ -251,29 +255,31 @@ export class RealTimeTranscriptionService extends EventEmitter {
    */
   private async sendAudioData(audioChunks: BlobPart[]): Promise<void> {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN || !this.isSetupComplete) {
-      return;
+      return
     }
 
     try {
       // Combine audio chunks into a single blob
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
-      
+      const audioBlob = new Blob(audioChunks, {type: 'audio/webm;codecs=opus'})
+
       // Convert to base64 for Gemini API
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const base64Audio = this.arrayBufferToBase64(arrayBuffer);
+      const arrayBuffer = await audioBlob.arrayBuffer()
+      const base64Audio = this.arrayBufferToBase64(arrayBuffer)
 
       const audioMessage = {
         realtimeInput: {
-          mediaChunks: [{
-            mimeType: 'audio/webm;codecs=opus',
-            data: base64Audio
-          }]
+          mediaChunks: [
+            {
+              mimeType: 'audio/webm;codecs=opus',
+              data: base64Audio
+            }
+          ]
         }
-      };
+      }
 
-      this.websocket.send(JSON.stringify(audioMessage));
+      this.websocket.send(JSON.stringify(audioMessage))
     } catch (error) {
-      console.error('❌ Failed to send audio data:', error);
+      console.error('❌ Failed to send audio data:', error)
     }
   }
 
@@ -282,40 +288,40 @@ export class RealTimeTranscriptionService extends EventEmitter {
    */
   private handleGeminiMessage(event: MessageEvent): void {
     try {
-      const data = JSON.parse(event.data);
-      
+      const data = JSON.parse(event.data)
+
       // Handle setup completion
       if (data.setupComplete) {
-        this.isSetupComplete = true;
-        this.emit('setup-complete');
-        return;
+        this.isSetupComplete = true
+        this.emit('setup-complete')
+        return
       }
 
       // Handle server content (transcription results)
       if (data.serverContent) {
-        const content = data.serverContent;
-        
+        const content = data.serverContent
+
         if (content.modelTurn && content.modelTurn.parts) {
-          const textParts = content.modelTurn.parts.filter((part: any) => part.text);
-          
+          const textParts = content.modelTurn.parts.filter((part: any) => part.text)
+
           if (textParts.length > 0) {
-            const text = textParts.map((part: any) => part.text).join(' ');
-            const isFinal = !!content.turnComplete;
-            
+            const text = textParts.map((part: any) => part.text).join(' ')
+            const isFinal = !!content.turnComplete
+
             const chunk: TranscriptionChunk = {
               text: text.trim(),
               isFinal,
               confidence: 0.9, // Gemini doesn't provide confidence scores
               timestamp: performance.now()
-            };
+            }
 
             // Emit immediately for zero-latency display
-            this.emit('transcription', chunk);
+            this.emit('transcription', chunk)
 
             if (isFinal) {
-              console.log(`📝 Final: "${chunk.text}"`);
+              console.log(`📝 Final: "${chunk.text}"`)
             } else {
-              console.log(`📝 Interim: "${chunk.text}"`);
+              console.log(`📝 Interim: "${chunk.text}"`)
             }
           }
         }
@@ -323,12 +329,11 @@ export class RealTimeTranscriptionService extends EventEmitter {
 
       // Handle errors
       if (data.error) {
-        console.error('❌ Gemini transcription error:', data.error);
-        this.emit('error', new Error(data.error.message || 'Transcription failed'));
+        console.error('❌ Gemini transcription error:', data.error)
+        this.emit('error', new Error(data.error.message || 'Transcription failed'))
       }
-
     } catch (error) {
-      console.error('❌ Failed to parse Gemini message:', error);
+      console.error('❌ Failed to parse Gemini message:', error)
     }
   }
 
@@ -337,17 +342,22 @@ export class RealTimeTranscriptionService extends EventEmitter {
    */
   private handleReconnection(): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(`🔄 Attempting Gemini reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
-      
-      setTimeout(() => {
-        this.connectGeminiWebSocket().catch(error => {
-          console.error('❌ Gemini reconnection failed:', error);
-          if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            this.emit('error', new Error('Max reconnection attempts reached'));
-          }
-        });
-      }, 1000 * Math.pow(2, this.reconnectAttempts)); // Exponential backoff
+      this.reconnectAttempts++
+      console.log(
+        `🔄 Attempting Gemini reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`
+      )
+
+      setTimeout(
+        () => {
+          this.connectGeminiWebSocket().catch(error => {
+            console.error('❌ Gemini reconnection failed:', error)
+            if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+              this.emit('error', new Error('Max reconnection attempts reached'))
+            }
+          })
+        },
+        1000 * Math.pow(2, this.reconnectAttempts)
+      ) // Exponential backoff
     }
   }
 
@@ -355,61 +365,66 @@ export class RealTimeTranscriptionService extends EventEmitter {
    * Convert ArrayBuffer to base64
    */
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
     for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
+      binary += String.fromCharCode(bytes[i])
     }
-    return btoa(binary);
+    return btoa(binary)
   }
 
   /**
    * Stop the transcription service
    */
   stop(): void {
-    console.log('🛑 Stopping real-time Gemini transcription service...');
+    console.log('🛑 Stopping real-time Gemini transcription service...')
 
-    this.isRecording = false;
-    this.isSetupComplete = false;
+    this.isRecording = false
+    this.isSetupComplete = false
 
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      this.mediaRecorder.stop();
-      this.mediaRecorder = null;
+      this.mediaRecorder.stop()
+      this.mediaRecorder = null
     }
 
     if (this.processor) {
-      this.processor.disconnect();
-      this.processor = null;
+      this.processor.disconnect()
+      this.processor = null
     }
 
     if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach(track => track.stop());
-      this.mediaStream = null;
+      this.mediaStream.getTracks().forEach(track => track.stop())
+      this.mediaStream = null
     }
 
     if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close();
-      this.audioContext = null;
+      this.audioContext.close()
+      this.audioContext = null
     }
 
     if (this.websocket) {
-      this.websocket.close(1000, 'Service stopped');
-      this.websocket = null;
+      this.websocket.close(1000, 'Service stopped')
+      this.websocket = null
     }
 
-    this.isConnected = false;
-    this.emit('stopped');
+    this.isConnected = false
+    this.emit('stopped')
   }
 
   /**
    * Get current connection status
    */
-  getStatus(): { connected: boolean; latency: number; reconnectAttempts: number; setupComplete: boolean } {
+  getStatus(): {
+    connected: boolean
+    latency: number
+    reconnectAttempts: number
+    setupComplete: boolean
+  } {
     return {
       connected: this.isConnected,
       latency: this.connectionStartTime > 0 ? performance.now() - this.connectionStartTime : 0,
       reconnectAttempts: this.reconnectAttempts,
       setupComplete: this.isSetupComplete
-    };
+    }
   }
 }

@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: capture
+appId: com.daocopilot.app
+productName: DAO Copilot
 directories:
   buildResources: build
 files:
@@ -9,35 +9,163 @@ files:
   - '!{.eslintignore,.eslintrc.js,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!**/*.test.*'
+  - '!**/__tests__/**'
+  - '!**/test/**'
 asarUnpack:
   - resources/**
 win:
-  executableName: capture
+  executableName: dao-copilot
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+    - target: portable
+      arch: [x64]
+  certificateFile: certificates/windows.p12
+  certificatePassword: ${env.WIN_CERT_PASSWORD}
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  createStartMenuShortcut: true
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  license: LICENSE
 mac:
-  entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
-dmg:
-  artifactName: ${name}-${version}.${ext}
-linux:
+  executableName: dao-copilot
   target:
-    - AppImage
-    - snap
-    - deb
-  maintainer: electronjs.org
-  category: Utility
+    - target: dmg
+      arch: [x64, arm64, universal]
+    - target: zip
+      arch: [x64, arm64, universal]
+  entitlementsInherit: build/entitlements.mac.plist
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  extendInfo:
+    - NSCameraUsageDescription: DAO Copilot needs camera access for video recording and processing features.
+    - NSMicrophoneUsageDescription: DAO Copilot needs microphone access for audio transcription and AI assistance.
+    - NSDocumentsFolderUsageDescription: DAO Copilot needs access to save transcripts and documents.
+    - NSDownloadsFolderUsageDescription: DAO Copilot needs access to save downloaded files and exports.
+  notarize: ${env.NOTARIZE} # Set to true when you have Apple Developer credentials
+  category: public.app-category.productivity
+  icon: build/icon.icns
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  title: ${productName} ${version}
+  icon: build/icon.icns
+  iconSize: 100
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+linux:
+  executableName: dao-copilot
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: snap
+      arch: [x64]
+    - target: deb
+      arch: [x64, arm64]
+    - target: rpm
+      arch: [x64, arm64]
+    - target: tar.gz
+      arch: [x64, arm64]
+  maintainer: wysRocket <your-email@example.com>
+  vendor: DAO Copilot
+  category: Office
+  icon: build/icon.png
+  synopsis: AI Assistant with Glass UI for audio transcription
+  description: |
+    DAO Copilot is an Electron-based AI assistant application that can record system audio and microphone, 
+    transcribe audio in real-time, and provide intelligent assistance through a modern glassmorphism interface.
+    
+    Features:
+    - Real-time audio transcription
+    - AI-powered assistance
+    - Modern glass UI
+    - Cross-platform compatibility
 appImage:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  license: LICENSE
+snap:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  summary: AI Assistant with Glass UI
+  description: |
+    DAO Copilot is an AI assistant for audio transcription with a modern interface.
+  grade: stable
+  confinement: strict
+  plugs:
+    - desktop
+    - desktop-legacy
+    - home
+    - x11
+    - unity7
+    - browser-support
+    - network
+    - gsettings
+    - pulseaudio
+    - opengl
+deb:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  packageCategory: Office
+  priority: optional
+  depends:
+    - gconf2
+    - gconf-service
+    - libnotify4
+    - libappindicator1
+    - libxtst6
+    - libnss3
+    - libasound2
+    - libdrm2
+    - libxss1
+    - libgconf-2-4
+    - libxrandr2
+    - libasound2
+    - libpangocairo-1.0-0
+    - libatk1.0-0
+    - libcairo-gobject2
+    - libgtk-3-0
+    - libgdk-pixbuf2.0-0
+rpm:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  packageCategory: Office
+  vendor: DAO Copilot
+  license: MIT
+  depends:
+    - libnotify
+    - libnss3
+    - libXScrnSaver
+    - libXtst6
+    - xdg-utils
+    - libatspi
+    - libdrm
+    - libxkbcommon
+    - libgtk-3-0
 npmRebuild: false
+compression: maximum
+# Auto-updater configuration
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  - provider: github
+    owner: wysRocket
+    repo: dao-copilot
+    token: ${env.GH_TOKEN}
+    releaseType: release
+  - provider: generic
+    url: https://wysrocket.github.io/dao-copilot/releases/
+    channel: latest
+# Build configuration
+buildDependenciesFromSource: true
+nodeGypRebuild: false
+electronDist: node_modules/electron/dist
+electronVersion: 37.0.0
