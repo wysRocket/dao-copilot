@@ -1,6 +1,6 @@
 /**
  * UltraFastWebSocketManager - Zero-latency WebSocket management
- * 
+ *
  * This service eliminates WebSocket delays by:
  * - Pre-establishing connections with connection pooling
  * - Binary message transmission for speed
@@ -10,7 +10,7 @@
  * - Automatic failover and recovery
  */
 
-import { EventEmitter } from 'events'
+import {EventEmitter} from 'events'
 
 export interface WebSocketMessage {
   type: 'transcription' | 'partial' | 'complete' | 'error' | 'status'
@@ -48,18 +48,18 @@ class ConnectionPool {
   private activeIndex = 0
   private config: UltraFastWebSocketConfig
   private metrics: Map<WebSocket, ConnectionMetrics> = new Map()
-  
+
   constructor(config: UltraFastWebSocketConfig) {
     this.config = config
   }
-  
+
   async initialize(): Promise<void> {
     console.log(`🚀 Initializing connection pool with ${this.config.maxConnections} connections`)
-    
-    const connectionPromises = Array.from({ length: this.config.maxConnections }, (_, index) =>
+
+    const connectionPromises = Array.from({length: this.config.maxConnections}, (_, index) =>
       this.createConnection(index)
     )
-    
+
     try {
       await Promise.all(connectionPromises)
       console.log(`✅ Connection pool initialized with ${this.connections.length} connections`)
@@ -68,31 +68,31 @@ class ConnectionPool {
       throw error
     }
   }
-  
+
   private async createConnection(index: number): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
       const startTime = performance.now()
       const ws = new WebSocket(this.config.url)
-      
+
       // Enable binary mode for faster transmission
       if (this.config.enableBinaryMode) {
         ws.binaryType = 'arraybuffer'
       }
-      
+
       ws.onopen = () => {
         const connectionTime = performance.now() - startTime
         console.log(`🔗 Connection ${index} established in ${connectionTime.toFixed(2)}ms`)
-        
+
         this.connections.push(ws)
         this.initializeMetrics(ws)
         resolve(ws)
       }
-      
-      ws.onerror = (error) => {
+
+      ws.onerror = error => {
         console.error(`❌ Connection ${index} failed:`, error)
         reject(error)
       }
-      
+
       // Set connection timeout
       setTimeout(() => {
         if (ws.readyState === WebSocket.CONNECTING) {
@@ -102,7 +102,7 @@ class ConnectionPool {
       }, this.config.messageTimeout)
     })
   }
-  
+
   private initializeMetrics(ws: WebSocket): void {
     this.metrics.set(ws, {
       latency: 0,
@@ -113,33 +113,33 @@ class ConnectionPool {
       errors: 0
     })
   }
-  
+
   getNextConnection(): WebSocket | null {
     if (this.connections.length === 0) return null
-    
+
     // Round-robin with health check
     let attempts = 0
     while (attempts < this.connections.length) {
       const connection = this.connections[this.activeIndex]
       this.activeIndex = (this.activeIndex + 1) % this.connections.length
-      
+
       if (connection.readyState === WebSocket.OPEN) {
         return connection
       }
-      
+
       attempts++
     }
-    
+
     return null
   }
-  
+
   updateMetrics(ws: WebSocket, latency: number): void {
     const metrics = this.metrics.get(ws)
     if (metrics) {
       metrics.latency = latency
       metrics.totalMessages += 1
       metrics.lastMessageTime = Date.now()
-      
+
       // Calculate messages per second (rolling average)
       const now = Date.now()
       const timeDiff = (now - metrics.lastMessageTime) / 1000
@@ -148,12 +148,12 @@ class ConnectionPool {
       }
     }
   }
-  
+
   getAverageLatency(): number {
     const latencies = Array.from(this.metrics.values()).map(m => m.latency)
     return latencies.length > 0 ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0
   }
-  
+
   destroy(): void {
     this.connections.forEach(ws => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -173,21 +173,21 @@ class MessageProcessor extends EventEmitter {
   private processingBatch = false
   private config: UltraFastWebSocketConfig
   private batchTimer: NodeJS.Timeout | null = null
-  
+
   constructor(config: UltraFastWebSocketConfig) {
     super()
     this.config = config
   }
-  
+
   addMessage(message: WebSocketMessage): void {
     this.messageQueue.push(message)
-    
+
     // Immediate processing for critical messages
     if (message.type === 'complete' || message.type === 'error') {
       this.processImmediately(message)
       return
     }
-    
+
     // Batch processing for regular messages
     if (this.messageQueue.length >= this.config.batchSize) {
       this.processBatch()
@@ -197,38 +197,38 @@ class MessageProcessor extends EventEmitter {
       }, this.config.batchDelay)
     }
   }
-  
+
   private processImmediately(message: WebSocketMessage): void {
     this.emit('message', message)
   }
-  
+
   private processBatch(): void {
     if (this.processingBatch || this.messageQueue.length === 0) return
-    
+
     this.processingBatch = true
-    
+
     if (this.batchTimer) {
       clearTimeout(this.batchTimer)
       this.batchTimer = null
     }
-    
+
     const batch = this.messageQueue.splice(0, this.config.batchSize)
-    
+
     // Process batch concurrently
     Promise.all(
-      batch.map(async (message) => {
+      batch.map(async message => {
         this.emit('message', message)
       })
     ).finally(() => {
       this.processingBatch = false
-      
+
       // Process remaining messages if any
       if (this.messageQueue.length > 0) {
         this.processBatch()
       }
     })
   }
-  
+
   destroy(): void {
     if (this.batchTimer) {
       clearTimeout(this.batchTimer)
@@ -255,10 +255,10 @@ export class UltraFastWebSocketManager extends EventEmitter {
     messagesPerSecond: 0,
     startTime: Date.now()
   }
-  
+
   constructor(config: Partial<UltraFastWebSocketConfig> = {}) {
     super()
-    
+
     this.config = {
       url: 'ws://localhost:8080',
       maxConnections: 3,
@@ -271,24 +271,24 @@ export class UltraFastWebSocketManager extends EventEmitter {
       enableCompression: true,
       ...config
     }
-    
+
     this.connectionPool = new ConnectionPool(this.config)
     this.messageProcessor = new MessageProcessor(this.config)
-    
+
     // Set up message processor events
     this.messageProcessor.on('message', (message: WebSocketMessage) => {
       this.handleMessage(message)
     })
   }
-  
+
   async connect(): Promise<void> {
     console.log('🚀 UltraFastWebSocketManager: Starting connection...')
-    
+
     try {
       await this.connectionPool.initialize()
       this.isConnected = true
       this.startHeartbeat()
-      
+
       console.log('✅ UltraFastWebSocketManager: Connected successfully')
       this.emit('connected')
     } catch (error) {
@@ -297,35 +297,35 @@ export class UltraFastWebSocketManager extends EventEmitter {
       this.scheduleReconnect()
     }
   }
-  
+
   disconnect(): void {
     console.log('🔌 UltraFastWebSocketManager: Disconnecting...')
-    
+
     this.isConnected = false
     this.stopHeartbeat()
     this.connectionPool.destroy()
     this.messageProcessor.destroy()
-    
+
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
-    
+
     this.emit('disconnected')
   }
-  
+
   send(data: any, type: string = 'transcription'): void {
     if (!this.isConnected) {
       console.warn('⚠️ Cannot send message: not connected')
       return
     }
-    
+
     const connection = this.connectionPool.getNextConnection()
     if (!connection) {
       console.warn('⚠️ No available connections')
       return
     }
-    
+
     const startTime = performance.now()
     const message: WebSocketMessage = {
       type: type as any,
@@ -333,7 +333,7 @@ export class UltraFastWebSocketManager extends EventEmitter {
       timestamp: Date.now(),
       id: this.generateMessageId()
     }
-    
+
     try {
       if (this.config.enableBinaryMode) {
         // Send as binary for faster transmission
@@ -342,23 +342,22 @@ export class UltraFastWebSocketManager extends EventEmitter {
       } else {
         connection.send(JSON.stringify(message))
       }
-      
+
       const latency = performance.now() - startTime
       this.connectionPool.updateMetrics(connection, latency)
       this.updatePerformanceMetrics(latency)
-      
     } catch (error) {
       console.error('❌ Failed to send message:', error)
       this.emit('error', error)
     }
   }
-  
+
   private handleMessage(message: WebSocketMessage): void {
     const processingStart = performance.now()
-    
+
     // Update performance metrics
     this.performanceMetrics.totalMessages += 1
-    
+
     // Emit typed events for different message types
     switch (message.type) {
       case 'transcription':
@@ -379,27 +378,27 @@ export class UltraFastWebSocketManager extends EventEmitter {
       default:
         this.emit('message', message)
     }
-    
+
     const processingTime = performance.now() - processingStart
     console.log(`📨 Message processed in ${processingTime.toFixed(2)}ms`)
   }
-  
+
   private startHeartbeat(): void {
     this.heartbeatTimer = setInterval(() => {
-      this.send({ type: 'ping' }, 'status')
+      this.send({type: 'ping'}, 'status')
     }, this.config.heartbeatInterval)
   }
-  
+
   private stopHeartbeat(): void {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
     }
   }
-  
+
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return
-    
+
     console.log(`🔄 Scheduling reconnect in ${this.config.reconnectDelay}ms`)
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null
@@ -410,20 +409,18 @@ export class UltraFastWebSocketManager extends EventEmitter {
       }
     }, this.config.reconnectDelay)
   }
-  
+
   private updatePerformanceMetrics(latency: number): void {
-    this.performanceMetrics.averageLatency = 
-      (this.performanceMetrics.averageLatency + latency) / 2
-    
+    this.performanceMetrics.averageLatency = (this.performanceMetrics.averageLatency + latency) / 2
+
     const elapsed = (Date.now() - this.performanceMetrics.startTime) / 1000
-    this.performanceMetrics.messagesPerSecond = 
-      this.performanceMetrics.totalMessages / elapsed
+    this.performanceMetrics.messagesPerSecond = this.performanceMetrics.totalMessages / elapsed
   }
-  
+
   private generateMessageId(): string {
     return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
   }
-  
+
   getPerformanceMetrics() {
     return {
       ...this.performanceMetrics,
@@ -432,7 +429,7 @@ export class UltraFastWebSocketManager extends EventEmitter {
       connectionCount: this.connectionPool['connections'].length
     }
   }
-  
+
   // Simulate transcription for testing
   simulateTranscription(text: string, isPartial: boolean = false): void {
     const message: WebSocketMessage = {
@@ -447,7 +444,7 @@ export class UltraFastWebSocketManager extends EventEmitter {
       timestamp: Date.now(),
       id: this.generateMessageId()
     }
-    
+
     this.messageProcessor.addMessage(message)
   }
 }
@@ -457,7 +454,9 @@ export class UltraFastWebSocketManager extends EventEmitter {
  */
 let ultraFastWebSocketManager: UltraFastWebSocketManager | null = null
 
-export function getUltraFastWebSocketManager(config?: Partial<UltraFastWebSocketConfig>): UltraFastWebSocketManager {
+export function getUltraFastWebSocketManager(
+  config?: Partial<UltraFastWebSocketConfig>
+): UltraFastWebSocketManager {
   if (!ultraFastWebSocketManager) {
     ultraFastWebSocketManager = new UltraFastWebSocketManager(config)
   }

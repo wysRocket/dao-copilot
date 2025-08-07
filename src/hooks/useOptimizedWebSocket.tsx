@@ -3,40 +3,40 @@
  * Provides easy integration with the optimized WebSocket service
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { 
-  OptimizedTranscriptionWebSocket, 
+import {useEffect, useRef, useState, useCallback} from 'react'
+import {
+  OptimizedTranscriptionWebSocket,
   type OptimizedWebSocketConfig,
   type ConnectionMetrics,
-  WebSocketState 
-} from '../services/optimized-transcription-websocket';
+  WebSocketState
+} from '../services/optimized-transcription-websocket'
 
 export interface UseOptimizedWebSocketOptions {
-  autoConnect?: boolean;
-  autoReconnect?: boolean;
-  enableLogging?: boolean;
-  onTranscription?: (data: TranscriptionData) => void;
-  onError?: (error: any) => void;
-  onStateChange?: (state: WebSocketState) => void;
+  autoConnect?: boolean
+  autoReconnect?: boolean
+  enableLogging?: boolean
+  onTranscription?: (data: TranscriptionData) => void
+  onError?: (error: any) => void
+  onStateChange?: (state: WebSocketState) => void
 }
 
 export interface TranscriptionData {
-  text: string;
-  confidence?: number;
-  isPartial?: boolean;
-  timestamp: number;
+  text: string
+  confidence?: number
+  isPartial?: boolean
+  timestamp: number
 }
 
 export interface WebSocketHookResult {
-  state: WebSocketState;
-  metrics: ConnectionMetrics | null;
-  connect: () => Promise<void>;
-  disconnect: () => void;
-  sendAudio: (audioData: Float32Array | ArrayBuffer) => void;
-  isConnected: boolean;
-  isConnecting: boolean;
-  hasError: boolean;
-  errorMessage: string | null;
+  state: WebSocketState
+  metrics: ConnectionMetrics | null
+  connect: () => Promise<void>
+  disconnect: () => void
+  sendAudio: (audioData: Float32Array | ArrayBuffer) => void
+  isConnected: boolean
+  isConnecting: boolean
+  hasError: boolean
+  errorMessage: string | null
 }
 
 export const useOptimizedWebSocket = (
@@ -50,124 +50,131 @@ export const useOptimizedWebSocket = (
     onTranscription,
     onError,
     onStateChange
-  } = options;
+  } = options
 
-  const [state, setState] = useState<WebSocketState>(WebSocketState.DISCONNECTED);
-  const [metrics, setMetrics] = useState<ConnectionMetrics | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
-  const wsRef = useRef<OptimizedTranscriptionWebSocket | null>(null);
-  const configRef = useRef(config);
+  const [state, setState] = useState<WebSocketState>(WebSocketState.DISCONNECTED)
+  const [metrics, setMetrics] = useState<ConnectionMetrics | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const wsRef = useRef<OptimizedTranscriptionWebSocket | null>(null)
+  const configRef = useRef(config)
 
   // Update config reference when it changes
   useEffect(() => {
-    configRef.current = config;
-  }, [config]);
+    configRef.current = config
+  }, [config])
 
   /**
    * Initialize WebSocket service
    */
   const initializeWebSocket = useCallback(() => {
     if (wsRef.current) {
-      wsRef.current.destroy();
+      wsRef.current.destroy()
     }
 
     const ws = new OptimizedTranscriptionWebSocket({
       ...configRef.current,
       reconnectAttempts: autoReconnect ? configRef.current.reconnectAttempts || 5 : 0
-    });
+    })
 
     // Event listeners
     ws.on('connected', (connectionMetrics: ConnectionMetrics) => {
-      setState(WebSocketState.CONNECTED);
-      setMetrics(connectionMetrics);
-      setErrorMessage(null);
-      
+      setState(WebSocketState.CONNECTED)
+      setMetrics(connectionMetrics)
+      setErrorMessage(null)
+
       if (enableLogging) {
-        console.log('🔌 WebSocket connected with metrics:', connectionMetrics);
+        console.log('🔌 WebSocket connected with metrics:', connectionMetrics)
       }
-    });
+    })
 
     ws.on('disconnected', (event: CloseEvent) => {
-      setState(WebSocketState.DISCONNECTED);
-      
+      setState(WebSocketState.DISCONNECTED)
+
       if (enableLogging) {
-        console.log('🔌 WebSocket disconnected:', event.reason);
+        console.log('🔌 WebSocket disconnected:', event.reason)
       }
-    });
+    })
 
     ws.on('transcription', (data: TranscriptionData) => {
       if (enableLogging && !data.isPartial) {
-        console.log('📝 Transcription:', data.text);
+        console.log('📝 Transcription:', data.text)
       }
-      
-      onTranscription?.(data);
-    });
+
+      onTranscription?.(data)
+    })
 
     ws.on('error', (error: any) => {
-      setState(WebSocketState.ERROR);
-      setErrorMessage(error?.message || 'WebSocket error occurred');
-      
+      setState(WebSocketState.ERROR)
+      setErrorMessage(error?.message || 'WebSocket error occurred')
+
       if (enableLogging) {
-        console.error('❌ WebSocket error:', error);
+        console.error('❌ WebSocket error:', error)
       }
-      
-      onError?.(error);
-    });
+
+      onError?.(error)
+    })
 
     ws.on('ready', () => {
       if (enableLogging) {
-        console.log('✅ WebSocket ready for transcription');
+        console.log('✅ WebSocket ready for transcription')
       }
-    });
+    })
 
-    wsRef.current = ws;
-    return ws;
-  }, [autoReconnect, enableLogging, onTranscription, onError]);
+    wsRef.current = ws
+    return ws
+  }, [autoReconnect, enableLogging, onTranscription, onError])
 
   /**
    * Connect to WebSocket
    */
   const connect = useCallback(async () => {
     if (!wsRef.current) {
-      initializeWebSocket();
+      initializeWebSocket()
     }
 
-    if (wsRef.current && state !== WebSocketState.CONNECTED && state !== WebSocketState.CONNECTING) {
-      setState(WebSocketState.CONNECTING);
-      setErrorMessage(null);
-      
+    if (
+      wsRef.current &&
+      state !== WebSocketState.CONNECTED &&
+      state !== WebSocketState.CONNECTING
+    ) {
+      setState(WebSocketState.CONNECTING)
+      setErrorMessage(null)
+
       try {
-        await wsRef.current.connect();
+        await wsRef.current.connect()
       } catch (error) {
-        setState(WebSocketState.ERROR);
-        setErrorMessage(error instanceof Error ? error.message : 'Connection failed');
-        throw error;
+        setState(WebSocketState.ERROR)
+        setErrorMessage(error instanceof Error ? error.message : 'Connection failed')
+        throw error
       }
     }
-  }, [state, initializeWebSocket]);
+  }, [state, initializeWebSocket])
 
   /**
    * Disconnect from WebSocket
    */
   const disconnect = useCallback(() => {
     if (wsRef.current) {
-      wsRef.current.disconnect();
-      setState(WebSocketState.DISCONNECTED);
-      setErrorMessage(null);
+      wsRef.current.disconnect()
+      setState(WebSocketState.DISCONNECTED)
+      setErrorMessage(null)
     }
-  }, []);
+  }, [])
 
   /**
    * Send audio data
    */
-  const sendAudio = useCallback((audioData: Float32Array | ArrayBuffer) => {
-    if (wsRef.current && state === WebSocketState.CONNECTED) {
-      wsRef.current.sendAudioData(audioData);
-    } else if (enableLogging) {
-      console.warn('Cannot send audio: WebSocket not connected');
-    }
-  }, [state, enableLogging]);
+  const sendAudio = useCallback(
+    (audioData: Float32Array | ArrayBuffer) => {
+      if (wsRef.current && state === WebSocketState.CONNECTED) {
+        wsRef.current.sendAudioData(audioData)
+      } else if (enableLogging) {
+        console.warn('Cannot send audio: WebSocket not connected')
+      }
+    },
+    [state, enableLogging]
+  )
 
   /**
    * Update metrics periodically
@@ -175,21 +182,21 @@ export const useOptimizedWebSocket = (
   useEffect(() => {
     const updateMetrics = () => {
       if (wsRef.current && state === WebSocketState.CONNECTED) {
-        const currentMetrics = wsRef.current.getMetrics();
-        setMetrics(currentMetrics);
+        const currentMetrics = wsRef.current.getMetrics()
+        setMetrics(currentMetrics)
       }
-    };
+    }
 
-    const interval = setInterval(updateMetrics, 1000);
-    return () => clearInterval(interval);
-  }, [state]);
+    const interval = setInterval(updateMetrics, 1000)
+    return () => clearInterval(interval)
+  }, [state])
 
   /**
    * Notify state changes
    */
   useEffect(() => {
-    onStateChange?.(state);
-  }, [state, onStateChange]);
+    onStateChange?.(state)
+  }, [state, onStateChange])
 
   /**
    * Auto-connect on mount if enabled
@@ -198,16 +205,16 @@ export const useOptimizedWebSocket = (
     if (autoConnect) {
       connect().catch(error => {
         if (enableLogging) {
-          console.error('Auto-connect failed:', error);
+          console.error('Auto-connect failed:', error)
         }
-      });
+      })
     }
 
     // Initialize WebSocket even if not auto-connecting
     if (!wsRef.current) {
-      initializeWebSocket();
+      initializeWebSocket()
     }
-  }, [autoConnect, connect, enableLogging, initializeWebSocket]);
+  }, [autoConnect, connect, enableLogging, initializeWebSocket])
 
   /**
    * Cleanup on unmount
@@ -215,16 +222,16 @@ export const useOptimizedWebSocket = (
   useEffect(() => {
     return () => {
       if (wsRef.current) {
-        wsRef.current.destroy();
-        wsRef.current = null;
+        wsRef.current.destroy()
+        wsRef.current = null
       }
-    };
-  }, []);
+    }
+  }, [])
 
   // Derived state
-  const isConnected = state === WebSocketState.CONNECTED;
-  const isConnecting = state === WebSocketState.CONNECTING;
-  const hasError = state === WebSocketState.ERROR;
+  const isConnected = state === WebSocketState.CONNECTED
+  const isConnecting = state === WebSocketState.CONNECTING
+  const hasError = state === WebSocketState.ERROR
 
   return {
     state,
@@ -236,8 +243,8 @@ export const useOptimizedWebSocket = (
     isConnecting,
     hasError,
     errorMessage
-  };
-};
+  }
+}
 
 /**
  * Hook for WebSocket metrics monitoring
@@ -248,7 +255,7 @@ export const useWebSocketMetrics = (ws: WebSocketHookResult) => {
     messagesPerSecond: 0,
     errorRate: 0,
     connectionUptime: 0
-  });
+  })
 
   useEffect(() => {
     if (ws.metrics) {
@@ -257,52 +264,52 @@ export const useWebSocketMetrics = (ws: WebSocketHookResult) => {
         messagesPerSecond: ws.metrics.messagesPerSecond,
         errorRate: ws.metrics.errorRate * 100, // Convert to percentage
         connectionUptime: Date.now() - (ws.metrics.connectionTime || 0)
-      });
+      })
     }
-  }, [ws.metrics]);
+  }, [ws.metrics])
 
   const getPerformanceStatus = () => {
-    const { averageLatency, errorRate } = performanceData;
-    
-    if (errorRate > 5) return 'poor';
-    if (averageLatency > 500) return 'slow';
-    if (averageLatency > 200) return 'good';
-    return 'excellent';
-  };
+    const {averageLatency, errorRate} = performanceData
+
+    if (errorRate > 5) return 'poor'
+    if (averageLatency > 500) return 'slow'
+    if (averageLatency > 200) return 'good'
+    return 'excellent'
+  }
 
   const getRecommendations = () => {
-    const recommendations: string[] = [];
-    const { averageLatency, errorRate, messagesPerSecond } = performanceData;
+    const recommendations: string[] = []
+    const {averageLatency, errorRate, messagesPerSecond} = performanceData
 
     if (averageLatency > 300) {
-      recommendations.push('High latency detected - check network connection');
-    }
-    
-    if (errorRate > 3) {
-      recommendations.push('High error rate - consider connection pooling');
-    }
-    
-    if (messagesPerSecond < 1 && ws.isConnected) {
-      recommendations.push('Low message throughput - check audio processing');
+      recommendations.push('High latency detected - check network connection')
     }
 
-    return recommendations;
-  };
+    if (errorRate > 3) {
+      recommendations.push('High error rate - consider connection pooling')
+    }
+
+    if (messagesPerSecond < 1 && ws.isConnected) {
+      recommendations.push('Low message throughput - check audio processing')
+    }
+
+    return recommendations
+  }
 
   return {
     performanceData,
     performanceStatus: getPerformanceStatus(),
     recommendations: getRecommendations()
-  };
-};
+  }
+}
 
 /**
  * Component for displaying WebSocket connection status
  */
 export interface WebSocketStatusProps {
-  websocket: WebSocketHookResult;
-  showMetrics?: boolean;
-  compact?: boolean;
+  websocket: WebSocketHookResult
+  showMetrics?: boolean
+  compact?: boolean
 }
 
 export const WebSocketStatus: React.FC<WebSocketStatusProps> = ({
@@ -310,65 +317,73 @@ export const WebSocketStatus: React.FC<WebSocketStatusProps> = ({
   showMetrics = true,
   compact = false
 }) => {
-  const metrics = useWebSocketMetrics(websocket);
+  const metrics = useWebSocketMetrics(websocket)
 
   const getStatusColor = () => {
     switch (websocket.state) {
-      case WebSocketState.CONNECTED: return '#28a745';
-      case WebSocketState.CONNECTING: return '#ffc107';
-      case WebSocketState.RECONNECTING: return '#fd7e14';
-      case WebSocketState.ERROR: return '#dc3545';
-      default: return '#6c757d';
+      case WebSocketState.CONNECTED:
+        return '#28a745'
+      case WebSocketState.CONNECTING:
+        return '#ffc107'
+      case WebSocketState.RECONNECTING:
+        return '#fd7e14'
+      case WebSocketState.ERROR:
+        return '#dc3545'
+      default:
+        return '#6c757d'
     }
-  };
+  }
 
   const getStatusIcon = () => {
     switch (websocket.state) {
-      case WebSocketState.CONNECTED: return '🟢';
-      case WebSocketState.CONNECTING: return '🟡';
-      case WebSocketState.RECONNECTING: return '🟠';
-      case WebSocketState.ERROR: return '🔴';
-      default: return '⚫';
+      case WebSocketState.CONNECTED:
+        return '🟢'
+      case WebSocketState.CONNECTING:
+        return '🟡'
+      case WebSocketState.RECONNECTING:
+        return '🟠'
+      case WebSocketState.ERROR:
+        return '🔴'
+      default:
+        return '⚫'
     }
-  };
+  }
 
   if (compact) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
         <span>{getStatusIcon()}</span>
-        <span style={{ color: getStatusColor(), fontWeight: 'bold' }}>
+        <span style={{color: getStatusColor(), fontWeight: 'bold'}}>
           {websocket.state.toUpperCase()}
         </span>
         {websocket.metrics && (
-          <span style={{ fontSize: '12px', color: '#6c757d' }}>
+          <span style={{fontSize: '12px', color: '#6c757d'}}>
             {websocket.metrics.averageLatency.toFixed(0)}ms
           </span>
         )}
       </div>
-    );
+    )
   }
 
   return (
-    <div style={{ 
-      border: '1px solid #dee2e6', 
-      borderRadius: '8px', 
-      padding: '12px',
-      backgroundColor: '#f8f9fa'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-        <span style={{ fontSize: '18px' }}>{getStatusIcon()}</span>
-        <strong style={{ color: getStatusColor() }}>
-          {websocket.state.toUpperCase()}
-        </strong>
+    <div
+      style={{
+        border: '1px solid #dee2e6',
+        borderRadius: '8px',
+        padding: '12px',
+        backgroundColor: '#f8f9fa'
+      }}
+    >
+      <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px'}}>
+        <span style={{fontSize: '18px'}}>{getStatusIcon()}</span>
+        <strong style={{color: getStatusColor()}}>{websocket.state.toUpperCase()}</strong>
         {websocket.errorMessage && (
-          <span style={{ color: '#dc3545', fontSize: '12px' }}>
-            {websocket.errorMessage}
-          </span>
+          <span style={{color: '#dc3545', fontSize: '12px'}}>{websocket.errorMessage}</span>
         )}
       </div>
 
       {showMetrics && websocket.metrics && (
-        <div style={{ fontSize: '12px', color: '#6c757d' }}>
+        <div style={{fontSize: '12px', color: '#6c757d'}}>
           <div>Latency: {websocket.metrics.averageLatency.toFixed(1)}ms</div>
           <div>Throughput: {websocket.metrics.messagesPerSecond.toFixed(1)} msg/s</div>
           <div>Error Rate: {(websocket.metrics.errorRate * 100).toFixed(1)}%</div>
@@ -377,10 +392,10 @@ export const WebSocketStatus: React.FC<WebSocketStatusProps> = ({
       )}
 
       {metrics.recommendations.length > 0 && (
-        <div style={{ marginTop: '8px', fontSize: '11px', color: '#fd7e14' }}>
+        <div style={{marginTop: '8px', fontSize: '11px', color: '#fd7e14'}}>
           💡 {metrics.recommendations[0]}
         </div>
       )}
     </div>
-  );
-};
+  )
+}

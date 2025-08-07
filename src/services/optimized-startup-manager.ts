@@ -4,11 +4,11 @@
  * Reduces 18+ second delays to under 5 seconds through parallel initialization and pre-warming
  */
 
-import { EventEmitter } from 'events'
-import { markPerformance, PERFORMANCE_MARKERS } from '../utils/performance-profiler'
-import { logger } from './gemini-logger'
+import {EventEmitter} from 'events'
+import {markPerformance, PERFORMANCE_MARKERS} from '../utils/performance-profiler'
+import {logger} from './gemini-logger'
 import GeminiLiveWebSocketClient from './gemini-live-websocket'
-import type { GeminiLiveConfig } from './gemini-live-websocket'
+import type {GeminiLiveConfig} from './gemini-live-websocket'
 
 export interface StartupOptimizationConfig {
   enableParallelInitialization: boolean
@@ -56,7 +56,7 @@ export class OptimizedStartupManager extends EventEmitter {
 
   constructor(config: Partial<StartupOptimizationConfig> = {}) {
     super()
-    
+
     this.config = {
       enableParallelInitialization: true,
       enablePreWarming: true,
@@ -64,7 +64,7 @@ export class OptimizedStartupManager extends EventEmitter {
       enableAudioPreInitialization: true,
       enableTranscriptionPreWarming: true,
       connectionTimeout: 3000, // Reduced from 5000ms
-      audioInitTimeout: 1000,  // Reduced from 5000ms  
+      audioInitTimeout: 1000, // Reduced from 5000ms
       transcriptionInitTimeout: 500, // Reduced from 3000ms
       ...config
     }
@@ -81,7 +81,7 @@ export class OptimizedStartupManager extends EventEmitter {
   async startOptimizedSequence(geminiConfig: GeminiLiveConfig): Promise<StartupMetrics> {
     this.setPhase(StartupPhase.INITIALIZING)
     this.abortController = new AbortController()
-    
+
     markPerformance(PERFORMANCE_MARKERS.APPLICATION_START)
     const startTime = performance.now()
 
@@ -111,7 +111,7 @@ export class OptimizedStartupManager extends EventEmitter {
       this.startupMetrics.totalStartupTime = totalTime
 
       this.setPhase(StartupPhase.READY)
-      
+
       logger.info('Optimized startup sequence completed', {
         totalTime: `${totalTime.toFixed(2)}ms`,
         optimizations: this.startupMetrics.optimizationsApplied,
@@ -119,12 +119,11 @@ export class OptimizedStartupManager extends EventEmitter {
       })
 
       this.emit('startupComplete', this.startupMetrics)
-      
-      return this.startupMetrics as StartupMetrics
 
+      return this.startupMetrics as StartupMetrics
     } catch (error) {
       this.setPhase(StartupPhase.ERROR)
-      
+
       logger.error('Optimized startup sequence failed', {
         error: error instanceof Error ? error.message : String(error),
         phase: this.currentPhase,
@@ -155,11 +154,7 @@ export class OptimizedStartupManager extends EventEmitter {
     this.parallelTasks.set('transcription', transcriptionTask)
 
     // Wait for all critical tasks to complete
-    await Promise.all([
-      websocketTask,
-      audioTask,
-      transcriptionTask
-    ])
+    await Promise.all([websocketTask, audioTask, transcriptionTask])
 
     logger.info('Parallel initialization completed', {
       websocketTime: this.startupMetrics.websocketConnectionTime,
@@ -194,7 +189,7 @@ export class OptimizedStartupManager extends EventEmitter {
         ...geminiConfig,
         connectionTimeout: this.config.connectionTimeout,
         heartbeatInterval: 15000, // Reduced from 30000ms
-        reconnectAttempts: 2, // Reduced from 5 for faster failure
+        reconnectAttempts: 2 // Reduced from 5 for faster failure
       }
 
       this.geminiClient = new GeminiLiveWebSocketClient(optimizedConfig)
@@ -220,10 +215,11 @@ export class OptimizedStartupManager extends EventEmitter {
         connectionTime: `${this.startupMetrics.websocketConnectionTime!.toFixed(2)}ms`,
         optimizations: ['reduced_timeout', 'fewer_reconnect_attempts']
       })
-
     } catch (error) {
       this.startupMetrics.bottlenecksIdentified!.push('websocket_connection_failed')
-      throw new Error(`WebSocket initialization failed: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(
+        `WebSocket initialization failed: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
@@ -271,10 +267,11 @@ export class OptimizedStartupManager extends EventEmitter {
         initTime: `${this.startupMetrics.audioInitializationTime!.toFixed(2)}ms`,
         optimizations: ['reduced_sample_rate', 'interactive_latency', 'worklet_pre_warming']
       })
-
     } catch (error) {
       this.startupMetrics.bottlenecksIdentified!.push('audio_initialization_failed')
-      throw new Error(`Audio initialization failed: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(
+        `Audio initialization failed: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
@@ -308,10 +305,11 @@ export class OptimizedStartupManager extends EventEmitter {
         initTime: `${this.startupMetrics.transcriptionInitializationTime!.toFixed(2)}ms`,
         optimizations: ['component_pre_warming', 'reduced_buffer_size']
       })
-
     } catch (error) {
       this.startupMetrics.bottlenecksIdentified!.push('transcription_initialization_failed')
-      throw new Error(`Transcription initialization failed: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(
+        `Transcription initialization failed: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
@@ -355,7 +353,7 @@ export class OptimizedStartupManager extends EventEmitter {
       // Load audio worklet module early
       const workletUrl = new URL('../workers/audio-streaming-worklet.js', import.meta.url)
       await this.audioContext.audioWorklet.addModule(workletUrl)
-      
+
       this.preWarmedComponents.set('audio_worklet', true)
       logger.debug('Audio worklet pre-warmed successfully')
     } catch (error) {
@@ -374,11 +372,11 @@ export class OptimizedStartupManager extends EventEmitter {
       if (this.audioContext) {
         const gainNode = this.audioContext.createGain()
         const analyserNode = this.audioContext.createAnalyser()
-        
+
         // Configure for optimal performance
         analyserNode.fftSize = 256 // Smaller FFT for faster processing
         gainNode.gain.value = 1.0
-        
+
         // Connect and disconnect to trigger initialization
         gainNode.connect(analyserNode)
         gainNode.disconnect()
@@ -419,7 +417,7 @@ export class OptimizedStartupManager extends EventEmitter {
       // Pre-allocate transcription buffers
       const bufferSize = 1024 // Reduced buffer size for faster processing
       const preAllocatedBuffer = new Float32Array(bufferSize)
-      
+
       // Trigger any initialization that would happen on first buffer use
       preAllocatedBuffer.fill(0)
 
@@ -442,11 +440,11 @@ export class OptimizedStartupManager extends EventEmitter {
       const testMessage = {
         serverContent: {
           modelTurn: {
-            parts: [{ text: "test" }]
+            parts: [{text: 'test'}]
           }
         }
       }
-      
+
       // Parse test message to warm up parsing pipeline
       JSON.stringify(testMessage)
       JSON.parse(JSON.stringify(testMessage))
@@ -476,12 +474,12 @@ export class OptimizedStartupManager extends EventEmitter {
       markPerformance(PERFORMANCE_MARKERS.FIRST_TRANSCRIPTION_RECEIVED)
     })
 
-    this.geminiClient.on('textResponse', (data) => {
+    this.geminiClient.on('textResponse', data => {
       // Fast-track text responses
       this.emit('optimizedTranscriptionReceived', data)
     })
 
-    this.geminiClient.on('geminiError', (error) => {
+    this.geminiClient.on('geminiError', error => {
       logger.error('WebSocket error in optimized handler', error)
       this.emit('optimizedError', error)
     })
@@ -490,7 +488,11 @@ export class OptimizedStartupManager extends EventEmitter {
   /**
    * Utility: Create a promise with timeout
    */
-  private timeoutPromise<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+  private timeoutPromise<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    errorMessage: string
+  ): Promise<T> {
     return Promise.race([
       promise,
       new Promise<never>((_, reject) => {
@@ -505,7 +507,7 @@ export class OptimizedStartupManager extends EventEmitter {
   private setPhase(phase: StartupPhase): void {
     this.currentPhase = phase
     this.emit('phaseChange', phase)
-    
+
     logger.debug('Startup phase changed', {
       phase,
       timestamp: performance.now()
@@ -523,7 +525,7 @@ export class OptimizedStartupManager extends EventEmitter {
    * Get startup metrics
    */
   getStartupMetrics(): Partial<StartupMetrics> {
-    return { ...this.startupMetrics }
+    return {...this.startupMetrics}
   }
 
   /**
@@ -548,7 +550,7 @@ export class OptimizedStartupManager extends EventEmitter {
       this.abortController.abort()
       logger.info('Startup sequence aborted')
     }
-    
+
     this.setPhase(StartupPhase.IDLE)
   }
 
@@ -560,15 +562,15 @@ export class OptimizedStartupManager extends EventEmitter {
     this.startupMetrics = {}
     this.preWarmedComponents.clear()
     this.parallelTasks.clear()
-    
+
     if (this.audioContext) {
       this.audioContext.close()
       this.audioContext = null
     }
-    
+
     this.geminiClient = null
     this.setPhase(StartupPhase.IDLE)
-    
+
     logger.info('OptimizedStartupManager reset')
   }
 
@@ -577,27 +579,36 @@ export class OptimizedStartupManager extends EventEmitter {
    */
   getOptimizationRecommendations(): string[] {
     const recommendations: string[] = []
-    
-    if (this.startupMetrics.websocketConnectionTime && this.startupMetrics.websocketConnectionTime > 5000) {
+
+    if (
+      this.startupMetrics.websocketConnectionTime &&
+      this.startupMetrics.websocketConnectionTime > 5000
+    ) {
       recommendations.push('Consider connection pooling or faster authentication for WebSocket')
     }
-    
-    if (this.startupMetrics.audioInitializationTime && this.startupMetrics.audioInitializationTime > 2000) {
+
+    if (
+      this.startupMetrics.audioInitializationTime &&
+      this.startupMetrics.audioInitializationTime > 2000
+    ) {
       recommendations.push('Enable audio pre-initialization for faster startup')
     }
-    
-    if (this.startupMetrics.transcriptionInitializationTime && this.startupMetrics.transcriptionInitializationTime > 1000) {
+
+    if (
+      this.startupMetrics.transcriptionInitializationTime &&
+      this.startupMetrics.transcriptionInitializationTime > 1000
+    ) {
       recommendations.push('Enable transcription pre-warming for faster engine startup')
     }
-    
+
     if (!this.config.enableParallelInitialization) {
       recommendations.push('Enable parallel initialization for ~40% speed improvement')
     }
-    
+
     if (!this.config.enablePreWarming) {
       recommendations.push('Enable component pre-warming for ~75% speed improvement')
     }
-    
+
     return recommendations
   }
 
@@ -607,7 +618,7 @@ export class OptimizedStartupManager extends EventEmitter {
   destroy(): void {
     this.reset()
     this.removeAllListeners()
-    
+
     logger.info('OptimizedStartupManager destroyed')
   }
 }

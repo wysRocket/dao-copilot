@@ -1,5 +1,5 @@
 import React from 'react'
-import { Link } from '@tanstack/react-router'
+import {Link} from '@tanstack/react-router'
 import TranscriptionEventTest from '../components/TranscriptionEventTest'
 
 export default function HomePage() {
@@ -21,19 +21,17 @@ export default function HomePage() {
               DAO Copilot
             </div>
             <div className="mb-4 text-sm">Voice transcription and AI assistance ready</div>
-            <div className="text-xs mb-4">Transcriptions will appear in the assistant window</div>
-            
+            <div className="mb-4 text-xs">Transcriptions will appear in the assistant window</div>
+
             {/* Zero-latency transcription test link */}
             <div className="mt-6">
               <Link
                 to="/zero-latency-test"
-                className="inline-block px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium"
+                className="inline-block rounded-lg bg-green-600 px-6 py-3 font-medium text-white transition-colors hover:bg-green-700"
               >
                 🚀 Test Zero-Latency Transcription
               </Link>
-              <div className="text-xs mt-2 text-gray-500">
-                Fix for 20+ second delay issue
-              </div>
+              <div className="mt-2 text-xs text-gray-500">Fix for 20+ second delay issue</div>
             </div>
           </div>
         </div>

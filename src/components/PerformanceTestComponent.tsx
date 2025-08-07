@@ -3,13 +3,13 @@
  * React component to test and validate startup optimizations
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react'
-import OptimizedStartupManager, { 
-  StartupPhase, 
-  type StartupOptimizationConfig, 
-  type StartupMetrics 
+import React, {useState, useCallback, useRef, useEffect} from 'react'
+import OptimizedStartupManager, {
+  StartupPhase,
+  type StartupOptimizationConfig,
+  type StartupMetrics
 } from '../services/optimized-startup-manager'
-import { GeminiLiveConfig } from '../services/gemini-live-websocket'
+import {GeminiLiveConfig} from '../services/gemini-live-websocket'
 
 interface PerformanceTestResult {
   testName: string
@@ -61,56 +61,60 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
   /**
    * Run a single performance test with given configuration
    */
-  const runPerformanceTest = useCallback(async (
-    testName: string,
-    config: StartupOptimizationConfig
-  ): Promise<PerformanceTestResult> => {
-    setIsRunning(true)
-    setCurrentPhase(StartupPhase.INITIALIZING)
+  const runPerformanceTest = useCallback(
+    async (testName: string, config: StartupOptimizationConfig): Promise<PerformanceTestResult> => {
+      setIsRunning(true)
+      setCurrentPhase(StartupPhase.INITIALIZING)
 
-    try {
-      // Create new startup manager for this test
-      if (startupManagerRef.current) {
-        startupManagerRef.current.destroy()
+      try {
+        // Create new startup manager for this test
+        if (startupManagerRef.current) {
+          startupManagerRef.current.destroy()
+        }
+
+        startupManagerRef.current = new OptimizedStartupManager(config)
+
+        // Set up event listeners
+        startupManagerRef.current.on('phaseChange', (phase: StartupPhase) => {
+          setCurrentPhase(phase)
+        })
+
+        // Run the startup sequence
+        const metrics = await startupManagerRef.current.startOptimizedSequence(geminiConfig)
+
+        // Create test result
+        const result: PerformanceTestResult = {
+          testName,
+          totalTime: metrics.totalStartupTime,
+          websocketTime: metrics.websocketConnectionTime || 0,
+          audioTime: metrics.audioInitializationTime || 0,
+          transcriptionTime: metrics.transcriptionInitializationTime || 0,
+          optimizationsApplied: metrics.optimizationsApplied || [],
+          bottlenecks: metrics.bottlenecksIdentified || [],
+          timestamp: new Date()
+        }
+
+        // Calculate speedup percentage if we have a baseline
+        if (baselineResult.current) {
+          const speedup =
+            ((baselineResult.current.totalTime - result.totalTime) /
+              baselineResult.current.totalTime) *
+            100
+          result.speedupPercentage = Math.max(0, speedup)
+        }
+
+        return result
+      } catch (error) {
+        throw new Error(
+          `Performance test failed: ${error instanceof Error ? error.message : String(error)}`
+        )
+      } finally {
+        setIsRunning(false)
+        setCurrentPhase(StartupPhase.IDLE)
       }
-
-      startupManagerRef.current = new OptimizedStartupManager(config)
-
-      // Set up event listeners
-      startupManagerRef.current.on('phaseChange', (phase: StartupPhase) => {
-        setCurrentPhase(phase)
-      })
-
-      // Run the startup sequence
-      const metrics = await startupManagerRef.current.startOptimizedSequence(geminiConfig)
-
-      // Create test result
-      const result: PerformanceTestResult = {
-        testName,
-        totalTime: metrics.totalStartupTime,
-        websocketTime: metrics.websocketConnectionTime || 0,
-        audioTime: metrics.audioInitializationTime || 0,
-        transcriptionTime: metrics.transcriptionInitializationTime || 0,
-        optimizationsApplied: metrics.optimizationsApplied || [],
-        bottlenecks: metrics.bottlenecksIdentified || [],
-        timestamp: new Date()
-      }
-
-      // Calculate speedup percentage if we have a baseline
-      if (baselineResult.current) {
-        const speedup = ((baselineResult.current.totalTime - result.totalTime) / baselineResult.current.totalTime) * 100
-        result.speedupPercentage = Math.max(0, speedup)
-      }
-
-      return result
-
-    } catch (error) {
-      throw new Error(`Performance test failed: ${error instanceof Error ? error.message : String(error)}`)
-    } finally {
-      setIsRunning(false)
-      setCurrentPhase(StartupPhase.IDLE)
-    }
-  }, [geminiConfig])
+    },
+    [geminiConfig]
+  )
 
   /**
    * Run baseline test (no optimizations)
@@ -221,30 +225,39 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
    */
   const getPhaseColor = (phase: StartupPhase): string => {
     switch (phase) {
-      case StartupPhase.IDLE: return 'text-gray-500'
-      case StartupPhase.INITIALIZING: return 'text-blue-500'
-      case StartupPhase.WEBSOCKET_CONNECTING: return 'text-yellow-500'
-      case StartupPhase.AUDIO_INITIALIZING: return 'text-purple-500'
-      case StartupPhase.TRANSCRIPTION_INITIALIZING: return 'text-orange-500'
-      case StartupPhase.READY: return 'text-green-500'
-      case StartupPhase.ERROR: return 'text-red-500'
-      default: return 'text-gray-500'
+      case StartupPhase.IDLE:
+        return 'text-gray-500'
+      case StartupPhase.INITIALIZING:
+        return 'text-blue-500'
+      case StartupPhase.WEBSOCKET_CONNECTING:
+        return 'text-yellow-500'
+      case StartupPhase.AUDIO_INITIALIZING:
+        return 'text-purple-500'
+      case StartupPhase.TRANSCRIPTION_INITIALIZING:
+        return 'text-orange-500'
+      case StartupPhase.READY:
+        return 'text-green-500'
+      case StartupPhase.ERROR:
+        return 'text-red-500'
+      default:
+        return 'text-gray-500'
     }
   }
 
   return (
-    <div className={`performance-test-component p-6 bg-white rounded-lg shadow-lg ${className}`}>
+    <div className={`performance-test-component rounded-lg bg-white p-6 shadow-lg ${className}`}>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <h2 className="mb-2 text-2xl font-bold text-gray-900">
           Transcription Startup Performance Testing
         </h2>
         <p className="text-gray-600">
-          Test and validate startup optimizations to reduce delay from 18+ seconds to under 5 seconds
+          Test and validate startup optimizations to reduce delay from 18+ seconds to under 5
+          seconds
         </p>
       </div>
 
       {/* Current Status */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+      <div className="mb-6 rounded-lg bg-gray-50 p-4">
         <div className="flex items-center justify-between">
           <div>
             <span className="text-sm font-medium text-gray-700">Current Phase:</span>
@@ -254,7 +267,7 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
           </div>
           {isRunning && (
             <div className="flex items-center">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-blue-500"></div>
               <span className="text-sm text-blue-600">Running test...</span>
             </div>
           )}
@@ -263,33 +276,33 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
 
       {/* Test Controls */}
       <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Tests</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <h3 className="mb-4 text-lg font-semibold text-gray-900">Performance Tests</h3>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <button
             onClick={runBaselineTest}
             disabled={isRunning}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Run Baseline Test
           </button>
           <button
             onClick={runParallelTest}
             disabled={isRunning}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Test Parallel Init
           </button>
           <button
             onClick={runPreWarmingTest}
             disabled={isRunning}
-            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Test Pre-warming
           </button>
           <button
             onClick={runCustomTest}
             disabled={isRunning}
-            className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded bg-purple-500 px-4 py-2 text-white hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Test Custom Config
           </button>
@@ -298,17 +311,19 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
 
       {/* Custom Configuration */}
       <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Custom Test Configuration</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <h3 className="mb-4 text-lg font-semibold text-gray-900">Custom Test Configuration</h3>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-3">
             <label className="flex items-center">
               <input
                 type="checkbox"
                 checked={selectedOptimizations.enableParallelInitialization}
-                onChange={(e) => setSelectedOptimizations(prev => ({
-                  ...prev,
-                  enableParallelInitialization: e.target.checked
-                }))}
+                onChange={e =>
+                  setSelectedOptimizations(prev => ({
+                    ...prev,
+                    enableParallelInitialization: e.target.checked
+                  }))
+                }
                 className="mr-2"
               />
               <span className="text-sm">Enable Parallel Initialization (~40% improvement)</span>
@@ -317,10 +332,12 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
               <input
                 type="checkbox"
                 checked={selectedOptimizations.enablePreWarming}
-                onChange={(e) => setSelectedOptimizations(prev => ({
-                  ...prev,
-                  enablePreWarming: e.target.checked
-                }))}
+                onChange={e =>
+                  setSelectedOptimizations(prev => ({
+                    ...prev,
+                    enablePreWarming: e.target.checked
+                  }))
+                }
                 className="mr-2"
               />
               <span className="text-sm">Enable Pre-warming (~75% improvement)</span>
@@ -329,10 +346,12 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
               <input
                 type="checkbox"
                 checked={selectedOptimizations.enableAudioPreInitialization}
-                onChange={(e) => setSelectedOptimizations(prev => ({
-                  ...prev,
-                  enableAudioPreInitialization: e.target.checked
-                }))}
+                onChange={e =>
+                  setSelectedOptimizations(prev => ({
+                    ...prev,
+                    enableAudioPreInitialization: e.target.checked
+                  }))
+                }
                 className="mr-2"
               />
               <span className="text-sm">Enable Audio Pre-initialization</span>
@@ -340,34 +359,38 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
           </div>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Connection Timeout (ms)
               </label>
               <input
                 type="number"
                 value={selectedOptimizations.connectionTimeout}
-                onChange={(e) => setSelectedOptimizations(prev => ({
-                  ...prev,
-                  connectionTimeout: parseInt(e.target.value)
-                }))}
-                className="w-full px-3 py-1 border border-gray-300 rounded text-sm"
+                onChange={e =>
+                  setSelectedOptimizations(prev => ({
+                    ...prev,
+                    connectionTimeout: parseInt(e.target.value)
+                  }))
+                }
+                className="w-full rounded border border-gray-300 px-3 py-1 text-sm"
                 min="1000"
                 max="10000"
                 step="500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Audio Init Timeout (ms)
               </label>
               <input
                 type="number"
                 value={selectedOptimizations.audioInitTimeout}
-                onChange={(e) => setSelectedOptimizations(prev => ({
-                  ...prev,
-                  audioInitTimeout: parseInt(e.target.value)
-                }))}
-                className="w-full px-3 py-1 border border-gray-300 rounded text-sm"
+                onChange={e =>
+                  setSelectedOptimizations(prev => ({
+                    ...prev,
+                    audioInitTimeout: parseInt(e.target.value)
+                  }))
+                }
+                className="w-full rounded border border-gray-300 px-3 py-1 text-sm"
                 min="500"
                 max="5000"
                 step="250"
@@ -379,12 +402,12 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
 
       {/* Test Results */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Test Results</h3>
           {testResults.length > 0 && (
             <button
               onClick={clearResults}
-              className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+              className="rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
             >
               Clear Results
             </button>
@@ -392,23 +415,28 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
         </div>
 
         {testResults.length === 0 ? (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">No test results yet. Run a test to see performance metrics.</p>
+          <div className="rounded-lg bg-gray-50 py-8 text-center">
+            <p className="text-gray-500">
+              No test results yet. Run a test to see performance metrics.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
             {testResults.map((result, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
+              <div key={index} className="rounded-lg border border-gray-200 p-4">
+                <div className="mb-3 flex items-center justify-between">
                   <h4 className="font-semibold text-gray-900">{result.testName}</h4>
                   <div className="flex items-center space-x-4">
                     {result.speedupPercentage !== undefined && (
-                      <span className={`px-2 py-1 rounded text-sm font-medium ${
-                        result.speedupPercentage > 0 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {result.speedupPercentage > 0 ? '+' : ''}{result.speedupPercentage.toFixed(1)}% speedup
+                      <span
+                        className={`rounded px-2 py-1 text-sm font-medium ${
+                          result.speedupPercentage > 0
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {result.speedupPercentage > 0 ? '+' : ''}
+                        {result.speedupPercentage.toFixed(1)}% speedup
                       </span>
                     )}
                     <span className="text-sm text-gray-500">
@@ -417,7 +445,7 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+                <div className="mb-3 grid grid-cols-2 gap-4 md:grid-cols-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">
                       {formatTime(result.totalTime)}
@@ -444,11 +472,14 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 mb-2">
+                <div className="mb-2 flex flex-wrap gap-2">
                   <span className="text-sm font-medium text-gray-700">Optimizations:</span>
                   {result.optimizationsApplied.length > 0 ? (
                     result.optimizationsApplied.map((opt, i) => (
-                      <span key={i} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                      <span
+                        key={i}
+                        className="rounded bg-green-100 px-2 py-1 text-xs text-green-800"
+                      >
                         {opt.replace('_', ' ')}
                       </span>
                     ))
@@ -461,7 +492,7 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
                   <div className="flex flex-wrap gap-2">
                     <span className="text-sm font-medium text-gray-700">Bottlenecks:</span>
                     {result.bottlenecks.map((bottleneck, i) => (
-                      <span key={i} className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">
+                      <span key={i} className="rounded bg-red-100 px-2 py-1 text-xs text-red-800">
                         {bottleneck.replace('_', ' ')}
                       </span>
                     ))}
@@ -475,19 +506,30 @@ export const PerformanceTestComponent: React.FC<PerformanceTestComponentProps> =
 
       {/* Performance Insights */}
       {testResults.length > 0 && (
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <h4 className="font-semibold text-blue-900 mb-2">Performance Insights</h4>
-          <div className="text-sm text-blue-800 space-y-1">
+        <div className="rounded-lg bg-blue-50 p-4">
+          <h4 className="mb-2 font-semibold text-blue-900">Performance Insights</h4>
+          <div className="space-y-1 text-sm text-blue-800">
             {testResults.some(r => r.speedupPercentage && r.speedupPercentage > 50) && (
-              <p>✅ Excellent performance improvement detected! Consider implementing these optimizations.</p>
+              <p>
+                ✅ Excellent performance improvement detected! Consider implementing these
+                optimizations.
+              </p>
             )}
             {testResults.some(r => r.bottlenecks.includes('slow_websocket_connection')) && (
-              <p>⚠️ WebSocket connection appears to be a bottleneck. Consider connection pooling or authentication optimization.</p>
+              <p>
+                ⚠️ WebSocket connection appears to be a bottleneck. Consider connection pooling or
+                authentication optimization.
+              </p>
             )}
             {testResults.some(r => r.bottlenecks.includes('slow_audio_initialization')) && (
-              <p>⚠️ Audio initialization is slow. Enable pre-initialization for better performance.</p>
+              <p>
+                ⚠️ Audio initialization is slow. Enable pre-initialization for better performance.
+              </p>
             )}
-            <p>💡 Best results typically come from combining parallel initialization with pre-warming optimizations.</p>
+            <p>
+              💡 Best results typically come from combining parallel initialization with pre-warming
+              optimizations.
+            </p>
           </div>
         </div>
       )}

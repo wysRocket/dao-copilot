@@ -3,9 +3,9 @@
  * Demonstrates the performance improvements and benchmarking
  */
 
-import React, { useState } from 'react';
-import OptimizedTranscriptionComponent from '../components/OptimizedTranscriptionComponent';
-import type { OptimizedWebSocketConfig } from '../services/optimized-transcription-websocket';
+import React, {useState} from 'react'
+import OptimizedTranscriptionComponent from '../components/OptimizedTranscriptionComponent'
+import type {OptimizedWebSocketConfig} from '../services/optimized-transcription-websocket'
 
 const OptimizedTranscriptionTestPage: React.FC = () => {
   const [config, setConfig] = useState<OptimizedWebSocketConfig>({
@@ -25,57 +25,66 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
     connectionTimeout: 10000,
     messageQueueSize: 100,
     enableMessageQueuing: true
-  });
+  })
 
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
 
   const handleConfigChange = (key: keyof OptimizedWebSocketConfig, value: any) => {
-    setConfig(prev => ({ ...prev, [key]: value }));
-  };
+    setConfig(prev => ({...prev, [key]: value}))
+  }
 
   return (
-    <div style={{ 
-      maxWidth: '1200px', 
-      margin: '0 auto', 
-      padding: '20px',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
-    }}>
+    <div
+      style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '20px',
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+      }}
+    >
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <h1 style={{ 
-          color: '#2c3e50', 
-          marginBottom: '10px',
-          fontSize: '2.5em'
-        }}>
+      <div style={{textAlign: 'center', marginBottom: '40px'}}>
+        <h1
+          style={{
+            color: '#2c3e50',
+            marginBottom: '10px',
+            fontSize: '2.5em'
+          }}
+        >
           🚀 Optimized Live Transcription Test
         </h1>
-        <p style={{ 
-          color: '#7f8c8d', 
-          fontSize: '1.2em',
-          maxWidth: '600px',
-          margin: '0 auto'
-        }}>
-          Testing the high-performance WebSocket transcription system with YouTube-level latency optimization
+        <p
+          style={{
+            color: '#7f8c8d',
+            fontSize: '1.2em',
+            maxWidth: '600px',
+            margin: '0 auto'
+          }}
+        >
+          Testing the high-performance WebSocket transcription system with YouTube-level latency
+          optimization
         </p>
       </div>
 
       {/* Configuration Panel */}
-      <div style={{
-        marginBottom: '30px',
-        padding: '20px',
-        border: '1px solid #e1e8ed',
-        borderRadius: '12px',
-        backgroundColor: '#f8f9fa'
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '15px'
-        }}>
-          <h3 style={{ margin: 0, color: '#2c3e50' }}>
-            Configuration
-          </h3>
+      <div
+        style={{
+          marginBottom: '30px',
+          padding: '20px',
+          border: '1px solid #e1e8ed',
+          borderRadius: '12px',
+          backgroundColor: '#f8f9fa'
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '15px'
+          }}
+        >
+          <h3 style={{margin: 0, color: '#2c3e50'}}>Configuration</h3>
           <button
             onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
             style={{
@@ -93,20 +102,22 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
         </div>
 
         {/* Basic Configuration */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-          gap: '15px',
-          marginBottom: showAdvancedSettings ? '20px' : '0'
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '15px',
+            marginBottom: showAdvancedSettings ? '20px' : '0'
+          }}
+        >
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>
               API Key:
             </label>
             <input
               type="password"
               value={config.apiKey}
-              onChange={(e) => handleConfigChange('apiKey', e.target.value)}
+              onChange={e => handleConfigChange('apiKey', e.target.value)}
               placeholder="Enter your Gemini API key"
               style={{
                 width: '100%',
@@ -117,19 +128,19 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
               }}
             />
             {!config.apiKey && (
-              <div style={{ fontSize: '12px', color: '#e74c3c', marginTop: '4px' }}>
+              <div style={{fontSize: '12px', color: '#e74c3c', marginTop: '4px'}}>
                 ⚠️ API key required for transcription
               </div>
             )}
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>
               Model:
             </label>
             <select
               value={config.model}
-              onChange={(e) => handleConfigChange('model', e.target.value)}
+              onChange={e => handleConfigChange('model', e.target.value)}
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -147,36 +158,40 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
 
         {/* Advanced Configuration */}
         {showAdvancedSettings && (
-          <div style={{
-            borderTop: '1px solid #dee2e6',
-            paddingTop: '20px'
-          }}>
-            <h4 style={{ marginBottom: '15px', color: '#495057' }}>
+          <div
+            style={{
+              borderTop: '1px solid #dee2e6',
+              paddingTop: '20px'
+            }}
+          >
+            <h4 style={{marginBottom: '15px', color: '#495057'}}>
               Performance Optimization Settings
             </h4>
-            
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-              gap: '15px'
-            }}>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '15px'
+              }}
+            >
               {/* Connection Pooling */}
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <input
                     type="checkbox"
                     checked={config.enableConnectionPooling}
-                    onChange={(e) => handleConfigChange('enableConnectionPooling', e.target.checked)}
+                    onChange={e => handleConfigChange('enableConnectionPooling', e.target.checked)}
                   />
-                  <span style={{ fontWeight: 'bold' }}>Connection Pooling</span>
+                  <span style={{fontWeight: 'bold'}}>Connection Pooling</span>
                 </label>
                 {config.enableConnectionPooling && (
-                  <div style={{ marginLeft: '24px', marginTop: '5px' }}>
-                    <label style={{ fontSize: '14px' }}>Pool Size:</label>
+                  <div style={{marginLeft: '24px', marginTop: '5px'}}>
+                    <label style={{fontSize: '14px'}}>Pool Size:</label>
                     <input
                       type="number"
                       value={config.poolSize}
-                      onChange={(e) => handleConfigChange('poolSize', parseInt(e.target.value))}
+                      onChange={e => handleConfigChange('poolSize', parseInt(e.target.value))}
                       min="1"
                       max="10"
                       style={{
@@ -193,66 +208,68 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
 
               {/* Binary Transmission */}
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <input
                     type="checkbox"
                     checked={config.enableBinaryTransmission}
-                    onChange={(e) => handleConfigChange('enableBinaryTransmission', e.target.checked)}
+                    onChange={e => handleConfigChange('enableBinaryTransmission', e.target.checked)}
                   />
-                  <span style={{ fontWeight: 'bold' }}>Binary Transmission</span>
+                  <span style={{fontWeight: 'bold'}}>Binary Transmission</span>
                 </label>
-                <div style={{ fontSize: '12px', color: '#6c757d', marginLeft: '24px' }}>
+                <div style={{fontSize: '12px', color: '#6c757d', marginLeft: '24px'}}>
                   Reduces payload size by ~40%
                 </div>
               </div>
 
               {/* Compression */}
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <input
                     type="checkbox"
                     checked={config.enableCompression}
-                    onChange={(e) => handleConfigChange('enableCompression', e.target.checked)}
+                    onChange={e => handleConfigChange('enableCompression', e.target.checked)}
                   />
-                  <span style={{ fontWeight: 'bold' }}>Compression</span>
+                  <span style={{fontWeight: 'bold'}}>Compression</span>
                 </label>
-                <div style={{ fontSize: '12px', color: '#6c757d', marginLeft: '24px' }}>
+                <div style={{fontSize: '12px', color: '#6c757d', marginLeft: '24px'}}>
                   Additional bandwidth reduction
                 </div>
               </div>
 
               {/* Low Latency Mode */}
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <input
                     type="checkbox"
                     checked={config.lowLatencyMode}
-                    onChange={(e) => handleConfigChange('lowLatencyMode', e.target.checked)}
+                    onChange={e => handleConfigChange('lowLatencyMode', e.target.checked)}
                   />
-                  <span style={{ fontWeight: 'bold' }}>Low Latency Mode</span>
+                  <span style={{fontWeight: 'bold'}}>Low Latency Mode</span>
                 </label>
-                <div style={{ fontSize: '12px', color: '#6c757d', marginLeft: '24px' }}>
+                <div style={{fontSize: '12px', color: '#6c757d', marginLeft: '24px'}}>
                   Optimizes for minimal delay
                 </div>
               </div>
 
               {/* Heartbeat */}
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <input
                     type="checkbox"
                     checked={config.enableHeartbeat}
-                    onChange={(e) => handleConfigChange('enableHeartbeat', e.target.checked)}
+                    onChange={e => handleConfigChange('enableHeartbeat', e.target.checked)}
                   />
-                  <span style={{ fontWeight: 'bold' }}>Heartbeat</span>
+                  <span style={{fontWeight: 'bold'}}>Heartbeat</span>
                 </label>
                 {config.enableHeartbeat && (
-                  <div style={{ marginLeft: '24px', marginTop: '5px' }}>
-                    <label style={{ fontSize: '14px' }}>Interval (ms):</label>
+                  <div style={{marginLeft: '24px', marginTop: '5px'}}>
+                    <label style={{fontSize: '14px'}}>Interval (ms):</label>
                     <input
                       type="number"
                       value={config.heartbeatInterval}
-                      onChange={(e) => handleConfigChange('heartbeatInterval', parseInt(e.target.value))}
+                      onChange={e =>
+                        handleConfigChange('heartbeatInterval', parseInt(e.target.value))
+                      }
                       min="5000"
                       max="60000"
                       step="5000"
@@ -270,21 +287,23 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
 
               {/* Message Queuing */}
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                   <input
                     type="checkbox"
                     checked={config.enableMessageQueuing}
-                    onChange={(e) => handleConfigChange('enableMessageQueuing', e.target.checked)}
+                    onChange={e => handleConfigChange('enableMessageQueuing', e.target.checked)}
                   />
-                  <span style={{ fontWeight: 'bold' }}>Message Queuing</span>
+                  <span style={{fontWeight: 'bold'}}>Message Queuing</span>
                 </label>
                 {config.enableMessageQueuing && (
-                  <div style={{ marginLeft: '24px', marginTop: '5px' }}>
-                    <label style={{ fontSize: '14px' }}>Queue Size:</label>
+                  <div style={{marginLeft: '24px', marginTop: '5px'}}>
+                    <label style={{fontSize: '14px'}}>Queue Size:</label>
                     <input
                       type="number"
                       value={config.messageQueueSize}
-                      onChange={(e) => handleConfigChange('messageQueueSize', parseInt(e.target.value))}
+                      onChange={e =>
+                        handleConfigChange('messageQueueSize', parseInt(e.target.value))
+                      }
                       min="10"
                       max="1000"
                       style={{
@@ -301,23 +320,32 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
             </div>
 
             {/* Connection Settings */}
-            <h4 style={{ marginTop: '20px', marginBottom: '15px', color: '#495057' }}>
+            <h4 style={{marginTop: '20px', marginBottom: '15px', color: '#495057'}}>
               Connection Settings
             </h4>
-            
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-              gap: '15px'
-            }}>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '15px'
+              }}
+            >
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '5px',
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}
+                >
                   Connection Timeout (ms):
                 </label>
                 <input
                   type="number"
                   value={config.connectionTimeout}
-                  onChange={(e) => handleConfigChange('connectionTimeout', parseInt(e.target.value))}
+                  onChange={e => handleConfigChange('connectionTimeout', parseInt(e.target.value))}
                   min="1000"
                   max="30000"
                   style={{
@@ -330,13 +358,20 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '5px',
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}
+                >
                   Reconnect Attempts:
                 </label>
                 <input
                   type="number"
                   value={config.reconnectAttempts}
-                  onChange={(e) => handleConfigChange('reconnectAttempts', parseInt(e.target.value))}
+                  onChange={e => handleConfigChange('reconnectAttempts', parseInt(e.target.value))}
                   min="0"
                   max="10"
                   style={{
@@ -349,13 +384,20 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '5px',
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}
+                >
                   Reconnect Delay (ms):
                 </label>
                 <input
                   type="number"
                   value={config.reconnectDelay}
-                  onChange={(e) => handleConfigChange('reconnectDelay', parseInt(e.target.value))}
+                  onChange={e => handleConfigChange('reconnectDelay', parseInt(e.target.value))}
                   min="500"
                   max="5000"
                   style={{
@@ -372,63 +414,73 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
       </div>
 
       {/* Performance Info Panel */}
-      <div style={{
-        marginBottom: '30px',
-        padding: '20px',
-        border: '1px solid #e1e8ed',
-        borderRadius: '12px',
-        backgroundColor: '#fff'
-      }}>
-        <h3 style={{ marginBottom: '15px', color: '#2c3e50' }}>
-          🎯 Performance Targets vs YouTube
-        </h3>
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-          gap: '15px'
-        }}>
-          <div style={{ 
-            padding: '12px', 
-            backgroundColor: '#e8f5e8', 
-            borderRadius: '8px',
-            border: '1px solid #c3e6cb'
-          }}>
-            <div style={{ fontWeight: 'bold', color: '#155724' }}>Target Latency</div>
-            <div style={{ fontSize: '18px', color: '#155724' }}>≤ 150ms</div>
-            <div style={{ fontSize: '12px', color: '#6c757d' }}>YouTube baseline</div>
-          </div>
-          
-          <div style={{ 
-            padding: '12px', 
-            backgroundColor: '#e3f2fd', 
-            borderRadius: '8px',
-            border: '1px solid #90caf9'
-          }}>
-            <div style={{ fontWeight: 'bold', color: '#0d47a1' }}>Throughput Target</div>
-            <div style={{ fontSize: '18px', color: '#0d47a1' }}>≥ 10 msg/s</div>
-            <div style={{ fontSize: '12px', color: '#6c757d' }}>Real-time audio</div>
-          </div>
-          
-          <div style={{ 
-            padding: '12px', 
-            backgroundColor: '#fff3e0', 
-            borderRadius: '8px',
-            border: '1px solid #ffcc02'
-          }}>
-            <div style={{ fontWeight: 'bold', color: '#e65100' }}>Error Rate Target</div>
-            <div style={{ fontSize: '18px', color: '#e65100' }}>≤ 1%</div>
-            <div style={{ fontSize: '12px', color: '#6c757d' }}>Reliable service</div>
+      <div
+        style={{
+          marginBottom: '30px',
+          padding: '20px',
+          border: '1px solid #e1e8ed',
+          borderRadius: '12px',
+          backgroundColor: '#fff'
+        }}
+      >
+        <h3 style={{marginBottom: '15px', color: '#2c3e50'}}>🎯 Performance Targets vs YouTube</h3>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '15px'
+          }}
+        >
+          <div
+            style={{
+              padding: '12px',
+              backgroundColor: '#e8f5e8',
+              borderRadius: '8px',
+              border: '1px solid #c3e6cb'
+            }}
+          >
+            <div style={{fontWeight: 'bold', color: '#155724'}}>Target Latency</div>
+            <div style={{fontSize: '18px', color: '#155724'}}>≤ 150ms</div>
+            <div style={{fontSize: '12px', color: '#6c757d'}}>YouTube baseline</div>
           </div>
 
-          <div style={{ 
-            padding: '12px', 
-            backgroundColor: '#f3e5f5', 
-            borderRadius: '8px',
-            border: '1px solid #ce93d8'
-          }}>
-            <div style={{ fontWeight: 'bold', color: '#4a148c' }}>Connection Time</div>
-            <div style={{ fontSize: '18px', color: '#4a148c' }}>≤ 2s</div>
-            <div style={{ fontSize: '12px', color: '#6c757d' }}>Instant start</div>
+          <div
+            style={{
+              padding: '12px',
+              backgroundColor: '#e3f2fd',
+              borderRadius: '8px',
+              border: '1px solid #90caf9'
+            }}
+          >
+            <div style={{fontWeight: 'bold', color: '#0d47a1'}}>Throughput Target</div>
+            <div style={{fontSize: '18px', color: '#0d47a1'}}>≥ 10 msg/s</div>
+            <div style={{fontSize: '12px', color: '#6c757d'}}>Real-time audio</div>
+          </div>
+
+          <div
+            style={{
+              padding: '12px',
+              backgroundColor: '#fff3e0',
+              borderRadius: '8px',
+              border: '1px solid #ffcc02'
+            }}
+          >
+            <div style={{fontWeight: 'bold', color: '#e65100'}}>Error Rate Target</div>
+            <div style={{fontSize: '18px', color: '#e65100'}}>≤ 1%</div>
+            <div style={{fontSize: '12px', color: '#6c757d'}}>Reliable service</div>
+          </div>
+
+          <div
+            style={{
+              padding: '12px',
+              backgroundColor: '#f3e5f5',
+              borderRadius: '8px',
+              border: '1px solid #ce93d8'
+            }}
+          >
+            <div style={{fontWeight: 'bold', color: '#4a148c'}}>Connection Time</div>
+            <div style={{fontSize: '18px', color: '#4a148c'}}>≤ 2s</div>
+            <div style={{fontSize: '12px', color: '#6c757d'}}>Instant start</div>
           </div>
         </div>
       </div>
@@ -440,44 +492,48 @@ const OptimizedTranscriptionTestPage: React.FC = () => {
           autoStart={false}
           showMetrics={true}
           showBenchmarks={true}
-          onTranscription={(data) => {
-            console.log('📝 Transcription received:', data);
+          onTranscription={data => {
+            console.log('📝 Transcription received:', data)
           }}
-          onError={(error) => {
-            console.error('❌ Transcription error:', error);
+          onError={error => {
+            console.error('❌ Transcription error:', error)
           }}
         />
       ) : (
-        <div style={{
-          padding: '40px',
-          textAlign: 'center',
-          border: '2px dashed #dee2e6',
-          borderRadius: '12px',
-          backgroundColor: '#f8f9fa'
-        }}>
-          <h3 style={{ color: '#6c757d', marginBottom: '10px' }}>
-            API Key Required
-          </h3>
-          <p style={{ color: '#6c757d' }}>
-            Please enter your Gemini API key in the configuration above to test the transcription system.
+        <div
+          style={{
+            padding: '40px',
+            textAlign: 'center',
+            border: '2px dashed #dee2e6',
+            borderRadius: '12px',
+            backgroundColor: '#f8f9fa'
+          }}
+        >
+          <h3 style={{color: '#6c757d', marginBottom: '10px'}}>API Key Required</h3>
+          <p style={{color: '#6c757d'}}>
+            Please enter your Gemini API key in the configuration above to test the transcription
+            system.
           </p>
         </div>
       )}
 
       {/* Footer */}
-      <div style={{
-        marginTop: '40px',
-        padding: '20px',
-        textAlign: 'center',
-        backgroundColor: '#f8f9fa',
-        borderRadius: '12px'
-      }}>
-        <p style={{ margin: 0, color: '#6c757d', fontSize: '14px' }}>
-          🚀 Optimized for minimal latency using connection pooling, binary transmission, and compression
+      <div
+        style={{
+          marginTop: '40px',
+          padding: '20px',
+          textAlign: 'center',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '12px'
+        }}
+      >
+        <p style={{margin: 0, color: '#6c757d', fontSize: '14px'}}>
+          🚀 Optimized for minimal latency using connection pooling, binary transmission, and
+          compression
         </p>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default OptimizedTranscriptionTestPage;
+export default OptimizedTranscriptionTestPage

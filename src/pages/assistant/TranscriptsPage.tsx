@@ -107,7 +107,7 @@ export default function TranscriptsPage() {
     const unsubscribe = onMessage((channel, ...args) => {
       if (channel === 'recording-state-changed' && args[0] !== undefined) {
         const isRecording = args[0] as boolean
-        
+
         // Start zero-latency transcription when main REC button is pressed
         if (isRecording && !isActive) {
           start()
@@ -294,7 +294,7 @@ export default function TranscriptsPage() {
     }
   }, [])
 
-      // Memoized transcripts for rendering (prevent re-sorts on every render)
+  // Memoized transcripts for rendering (prevent re-sorts on every render)
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -311,7 +311,7 @@ export default function TranscriptsPage() {
 
       {/* Enhanced Transcript Display */}
       <div className="flex-1 overflow-hidden">
-        <AccumulativeTranscriptDisplay 
+        <AccumulativeTranscriptDisplay
           className="h-full"
           showHeader={false}
           showStatus={false}

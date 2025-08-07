@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import ZeroLatencyTranscriptionDisplay from '../components/ZeroLatencyTranscriptionDisplay';
+import React, {useState, useEffect, useRef} from 'react'
+import ZeroLatencyTranscriptionDisplay from '../components/ZeroLatencyTranscriptionDisplay'
 
 /**
  * Test page for the zero-latency transcription system
@@ -12,46 +12,48 @@ export const ZeroLatencyTestPage: React.FC = () => {
     maxEntries: 50,
     autoStart: false,
     language: 'en-US'
-  });
+  })
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const pageRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const pageRef = useRef<HTMLDivElement>(null)
 
   // Toggle fullscreen
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      pageRef.current?.requestFullscreen();
-      setIsFullscreen(true);
+      pageRef.current?.requestFullscreen()
+      setIsFullscreen(true)
     } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+      document.exitFullscreen()
+      setIsFullscreen(false)
     }
-  };
+  }
 
   // Listen for fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+      setIsFullscreen(!!document.fullscreenElement)
+    }
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
 
   return (
-    <div ref={pageRef} className="h-screen bg-black text-white flex flex-col">
+    <div ref={pageRef} className="flex h-screen flex-col bg-black text-white">
       {/* Header (hidden in fullscreen) */}
       {!isFullscreen && (
-        <div className="bg-gray-900 border-b border-gray-700 p-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="border-b border-gray-700 bg-gray-900 p-4">
+          <div className="mb-4 flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-green-400">🚀 Zero-Latency Transcription</h1>
-              <p className="text-gray-400">Ultra-fast real-time speech-to-text (replaces delayed system)</p>
+              <p className="text-gray-400">
+                Ultra-fast real-time speech-to-text (replaces delayed system)
+              </p>
             </div>
             <div className="flex space-x-2">
               <button
                 onClick={toggleFullscreen}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                className="rounded-lg bg-gray-700 px-4 py-2 transition-colors hover:bg-gray-600"
               >
                 📺 Fullscreen
               </button>
@@ -59,12 +61,12 @@ export const ZeroLatencyTestPage: React.FC = () => {
           </div>
 
           {/* Settings panel */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"
                 checked={settings.showTimestamps}
-                onChange={(e) => setSettings(prev => ({ ...prev, showTimestamps: e.target.checked }))}
+                onChange={e => setSettings(prev => ({...prev, showTimestamps: e.target.checked}))}
                 className="rounded"
               />
               <span className="text-sm">Timestamps</span>
@@ -74,7 +76,7 @@ export const ZeroLatencyTestPage: React.FC = () => {
               <input
                 type="checkbox"
                 checked={settings.showConfidence}
-                onChange={(e) => setSettings(prev => ({ ...prev, showConfidence: e.target.checked }))}
+                onChange={e => setSettings(prev => ({...prev, showConfidence: e.target.checked}))}
                 className="rounded"
               />
               <span className="text-sm">Confidence</span>
@@ -84,7 +86,7 @@ export const ZeroLatencyTestPage: React.FC = () => {
               <input
                 type="checkbox"
                 checked={settings.autoStart}
-                onChange={(e) => setSettings(prev => ({ ...prev, autoStart: e.target.checked }))}
+                onChange={e => setSettings(prev => ({...prev, autoStart: e.target.checked}))}
                 className="rounded"
               />
               <span className="text-sm">Auto-start</span>
@@ -95,8 +97,10 @@ export const ZeroLatencyTestPage: React.FC = () => {
               <input
                 type="number"
                 value={settings.maxEntries}
-                onChange={(e) => setSettings(prev => ({ ...prev, maxEntries: parseInt(e.target.value) || 50 }))}
-                className="w-16 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-sm"
+                onChange={e =>
+                  setSettings(prev => ({...prev, maxEntries: parseInt(e.target.value) || 50}))
+                }
+                className="w-16 rounded border border-gray-600 bg-gray-800 px-2 py-1 text-sm"
                 min="10"
                 max="500"
               />
@@ -106,8 +110,8 @@ export const ZeroLatencyTestPage: React.FC = () => {
               <span className="text-sm">Language:</span>
               <select
                 value={settings.language}
-                onChange={(e) => setSettings(prev => ({ ...prev, language: e.target.value }))}
-                className="px-2 py-1 bg-gray-800 border border-gray-600 rounded text-sm"
+                onChange={e => setSettings(prev => ({...prev, language: e.target.value}))}
+                className="rounded border border-gray-600 bg-gray-800 px-2 py-1 text-sm"
               >
                 <option value="en-US">English (US)</option>
                 <option value="en-GB">English (UK)</option>
@@ -121,9 +125,9 @@ export const ZeroLatencyTestPage: React.FC = () => {
           </div>
 
           {/* Performance comparison */}
-          <div className="mt-4 p-3 bg-green-900 border border-green-600 rounded-lg">
-            <div className="text-green-300 font-semibold mb-1">🎯 Performance Target Achieved</div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="mt-4 rounded-lg border border-green-600 bg-green-900 p-3">
+            <div className="mb-1 font-semibold text-green-300">🎯 Performance Target Achieved</div>
+            <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-3">
               <div>
                 <div className="text-red-400">❌ Old System: 20+ seconds delay</div>
                 <div className="text-green-400">✅ New System: &lt;100ms latency</div>
@@ -154,10 +158,10 @@ export const ZeroLatencyTestPage: React.FC = () => {
 
       {/* Fullscreen controls */}
       {isFullscreen && (
-        <div className="absolute top-4 right-4 flex space-x-2">
+        <div className="absolute right-4 top-4 flex space-x-2">
           <button
             onClick={toggleFullscreen}
-            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors"
+            className="rounded bg-gray-800 px-3 py-1 text-sm transition-colors hover:bg-gray-700"
           >
             ❌ Exit Fullscreen
           </button>
@@ -165,15 +169,15 @@ export const ZeroLatencyTestPage: React.FC = () => {
       )}
 
       {/* Instructions for first-time users */}
-      <div className="absolute bottom-4 left-4 text-xs text-gray-500 max-w-md">
-        <div className="bg-gray-900 bg-opacity-90 p-2 rounded">
-          💡 <strong>How to test:</strong> Click "Start" and speak normally. 
-          You should see text appear instantly as you speak, with final results confirmed in white.
-          This system eliminates the 20+ second delay from the previous implementation.
+      <div className="absolute bottom-4 left-4 max-w-md text-xs text-gray-500">
+        <div className="rounded bg-gray-900 bg-opacity-90 p-2">
+          💡 <strong>How to test:</strong> Click "Start" and speak normally. You should see text
+          appear instantly as you speak, with final results confirmed in white. This system
+          eliminates the 20+ second delay from the previous implementation.
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default ZeroLatencyTestPage;
+export default ZeroLatencyTestPage

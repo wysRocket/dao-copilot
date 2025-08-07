@@ -3,14 +3,14 @@
  * React hook that implements and manages startup optimizations
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import OptimizedStartupManager, { 
-  StartupPhase, 
-  type StartupOptimizationConfig, 
-  type StartupMetrics 
+import {useState, useEffect, useCallback, useRef} from 'react'
+import OptimizedStartupManager, {
+  StartupPhase,
+  type StartupOptimizationConfig,
+  type StartupMetrics
 } from '../services/optimized-startup-manager'
-import { GeminiLiveConfig } from '../services/gemini-live-websocket'
-import { markPerformance, PERFORMANCE_MARKERS } from '../utils/performance-profiler'
+import {GeminiLiveConfig} from '../services/gemini-live-websocket'
+import {markPerformance, PERFORMANCE_MARKERS} from '../utils/performance-profiler'
 
 export interface UseOptimizedStartupConfig extends StartupOptimizationConfig {
   autoStartOnMount?: boolean
@@ -44,7 +44,6 @@ export function useOptimizedStartup(
   geminiConfig: GeminiLiveConfig,
   config: UseOptimizedStartupConfig = {}
 ): [OptimizedStartupState, OptimizedStartupActions] {
-  
   const [state, setState] = useState<OptimizedStartupState>({
     isStarting: false,
     currentPhase: StartupPhase.IDLE,
@@ -148,20 +147,19 @@ export function useOptimizedStartup(
     })
 
     // Set up additional performance monitoring
-    startupManagerRef.current.on('optimizedTranscriptionReceived', (data) => {
+    startupManagerRef.current.on('optimizedTranscriptionReceived', data => {
       markPerformance(PERFORMANCE_MARKERS.FIRST_TRANSCRIPTION_DISPLAY)
-      
+
       if (configRef.current.enablePerformanceLogging) {
         console.log('[OptimizedStartup] First transcription received:', data)
       }
     })
 
-    startupManagerRef.current.on('optimizedError', (error) => {
+    startupManagerRef.current.on('optimizedError', error => {
       if (configRef.current.enablePerformanceLogging) {
         console.error('[OptimizedStartup] WebSocket error:', error)
       }
     })
-
   }, [])
 
   /**
@@ -188,14 +186,16 @@ export function useOptimizedStartup(
       }
 
       if (configRef.current.enablePerformanceLogging) {
-        console.log('[OptimizedStartup] Starting optimized sequence with config:', configRef.current)
+        console.log(
+          '[OptimizedStartup] Starting optimized sequence with config:',
+          configRef.current
+        )
       }
 
       await startupManagerRef.current!.startOptimizedSequence(geminiConfig)
-
     } catch (error) {
       const errorObj = error instanceof Error ? error : new Error(String(error))
-      
+
       setState(prev => ({
         ...prev,
         isStarting: false,
@@ -205,9 +205,10 @@ export function useOptimizedStartup(
       }))
 
       // Attempt fallback if enabled
-      if (configRef.current.fallbackToSequential && 
-          configRef.current.enableParallelInitialization) {
-        
+      if (
+        configRef.current.fallbackToSequential &&
+        configRef.current.enableParallelInitialization
+      ) {
         if (configRef.current.enablePerformanceLogging) {
           console.log('[OptimizedStartup] Attempting fallback to sequential initialization')
         }
@@ -242,7 +243,7 @@ export function useOptimizedStartup(
 
     // Reinitialize manager with fallback config
     initializeStartupManager()
-    
+
     // Start the sequence again
     await startOptimizedSequence()
   }, [initializeStartupManager, startOptimizedSequence])
@@ -274,7 +275,7 @@ export function useOptimizedStartup(
    */
   const resetState = useCallback(() => {
     abortStartup()
-    
+
     setState({
       isStarting: false,
       currentPhase: StartupPhase.IDLE,
@@ -293,18 +294,21 @@ export function useOptimizedStartup(
   /**
    * Update configuration
    */
-  const updateConfig = useCallback((newConfig: Partial<UseOptimizedStartupConfig>) => {
-    configRef.current = { ...configRef.current, ...newConfig }
+  const updateConfig = useCallback(
+    (newConfig: Partial<UseOptimizedStartupConfig>) => {
+      configRef.current = {...configRef.current, ...newConfig}
 
-    if (configRef.current.enablePerformanceLogging) {
-      console.log('[OptimizedStartup] Configuration updated:', newConfig)
-    }
+      if (configRef.current.enablePerformanceLogging) {
+        console.log('[OptimizedStartup] Configuration updated:', newConfig)
+      }
 
-    // Reinitialize if not currently starting
-    if (!state.isStarting) {
-      initializeStartupManager()
-    }
-  }, [state.isStarting, initializeStartupManager])
+      // Reinitialize if not currently starting
+      if (!state.isStarting) {
+        initializeStartupManager()
+      }
+    },
+    [state.isStarting, initializeStartupManager]
+  )
 
   /**
    * Auto-start on mount if enabled
@@ -357,14 +361,14 @@ export function useOptimizedStartup(
         timestamp: new Date().toISOString(),
         config: configRef.current
       }
-      
+
       existingMetrics.push(newMetrics)
-      
+
       // Keep only last 50 metrics
       if (existingMetrics.length > 50) {
         existingMetrics.splice(0, existingMetrics.length - 50)
       }
-      
+
       localStorage.setItem(metricsKey, JSON.stringify(existingMetrics))
 
       if (configRef.current.enablePerformanceLogging) {
@@ -388,15 +392,19 @@ export function useOptimizedStartup(
  * Hook to get historical performance metrics
  */
 export function useStartupMetricsHistory(): {
-  metrics: Array<StartupMetrics & { timestamp: string; config: UseOptimizedStartupConfig }>
+  metrics: Array<StartupMetrics & {timestamp: string; config: UseOptimizedStartupConfig}>
   clearHistory: () => void
   getAverageMetrics: () => Partial<StartupMetrics>
-  getBestPerformance: () => (StartupMetrics & { timestamp: string }) | null
+  getBestPerformance: () => (StartupMetrics & {timestamp: string}) | null
 } {
-  const [metrics, setMetrics] = useState<Array<StartupMetrics & { 
-    timestamp: string; 
-    config: UseOptimizedStartupConfig 
-  }>>([])
+  const [metrics, setMetrics] = useState<
+    Array<
+      StartupMetrics & {
+        timestamp: string
+        config: UseOptimizedStartupConfig
+      }
+    >
+  >([])
 
   useEffect(() => {
     const storedMetrics = JSON.parse(localStorage.getItem('optimized_startup_metrics') || '[]')
@@ -411,19 +419,25 @@ export function useStartupMetricsHistory(): {
   const getAverageMetrics = useCallback((): Partial<StartupMetrics> => {
     if (metrics.length === 0) return {}
 
-    const totals = metrics.reduce((acc, metric) => ({
-      totalStartupTime: acc.totalStartupTime + (metric.totalStartupTime || 0),
-      websocketConnectionTime: acc.websocketConnectionTime + (metric.websocketConnectionTime || 0),
-      audioInitializationTime: acc.audioInitializationTime + (metric.audioInitializationTime || 0),
-      transcriptionInitializationTime: acc.transcriptionInitializationTime + (metric.transcriptionInitializationTime || 0),
-      firstTranscriptionTime: acc.firstTranscriptionTime + (metric.firstTranscriptionTime || 0)
-    }), {
-      totalStartupTime: 0,
-      websocketConnectionTime: 0,
-      audioInitializationTime: 0,
-      transcriptionInitializationTime: 0,
-      firstTranscriptionTime: 0
-    })
+    const totals = metrics.reduce(
+      (acc, metric) => ({
+        totalStartupTime: acc.totalStartupTime + (metric.totalStartupTime || 0),
+        websocketConnectionTime:
+          acc.websocketConnectionTime + (metric.websocketConnectionTime || 0),
+        audioInitializationTime:
+          acc.audioInitializationTime + (metric.audioInitializationTime || 0),
+        transcriptionInitializationTime:
+          acc.transcriptionInitializationTime + (metric.transcriptionInitializationTime || 0),
+        firstTranscriptionTime: acc.firstTranscriptionTime + (metric.firstTranscriptionTime || 0)
+      }),
+      {
+        totalStartupTime: 0,
+        websocketConnectionTime: 0,
+        audioInitializationTime: 0,
+        transcriptionInitializationTime: 0,
+        firstTranscriptionTime: 0
+      }
+    )
 
     return {
       totalStartupTime: totals.totalStartupTime / metrics.length,
@@ -437,12 +451,19 @@ export function useStartupMetricsHistory(): {
   const getBestPerformance = useCallback(() => {
     if (metrics.length === 0) return null
 
-    return metrics.reduce((best, current) => {
-      if (!best || (current.totalStartupTime && current.totalStartupTime < (best.totalStartupTime || Infinity))) {
-        return current
-      }
-      return best
-    }, null as (StartupMetrics & { timestamp: string }) | null)
+    return metrics.reduce(
+      (best, current) => {
+        if (
+          !best ||
+          (current.totalStartupTime &&
+            current.totalStartupTime < (best.totalStartupTime || Infinity))
+        ) {
+          return current
+        }
+        return best
+      },
+      null as (StartupMetrics & {timestamp: string}) | null
+    )
   }, [metrics])
 
   return {
