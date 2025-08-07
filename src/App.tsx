@@ -8,6 +8,8 @@ import {router} from './routes/router'
 import {assistantRouter} from './routes/router-assistant'
 import {RouterProvider} from '@tanstack/react-router'
 import {initializeTranscriptionEventMiddleware} from './middleware/TranscriptionEventMiddleware'
+import {markPerformance} from './utils/performance-profiler'
+import {prewarmCriticalServices} from './utils/service-prewarming'
 
 function AppContent() {
   const {windowState} = useWindowState()
@@ -15,13 +17,41 @@ function AppContent() {
   // Use assistant router for assistant windows, main router for others
   const currentRouter = windowState.windowType === 'assistant' ? assistantRouter : router
 
-  return <RouterProvider router={currentRouter} />
+  useEffect(() => {
+    // Mark when the main app content is ready
+    markPerformance('app_content_mounted')
+  }, [])
+
+  return (
+    <>
+      <RouterProvider router={currentRouter} />
+      {/* WebSocket diagnostics disabled for clean transcription interface */}
+      {/* {shouldRenderComponent('websocket-diagnostics') && (
+        <WebSocketDiagnosticsPanel
+          isVisible={showDiagnostics}
+          onToggle={() => setShowDiagnostics(prev => !prev)}
+          showDetailed={true}
+        />
+      )} */}
+    </>
+  )
 }
 
 export default function App() {
   useEffect(() => {
-    // Initialize transcription event middleware on app startup
+    // Mark app start and initialize transcription event middleware
+    markPerformance('transcription_middleware_init_start')
     const middleware = initializeTranscriptionEventMiddleware()
+    markPerformance('transcription_middleware_init_complete')
+
+    // Start pre-warming critical services immediately for faster startup
+    prewarmCriticalServices()
+      .then(results => {
+        console.log('🚀 Service pre-warming completed:', results)
+      })
+      .catch(error => {
+        console.warn('⚠️ Service pre-warming failed:', error)
+      })
 
     // Cleanup on unmount
     return () => {

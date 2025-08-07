@@ -130,13 +130,14 @@ export default function AssistantWindowLayout({children}: AssistantWindowLayoutP
         boxShadow: '0 -2px 12px var(--glass-shadow), inset 0 -1px 0 rgba(255, 255, 255, 0.1)'
       }}
     >
-      <WindowStatus
+      {/* WindowStatus disabled to remove diagnostic info from footer */}
+      {/* <WindowStatus
         showWindowInfo
         showConnectionStatus={false}
         showRecordingStatus={false}
         showTranscriptCount={false}
         compact
-      />
+      /> */}
 
       <div className="flex space-x-2">
         <WindowButton

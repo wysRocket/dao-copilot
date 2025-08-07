@@ -5,6 +5,7 @@ import {
   TranscriptionSource,
   TranscriptionSourceManager
 } from '../services/TranscriptionSourceManager'
+import {getTranscriptionStateManager} from '../state/TranscriptionStateManager'
 
 interface WindowState {
   windowType: string
@@ -106,6 +107,43 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
           setSharedState(prev => ({...prev, ...parsedState}))
         }
 
+        // Load transcripts from TranscriptionStateManager
+        const stateManager = getTranscriptionStateManager()
+        const transcriptionState = stateManager.getState()
+        const existingTranscripts = transcriptionState.static.transcripts.map(transcript => ({
+          id: transcript.id,
+          text: transcript.text,
+          timestamp: transcript.timestamp,
+          confidence: transcript.confidence,
+          source: transcript.source
+        }))
+
+        // Merge with existing shared state transcripts
+        setSharedState(prev => ({
+          ...prev,
+          transcripts: [...prev.transcripts, ...existingTranscripts]
+        }))
+
+        // Subscribe to TranscriptionStateManager changes
+        const unsubscribe = stateManager.subscribe((type, state) => {
+          if (type === 'transcript-added') {
+            const latestTranscript = state.static.transcripts[state.static.transcripts.length - 1]
+            if (latestTranscript) {
+              const formattedTranscript = {
+                id: latestTranscript.id,
+                text: latestTranscript.text,
+                timestamp: latestTranscript.timestamp,
+                confidence: latestTranscript.confidence,
+                source: latestTranscript.source
+              }
+              setSharedState(prev => ({
+                ...prev,
+                transcripts: [...prev.transcripts, formattedTranscript]
+              }))
+            }
+          }
+        })
+
         // Get current window info
         const windowInfo = await window.electronWindow?.getWindowInfo()
         if (windowInfo) {
@@ -114,12 +152,20 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
             activeWindowId: windowInfo.windowId
           }))
         }
+
+        // Return cleanup function
+        return unsubscribe
       } catch (error) {
         console.error('Failed to initialize multi-window state:', error)
       }
     }
 
-    initializeState()
+    const cleanup = initializeState()
+    return () => {
+      if (cleanup && typeof cleanup.then === 'function') {
+        cleanup.then(fn => fn && fn())
+      }
+    }
   }, [])
 
   // Persist state changes to localStorage

@@ -114,6 +114,11 @@ export class GeminiTranscriptionBridge extends EventEmitter {
       this.handleTranscriptionUpdate(data)
     })
 
+    // Listen for turn completion events
+    this.client.on('turnComplete', (data: {metadata?: Record<string, unknown>}) => {
+      this.handleTurnComplete(data)
+    })
+
     // Listen for connection events
     this.client.on('connected', () => {
       this.emit('bridgeConnected')
@@ -143,6 +148,7 @@ export class GeminiTranscriptionBridge extends EventEmitter {
 
     this.client.removeAllListeners('textResponse')
     this.client.removeAllListeners('transcriptionUpdate')
+    this.client.removeAllListeners('turnComplete')
     this.client.removeAllListeners('connected')
     this.client.removeAllListeners('disconnected')
     this.client.removeAllListeners('error')
@@ -202,6 +208,29 @@ export class GeminiTranscriptionBridge extends EventEmitter {
         isPartial: transcriptionEvent.isPartial,
         isFinal: data.isFinal
       })
+    }
+  }
+
+  /**
+   * Handle turn completion from WebSocket client
+   */
+  private handleTurnComplete(data: {metadata?: Record<string, unknown>}): void {
+    // Send a final event to trigger completion in the state manager
+    const completionEvent: TranscriptionEvent = {
+      text: '', // Empty text for completion signal
+      timestamp: Date.now(),
+      source: 'websocket-gemini',
+      isPartial: false, // Final event
+      metadata: {
+        ...data.metadata,
+        isTurnComplete: true
+      }
+    }
+
+    this.forwardToMiddleware(completionEvent)
+
+    if (this.config.enableLogging) {
+      logger.debug('Bridge: Forwarded turn completion event')
     }
   }
 

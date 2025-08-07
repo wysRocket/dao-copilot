@@ -1,4 +1,35 @@
 import {TranscriptionWithSource, TranscriptionSource} from '../services/TranscriptionSourceManager'
+import {
+  generateTranscriptId,
+  areTranscriptsDuplicate,
+  sanitizeTranscript,
+  processTranscriptsWithMetrics,
+  type DuplicateDetectionOptions
+} from '../utils/transcript-deduplication'
+
+// WebSocket diagnostics
+import {
+  logWebSocketTiming,
+  startWebSocketTiming,
+  endWebSocketTiming
+} from '../utils/websocket-diagnostics'
+
+// Performance optimizations
+import {
+  getPerformanceManager,
+  type PerformanceMode,
+  type TranscriptionPerformanceManager,
+  type PerformanceMonitor
+} from '../utils/performance-config'
+import {
+  PerformanceDebouncer,
+  AdaptiveThrottle,
+  MemoryEfficientQueue,
+  FrameRateLimiter
+} from '../utils/performance-debounce'
+
+// Performance profiling
+import {markPerformance, PERFORMANCE_MARKERS} from '../utils/performance-profiler'
 
 /**
  * Performance monitoring utilities for transcription system
@@ -73,6 +104,7 @@ export type StateChangeType =
   | 'streaming-updated'
   | 'streaming-completed'
   | 'transcript-added'
+  | 'transcript-batch-update'
   | 'transcripts-cleared'
   | 'recording-changed'
   | 'processing-changed'
@@ -100,10 +132,10 @@ export interface StateTransitionConfig {
  */
 const DEFAULT_CONFIG: StateTransitionConfig = {
   autoCompleteStreaming: true,
-  streamingTimeout: 30000, // 30 seconds
-  maxStaticTranscripts: 10000, // Increased from 1000
-  memoryThreshold: 500 * 1024 * 1024, // 500MB (increased from 50MB)
-  enableGarbageCollection: false // Disabled by default
+  streamingTimeout: 3000, // 3 seconds for real-time responsiveness
+  maxStaticTranscripts: 500,
+  memoryThreshold: 50 * 1024 * 1024, // 50MB
+  enableGarbageCollection: true
 }
 
 /**
@@ -162,23 +194,69 @@ export class TranscriptionStateManager {
   }
   private totalUpdateTime = 0 // For calculating averages
   private updateThrottleTimeout: NodeJS.Timeout | null = null
-  private readonly UPDATE_THROTTLE_MS = 50 // Throttle updates to max 20 FPS
+  private readonly UPDATE_THROTTLE_MS = 0 // Disable throttling for immediate real-time updates
+
+  // Enhanced performance optimization components
+  private performanceManager: TranscriptionPerformanceManager
+  private updateDebouncer: PerformanceDebouncer<TranscriptionResult>
+  private throttler: AdaptiveThrottle<() => void>
+  private updateQueue: MemoryEfficientQueue<TranscriptionResult>
+  private frameLimiter: FrameRateLimiter
 
   constructor(config: Partial<StateTransitionConfig> = {}) {
     this.state = {...DEFAULT_STATE}
     this.config = {...DEFAULT_CONFIG, ...config}
 
+    // Initialize performance components
+    this.performanceManager = getPerformanceManager()
+    this.updateQueue = new MemoryEfficientQueue<TranscriptionResult>(
+      this.performanceManager.getConfig().maxTranscriptHistory,
+      0.8
+    )
+
+    // Initialize debouncer for batch processing
+    this.updateDebouncer = new PerformanceDebouncer<TranscriptionResult>(
+      batch => this.processBatchedUpdates(batch),
+      this.performanceManager.getConfig().debounceMs,
+      {maxWait: 500},
+      this.performanceManager.getConfig().maxBatchSize,
+      this.performanceManager.getConfig().batchWindowMs
+    )
+
+    // Initialize adaptive throttler
+    this.throttler = new AdaptiveThrottle<() => void>(
+      callback => callback(),
+      this.performanceManager.getConfig().throttleMs,
+      () =>
+        this.performanceManager.getThrottleDelay() / this.performanceManager.getConfig().throttleMs
+    )
+
+    // Initialize frame rate limiter
+    this.frameLimiter = new FrameRateLimiter(60) // Start with 60 FPS
+
     // Load transcripts from localStorage if available
-    try {
-      const saved = localStorage.getItem('dao-copilot.transcripts')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed)) {
-          this.state.static.transcripts = parsed
+    if (this.isLocalStorageAvailable()) {
+      try {
+        const saved = localStorage.getItem('dao-copilot.transcripts')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (Array.isArray(parsed)) {
+            console.log('🔍 TranscriptionStateManager: Loaded transcripts from localStorage:', {
+              count: parsed.length,
+              samples: parsed.slice(-3).map(t => ({
+                id: t.id,
+                text: t.text?.slice(0, 30) + '...',
+                timestamp: t.timestamp
+              }))
+            })
+            this.state.static.transcripts = parsed
+          }
+        } else {
+          console.log('🔍 TranscriptionStateManager: No transcripts found in localStorage')
         }
+      } catch (e) {
+        console.warn('TranscriptionStateManager: Failed to load transcripts from localStorage', e)
       }
-    } catch (e) {
-      console.warn('TranscriptionStateManager: Failed to load transcripts from localStorage', e)
     }
 
     // Initialize garbage collection if enabled
@@ -210,6 +288,16 @@ export class TranscriptionStateManager {
    * Start streaming transcription
    */
   startStreaming(transcription: TranscriptionWithSource): void {
+    // Mark transcription initialization start
+    markPerformance(PERFORMANCE_MARKERS.TRANSCRIPTION_INIT_START)
+
+    const streamingId = `streaming-start-${Date.now()}`
+    startWebSocketTiming(streamingId, {
+      transcriptionId: transcription.id,
+      source: transcription.source,
+      textLength: transcription.text.length
+    })
+
     // Complete any active streaming first
     if (this.state.streaming.isActive) {
       this.completeStreaming()
@@ -225,12 +313,21 @@ export class TranscriptionStateManager {
     this.state.streaming.isActive = true
     this.state.streaming.progress = 0
 
+    // Mark transcription system as ready
+    markPerformance(PERFORMANCE_MARKERS.TRANSCRIPTION_READY)
+
     // Set up auto-completion timeout
     if (this.config.autoCompleteStreaming) {
       this.streamingTimeoutId = setTimeout(() => {
         this.completeStreaming()
       }, this.config.streamingTimeout)
     }
+
+    const startTime = endWebSocketTiming(streamingId)
+    logWebSocketTiming('streaming-started', startTime, {
+      transcriptionId: transcription.id,
+      textLength: transcription.text.length
+    })
 
     this.notifyListeners('streaming-started')
   }
@@ -247,21 +344,49 @@ export class TranscriptionStateManager {
       return
     }
 
-    // Use throttled updates for partial text updates to prevent excessive re-renders
-    if (isPartial) {
-      this.throttledStateUpdate(() => {
-        if (this.state.streaming.current) {
-          this.state.streaming.current = {
-            ...this.state.streaming.current,
-            text,
-            isPartial,
-            timestamp: Date.now()
-          }
+    const updateId = `streaming-update-${Date.now()}`
+    startWebSocketTiming(updateId, {
+      isPartial,
+      textLength: text.length,
+      previousLength: this.state.streaming.current.text.length
+    })
 
-          // Simple heuristic: progress based on text stability
-          this.state.streaming.progress = Math.min(0.9, text.length / 100)
+    // Optimize for real-time rendering: update state immediately, throttle notifications
+    if (isPartial) {
+      // Immediate state update for real-time responsiveness
+      if (this.state.streaming.current) {
+        this.state.streaming.current = {
+          ...this.state.streaming.current,
+          text,
+          isPartial,
+          timestamp: Date.now()
         }
-      }, 'streaming-updated')
+
+        // Simple heuristic: progress based on text stability
+        this.state.streaming.progress = Math.min(0.9, text.length / 100)
+      }
+
+      // CRITICAL FIX: Persist partial transcriptions to transcript store
+      if (text.trim().length > 0) {
+        try {
+          import('../state/transcript-state').then(({useTranscriptStore}) => {
+            useTranscriptStore.getState().addPartialEntry({
+              text: text.trim(),
+              id: this.state.streaming.current?.id || `partial_${Date.now()}`
+            })
+          })
+        } catch (error) {
+          console.error('Failed to persist partial transcription:', error)
+        }
+      }
+
+      // Immediate notification for real-time responsiveness
+      const updateTime = endWebSocketTiming(updateId)
+      logWebSocketTiming('streaming-updated-partial', updateTime, {
+        textLength: text.length,
+        throttled: false
+      })
+      this.notifyListeners('streaming-updated')
     } else {
       // Immediate updates for final text
       this.state.streaming.current = {
@@ -272,6 +397,27 @@ export class TranscriptionStateManager {
       }
 
       this.state.streaming.progress = 1
+
+      // CRITICAL FIX: Persist final transcriptions to transcript store
+      if (text.trim().length > 0) {
+        try {
+          import('../state/transcript-state').then(({useTranscriptStore}) => {
+            useTranscriptStore.getState().addFinalEntry({
+              text: text.trim(),
+              id: this.state.streaming.current?.id || `final_${Date.now()}`
+            })
+          })
+        } catch (error) {
+          console.error('Failed to persist final transcription:', error)
+        }
+      }
+
+      const updateTime = endWebSocketTiming(updateId)
+      logWebSocketTiming('streaming-updated-final', updateTime, {
+        textLength: text.length,
+        throttled: false
+      })
+
       this.notifyListeners('streaming-updated')
 
       // Auto-complete if text is final
@@ -286,21 +432,39 @@ export class TranscriptionStateManager {
    */
   completeStreaming(): void {
     if (!this.state.streaming.current) {
+      console.log('🔍 completeStreaming: No current streaming transcript to complete')
       return
     }
 
     const completedTranscription = this.state.streaming.current
 
-    // Add to static transcripts
-    const staticTranscript: TranscriptionResult = {
-      id: `${completedTranscription.id}-${completedTranscription.timestamp}`,
+    console.log('🔍 completeStreaming: Completing streaming transcript:', {
+      originalId: completedTranscription.id,
+      text: completedTranscription.text.slice(0, 50) + '...',
+      timestamp: completedTranscription.timestamp,
+      source: completedTranscription.source
+    })
+
+    // Create static transcript with enhanced ID generation
+    const staticTranscriptBase = {
       text: completedTranscription.text,
       timestamp: completedTranscription.timestamp,
       confidence: completedTranscription.confidence,
       source: this.sourceToString(completedTranscription.source)
     }
 
-    this.addStaticTranscript(staticTranscript)
+    // Use enhanced ID generation
+    const transcriptWithId: TranscriptionResult = {
+      ...staticTranscriptBase,
+      id: generateTranscriptId(staticTranscriptBase)
+    }
+
+    console.log(
+      '🔍 completeStreaming: Created static transcript with enhanced ID:',
+      transcriptWithId.id
+    )
+
+    this.addStaticTranscript(transcriptWithId)
 
     // Execute completion callbacks before clearing state
     this.state.streaming.completionCallbacks.forEach(callback => {
@@ -329,6 +493,12 @@ export class TranscriptionStateManager {
    * Add static transcript
    */
   addTranscript(transcript: TranscriptionResult): void {
+    console.log('🔍 addTranscript: Public method called with:', {
+      id: transcript.id,
+      text: transcript.text.slice(0, 50) + '...',
+      timestamp: transcript.timestamp,
+      source: transcript.source
+    })
     this.addStaticTranscript(transcript)
     this.notifyListeners('transcript-added')
   }
@@ -398,12 +568,55 @@ export class TranscriptionStateManager {
    * Force garbage collection
    */
   /**
+   * Perform enhanced deduplication using the advanced algorithm
+   */
+  private performEnhancedDeduplication(): void {
+    const startTime = performance.now()
+    const originalCount = this.state.static.transcripts.length
+
+    console.log('[Enhanced Dedup] Starting enhanced deduplication...', {
+      transcriptCount: originalCount
+    })
+
+    // Use the enhanced deduplication utility with metrics
+    const {transcripts: deduplicatedTranscripts, metrics} = processTranscriptsWithMetrics(
+      this.state.static.transcripts,
+      {
+        checkIds: true,
+        checkContentAndTimestamp: true,
+        checkFuzzyContent: false, // Keep disabled for performance
+        fuzzyThreshold: 0.9,
+        timeWindow: 5000
+      }
+    )
+
+    // Update state if duplicates were found
+    if (metrics.duplicatesFound > 0) {
+      this.state.static.transcripts = deduplicatedTranscripts
+      this.updateMetadata()
+
+      console.log('[Enhanced Dedup] Deduplication completed:', {
+        originalCount,
+        finalCount: deduplicatedTranscripts.length,
+        duplicatesRemoved: metrics.duplicatesFound,
+        processingTimeMs: metrics.processingTimeMs.toFixed(2),
+        overallTimeMs: (performance.now() - startTime).toFixed(2)
+      })
+
+      // Persist the cleaned data
+      this.saveToLocalStorage()
+    } else {
+      console.log('[Enhanced Dedup] No duplicates found, skipping update')
+    }
+  }
+
+  /**
    * Advanced garbage collection with multiple cleanup strategies
    */
   performGarbageCollection(): void {
     const startTime = performance.now()
     const initialMemory = this.state.meta.memoryUsage.estimatedSize
-    
+
     console.log('[GC] Starting garbage collection...', {
       transcripts: this.state.static.transcripts.length,
       estimatedMemory: `${(initialMemory / 1024 / 1024).toFixed(2)}MB`
@@ -411,26 +624,26 @@ export class TranscriptionStateManager {
 
     // Strategy 1: Remove old transcripts based on count and memory thresholds
     this.cleanupOldTranscripts()
-    
+
     // Strategy 2: Remove duplicate or similar transcripts
     this.deduplicateTranscripts()
-    
+
     // Strategy 3: Compress long transcripts
     this.compressLongTranscripts()
-    
+
     // Strategy 4: Clean up orphaned streaming state
     this.cleanupOrphanedState()
-    
+
     // Update metadata after all cleanup
     this.updateMetadata()
-    
+
     // Save to localStorage after cleanup
     this.saveToLocalStorage()
-    
+
     const endTime = performance.now()
     const finalMemory = this.state.meta.memoryUsage.estimatedSize
     const memorySaved = initialMemory - finalMemory
-    
+
     console.log('[GC] Garbage collection completed', {
       duration: `${(endTime - startTime).toFixed(2)}ms`,
       memorySaved: `${(memorySaved / 1024 / 1024).toFixed(2)}MB`,
@@ -452,9 +665,9 @@ export class TranscriptionStateManager {
     }
 
     const now = Date.now()
-    const oneHourAgo = now - (60 * 60 * 1000)
-    const oneDayAgo = now - (24 * 60 * 60 * 1000)
-    const oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000)
+    const oneHourAgo = now - 60 * 60 * 1000
+    const oneDayAgo = now - 24 * 60 * 60 * 1000
+    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000
 
     // Prioritize keeping recent, high-confidence, or long transcripts
     const prioritizedTranscripts = transcripts
@@ -465,7 +678,7 @@ export class TranscriptionStateManager {
       .sort((a, b) => b.priority - a.priority)
 
     let targetCount = maxStaticTranscripts
-    
+
     // If memory pressure is high, be more aggressive
     if (estimatedSize > memoryThreshold * 1.5) {
       targetCount = Math.floor(maxStaticTranscripts * 0.6)
@@ -483,28 +696,31 @@ export class TranscriptionStateManager {
   /**
    * Calculate priority score for transcript retention
    */
-  private calculateTranscriptPriority(transcript: any, currentTime: number): number {
+  private calculateTranscriptPriority(
+    transcript: TranscriptionResult,
+    currentTime: number
+  ): number {
     let priority = 0
-    
+
     // Recent transcripts get higher priority
     const age = currentTime - transcript.timestamp
     const maxAge = 7 * 24 * 60 * 60 * 1000 // 1 week
     priority += Math.max(0, (maxAge - age) / maxAge) * 40
-    
+
     // High confidence gets higher priority
     if (transcript.confidence) {
       priority += transcript.confidence * 30
     }
-    
+
     // Longer transcripts (more content) get higher priority
     const textLength = transcript.text ? transcript.text.length : 0
     priority += Math.min(textLength / 100, 20) // Cap at 20 points
-    
+
     // Transcripts with audio get higher priority (they're complete)
-    if (transcript.audioUrl) {
+    if ('audioUrl' in transcript) {
       priority += 10
     }
-    
+
     return priority
   }
 
@@ -515,18 +731,18 @@ export class TranscriptionStateManager {
     const transcripts = this.state.static.transcripts
     if (transcripts.length < 2) return
 
-    const uniqueTranscripts: any[] = []
+    const uniqueTranscripts: TranscriptionResult[] = []
     const seenTexts = new Set<string>()
-    
+
     for (const transcript of transcripts) {
       const text = transcript.text?.toLowerCase().trim()
       if (!text) continue
-      
+
       // Check for exact duplicates
       if (seenTexts.has(text)) {
         continue
       }
-      
+
       // Check for very similar transcripts (>90% similarity)
       let isSimilar = false
       for (const existingText of seenTexts) {
@@ -535,13 +751,13 @@ export class TranscriptionStateManager {
           break
         }
       }
-      
+
       if (!isSimilar) {
         uniqueTranscripts.push(transcript)
         seenTexts.add(text)
       }
     }
-    
+
     const duplicatesRemoved = transcripts.length - uniqueTranscripts.length
     if (duplicatesRemoved > 0) {
       console.log(`[GC] Removed ${duplicatesRemoved} duplicate/similar transcripts`)
@@ -555,12 +771,12 @@ export class TranscriptionStateManager {
   private calculateTextSimilarity(text1: string, text2: string): number {
     const words1 = text1.split(/\s+/)
     const words2 = text2.split(/\s+/)
-    
+
     if (words1.length === 0 && words2.length === 0) return 1
     if (words1.length === 0 || words2.length === 0) return 0
-    
+
     const commonWords = words1.filter(word => words2.includes(word))
-    return commonWords.length * 2 / (words1.length + words2.length)
+    return (commonWords.length * 2) / (words1.length + words2.length)
   }
 
   /**
@@ -569,22 +785,22 @@ export class TranscriptionStateManager {
   private compressLongTranscripts(): void {
     const maxLength = 2000 // Characters
     const transcripts = this.state.static.transcripts
-    
+
     let compressedCount = 0
-    
+
     for (const transcript of transcripts) {
       if (transcript.text && transcript.text.length > maxLength) {
         // Keep beginning and end, truncate middle
         const beginning = transcript.text.slice(0, maxLength * 0.3)
         const ending = transcript.text.slice(-maxLength * 0.3)
         const compressed = `${beginning}... [truncated ${transcript.text.length - maxLength} characters] ...${ending}`
-        
+
         transcript.text = compressed
-        transcript.compressed = true
+        Object.assign(transcript, {compressed: true})
         compressedCount++
       }
     }
-    
+
     if (compressedCount > 0) {
       console.log(`[GC] Compressed ${compressedCount} long transcripts`)
     }
@@ -597,7 +813,8 @@ export class TranscriptionStateManager {
     // Clear stale streaming state if no active streaming for more than 5 minutes
     if (this.state.streaming.current && !this.state.streaming.isActive) {
       const streamAge = Date.now() - this.state.streaming.current.timestamp
-      if (streamAge > 5 * 60 * 1000) { // 5 minutes
+      if (streamAge > 5 * 60 * 1000) {
+        // 5 minutes
         console.log('[GC] Cleaning up orphaned streaming state')
         this.clearStreamingState()
       }
@@ -605,9 +822,25 @@ export class TranscriptionStateManager {
   }
 
   /**
+   * Check if localStorage is available (not available in main process)
+   */
+  private isLocalStorageAvailable(): boolean {
+    try {
+      return typeof window !== 'undefined' && typeof localStorage !== 'undefined'
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Save transcripts to localStorage with error handling
    */
   private saveToLocalStorage(): void {
+    // Skip localStorage operations in main process
+    if (!this.isLocalStorageAvailable()) {
+      return
+    }
+
     try {
       const data = {
         transcripts: this.state.static.transcripts,
@@ -619,7 +852,7 @@ export class TranscriptionStateManager {
       localStorage.setItem('dao-copilot.transcripts', JSON.stringify(data))
     } catch (e) {
       console.warn('[GC] Failed to save transcripts to localStorage:', e)
-      
+
       // If localStorage is full, try to free up space
       if (e instanceof DOMException && e.name === 'QuotaExceededError') {
         this.handleStorageQuotaExceeded()
@@ -632,17 +865,21 @@ export class TranscriptionStateManager {
    */
   private handleStorageQuotaExceeded(): void {
     console.warn('[GC] localStorage quota exceeded, performing aggressive cleanup')
-    
+
+    if (!this.isLocalStorageAvailable()) {
+      return
+    }
+
     const originalLength = this.state.static.transcripts.length
-    
+
     // Keep only the most recent 20% of transcripts
     const keepCount = Math.max(10, Math.floor(originalLength * 0.2))
     this.state.static.transcripts = this.state.static.transcripts
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, keepCount)
-    
+
     this.updateMetadata()
-    
+
     // Try saving again
     try {
       const data = {
@@ -654,8 +891,10 @@ export class TranscriptionStateManager {
         }
       }
       localStorage.setItem('dao-copilot.transcripts', JSON.stringify(data))
-      console.log(`[GC] Emergency cleanup successful, kept ${keepCount}/${originalLength} transcripts`)
-    } catch (e) {
+      console.log(
+        `[GC] Emergency cleanup successful, kept ${keepCount}/${originalLength} transcripts`
+      )
+    } catch {
       console.error('[GC] Emergency cleanup failed, clearing all transcripts from localStorage')
       localStorage.removeItem('dao-copilot.transcripts')
     }
@@ -665,23 +904,28 @@ export class TranscriptionStateManager {
    * Detect memory pressure and trigger appropriate responses
    */
   private detectMemoryPressure(): 'low' | 'medium' | 'high' | 'critical' {
-    const memoryInfo = (performance as Performance & { 
-      memory?: { 
-        usedJSHeapSize: number
-        jsHeapSizeLimit: number
-      } 
-    }).memory
+    const memoryInfo = (
+      performance as Performance & {
+        memory?: {
+          usedJSHeapSize: number
+          jsHeapSizeLimit: number
+        }
+      }
+    ).memory
 
     if (!memoryInfo) return 'low'
 
     const usagePercent = (memoryInfo.usedJSHeapSize / memoryInfo.jsHeapSizeLimit) * 100
     const transcriptMemory = this.state.meta.memoryUsage.estimatedSize
 
-    if (usagePercent > 90 || transcriptMemory > 100 * 1024 * 1024) { // 100MB
+    if (usagePercent > 90 || transcriptMemory > 100 * 1024 * 1024) {
+      // 100MB
       return 'critical'
-    } else if (usagePercent > 75 || transcriptMemory > 50 * 1024 * 1024) { // 50MB
+    } else if (usagePercent > 75 || transcriptMemory > 50 * 1024 * 1024) {
+      // 50MB
       return 'high'
-    } else if (usagePercent > 50 || transcriptMemory > 25 * 1024 * 1024) { // 25MB
+    } else if (usagePercent > 50 || transcriptMemory > 25 * 1024 * 1024) {
+      // 25MB
       return 'medium'
     }
 
@@ -693,25 +937,31 @@ export class TranscriptionStateManager {
    */
   handleMemoryPressure(): void {
     const pressure = this.detectMemoryPressure()
-    
+
     switch (pressure) {
       case 'critical':
         console.warn('[Memory] Critical memory pressure detected')
-        this.config.maxStaticTranscripts = Math.max(10, Math.floor(this.config.maxStaticTranscripts * 0.3))
+        this.config.maxStaticTranscripts = Math.max(
+          10,
+          Math.floor(this.config.maxStaticTranscripts * 0.3)
+        )
         this.performGarbageCollection()
         break
-        
+
       case 'high':
         console.warn('[Memory] High memory pressure detected')
-        this.config.maxStaticTranscripts = Math.max(20, Math.floor(this.config.maxStaticTranscripts * 0.5))
+        this.config.maxStaticTranscripts = Math.max(
+          20,
+          Math.floor(this.config.maxStaticTranscripts * 0.5)
+        )
         this.performGarbageCollection()
         break
-        
+
       case 'medium':
         console.log('[Memory] Medium memory pressure detected')
         this.performGarbageCollection()
         break
-        
+
       case 'low':
       default:
         // No action needed
@@ -730,21 +980,25 @@ export class TranscriptionStateManager {
     jsHeapLimit?: number
     storageUsed?: number
   } {
-    const memoryInfo = (performance as Performance & { 
-      memory?: { 
-        usedJSHeapSize: number
-        jsHeapSizeLimit: number
-      } 
-    }).memory
+    const memoryInfo = (
+      performance as Performance & {
+        memory?: {
+          usedJSHeapSize: number
+          jsHeapSizeLimit: number
+        }
+      }
+    ).memory
 
     let storageUsed = 0
-    try {
-      const stored = localStorage.getItem('dao-copilot.transcripts')
-      if (stored) {
-        storageUsed = new Blob([stored]).size
+    if (this.isLocalStorageAvailable()) {
+      try {
+        const stored = localStorage.getItem('dao-copilot.transcripts')
+        if (stored) {
+          storageUsed = new Blob([stored]).size
+        }
+      } catch {
+        // Ignore storage access errors
       }
-    } catch (e) {
-      // Ignore storage access errors
     }
 
     return {
@@ -802,18 +1056,78 @@ export class TranscriptionStateManager {
 
   private addStaticTranscript(transcript: TranscriptionResult): void {
     if (!Array.isArray(this.state.static.transcripts)) {
-      console.error('TranscriptionStateManager: transcripts is not an array, resetting to empty array')
+      console.error(
+        'TranscriptionStateManager: transcripts is not an array, resetting to empty array'
+      )
       this.state.static.transcripts = []
     }
-    this.state.static.transcripts = this.state.static.transcripts.concat(transcript)
+
+    // Sanitize and validate the input transcript
+    const sanitizedTranscript = sanitizeTranscript(transcript)
+    if (!sanitizedTranscript) {
+      console.warn('TranscriptionStateManager: Invalid transcript data, skipping:', transcript)
+      return
+    }
+
+    // Ensure transcript has a proper ID
+    const transcriptWithId: TranscriptionResult = {
+      ...sanitizedTranscript,
+      id: sanitizedTranscript.id || generateTranscriptId(sanitizedTranscript)
+    }
+
+    // Enhanced debugging: Log every attempt to add a transcript
+    console.log('🔍 TranscriptionStateManager: Attempting to add transcript:', {
+      id: transcriptWithId.id,
+      text: transcriptWithId.text.slice(0, 50) + '...',
+      timestamp: transcriptWithId.timestamp,
+      source: transcriptWithId.source,
+      currentTranscriptCount: this.state.static.transcripts.length
+    })
+
+    // Use enhanced duplicate detection
+    const isDuplicate = this.state.static.transcripts.some(existingTranscript =>
+      areTranscriptsDuplicate(transcriptWithId, existingTranscript, {
+        checkIds: true,
+        checkContentAndTimestamp: true,
+        checkFuzzyContent: false, // Disabled for performance
+        fuzzyThreshold: 0.9,
+        timeWindow: 5000
+      })
+    )
+
+    // Only add if not a duplicate
+    if (isDuplicate) {
+      console.log(
+        '🚫 TranscriptionStateManager: Duplicate transcript detected (enhanced), skipping:',
+        {
+          id: transcriptWithId.id,
+          text: transcriptWithId.text.slice(0, 50) + '...',
+          timestamp: transcriptWithId.timestamp
+        }
+      )
+      return // Exit early without adding or notifying
+    }
+
+    console.log('✅ TranscriptionStateManager: Adding new transcript (enhanced validation):', {
+      id: transcriptWithId.id,
+      newTotal: this.state.static.transcripts.length + 1
+    })
+
+    // Add the transcript
+    this.state.static.transcripts = this.state.static.transcripts.concat(transcriptWithId)
     this.state.static.lastUpdate = Date.now()
     this.updateMetadata()
-    // Persist transcripts to localStorage
-    try {
-      localStorage.setItem('dao-copilot.transcripts', JSON.stringify(this.state.static.transcripts))
-    } catch (e) {
-      console.warn('TranscriptionStateManager: Failed to save transcripts to localStorage', e)
+
+    // Perform periodic deduplication with metrics
+    if (this.state.static.transcripts.length % 10 === 0) {
+      this.performEnhancedDeduplication()
     }
+
+    // Notify listeners of the state change
+    this.notifyListeners('transcript-added')
+
+    // Persist transcripts to localStorage
+    this.saveToLocalStorage()
   }
 
   private updateMetadata(): void {
@@ -856,17 +1170,163 @@ export class TranscriptionStateManager {
     this.updateThrottleTimeout = setTimeout(() => {
       updateFn()
       this.notifyListeners(type)
-      
+
       // Update performance metrics
       const endTime = performance.now()
       const updateDuration = endTime - startTime
-      
+
       this.performanceMetrics.updateCount++
       this.totalUpdateTime += updateDuration
-      this.performanceMetrics.averageUpdateTime = this.totalUpdateTime / this.performanceMetrics.updateCount
-      this.performanceMetrics.maxUpdateTime = Math.max(this.performanceMetrics.maxUpdateTime, updateDuration)
+      this.performanceMetrics.averageUpdateTime =
+        this.totalUpdateTime / this.performanceMetrics.updateCount
+      this.performanceMetrics.maxUpdateTime = Math.max(
+        this.performanceMetrics.maxUpdateTime,
+        updateDuration
+      )
       this.performanceMetrics.lastUpdateTime = endTime
-      
+
+      this.updateThrottleTimeout = null
+    }, this.UPDATE_THROTTLE_MS)
+  }
+
+  /**
+   * Process batched updates for better performance
+   */
+  private processBatchedUpdates(batch: TranscriptionResult[]): void {
+    if (batch.length === 0) return
+
+    const startTime = performance.now()
+    this.performanceManager.recordFrameTime()
+
+    // Sort batch by timestamp to maintain order
+    const sortedBatch = batch.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+
+    // Process each item in the batch
+    for (const transcript of sortedBatch) {
+      this.updateQueue.enqueue(transcript)
+    }
+
+    // Apply batched updates to state
+    this.applyQueuedUpdates()
+
+    const endTime = performance.now()
+    this.updatePerformanceMetricsInternal(endTime - startTime)
+  }
+
+  /**
+   * Apply queued updates to state efficiently
+   */
+  private applyQueuedUpdates(): void {
+    const config = this.performanceManager.getConfig()
+
+    // Limit processing to prevent blocking
+    let processedCount = 0
+    const maxProcessPerFrame = config.maxBatchSize * 2
+
+    while (!this.updateQueue.isEmpty() && processedCount < maxProcessPerFrame) {
+      const transcript = this.updateQueue.dequeue()
+      if (transcript) {
+        // Apply update directly to state without individual notifications
+        this.addTranscriptDirectly(transcript)
+        processedCount++
+      }
+    }
+
+    // Single notification for all updates
+    if (processedCount > 0) {
+      this.notifyListeners('transcript-batch-update')
+    }
+  }
+
+  /**
+   * Add transcript directly to state without notification
+   */
+  private addTranscriptDirectly(transcript: TranscriptionResult): void {
+    try {
+      const processedTranscript = sanitizeTranscript(transcript)
+      if (!processedTranscript) return
+
+      // Add to static transcripts
+      this.state.static.transcripts.push(processedTranscript)
+
+      // Update performance metrics
+      this.performanceMetrics.updateCount++
+
+      // Persist to localStorage if enabled
+      this.saveToLocalStorage()
+    } catch (error) {
+      console.error('Failed to add transcript directly:', error)
+    }
+  }
+
+  /**
+   * Update internal performance metrics
+   */
+  private updatePerformanceMetricsInternal(updateTime: number): void {
+    this.totalUpdateTime += updateTime
+    this.performanceMetrics.updateCount++
+    this.performanceMetrics.averageUpdateTime =
+      this.totalUpdateTime / this.performanceMetrics.updateCount
+    this.performanceMetrics.maxUpdateTime = Math.max(
+      this.performanceMetrics.maxUpdateTime,
+      updateTime
+    )
+    this.performanceMetrics.lastUpdateTime = Date.now()
+  }
+
+  /**
+   * Enhanced performance mode configuration
+   */
+  setPerformanceMode(mode: PerformanceMode): void {
+    this.performanceManager.setMode(mode)
+    const config = this.performanceManager.getConfig()
+
+    // Update frame limiter
+    const targetFPS = mode === 'high-fidelity' ? 60 : mode === 'balanced' ? 30 : 15
+    this.frameLimiter.setTargetFPS(targetFPS)
+
+    // Update queue size
+    this.updateQueue = new MemoryEfficientQueue<TranscriptionResult>(
+      config.maxTranscriptHistory,
+      0.8
+    )
+
+    console.log(`TranscriptionStateManager: Performance mode set to ${mode}`)
+  }
+
+  /**
+   * Get current performance mode and metrics
+   */
+  getPerformanceStatus(): {
+    mode: PerformanceMode
+    internalMetrics: PerformanceMetrics
+    performanceMetrics: PerformanceMonitor
+    config: ReturnType<TranscriptionPerformanceManager['getConfig']>
+  } {
+    return {
+      mode: this.performanceManager.getConfig().enableRealTimeUpdates
+        ? 'high-fidelity'
+        : 'performance',
+      internalMetrics: this.getPerformanceMetrics(),
+      performanceMetrics: this.performanceManager.getMetrics(),
+      config: this.performanceManager.getConfig()
+    }
+  }
+
+  /**
+   * Throttled notification to listeners without updating state
+   * Used for real-time partial updates where state is updated immediately
+   */
+  private throttledNotification(callback: () => void, type: StateChangeType): void {
+    // Clear existing timeout
+    if (this.updateThrottleTimeout) {
+      clearTimeout(this.updateThrottleTimeout)
+      this.performanceMetrics.throttledUpdates++
+    }
+
+    this.updateThrottleTimeout = setTimeout(() => {
+      callback()
+      this.notifyListeners(type)
       this.updateThrottleTimeout = null
     }, this.UPDATE_THROTTLE_MS)
   }
@@ -916,9 +1376,12 @@ export class TranscriptionStateManager {
     )
 
     // Also run memory pressure monitoring every 5 minutes
-    setInterval(() => {
-      this.handleMemoryPressure()
-    }, 5 * 60 * 1000)
+    setInterval(
+      () => {
+        this.handleMemoryPressure()
+      },
+      5 * 60 * 1000
+    )
 
     // Initial memory pressure check
     setTimeout(() => {
