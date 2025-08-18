@@ -3,6 +3,7 @@ import React, {useEffect, useRef, useCallback} from 'react'
 // Local hooks
 import {useWindowCommunication} from '../../hooks/useSharedState'
 import {useTranscriptionState} from '../../hooks/useTranscriptionState'
+import {useSharedState} from '../../hooks/useSharedState'
 import {useRealTimeTranscription} from '../../hooks/useRealTimeTranscription'
 
 // Services and types
@@ -38,13 +39,28 @@ export default function TranscriptsPage() {
   const {addPartialEntry, addFinalEntry} = useTranscriptStore()
 
   const {onMessage} = useWindowCommunication()
+  const {isRecording} = useSharedState()
 
-  // Auto-start zero-latency transcription when component mounts
+  // Auto-start zero-latency transcription when component mounts (no-op until user clicks REC)
   useEffect(() => {
     if (isInitialized && !isActive) {
+      // Lazy-start; primary trigger is REC button via recording-state-changed
+      // Keeping this for resilience after hot-reloads
       start()
     }
   }, [isInitialized, isActive, start])
+
+  // When global recording flips on (shared state), ensure UI shows streaming immediately
+  useEffect(() => {
+    if (isRecording) {
+      try {
+        useTranscriptStore.getState().startStreaming()
+      } catch {
+        // ignore
+      }
+      if (!isActive) start()
+    }
+  }, [isRecording, isActive, start])
 
   // Bridge zero-latency transcription data to transcript store
   useEffect(() => {
@@ -75,11 +91,15 @@ export default function TranscriptsPage() {
           confidence: latestFinal.confidence || 0.95,
           timestamp: latestFinal.timestamp
         })
+        // Use the same ID as partial to guarantee clean replacement
         addFinalEntry({
-          id: `realtime-final-${latestFinal.timestamp}`,
+          id: 'realtime-partial',
           text: latestFinal.text,
           confidence: latestFinal.confidence || 0.95
         })
+        // Reset session refs
+        accumulatedTextRef.current = ''
+        currentPartialIdRef.current = null
       }
     }
   }, [finalTranscripts, addFinalEntry])
@@ -102,15 +122,36 @@ export default function TranscriptsPage() {
   const isRecordingActiveRef = useRef<boolean>(false)
   const currentPartialIdRef = useRef<string | null>(null)
 
-  // Auto-start zero-latency system when recording begins
+  // Auto-start zero-latency system when recording begins and update UI instantly
   useEffect(() => {
     const unsubscribe = onMessage((channel, ...args) => {
       if (channel === 'recording-state-changed' && args[0] !== undefined) {
         const isRecording = args[0] as boolean
 
         // Start zero-latency transcription when main REC button is pressed
-        if (isRecording && !isActive) {
-          start()
+        if (isRecording) {
+          // Always show optimistic UI when REC goes on
+          try {
+            useTranscriptStore.getState().startStreaming()
+          } catch {
+            // best-effort UI hint; store may not be ready during early init
+          }
+          if (!isActive) {
+            start()
+          }
+          // Prepare new session identifiers
+          accumulatedTextRef.current = ''
+          currentPartialIdRef.current = `partial-session-${Date.now()}`
+          isRecordingActiveRef.current = true
+        }
+
+        // Stop streaming UI when recording stops (if triggered without text)
+        if (!isRecording) {
+          try {
+            useTranscriptStore.getState().stopStreaming()
+          } catch {
+            // ignore - non-critical UI cleanup
+          }
         }
       }
     })
@@ -135,6 +176,12 @@ export default function TranscriptsPage() {
     accumulatedTextRef.current = ''
     currentPartialIdRef.current = null // Reset partial ID for next session
     isRecordingActiveRef.current = false
+    // Ensure streaming indicator is off
+    try {
+      useTranscriptStore.getState().stopStreaming()
+    } catch {
+      // ignore - non-critical UI cleanup
+    }
   }, [addTranscript])
 
   // Listen for recording state changes to trigger transcription completion
@@ -160,6 +207,32 @@ export default function TranscriptsPage() {
 
   // Listen for transcription results from CustomTitleBar (main window)
   useEffect(() => {
+    // Allow IPC streaming even when zero-latency is active if explicitly enabled via env
+    const allowIpcWhenActive = (() => {
+      try {
+        // Vite-style env
+        const metaEnv = (import.meta as unknown as {env?: Record<string, string>})?.env
+        if (metaEnv && metaEnv.GEMINI_IPC_ALLOW_WHEN_ACTIVE === '1') return true
+      } catch {
+        /* ignore */
+      }
+      try {
+        // Node-style env (Electron renderer with env passthrough)
+        const penv = (process as unknown as {env?: Record<string, string>})?.env
+        if (penv && penv.GEMINI_IPC_ALLOW_WHEN_ACTIVE === '1') return true
+      } catch {
+        /* ignore */
+      }
+      try {
+        // Window-injected env
+        const wenv = (globalThis as unknown as {__ENV__?: Record<string, string>})?.__ENV__
+        if (wenv && wenv.GEMINI_IPC_ALLOW_WHEN_ACTIVE === '1') return true
+      } catch {
+        /* ignore */
+      }
+      return false
+    })()
+
     const unsubscribe = onMessage((channel, ...args) => {
       if (channel === 'transcription-result' && args[0]) {
         const result = args[0] as TranscriptionResult
@@ -171,6 +244,13 @@ export default function TranscriptsPage() {
         })
         setProcessingState(false)
       } else if (channel === 'streaming-transcription' && args[0]) {
+        // If zero-latency pipeline is active, ignore duplicate legacy stream to prevent conflicts
+        if (isActive && !allowIpcWhenActive) {
+          console.log(
+            '🔇 Skipping IPC streaming-transcription because zero-latency is active (set GEMINI_IPC_ALLOW_WHEN_ACTIVE=1 to override).'
+          )
+          return
+        }
         // Handle live streaming transcriptions for real-time display
         const streamingData = args[0] as {text: string; isFinal: boolean; source: string}
 
@@ -202,7 +282,7 @@ export default function TranscriptsPage() {
             addFinalEntry({
               text: finalText,
               confidence: 0.95,
-              id: `final-${Date.now()}`
+              id: currentPartialIdRef.current || `final-${Date.now()}`
             })
 
             // Complete the transcription manually (same as REC/STOP)
@@ -282,7 +362,8 @@ export default function TranscriptsPage() {
     updateStreaming,
     isStreamingActive,
     completeStreaming,
-    completeCurrentTranscription
+    completeCurrentTranscription,
+    isActive
   ])
 
   // Cleanup timeout on unmount

@@ -15,7 +15,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: 'pages'
   cancel-in-progress: false
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
       - name: Create documentation site
         run: |
           mkdir -p _site
-          
+
           # Create index.html for GitHub Pages
           cat > _site/index.html << 'EOF'
           <!DOCTYPE html>

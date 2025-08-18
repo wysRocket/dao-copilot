@@ -1,157 +1,87 @@
-# Product Requirements Document: UI Cleanup and Rendering Optimization
+Title: Real-Time Transcription Reliability & Loss Elimination Initiative
+Tag: transcription-reliability
+Version: 1.0
+Owner: Streaming Pipeline Team
+Last-Updated: 2025-08-09
 
-## Executive Summary
-Clean up and optimize the UI components in the DAO Copilot application, fixing rendering issues and improving overall user experience for the live transcription features. This project focuses on consolidating duplicate components, improving performance, and enhancing accessibility.
+Objective
+Eliminate partial/final transcript text loss, premature completion, duplication, and silent truncation during long-form (>5 min) continuous speech sessions using Gemini Live. Provide diagnostic observability and adaptive strategies to ensure >99.5% token retention and stable user-visible continuity.
 
-## Project Background
-The dao-copilot application has accumulated multiple duplicate components and complex rendering patterns that impact performance and maintainability. Based on analysis of the current codebase, there are opportunities to consolidate components, improve rendering efficiency, and create better user experiences.
+Success Metrics
+- Token Retention: >= 99.5% of characters compared to ground-truth reference (offline batch run) for 10-minute speech samples.
+- Latency: Additional processing adds < 20ms P95 over current path.
+- Premature Finalization Incidents: 0 during active speech (VAD / energy > threshold) across test set.
+- Reset Recovery: After model length reset events, accumulated text divergence < 1.0% (Levenshtein) from ideal aggregation.
+- Observability: Real-time panel shows length growth, reset events, guard status, and raw tail; exportable session diagnostics file.
 
-## Goals and Objectives
+Current Issues (Observed)
+1. Early stream auto-complete due to fixed timeout not being extended by incoming partials (fixed, regression risk remains).
+2. Severe losses: Long speech reducing to 1–N words (suspected overwrites after resets / guard pruning / diff-mode tokens).
+3. Over-aggressive regression guard previously filtered legitimate short fragments (guard now disabled by default).
+4. Model length resets (shrink >50%) causing accumulation to overwrite tail segments.
+5. Lack of adaptive distinction: full-text replacement vs incremental diff emissions.
+6. Limited post-session forensic artifact; difficult to compare with ground truth.
+7. UI not yet surfacing diagnostics (panel component added but not wired/integrated into app layout and export flow).
 
-### Primary Goals
-1. Consolidate duplicate UI components into reusable, optimized versions
-2. Fix rendering performance issues and memory leaks
-3. Improve responsive design across all screen sizes
-4. Enhance accessibility for live transcription features
-5. Optimize component reusability and maintainability
+Scope (In)
+- Adaptive accumulation strategies (hybrid replace/append with overlap & reset heuristics)
+- Dynamic regression guard enablement tied to reset frequency & false-positive mitigation
+- Forensic session logging (structured JSON, optional compressed) and export button
+- Offline comparison harness (playback recorded audio -> offline transcription -> diff vs live session) to measure retention
+- UI diagnostics integration & controls (toggle guard, export logs, highlight resets)
+- Resilience to diff-only token mode / late-arriving partial fragments
+- Improved finalization reliability (ensure final always >= max of partial snapshots)
 
-### Secondary Goals
-1. Implement consistent design patterns and styling
-2. Add proper TypeScript types for all components
-3. Optimize bundle size through code splitting
-4. Add comprehensive testing for UI components
-5. Create design system documentation
+Scope (Out)
+- Switching transcription provider
+- Full-featured VAD redesign
+- Multi-language translation pipeline
+- Advanced semantic error correction (post-processing language model passes)
 
-## Current System Analysis
+Constraints / Non-Goals
+- Keep added memory bounded (caps & ring buffers) – < 5MB per 10-minute session for diagnostics.
+- Avoid blocking UI thread; heavy diffing done off main via web worker if needed.
 
-### Existing Implementation
-- Multiple duplicate streaming components (`LiveStreamingArea`, `EnhancedLiveStreamingArea`)
-- Complex component hierarchies with performance issues
-- Inconsistent glass effect implementations
-- Mixed styling approaches (Tailwind, CSS-in-JS, inline styles)
-- Multiple transcription display components with overlapping functionality
+Key Risks
+- Misclassification of diff-mode could create duplications.
+- Excessive snapshotting may inflate memory.
+- Export logs may contain PII (user speech); need redaction toggle.
 
-### Current Issues
-1. **Component Duplication**: `LiveStreamingArea` and `EnhancedLiveStreamingArea` serve similar purposes
-2. **Performance Issues**: Excessive re-renders in streaming components
-3. **Memory Leaks**: Missing cleanup in useEffect hooks
-4. **Responsive Issues**: Poor mobile layout and touch interaction
-5. **Accessibility Gaps**: Missing ARIA labels and keyboard navigation
-6. **State Management**: Redundant state updates and race conditions
+High-Level Approach
+A. Instrumentation Completion: Wire diagnostics panel, bridge + manager data feed, export facility.
+B. Adaptive Strategy Layer: Detect reset/diff patterns -> choose merge policy (append, overlap-merge, or protected replacement).
+C. Guard Orchestration: Enable regression guard only when reset rate exceeds threshold & disable automatically when stable.
+D. Finalization Integrity: Reconcile final with max-length snapshot; never shrink.
+E. Offline Validation Harness: Deterministic audio playback -> capture live & offline transcripts -> diff metrics.
+F. Reporting & Telemetry: Aggregated counters (resets/min, shrink events averted, guard toggles, retention estimates).
 
-## Technical Requirements
+Milestones
+1. Diagnostics Integration & Export
+2. Adaptive Detection Heuristics (diff vs full-text)
+3. Merge Policy Implementation & Guard Automation
+4. Finalization Safety & No-Shrink Enforcement
+5. Offline Playback Harness & Retention Metric Pipeline
+6. PII-Redactable Log Export & Session Report
+7. Performance Optimization & Memory Bound Validation
+8. Release Hardening & Documentation
 
-### Core Features
-1. **Component Consolidation**
-   - Merge `LiveStreamingArea` and `EnhancedLiveStreamingArea` into single optimized component
-   - Create unified transcription display component
-   - Consolidate glass effect implementations (`GlassBox`, `GlassButton`, etc.)
-   - Standardize form components (inputs, buttons, selectors)
+Non-Functional Requirements
+- Type-safe utilities (TS) with test coverage for merging & diff classification (>=90% lines in those modules).
+- All new logic behind feature flag `enableAdaptiveTranscription`.
 
-2. **Performance Optimization**
-   - Implement React.memo for expensive components
-   - Optimize re-rendering patterns with useMemo and useCallback
-   - Fix memory leaks in streaming components
-   - Implement proper cleanup in useEffect hooks
-   - Use React 18 features (Suspense, concurrent rendering)
+Testing Strategy Overview
+- Unit: overlap merge, diff classifier, guard toggle state machine, no-shrink finalization.
+- Integration: simulated reset streams, mixed diff/full sequences, long continuous (10 min) synthetic test.
+- E2E: Automated harness feeding prerecorded audio; compare logs & ground truth.
 
-3. **Responsive Design**
-   - Fix mobile layout issues in `LiveStreamingArea`
-   - Implement proper breakpoint handling
-   - Optimize component sizing for different screens
-   - Improve touch interaction support
-   - Add mobile-first design patterns
+Open Questions
+- Do we need compression (gzip) for log export? (Default: yes, optional).
+- Acceptable privacy model for raw partial storage? (Potential redaction by hashing words after export if flagged.)
 
-4. **Accessibility Improvements**
-   - Add proper ARIA labels and roles
-   - Implement keyboard navigation for all interactive elements
-   - Improve screen reader support for live transcription
-   - Add focus management for dynamic content
-   - Implement proper live regions for announcements
+Initial Task Quantity Guidance
+Aim for 10–14 top-level tasks with structured subtasks for heuristics, harness, and UI.
 
-5. **State Management Cleanup**
-   - Consolidate transcription state logic in `useTranscriptionState`
-   - Remove redundant state updates in `TranscriptsPage`
-   - Implement proper state synchronization between windows
-   - Fix race conditions in streaming updates
-   - Optimize context usage to prevent unnecessary re-renders
+Additional Notes
+Use existing snapshots & raw partial buffers; avoid duplicating large string arrays—store incremental metadata (lengths, hashes) where possible.
 
-### Technical Architecture
-1. **Component Layer**
-   - Unified `LiveTranscriptionDisplay` component
-   - Optimized `GlassComponent` library
-   - Responsive layout system
-   - Accessibility wrapper components
-
-2. **State Management Layer**
-   - Consolidated transcription state hooks
-   - Optimized context providers
-   - Proper state synchronization patterns
-   - Memory-efficient state updates
-
-3. **Styling Layer**
-   - Consistent Tailwind usage
-   - Design system tokens
-   - Optimized CSS bundle
-   - Dark/light theme support
-
-4. **Testing Layer**
-   - Component unit tests
-   - Integration tests for transcription flow
-   - Accessibility testing
-   - Performance testing
-
-## Implementation Phases
-
-### Phase 1: Component Audit and Consolidation (Week 1-2)
-- Audit all duplicate components and their usage
-- Create unified `LiveTranscriptionDisplay` component
-- Consolidate glass effect components
-- Remove unused component files
-
-### Phase 2: Performance Optimization (Week 3-4)
-- Implement React.memo and memoization patterns
-- Fix memory leaks in streaming components
-- Optimize re-rendering with proper dependencies
-- Add performance monitoring
-
-### Phase 3: Responsive Design and Accessibility (Week 5-6)
-- Fix mobile layout issues
-- Implement proper breakpoint handling
-- Add comprehensive accessibility features
-- Test with screen readers and keyboard navigation
-
-### Phase 4: State Management Cleanup (Week 7-8)
-- Consolidate transcription state logic
-- Fix race conditions and synchronization issues
-- Optimize context usage and providers
-- Add comprehensive testing
-
-## Success Metrics
-- Reduced component count by 30% through consolidation
-- Improved Lighthouse performance score to 90+
-- Zero accessibility violations in key transcription flows
-- 50% reduction in re-renders for live transcription components
-- Memory usage stays under 100MB during extended transcription sessions
-- Component library reusability increased to 80%
-- Bundle size reduced by 20%
-
-## Risks and Mitigation
-1. **Breaking Changes**: Maintain backward compatibility through gradual migration
-2. **Performance Regression**: Comprehensive performance testing before deployment
-3. **User Experience Disruption**: Maintain existing functionality while improving implementation
-4. **Accessibility Compliance**: Regular testing with accessibility tools and real users
-
-## Dependencies
-- React 18 and TypeScript
-- Tailwind CSS design system
-- Existing transcription services and WebSocket infrastructure
-- Electron desktop application framework
-- Current window communication system
-
-## Constraints
-- Must maintain existing transcription functionality
-- Cannot break WebSocket communication patterns
-- Should support both main and assistant windows
-- Must work across macOS, Windows, and Linux
-- Should maintain current performance levels as minimum baseline
+END

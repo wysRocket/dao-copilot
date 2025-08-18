@@ -127,7 +127,7 @@ export const TranscriptionEventTest: React.FC = () => {
       </div>
 
       {/* Test Buttons */}
-      <div className="mb-4 space-x-2 space-y-2">
+      <div className="mb-4 space-y-2 space-x-2">
         <button
           onClick={testPartialWebSocketTranscription}
           className="rounded bg-blue-500 px-3 py-2 text-white hover:bg-blue-600"
@@ -171,7 +171,11 @@ export const TranscriptionEventTest: React.FC = () => {
           {testResults.length === 0 ? (
             <div className="text-gray-500">No test results yet. Click a test button above.</div>
           ) : (
-            testResults.map((result, index) => <div key={index}>{result}</div>)
+            testResults.map((result, index) => (
+              <div key={`test-result-${result.substring(0, 30).replace(/\s+/g, '-')}-${index}`}>
+                {result}
+              </div>
+            ))
           )}
         </div>
       </div>

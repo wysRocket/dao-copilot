@@ -1,0 +1,68 @@
+# Task ID: 28
+# Title: Implement Buffer Management and Backpressure Handling
+# Status: cancelled
+# Dependencies: 16, 17, 20
+# Priority: medium
+# Description: Create a sophisticated buffer management system that handles backpressure, prevents buffer saturation, and ensures oldest partials are properly finalized.
+# Details:
+Develop a buffer management system that:
+1. Implements buffer size monitoring and management
+2. Creates backpressure mechanisms when approaching buffer limits
+3. Ensures oldest partials are finalized before being evicted
+4. Handles high burst input scenarios
+5. Implements buffer overflow protection
+6. Creates prioritization for buffer entries
+7. Adds telemetry for buffer utilization
+
+Code structure:
+```typescript
+interface BufferOptions {
+  maxSize: number;
+  warningThreshold: number;
+  criticalThreshold: number;
+  evictionStrategy: 'oldest' | 'lowest-confidence' | 'custom';
+}
+
+class BufferManager {
+  private buffer: any[];
+  private size: number;
+  private listeners: Array<(status: BufferStatus) => void>;
+  
+  constructor(private options: BufferOptions) {...}
+  
+  add(item: any): boolean {...} // Returns true if added, false if rejected due to backpressure
+  remove(item: any): boolean {...}
+  getBufferStatus(): BufferStatus {...}
+  applyBackpressure(): void {...}
+  releaseBackpressure(): void {...}
+  onStatusChange(listener: (status: BufferStatus) => void): () => void {...}
+  evictIfNeeded(): any[] {...} // Returns evicted items
+}
+
+interface BufferStatus {
+  currentSize: number;
+  maxSize: number;
+  utilizationPercentage: number;
+  isWarning: boolean;
+  isCritical: boolean;
+  backpressureApplied: boolean;
+}
+
+class PartialFinalizationManager {
+  constructor(private bufferManager: BufferManager) {...}
+  
+  handleEvictionCandidates(candidates: TranscriptSegment[]): Promise<void> {...}
+  finalizeOldestPartials(count: number): Promise<number> {...}
+  prioritizeBuffer(): void {...}
+}
+```
+
+# Test Strategy:
+1. Unit tests for buffer management functions
+2. Test backpressure mechanisms
+3. Verify oldest partial finalization before eviction
+4. Test high burst input handling
+5. Verify buffer overflow protection
+6. Test prioritization logic
+7. Integration tests with simulated buffer pressure
+8. Performance testing with various buffer sizes and input rates

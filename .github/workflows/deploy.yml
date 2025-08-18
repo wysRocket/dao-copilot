@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [master, main]
   release:
     types: [published]
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs
-          
+
   update-release-assets:
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
@@ -56,24 +56,24 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
-            
+
             // Read package.json for app information
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            
+
             const releaseBody = `
             ## ${pkg.description || 'DAO Copilot Release'}
-            
+
             Version: **${pkg.version}**
-            
+
             ### What's New
             - Cross-platform Electron application
             - Audio capture and transcription capabilities
             - Real-time speech-to-text processing
             - Google Cloud Speech integration
-            
+
             ### Downloads
             Choose the installer for your operating system:
-            
+
             | Platform | File Type | Description |
             |----------|-----------|-------------|
             | Windows | .exe | Windows Installer |
@@ -81,21 +81,21 @@ jobs:
             | Linux | .AppImage | Portable Linux Application |
             | Linux | .deb | Debian Package |
             | Linux | .snap | Snap Package |
-            
+
             ### Installation
             1. Download the appropriate installer for your platform
             2. Run the installer and follow the setup instructions
             3. Launch the application from your applications menu
-            
+
             ### System Requirements
             - **Windows**: Windows 10 or later
             - **macOS**: macOS 10.14 or later
             - **Linux**: Ubuntu 18.04 or equivalent
-            
+
             ### Support
             If you encounter any issues, please check our [documentation](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/master/README.md) or [open an issue](https://github.com/${context.repo.owner}/${context.repo.repo}/issues).
             `;
-            
+
             // Update the release
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,

@@ -12,7 +12,9 @@ export const PERFORMANCE_MARKERS = {
   TRANSCRIPTION_INIT_START: 'transcription_init_start',
   TRANSCRIPTION_READY: 'transcription_ready',
   FIRST_TRANSCRIPTION_RECEIVED: 'first_transcription_received',
-  FIRST_TRANSCRIPTION_DISPLAY: 'first_transcription_display'
+  FIRST_TRANSCRIPTION_DISPLAY: 'first_transcription_display',
+  CONNECTION_POOL_INIT_START: 'connection_pool_init_start',
+  CONNECTION_POOL_INIT_COMPLETE: 'connection_pool_init_complete'
 }
 
 class PerformanceProfiler {

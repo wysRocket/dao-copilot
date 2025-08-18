@@ -38,11 +38,11 @@ env:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    
+
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
-        
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -107,7 +107,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -132,13 +132,13 @@ jobs:
             ## What's Changed
             - Automated release build
             - Cross-platform builds for Windows, macOS, and Linux
-            
+
             ## Download
             Choose the appropriate installer for your platform:
             - **Windows**: `.exe` installer
             - **macOS**: `.dmg` installer  
             - **Linux**: `.AppImage`, `.deb`, or `.snap`
-            
+
             ## Installation
             1. Download the installer for your platform
             2. Run the installer and follow the setup wizard

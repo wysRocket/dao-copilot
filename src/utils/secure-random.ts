@@ -12,7 +12,7 @@ export function generateSecureId(prefix = ''): string {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return prefix ? `${prefix}-${crypto.randomUUID()}` : crypto.randomUUID()
     }
-    
+
     // Fallback for environments without crypto.randomUUID
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
       const array = new Uint32Array(4)
@@ -32,7 +32,7 @@ export function generateSecureId(prefix = ''): string {
   } catch (error) {
     console.warn('Secure random generation failed, falling back to timestamp-based ID:', error)
   }
-  
+
   // Ultimate fallback (not cryptographically secure, but better than Math.random)
   const timestamp = Date.now().toString(36)
   const counter = ((generateSecureId as unknown as {counter?: number}).counter || 0) + 1

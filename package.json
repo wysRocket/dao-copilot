@@ -19,7 +19,7 @@
     "build": "npm run make",
     "build:all": "npm run make",
     "build:win": "npm run make -- --platform=win32",
-    "build:mac": "npm run make -- --platform=darwin", 
+    "build:mac": "npm run make -- --platform=darwin",
     "build:linux": "npm run make -- --platform=linux",
     "release": "npm version patch && git push && git push --tags",
     "release:minor": "npm version minor && git push && git push --tags",
@@ -34,7 +34,12 @@
     "postbuild": "echo 'Build completed successfully!'",
     "clean": "rm -rf out dist .vite",
     "dev": "npm run start",
-    "serve": "npm run start"
+    "serve": "npm run start",
+    "validate:short": "grep GEMINI_SIGNAL_VALIDATE app.log > logs/realtime-validation-session1.log || true; node scripts/parse-validation-metrics.mjs logs/realtime-validation-session1.log",
+    "validate:medium": "grep GEMINI_SIGNAL_VALIDATE app.log > logs/realtime-validation-session2.log || true; node scripts/parse-validation-metrics.mjs logs/realtime-validation-session2.log",
+    "validate:long": "grep GEMINI_SIGNAL_VALIDATE app.log > logs/realtime-validation-session3.log || true; node scripts/parse-validation-metrics.mjs logs/realtime-validation-session3.log",
+    "validate:all": "npm run validate:short && npm run validate:medium && npm run validate:long",
+    "start:validate": "GEMINI_SIGNAL_VALIDATE=1 electron-forge start 2>&1 | tee -a app.log"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",

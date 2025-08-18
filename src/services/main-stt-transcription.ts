@@ -7,6 +7,10 @@ import {
 } from './transcription-compatibility'
 import {QuotaManager} from './quota-manager'
 import {UnifiedPerformanceService} from './unified-performance'
+import GeminiLiveWebSocketClient, {ResponseModality} from './gemini-live-websocket'
+import {initializeGeminiTranscriptionBridge} from './gemini-transcription-bridge'
+import WindowManager from '../services/window-manager'
+import {transcribeAudioViaProxy} from './proxy-stt-transcription'
 
 // Live API model for WebSocket (recommended half-cascade model)
 const DEFAULT_GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
@@ -456,11 +460,7 @@ async function transcribeAudioViaWebSocket(
       throw new Error('Quota limit exceeded - using batch fallback')
     }
 
-    // Import WebSocket client directly
-    const {default: GeminiLiveWebSocketClient, ResponseModality} = await import(
-      './gemini-live-websocket'
-    )
-
+    // Use statically imported WebSocket client
     const client = new GeminiLiveWebSocketClient({
       apiKey,
       model: options.modelName || DEFAULT_GEMINI_LIVE_MODEL, // Use Live API model for WebSocket
@@ -480,7 +480,6 @@ async function transcribeAudioViaWebSocket(
 
     // Initialize the transcription bridge to connect WebSocket events to UI
     try {
-      const {initializeGeminiTranscriptionBridge} = await import('./gemini-transcription-bridge')
       initializeGeminiTranscriptionBridge(client)
     } catch (bridgeError) {
       console.warn('⚠️ Failed to initialize transcription bridge:', bridgeError)
@@ -635,9 +634,31 @@ async function transcribeAudioViaWebSocket(
         // Mark that audio has been sent so we can process responses appropriately
         audioSent = true
 
-        // For live streaming, don't send audioStreamEnd - keep connection open
-        // Reduced wait time for better responsiveness
-        await new Promise(resolve => setTimeout(resolve, 500))
+        // Signal end of audio stream (required for model to begin full transcription)
+        try {
+          console.log('🔚 Sending audioStreamEnd flag to Gemini Live API')
+          await client.sendRealtimeInput({audioStreamEnd: true})
+        } catch (endErr) {
+          console.warn('Failed to send audioStreamEnd flag:', endErr)
+        }
+
+        // Optionally send explicit turn completion (controlled by env flag, default OFF for v1beta)
+        // NOTE: Using audioStreamEnd with variant 17 is sufficient - redundant turn completion causes 1007 errors
+        if (process.env.GEMINI_AUTO_TURN_COMPLETE === 'true') {
+          try {
+            console.log('✅ Sending turn completion signal to trigger transcription response')
+            await client.sendTurnCompletion()
+          } catch (turnErr) {
+            console.warn('Failed to send turn completion signal:', turnErr)
+          }
+        } else {
+          console.log(
+            '⚙️ Skipping redundant turn completion (audioStreamEnd is sufficient for v1beta)'
+          )
+        }
+
+        // Short wait to allow server to start emitting partials quickly
+        await new Promise(resolve => setTimeout(resolve, 300))
       } else {
         // For smaller audio chunks, send as single stream
         const base64Audio = pcmData.toString('base64')
@@ -653,9 +674,29 @@ async function transcribeAudioViaWebSocket(
         // Mark that audio has been sent
         audioSent = true
 
-        // For live streaming, don't send audioStreamEnd - keep connection open
-        // Wait briefly for streaming responses
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Send end-of-stream + turn completion so model can emit transcription
+        try {
+          console.log('🔚 Sending audioStreamEnd flag to Gemini Live API (single chunk)')
+          await client.sendRealtimeInput({audioStreamEnd: true})
+        } catch (endErr) {
+          console.warn('Failed to send audioStreamEnd flag (single chunk):', endErr)
+        }
+
+        if (process.env.GEMINI_AUTO_TURN_COMPLETE === 'true') {
+          try {
+            console.log('✅ Sending turn completion signal (single chunk)')
+            await client.sendTurnCompletion()
+          } catch (turnErr) {
+            console.warn('Failed to send turn completion signal (single chunk):', turnErr)
+          }
+        } else {
+          console.log(
+            '⚙️ Skipping redundant turn completion (audioStreamEnd is sufficient for v1beta)'
+          )
+        }
+
+        // Allow initial partial(s) to arrive
+        await new Promise(resolve => setTimeout(resolve, 500))
       }
 
       // Store the final transcription result to return
@@ -780,7 +821,6 @@ async function transcribeAudioViaWebSocket(
         confidence: number
       ) {
         try {
-          const WindowManager = (await import('../services/window-manager')).default
           const windowManager = WindowManager.getInstance()
 
           // Batch the broadcast data to reduce object creation overhead
@@ -802,11 +842,15 @@ async function transcribeAudioViaWebSocket(
       }
 
       // Wait for transcription completion or timeout
-      const maxWaitTime = 8000 // 8 seconds max wait
+      const maxWaitTime = 10000 // Slightly extended to allow server to respond after explicit turn completion
       const startWaitTime = Date.now()
 
       while (!transcriptionCompleted && Date.now() - startWaitTime < maxWaitTime) {
         await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      if (!transcriptionCompleted) {
+        console.warn('⏱️ Transcription timeout reached with no final text received')
       }
 
       // Auto-disconnect after transcription completion or timeout
@@ -855,9 +899,6 @@ async function transcribeAudioViaWebSocket(
   } catch (mainError) {
     // Main function error handling - fallback to batch transcription
     console.error('🚫 WebSocket transcription failed, falling back to batch mode:', mainError)
-
-    // Import proxy transcription module as fallback
-    const {transcribeAudioViaProxy} = await import('./proxy-stt-transcription')
 
     // Use proxy transcription as fallback
     return await transcribeAudioViaProxy(audioData, {
@@ -1141,7 +1182,6 @@ export async function getTranscriptionSystemReport(): Promise<{
  */
 export async function testStreamingTranscriptionIPC(): Promise<void> {
   try {
-    const WindowManager = (await import('../services/window-manager')).default
     const windowManager = WindowManager.getInstance()
 
     // Send a series of test streaming messages

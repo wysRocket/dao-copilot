@@ -9,18 +9,73 @@ import {GeminiErrorHandler, ErrorType, type GeminiError} from './gemini-error-ha
 import {logger} from './gemini-logger'
 import {sanitizeLogMessage, safeLogger} from './log-sanitizer'
 import {markPerformance, PERFORMANCE_MARKERS} from '../utils/performance-profiler'
-import {transcriptionBenchmark} from '../utils/transcription-performance-benchmark'
+import {FallbackManager, TranscriptionResult} from '../fallback/FallbackManager'
 import ReconnectionManager, {
   ReconnectionStrategy,
   type ReconnectionConfig
 } from './gemini-reconnection-manager'
 import {WebSocketHeartbeatMonitor, HeartbeatStatus} from './websocket-heartbeat-monitor'
 import GeminiSessionManager, {type SessionData} from './gemini-session-manager'
-
-// Model configuration constants
-export const GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
+import {TranscriptFSM} from '../transcription/fsm'
 // Default API version for Gemini Live API (use config.apiVersion to override)
 export const GEMINI_LIVE_API_VERSION = 'v1beta'
+// Default Gemini Live model (can be overridden via config.model or env GEMINI_MODEL)
+// Safe env accessor (renderer may not expose process)
+function safeEnv(key: string): string | undefined {
+  try {
+    const g = globalThis as unknown as {
+      process?: {env?: Record<string, string | undefined>}
+      window?: {__ENV__?: Record<string, string | undefined>}
+    }
+    // Prefer injected import.meta.env (Vite) then process.env then window.__ENV__
+    try {
+      const metaEnv = (import.meta as unknown as {env?: Record<string, string>})?.env
+      if (metaEnv && key in metaEnv) return metaEnv[key]
+    } catch {
+      // ignore - import.meta not available
+    }
+    if (g?.process?.env && key in g.process.env) return g.process.env[key]
+    if (g?.window?.__ENV__ && key in g.window.__ENV__) return g.window.__ENV__[key]
+  } catch {
+    // ignore access issues
+  }
+  return undefined
+}
+// Safe env access for renderer/browser (Electron with nodeIntegration off)
+function safeGetEnv(name: string): string | undefined {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (typeof process !== 'undefined' && (process as any).env) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (process as any).env[name]
+    }
+  } catch {
+    /* swallow */
+  }
+  const g = globalThis as unknown as {__ENV__?: Record<string, string>}
+  return g.__ENV__?.[name]
+}
+export const GEMINI_LIVE_MODEL = safeGetEnv('GEMINI_MODEL') || 'gemini-live-2.5-flash-preview'
+
+// Global (cross-instance) schema negotiation state so new client instances continue exploration
+interface GlobalGeminiSchemaState {
+  lastVariantTried: number
+  lastSuccessVariant: number | null
+  lastCloseCode?: number
+  consecutive1007?: number
+}
+const __GLOBAL_GEMINI_SCHEMA_STATE: GlobalGeminiSchemaState = (() => {
+  const g = globalThis as unknown as {__GEMINI_WS_SCHEMA_STATE?: GlobalGeminiSchemaState}
+  if (!g.__GEMINI_WS_SCHEMA_STATE) {
+    g.__GEMINI_WS_SCHEMA_STATE = {
+      lastVariantTried: 17, // Start with official v1beta variant
+      lastSuccessVariant: 17, // Official v1beta variant is known to work
+      lastCloseCode: undefined,
+      consecutive1007: 0
+    }
+  }
+  return g.__GEMINI_WS_SCHEMA_STATE
+})()
 
 export enum ConnectionState {
   DISCONNECTED = 'disconnected',
@@ -104,13 +159,6 @@ export interface AudioResponseData {
   format: string
   sampleRate?: number
   channels?: number
-}
-
-export interface TextResponseData {
-  text: string
-  isPartial?: boolean
-  partIndex?: number
-  totalParts?: number
 }
 
 export interface ToolCallResponseData {
@@ -364,6 +412,10 @@ export class Gemini2FlashMessageParser {
   ): ParsedGeminiResponse {
     const modelTurn = serverContent.modelTurn as Record<string, unknown> | undefined
     const turnComplete = serverContent.turnComplete as boolean | undefined
+    // Some Gemini messages include a generationComplete flag without additional parts. We treat these
+    // as progress/control signals rather than textual content. They should not emit empty transcript events.
+    const generationComplete =
+      (serverContent as Record<string, unknown>).generationComplete === true
     const inputTranscription = serverContent.inputTranscription as
       | Record<string, unknown>
       | undefined
@@ -404,11 +456,30 @@ export class Gemini2FlashMessageParser {
         }
       }
     }
+    // If we have a generationComplete control message with no textual parts, return a benign
+    // placeholder that downstream logic can ignore instead of emitting an empty "final" event.
+    if (generationComplete && !modelTurn) {
+      return {
+        type: 'text',
+        content: '',
+        metadata: {timestamp, modelTurn: false, isPartial: true}
+      }
+    }
 
+    // If turnComplete was signaled with no modelTurn parts, surface an explicit turn_complete event
+    if (turnComplete && !modelTurn) {
+      return {
+        type: 'turn_complete',
+        content: null,
+        metadata: {timestamp, modelTurn: false, isPartial: false}
+      }
+    }
+
+    // Fallback: unknown serverContent format without parts; mark as partial & non-modelTurn so it will be ignored.
     return {
       type: 'text',
       content: '',
-      metadata: {timestamp, modelTurn: true}
+      metadata: {timestamp, modelTurn: false, isPartial: true}
     }
   }
 
@@ -720,6 +791,8 @@ export class Gemini2FlashMessageParser {
  * WebSocket Connection Management for Gemini Live API
  */
 export class GeminiLiveWebSocketClient extends EventEmitter {
+  // Keep in sync with highest variant index (0-based). We currently define indices 0..22 inclusive.
+  private static readonly MAX_SCHEMA_VARIANT = 27
   private ws: WebSocket | null = null
   private config: GeminiLiveConfig
   private connectionState: ConnectionState = ConnectionState.DISCONNECTED
@@ -730,6 +803,99 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private reconnectTimer: NodeJS.Timeout | null = null
   private messageQueue: Map<QueuePriority, QueuedMessage[]> = new Map()
   private pendingMessages: Map<string, QueuedMessage> = new Map()
+  // Adaptive schema negotiation state for Gemini Live websocket payload format experimentation
+  // Adaptive schema variant index selection strategy:
+  // Order of precedence:
+  // 1. Forced index via GEMINI_SCHEMA_FORCE_INDEX (authoritative)
+  // 2. Last successful working variant (exact reuse)
+  // 3. Progressive advancement: if we have tried a variant and have not succeeded yet, start at lastTried+1
+  //    (even if the most recent close code wasn't 1007 – avoids regression after intentional 1000 closes)
+  // 4. Explicit default override via GEMINI_SCHEMA_DEFAULT_INDEX
+  // 5. Heuristic fallback (official v1beta realtimeInput.mediaChunks = variant 17)
+  // Additionally: skip deprecated variants (currently 0) and clamp to MAX.
+  private _schemaVariantIndex: number = (() => {
+    const DEPRECATED = new Set([0])
+    let reason = 'heuristicDefault'
+    let idx: number | null = null
+    try {
+      const forced = safeEnv('GEMINI_SCHEMA_FORCE_INDEX')
+      if (forced && /^\d+$/.test(forced)) {
+        idx = Math.min(parseInt(forced, 10), GeminiLiveWebSocketClient.MAX_SCHEMA_VARIANT)
+        reason = 'forced'
+      } else if (__GLOBAL_GEMINI_SCHEMA_STATE.lastSuccessVariant !== null) {
+        idx = __GLOBAL_GEMINI_SCHEMA_STATE.lastSuccessVariant
+        reason = 'lastSuccessVariant'
+      } else if (
+        __GLOBAL_GEMINI_SCHEMA_STATE.lastVariantTried !== null &&
+        __GLOBAL_GEMINI_SCHEMA_STATE.lastVariantTried >= 0
+      ) {
+        // Progressive advancement: always move forward if no success yet
+        const candidate = __GLOBAL_GEMINI_SCHEMA_STATE.lastVariantTried + 1
+        if (candidate <= GeminiLiveWebSocketClient.MAX_SCHEMA_VARIANT) {
+          idx = candidate
+          reason = 'advanceAfterFailure'
+        }
+      }
+      if (idx === null) {
+        const defIdx = safeEnv('GEMINI_SCHEMA_DEFAULT_INDEX')
+        if (defIdx && /^\d+$/.test(defIdx)) {
+          idx = Math.min(parseInt(defIdx, 10), GeminiLiveWebSocketClient.MAX_SCHEMA_VARIANT)
+          reason = 'envDefault'
+        }
+      }
+    } catch {
+      /* ignore and fall through */
+    }
+    if (idx === null) idx = 17 // Default to official v1beta realtimeInput.mediaChunks format
+    // Skip deprecated indexes
+    while (DEPRECATED.has(idx) && idx < GeminiLiveWebSocketClient.MAX_SCHEMA_VARIANT) {
+      idx++
+      reason += '+skipDeprecated'
+    }
+    // Persist chosen starting point (unless forced – we still persist tried so progression works if force removed later)
+    try {
+      __GLOBAL_GEMINI_SCHEMA_STATE.lastVariantTried = idx
+    } catch {
+      /* swallow */
+    }
+    // Stash init reason for constructor logging (cannot use logger here before super())
+    ;(globalThis as unknown as {__GEMINI_SCHEMA_INIT_REASON?: string}).__GEMINI_SCHEMA_INIT_REASON =
+      reason
+    return idx
+  })()
+  // Track last used variant label for adaptive turnComplete formatting / diagnostics
+  private _lastVariantLabel: string | null = null
+  private _recordedSuccessForSession = false
+  // Session-level guard to avoid repeatedly jumping to parts schema on each 1007 series
+  private _triedPartsSchemaJump = false
+  // Aggregated current turn transcript (last partial) for synthesizing a final if server omits an explicit final text
+  private _currentTurnText: string = ''
+  private _finalEmittedForTurn: boolean = false
+  // FSM integration for transcript lifecycle management
+  private _currentUtteranceId: string | null = null
+  private _sessionId: string = 'default'
+
+  /**
+   * Persist the latest tried / successful schema variant to the global state so that
+   * hot-reloads or new client instances can start from a working schema more quickly.
+   */
+  private _persistSchemaState(kind: 'tried' | 'success', index: number) {
+    try {
+      if (kind === 'tried') {
+        __GLOBAL_GEMINI_SCHEMA_STATE.lastVariantTried = index
+      } else if (kind === 'success') {
+        __GLOBAL_GEMINI_SCHEMA_STATE.lastSuccessVariant = index
+        __GLOBAL_GEMINI_SCHEMA_STATE.lastVariantTried = index
+      }
+      // Optionally expose for renderer inspection / debugging
+      ;(
+        globalThis as unknown as {__GEMINI_WS_SCHEMA_STATE?: GlobalGeminiSchemaState}
+      ).__GEMINI_WS_SCHEMA_STATE = __GLOBAL_GEMINI_SCHEMA_STATE
+    } catch (e) {
+      logger.warn('Failed to persist schema state', {kind, index, error: (e as Error)?.message})
+    }
+  }
+  private _advanceSchemaVariant: boolean = false
   private maxQueueSize: number
   private messageIdCounter = 0
   private retryTimers: Map<string, NodeJS.Timeout> = new Map()
@@ -739,8 +905,41 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
   private reconnectionManager: ReconnectionManager
   private heartbeatMonitor: WebSocketHeartbeatMonitor
   private sessionManager: GeminiSessionManager
+  private fallbackManager: FallbackManager
   private currentSession: SessionData | null = null
   private isSetupComplete = false // Track setup completion to prevent audio before acknowledgment
+  // Validation / instrumentation mode for signaling verification (Task 31.1)
+  private validationMode: boolean = safeEnv('GEMINI_SIGNAL_VALIDATE') === '1'
+  private validationMetrics = {
+    currentTurnId: '' as string | undefined,
+    sessionStart: 0,
+    firstPartialTs: 0,
+    finalTs: 0,
+    partialCount: 0,
+    finalChars: 0
+  }
+
+  /** Return shallow copy of current validation metrics */
+  getValidationMetrics() {
+    return {...this.validationMetrics}
+  }
+
+  /** Internal helper to emit structured validation logs when GEMINI_SIGNAL_VALIDATE=1 */
+  private logValidation(kind: string, data: Record<string, unknown> = {}): void {
+    if (!this.validationMode) return
+    try {
+      const payload = {
+        v: 'signal-validate',
+        kind,
+        ts: Date.now(),
+        turnId: this.validationMetrics.currentTurnId || undefined,
+        ...data
+      }
+      logger.info('GEMINI_SIGNAL_VALIDATE', payload)
+    } catch {
+      /* swallow */
+    }
+  }
 
   /**
    * Validate configuration for v1beta compatibility
@@ -904,12 +1103,54 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     })
     this.setupSessionManagerEvents()
 
+    // Initialize fallback manager for handling transport failures
+    this.fallbackManager = new FallbackManager({
+      websocket: {
+        timeout: 5000,
+        maxRetries: 3,
+        bufferSize: 1024 * 64 // 64KB
+      },
+      httpStream: {
+        timeout: 10000,
+        maxRetries: 2,
+        bufferSize: 1024 * 128 // 128KB
+      },
+      batch: {
+        timeout: 30000,
+        maxRetries: 1,
+        bufferSize: 1024 * 256 // 256KB
+      },
+      maxConsecutive1007Errors: 3,
+      maxSchemaVariantFailures: 5,
+      connectionQualityThreshold: 0.7,
+      fallbackDelayMs: 2000,
+      transportTimeoutMs: 15000,
+      enableAggressiveFallback: true,
+      enableAudioBuffering: true
+    })
+    this.setupFallbackManagerEvents()
+
     logger.info('GeminiLiveWebSocketClient initialized', {
       model: this.config.model,
       heartbeatInterval: this.heartbeatInterval,
       maxReconnectAttempts: this.maxReconnectAttempts,
-      reconnectionStrategy: this.config.reconnectionStrategy || ReconnectionStrategy.EXPONENTIAL
+      reconnectionStrategy: this.config.reconnectionStrategy || ReconnectionStrategy.EXPONENTIAL,
+      schemaInitVariant: this._schemaVariantIndex,
+      schemaInitReason:
+        ((globalThis as unknown as Record<string, unknown>)
+          .__GEMINI_SCHEMA_INIT_REASON as string) || 'unknown',
+      globalSchemaState: {
+        lastVariantTried: __GLOBAL_GEMINI_SCHEMA_STATE.lastVariantTried,
+        lastSuccessVariant: __GLOBAL_GEMINI_SCHEMA_STATE.lastSuccessVariant,
+        lastCloseCode: __GLOBAL_GEMINI_SCHEMA_STATE.lastCloseCode,
+        consecutive1007: __GLOBAL_GEMINI_SCHEMA_STATE.consecutive1007
+      }
     })
+
+    // Explicitly announce validation mode so users can confirm env flag worked
+    if (this.validationMode) {
+      logger.info('GeminiLiveWebSocketClient validation mode ENABLED (GEMINI_SIGNAL_VALIDATE=1)')
+    }
   }
 
   /**
@@ -1113,6 +1354,7 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     }
 
     // For v1beta API, use clientContent structure with turnComplete
+    // Updated format for v1beta API compatibility
     const turnCompletionMessage = JSON.stringify({
       clientContent: {
         turnComplete: true
@@ -1218,39 +1460,707 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     }
 
     try {
-      // Build the correct Gemini Live API message format (using camelCase for v1beta API)
-      let message: string
+      // Build the correct Gemini Live API message format.
+      // NOTE: Previous implementation used {realtimeInput:{mediaChunks:[]}} which the API
+      // rejects with code 1007 (invalid argument). The v1beta BidiGenerateContent endpoint
+      // expects messages shaped as {"clientContent": { parts: [{ inlineData: { mimeType, data }}] }}
+      // for audio and {"clientContent": { parts: [{ text: "..." }] }} for text, and
+      // {"clientContent": { turnComplete: true }} to finish the turn.
+      const useSpecFormat = true // hard enable spec-compliant format
+      let payload: unknown
 
-      if (input.audioStreamEnd) {
-        // For audioStreamEnd, send it as a direct field, not in mediaChunks
-        message = JSON.stringify({
-          realtimeInput: {
-            audioStreamEnd: true
-          }
-        })
-      } else if (input.text) {
-        // Send text message to establish transcription context - this may help the model understand our intent
-        logger.debug('Sending text message to establish transcription context', {
-          textContent: input.text.substring(0, 50) + '...'
-        })
-        message = JSON.stringify({
-          realtimeInput: {
-            text: input.text
-          }
-        })
-      } else {
-        // For regular media chunks (audio only)
-        message = JSON.stringify({
-          realtimeInput: {
-            mediaChunks: this.buildMediaChunks(input)
-          }
-        })
+      // Probe mode: accelerate schema discovery with minimal payloads.
+      // Auto-probe can be enabled internally (heuristic) by setting global flag __GEMINI_AUTO_PROBE=1
+      const autoProbe =
+        (globalThis as unknown as {__GEMINI_AUTO_PROBE?: number}).__GEMINI_AUTO_PROBE === 1
+      const probeMode = safeEnv('GEMINI_SCHEMA_PROBE') === '1' || autoProbe
+      let probeTruncated = false
+      if (probeMode && input.audio && !input.audioStreamEnd) {
+        // Keep only first ~640 bytes (~20ms @16kHz PCM16) to reduce payload size drastically
+        try {
+          const raw = atob(input.audio.data)
+          const slice = raw.slice(0, 640)
+          input.audio.data = btoa(slice)
+          probeTruncated = true
+        } catch {
+          /* ignore base64 issues */
+        }
       }
+      if (useSpecFormat) {
+        // Adaptive variant index retained across invocations to progressively try schemas.
+        // Reset to 0 after a successful transcription cycle (handled elsewhere once we get text).
+        // IMPORTANT FIX: advance the variant *before* building the payload if the previous send
+        // triggered a 1007 unknown field error. Previously we advanced only *after* constructing
+        // (and sending) the current payload, which caused every reconnection's first audio chunk
+        // to keep using the same (failing) variant 0 and never truly test higher variants.
+        // Ensure variant index initialized (defensive) - Start with official v1beta format (variant 17)
+        if (this._schemaVariantIndex === undefined || this._schemaVariantIndex === null)
+          this._schemaVariantIndex = 17
+        if (this._advanceSchemaVariant) {
+          const prev = this._schemaVariantIndex
+          this._schemaVariantIndex = Math.min(
+            this._schemaVariantIndex + 1,
+            GeminiLiveWebSocketClient.MAX_SCHEMA_VARIANT
+          )
+          this._advanceSchemaVariant = false
+          if (this._schemaVariantIndex !== prev) {
+            logger.info(
+              'Advanced Gemini WS schema variant prior to building payload after prior 1007',
+              {
+                previousVariant: prev,
+                newVariantIndex: this._schemaVariantIndex
+              }
+            )
+            this._persistSchemaState('tried', this._schemaVariantIndex)
+          }
+        }
+
+        // Optional ENV override to force a specific schema variant index for experiment.
+        // Set GEMINI_SCHEMA_FORCE_INDEX=N to pin variant (bypasses auto-advance) while debugging.
+        let forcedVariantIndex: number | null = null
+        const forcedVariantEnv = safeEnv('GEMINI_SCHEMA_FORCE_INDEX')
+        if (forcedVariantEnv && /^\d+$/.test(forcedVariantEnv)) {
+          forcedVariantIndex = Math.min(
+            parseInt(forcedVariantEnv, 10),
+            GeminiLiveWebSocketClient.MAX_SCHEMA_VARIANT
+          )
+        }
+
+        type VariantBuilder = () => unknown
+        interface VariantMeta {
+          label: string
+          deprecated?: boolean
+        }
+        const variantBuilders: Array<VariantBuilder & {__meta: VariantMeta}> = [
+          // 0 (deprecated): Original snake_case contents structure (always failing Unknown name "contents")
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {client_content: {turn_complete: true}}
+              return {client_content: {}}
+            },
+            {__meta: {label: 'snake_case.contents', deprecated: true}}
+          ),
+          // 1: snake_case flattened inline_data
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {client_content: {turn_complete: true}}
+              if (input.text) return {client_content: {text: input.text}}
+              if (input.audio)
+                return {
+                  client_content: {
+                    inline_data: {mime_type: input.audio.mimeType, data: input.audio.data}
+                  }
+                }
+              return {client_content: {}}
+            },
+            {__meta: {label: 'snake_case.inline_data'}}
+          ),
+          // 2: snake_case input_audio simple
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {client_content: {turn_complete: true}}
+              if (input.text) return {client_content: {text: input.text}}
+              if (input.audio)
+                return {
+                  client_content: {
+                    input_audio: {mime_type: input.audio.mimeType, data: input.audio.data}
+                  }
+                }
+              return {client_content: {}}
+            },
+            {__meta: {label: 'snake_case.input_audio'}}
+          ),
+          // 3: snake_case input_audio.audio wrapper
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {client_content: {turn_complete: true}}
+              if (input.text) return {client_content: {text: input.text}}
+              if (input.audio)
+                return {
+                  client_content: {
+                    input_audio: {audio: {mime_type: input.audio.mimeType, data: input.audio.data}}
+                  }
+                }
+              return {client_content: {}}
+            },
+            {__meta: {label: 'snake_case.input_audio.audio'}}
+          ),
+          // 4: snake_case media_chunks array
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {client_content: {turn_complete: true}}
+              if (input.text) return {client_content: {text: input.text}}
+              if (input.audio)
+                return {
+                  client_content: {
+                    media_chunks: [
+                      {inline_data: {mime_type: input.audio.mimeType, data: input.audio.data}}
+                    ]
+                  }
+                }
+              return {client_content: {}}
+            },
+            {__meta: {label: 'snake_case.media_chunks[]'}}
+          ),
+          // 5: camelCase flattened inlineData
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text) return {clientContent: {text: input.text}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}
+                  }
+                }
+              return {clientContent: {}}
+            },
+            {__meta: {label: 'camelCase.inlineData'}}
+          ),
+          // 6: camelCase content.parts (primary hypothesis)
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text) return {clientContent: {content: {parts: [{text: input.text}]}}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    content: {
+                      parts: [
+                        {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                      ]
+                    }
+                  }
+                }
+              return {clientContent: {}}
+            },
+            {__meta: {label: 'camelCase.content.parts'}}
+          ),
+          // 7: snake_case content.parts
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {client_content: {turn_complete: true}}
+              if (input.text) return {client_content: {content: {parts: [{text: input.text}]}}}
+              if (input.audio)
+                return {
+                  client_content: {
+                    content: {
+                      parts: [
+                        {inline_data: {mime_type: input.audio.mimeType, data: input.audio.data}}
+                      ]
+                    }
+                  }
+                }
+              return {client_content: {}}
+            },
+            {__meta: {label: 'snake_case.content.parts'}}
+          ),
+          // 8: legacy realtimeInput mediaChunks
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {realtimeInput: {audioStreamEnd: true}}
+              if (input.text) return {realtimeInput: {text: input.text}}
+              if (input.audio) return {realtimeInput: {mediaChunks: this.buildMediaChunks(input)}}
+              return {realtimeInput: {}}
+            },
+            {__meta: {label: 'legacy.realtimeInput.mediaChunks'}}
+          ),
+          // 9: snake_case raw audio object
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {client_content: {turn_complete: true}}
+              if (input.text) return {client_content: {text: input.text}}
+              if (input.audio)
+                return {
+                  client_content: {audio: {mime_type: input.audio.mimeType, data: input.audio.data}}
+                }
+              return {client_content: {}}
+            },
+            {__meta: {label: 'snake_case.audio'}}
+          ),
+          // 10: NEW camelCase.parts (no content wrapper) -> { clientContent:{ parts:[ { inlineData:{...}} ] } }
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text) return {clientContent: {parts: [{text: input.text}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    parts: [{inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}]
+                  }
+                }
+              return {clientContent: {}}
+            },
+            {__meta: {label: 'camelCase.parts.inlineData'}}
+          ),
+          // 11: NEW snake_case.parts (no content wrapper) -> { client_content:{ parts:[ { inline_data:{...}} ] } }
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {client_content: {turn_complete: true}}
+              if (input.text) return {client_content: {parts: [{text: input.text}]}}
+              if (input.audio)
+                return {
+                  client_content: {
+                    parts: [
+                      {inline_data: {mime_type: input.audio.mimeType, data: input.audio.data}}
+                    ]
+                  }
+                }
+              return {client_content: {}}
+            },
+            {__meta: {label: 'snake_case.parts.inline_data'}}
+          ),
+          // 12: camelCase.parts with role=user -> { clientContent:{ role:'user', parts:[{ inlineData:{...}}] } }
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text) return {clientContent: {role: 'user', parts: [{text: input.text}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    role: 'user',
+                    parts: [{inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}]
+                  }
+                }
+              return {clientContent: {role: 'user'}}
+            },
+            {__meta: {label: 'camelCase.parts.roleUser'}}
+          ),
+          // 13: camelCase clientContent as array of content objects -> { clientContent:[ { parts:[{ inlineData:{...}}] } ] }
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: [{turnComplete: true}]}
+              if (input.text) return {clientContent: [{parts: [{text: input.text}]}]}
+              if (input.audio)
+                return {
+                  clientContent: [
+                    {
+                      parts: [
+                        {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                      ]
+                    }
+                  ]
+                }
+              return {clientContent: [{}]}
+            },
+            {__meta: {label: 'camelCase.array.parts'}}
+          ),
+          // 14: camelCase clientContent array with role=user objects -> { clientContent:[ { role:'user', parts:[ ... ] } ] }
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: [{turnComplete: true}]}
+              if (input.text) return {clientContent: [{role: 'user', parts: [{text: input.text}]}]}
+              if (input.audio)
+                return {
+                  clientContent: [
+                    {
+                      role: 'user',
+                      parts: [
+                        {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                      ]
+                    }
+                  ]
+                }
+              return {clientContent: [{role: 'user'}]}
+            },
+            {__meta: {label: 'camelCase.array.roleUser.parts'}}
+          ),
+          // 15: snake_case plural contents array (REST analogue) -> { client_content:{ contents:[ { role:'user', parts:[ { inline_data:{...}} ] } ] } }
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {client_content: {turn_complete: true}}
+              if (input.text)
+                return {client_content: {contents: [{role: 'user', parts: [{text: input.text}]}]}}
+              if (input.audio)
+                return {
+                  client_content: {
+                    contents: [
+                      {
+                        role: 'user',
+                        parts: [
+                          {inline_data: {mime_type: input.audio.mimeType, data: input.audio.data}}
+                        ]
+                      }
+                    ]
+                  }
+                }
+              return {client_content: {contents: []}}
+            },
+            {__meta: {label: 'snake_case.contents.array.roleUser'}}
+          ),
+          // 16: camelCase contents array role USER (uppercase) inlineData
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text)
+                return {clientContent: {contents: [{role: 'USER', parts: [{text: input.text}]}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    contents: [
+                      {
+                        role: 'USER',
+                        parts: [
+                          {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                        ]
+                      }
+                    ]
+                  }
+                }
+              return {clientContent: {contents: []}}
+            },
+            {__meta: {label: 'camelCase.contents.array.roleUSER'}}
+          ),
+          // 17: OFFICIAL v1beta realtimeInput.mediaChunks (per official docs)
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {realtimeInput: {audioStreamEnd: true}}
+              if (input.text)
+                return {realtimeInput: {mediaChunks: [{mimeType: 'text/plain', data: input.text}]}}
+              if (input.audio)
+                return {
+                  realtimeInput: {
+                    mediaChunks: [{mimeType: input.audio.mimeType, data: input.audio.data}]
+                  }
+                }
+              return {realtimeInput: {}}
+            },
+            {__meta: {label: 'official.v1beta.realtimeInput.mediaChunks'}}
+          ),
+          // 18: camelCase contents array role user (lowercase) inlineData
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text)
+                return {clientContent: {contents: [{role: 'user', parts: [{text: input.text}]}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    contents: [
+                      {
+                        role: 'user',
+                        parts: [
+                          {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                        ]
+                      }
+                    ]
+                  }
+                }
+              return {clientContent: {contents: []}}
+            },
+            {__meta: {label: 'camelCase.contents.array.roleUser'}}
+          ),
+          // 18: camelCase contents array (no role) inlineData
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text) return {clientContent: {contents: [{parts: [{text: input.text}]}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    contents: [
+                      {
+                        parts: [
+                          {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                        ]
+                      }
+                    ]
+                  }
+                }
+              return {clientContent: {contents: []}}
+            },
+            {__meta: {label: 'camelCase.contents.array.noRole'}}
+          ),
+          // 19: camelCase contents array with audio object instead of inlineData
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text)
+                return {clientContent: {contents: [{role: 'user', parts: [{text: input.text}]}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    contents: [
+                      {
+                        role: 'user',
+                        parts: [{audio: {mimeType: input.audio.mimeType, data: input.audio.data}}]
+                      }
+                    ]
+                  }
+                }
+              return {clientContent: {contents: []}}
+            },
+            {__meta: {label: 'camelCase.contents.array.audio'}}
+          ),
+          // 20: camelCase contents array using audioData field hypothesis
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text)
+                return {clientContent: {contents: [{role: 'user', parts: [{text: input.text}]}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    contents: [
+                      {
+                        role: 'user',
+                        parts: [
+                          {audioData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                        ]
+                      }
+                    ]
+                  }
+                }
+              return {clientContent: {contents: []}}
+            },
+            {__meta: {label: 'camelCase.contents.array.audioData'}}
+          ),
+          // 21: camelCase messages array (alternative naming) role USER inlineData
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text)
+                return {clientContent: {messages: [{role: 'USER', parts: [{text: input.text}]}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    messages: [
+                      {
+                        role: 'USER',
+                        parts: [
+                          {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                        ]
+                      }
+                    ]
+                  }
+                }
+              return {clientContent: {messages: []}}
+            },
+            {__meta: {label: 'camelCase.messages.array.roleUSER'}}
+          ),
+          // 22: camelCase messages array role user inlineData
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text)
+                return {clientContent: {messages: [{role: 'user', parts: [{text: input.text}]}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    messages: [
+                      {
+                        role: 'user',
+                        parts: [
+                          {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                        ]
+                      }
+                    ]
+                  }
+                }
+              return {clientContent: {messages: []}}
+            },
+            {__meta: {label: 'camelCase.messages.array.roleUser'}}
+          ),
+          // 23: TOP-LEVEL contents array (no clientContent wrapper) - REST-analogue hypothesis
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text) return {contents: [{role: 'user', parts: [{text: input.text}]}]}
+              if (input.audio)
+                return {
+                  contents: [
+                    {
+                      role: 'user',
+                      parts: [
+                        {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                      ]
+                    }
+                  ]
+                }
+              return {contents: []}
+            },
+            {__meta: {label: 'topLevel.contents.array.roleUser'}}
+          ),
+          // 24: TOP-LEVEL messages array (alternative naming) - hypothesis
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text) return {messages: [{role: 'user', parts: [{text: input.text}]}]}
+              if (input.audio)
+                return {
+                  messages: [
+                    {
+                      role: 'user',
+                      parts: [
+                        {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                      ]
+                    }
+                  ]
+                }
+              return {messages: []}
+            },
+            {__meta: {label: 'topLevel.messages.array.roleUser'}}
+          ),
+          // 25: camelCase clientContent.content (singular) with parts[] but without nested array/object wrappers beyond content
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text) return {clientContent: {content: {parts: [{text: input.text}]}}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    content: {
+                      parts: [
+                        {inlineData: {mimeType: input.audio.mimeType, data: input.audio.data}}
+                      ]
+                    }
+                  }
+                }
+              return {clientContent: {}}
+            },
+            {__meta: {label: 'camelCase.content.singular.parts'}}
+          ),
+          // 26: camelCase clientContent.parts using audio object (explicit audio field variant without contents/messages)
+          Object.assign(
+            () => {
+              if (input.audioStreamEnd) return {clientContent: {turnComplete: true}}
+              if (input.text) return {clientContent: {parts: [{text: input.text}]}}
+              if (input.audio)
+                return {
+                  clientContent: {
+                    parts: [{audio: {mimeType: input.audio.mimeType, data: input.audio.data}}]
+                  }
+                }
+              return {clientContent: {}}
+            },
+            {__meta: {label: 'camelCase.parts.audioObject'}}
+          )
+        ]
+
+        // Allow skipping certain variants via env GEMINI_SCHEMA_SKIP="0,1" etc
+        const skipEnv = safeEnv('GEMINI_SCHEMA_SKIP')
+        const skipSet = new Set<number>()
+        if (skipEnv) {
+          skipEnv
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+            .forEach(v => {
+              if (/^\d+$/.test(v)) skipSet.add(parseInt(v, 10))
+            })
+        }
+        // Optional preference: fast prefer camelCase variants
+        // Default to true unless explicitly disabled with GEMINI_SCHEMA_PREFER_CAMEL=0
+        const preferCamelEnv = safeEnv('GEMINI_SCHEMA_PREFER_CAMEL')
+        const preferCamel = preferCamelEnv ? preferCamelEnv === '1' : true
+        if (preferCamel && forcedVariantIndex === null) {
+          // Snake_case variant indices: 0,1,2,3,4,7,9
+          ;[0, 1, 2, 3, 4, 7, 9].forEach(i => skipSet.add(i))
+        }
+
+        // Auto-skip deprecated variants unless explicitly forced
+        variantBuilders.forEach((vb, idx) => {
+          if (vb.__meta.deprecated && forcedVariantIndex === null) skipSet.add(idx)
+        })
+
+        // Choose the next non-skipped variant at or after current index
+        let chosenIndex =
+          forcedVariantIndex !== null ? forcedVariantIndex : this._schemaVariantIndex
+        if (forcedVariantIndex === null) {
+          while (
+            skipSet.has(chosenIndex) &&
+            chosenIndex < GeminiLiveWebSocketClient.MAX_SCHEMA_VARIANT
+          ) {
+            chosenIndex++
+          }
+          // Persist new index if we skipped forward
+          if (chosenIndex !== this._schemaVariantIndex) {
+            logger.info('Auto-skipped deprecated/failing schema variants', {
+              from: this._schemaVariantIndex,
+              to: chosenIndex,
+              skipped: [...skipSet].sort()
+            })
+            this._schemaVariantIndex = chosenIndex
+          }
+        }
+        const chosenBuilder = variantBuilders[chosenIndex]
+        this._lastVariantLabel = chosenBuilder?.__meta?.label || null
+
+        // Build payload via chosen builder
+        payload = chosenBuilder()
+        // In probe mode, auto-send a turn completion immediately after first audio chunk
+        if (probeMode && input.audio && !input.audioStreamEnd) {
+          // Mark that we will queue a follow-up turnComplete message
+          setTimeout(() => {
+            try {
+              this.sendRealtimeInput({audioStreamEnd: true})
+            } catch (e) {
+              logger.warn('Probe mode auto turnComplete failed', {error: (e as Error)?.message})
+            }
+          }, 10)
+        }
+        // Persist that we attempted this variant (only if not forced) so future instances can resume intelligently
+        if (forcedVariantIndex === null) this._persistSchemaState('tried', chosenIndex)
+
+        // Instrument the shape being sent (only shallow to avoid large logs)
+        try {
+          const sample = JSON.stringify(payload)
+          const topLevelKeys = Object.keys(payload as Record<string, unknown>)
+          logger.debug('Prepared Gemini WS payload', {
+            variantIndex: chosenIndex,
+            variantLabel: chosenBuilder.__meta.label,
+            deprecated: !!chosenBuilder.__meta.deprecated,
+            skippedVariants: [...skipSet].sort(),
+            preferCamel,
+            forced: forcedVariantIndex !== null,
+            length: sample.length,
+            topLevelKeys,
+            startsWith: sample.substring(0, 80),
+            probeMode,
+            probeTruncated
+          })
+        } catch (e) {
+          logger.warn('Failed to serialize payload preview', {
+            variantIndex: chosenIndex,
+            error: (e as Error)?.message
+          })
+        }
+
+        // (Advancement now occurs BEFORE building; block intentionally left for clarity / future hooks.)
+
+        // NOTE: If all variants exhausted and still failing, next step will be to consult official docs or switch to REST fallback.
+        // Adaptive format strategy for Gemini Live WS payloads.
+        // Prior attempts:
+        //  A) { clientContent: { parts:[{ inlineData:{..}}] }}  -> 1007 unknown name "parts"
+        //  B) { clientContent: { inlineData:{..} }}             -> 1007 unknown name "inlineData"
+        // Current hypothesis: WS schema mirrors REST-like Content container: clientContent.content.parts[]
+        // So we try:
+        //  Audio -> { clientContent:{ content:{ parts:[ { inlineData:{ mimeType, data } } ] } } }
+        //  Text  -> { clientContent:{ content:{ parts:[ { text:"..." } ] } } }
+        //  Turn  -> { clientContent:{ turnComplete:true } }
+        // If this still fails with 1007 referencing "parts" or "content", next refinement will introduce
+        // snake_case variants (inline_data, mime_type, client_content) or an alternative "dataChunk" schema.
+        // Actual payload already built above according to chosen variant.
+      } else {
+        // Legacy path retained (not used) for quick rollback via flag if needed
+        let message: string
+        if (input.audioStreamEnd) {
+          message = JSON.stringify({realtimeInput: {audioStreamEnd: true}})
+        } else if (input.text) {
+          message = JSON.stringify({realtimeInput: {text: input.text}})
+        } else {
+          message = JSON.stringify({realtimeInput: {mediaChunks: this.buildMediaChunks(input)}})
+        }
+        payload = JSON.parse(message)
+      }
+
+      const message = JSON.stringify(payload)
 
       logger.debug('Sending message to Gemini Live API', {
         messageLength: message.length,
-        inputType: input.audioStreamEnd ? 'audioStreamEnd' : input.audio ? 'audio' : 'text',
-        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state
+        inputType: input.audioStreamEnd ? 'turnComplete' : input.audio ? 'audio' : 'text',
+        circuitBreakerState: this.errorHandler.getCircuitBreakerStatus().state,
+        specFormat: useSpecFormat
       })
 
       this.ws.send(message)
@@ -1440,6 +2350,17 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         currentSetupState: this.isSetupComplete
       })
 
+      // ENHANCED DEBUG: Log raw message content for no-transcription debugging
+      console.log('🔍 WEBSOCKET MESSAGE DEBUG:', {
+        fullMessage: rawMessage,
+        messageType: typeof rawMessage,
+        hasContent: !!rawMessage.serverContent,
+        contentKeys: rawMessage.serverContent ? Object.keys(rawMessage.serverContent) : [],
+        modelTurnPresent: !!rawMessage.serverContent?.modelTurn,
+        modelTurnContent: rawMessage.serverContent?.modelTurn,
+        setupComplete: rawMessage.setupComplete
+      })
+
       // Check if heartbeat monitor can handle this message
       if (this.heartbeatMonitor.handleMessage(rawMessage)) {
         // Message was handled by heartbeat monitor (pong response)
@@ -1558,11 +2479,111 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     // Emit specific events based on enhanced message type
     switch (geminiResponse.type) {
       case 'text':
+        // ENHANCED DEBUG: Log text processing details
+        console.log('📝 TEXT RESPONSE DEBUG:', {
+          content: geminiResponse.content,
+          contentType: typeof geminiResponse.content,
+          contentLength:
+            typeof geminiResponse.content === 'string' ? geminiResponse.content.length : 0,
+          isEmpty: geminiResponse.content === '' || geminiResponse.content === null,
+          hasModelTurn: !!geminiResponse.metadata.modelTurn,
+          isPartial: !!geminiResponse.metadata.isPartial,
+          willSkip:
+            (geminiResponse.content === '' || geminiResponse.content === null) &&
+            !geminiResponse.metadata.modelTurn
+        })
+
+        // --- Validation instrumentation (Task 31.1) ---
+        if (this.validationMode) {
+          const isPartial = !!geminiResponse.metadata.isPartial
+          if (!this.validationMetrics.sessionStart) {
+            this.validationMetrics.sessionStart = Date.now()
+            this.validationMetrics.currentTurnId = geminiResponse.metadata.turnId
+          }
+          if (isPartial) {
+            this.validationMetrics.partialCount += 1
+            if (!this.validationMetrics.firstPartialTs)
+              this.validationMetrics.firstPartialTs = Date.now()
+            this.logValidation('text-partial', {
+              partialCount: this.validationMetrics.partialCount,
+              len: typeof geminiResponse.content === 'string' ? geminiResponse.content.length : 0,
+              modelTurn: !!geminiResponse.metadata.modelTurn,
+              inputTranscription: !!geminiResponse.metadata.inputTranscription
+            })
+          } else {
+            if (!this.validationMetrics.finalTs) {
+              this.validationMetrics.finalTs = Date.now()
+              this.validationMetrics.finalChars =
+                typeof geminiResponse.content === 'string' ? geminiResponse.content.length : 0
+            }
+            this.logValidation('text-final', {
+              totalPartials: this.validationMetrics.partialCount,
+              finalChars: this.validationMetrics.finalChars,
+              modelTurn: !!geminiResponse.metadata.modelTurn,
+              inputTranscription: !!geminiResponse.metadata.inputTranscription,
+              latency_first_partial_ms: this.validationMetrics.firstPartialTs
+                ? this.validationMetrics.firstPartialTs - this.validationMetrics.sessionStart
+                : undefined,
+              latency_final_ms: this.validationMetrics.finalTs
+                ? this.validationMetrics.finalTs - this.validationMetrics.sessionStart
+                : undefined
+            })
+          }
+        }
+        // Guard: skip emitting transcript updates for empty content that would previously produce a spurious final event
+        if (
+          (geminiResponse.content === '' || geminiResponse.content === null) &&
+          !geminiResponse.metadata.modelTurn
+        ) {
+          logger.debug('Skipping empty Gemini text message with no modelTurn parts')
+          return
+        }
+        // Update aggregation state with latest non-empty content
+        if (
+          typeof geminiResponse.content === 'string' &&
+          geminiResponse.content.trim().length > 0
+        ) {
+          // Accumulate text chunks for the current turn instead of replacing
+          this._currentTurnText += geminiResponse.content
+          this._finalEmittedForTurn = !geminiResponse.metadata.isPartial
+
+          // FSM integration: Create utterance if needed and apply partial
+          if (!this._currentUtteranceId) {
+            this._currentUtteranceId = TranscriptFSM.createUtterance({
+              sessionId: this._sessionId,
+              firstPartial: {
+                text: geminiResponse.content,
+                confidence: geminiResponse.metadata.confidence,
+                timestamp: Date.now()
+              }
+            })
+          } else {
+            // Apply partial to existing utterance
+            TranscriptFSM.applyPartial(
+              this._currentUtteranceId,
+              this._currentTurnText, // Use accumulated text
+              geminiResponse.metadata.confidence
+            )
+          }
+        }
         this.emit('textResponse', {
           content: geminiResponse.content,
           metadata: geminiResponse.metadata,
           isPartial: geminiResponse.metadata.isPartial
         })
+
+        // Mark schema success the first time we receive any non-empty text (partial or final)
+        if (!this._recordedSuccessForSession) {
+          const hasContent =
+            typeof geminiResponse.content === 'string' && geminiResponse.content.trim().length > 0
+          if (hasContent) {
+            this._persistSchemaState('success', this._schemaVariantIndex)
+            this._recordedSuccessForSession = true
+            logger.info('Recorded successful Gemini WS schema variant', {
+              variantIndex: this._schemaVariantIndex
+            })
+          }
+        }
 
         // Also emit transcriptionUpdate for backward compatibility with transcription services
         this.emit('transcriptionUpdate', {
@@ -1570,6 +2591,17 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
           confidence: geminiResponse.metadata.confidence,
           isFinal: !geminiResponse.metadata.isPartial
         })
+
+        // FSM integration: Handle final text if this is a final response
+        if (!geminiResponse.metadata.isPartial && this._currentUtteranceId) {
+          TranscriptFSM.applyFinal(
+            this._currentUtteranceId,
+            this._currentTurnText,
+            geminiResponse.metadata.confidence
+          )
+          // Reset for next utterance
+          this._currentUtteranceId = null
+        }
 
         logger.debug('Emitted transcription events', {
           textLength:
@@ -1589,14 +2621,89 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         this.emit('toolCall', geminiResponse.toolCall)
         break
       case 'turn_complete':
+        if (this.validationMode) {
+          this.logValidation('turn-complete', {
+            turnId: geminiResponse.metadata.turnId,
+            totalPartials: this.validationMetrics.partialCount,
+            finalChars: this.validationMetrics.finalChars,
+            latency_final_ms: this.validationMetrics.finalTs
+              ? this.validationMetrics.finalTs - this.validationMetrics.sessionStart
+              : undefined
+          })
+        }
         this.emit('turnComplete', {
           turnId: geminiResponse.metadata.turnId,
           metadata: geminiResponse.metadata
         })
+        // If we received a turn_complete without an explicit final text event, synthesize one from last partial.
+        if (this._currentTurnText && !this._finalEmittedForTurn) {
+          // FSM integration: Apply final text to utterance
+          if (this._currentUtteranceId) {
+            TranscriptFSM.applyFinal(
+              this._currentUtteranceId,
+              this._currentTurnText,
+              geminiResponse.metadata.confidence
+            )
+          }
+
+          // In validation mode, record a synthetic final so the metrics parser can count it
+          if (this.validationMode) {
+            // Initialize sessionStart if not set (in case no partials arrived)
+            if (!this.validationMetrics.sessionStart) {
+              this.validationMetrics.sessionStart = Date.now()
+            }
+            if (!this.validationMetrics.finalTs) {
+              this.validationMetrics.finalTs = Date.now()
+            }
+            this.validationMetrics.finalChars = this._currentTurnText.length
+            this.logValidation('text-final', {
+              totalPartials: this.validationMetrics.partialCount,
+              finalChars: this.validationMetrics.finalChars,
+              modelTurn: false,
+              inputTranscription: true,
+              latency_first_partial_ms: this.validationMetrics.firstPartialTs
+                ? this.validationMetrics.firstPartialTs - this.validationMetrics.sessionStart
+                : undefined,
+              latency_final_ms: this.validationMetrics.finalTs
+                ? this.validationMetrics.finalTs - this.validationMetrics.sessionStart
+                : undefined
+            })
+          }
+          this.emit('transcriptionUpdate', {
+            text: this._currentTurnText,
+            confidence: geminiResponse.metadata.confidence,
+            isFinal: true
+          })
+          logger.debug('Emitted synthesized final transcription on turn_complete', {
+            textLength: this._currentTurnText.length
+          })
+          this._finalEmittedForTurn = true
+          this._currentTurnText = ''
+          // Reset utterance for next turn
+          this._currentUtteranceId = null
+        }
+        // Now that we've logged any synthetic final, reset validation metrics for the next turn
+        if (this.validationMode) {
+          this.validationMetrics = {
+            currentTurnId: '',
+            sessionStart: 0,
+            firstPartialTs: 0,
+            finalTs: 0,
+            partialCount: 0,
+            finalChars: 0
+          }
+        }
         break
       case 'setup_complete':
+        if (this.validationMode) this.logValidation('setup-complete')
         // CRITICAL: Set setup complete flag immediately upon receiving the message
         this.isSetupComplete = true
+        // Reset turn text accumulation for new session
+        this._currentTurnText = ''
+        this._finalEmittedForTurn = false
+        // FSM integration: Reset session state
+        this._currentUtteranceId = null
+        this._sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         logger.info('Setup complete message received - marking as complete')
 
         this.emit('setupComplete', {
@@ -2262,6 +3369,158 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
     const reason = `WebSocket closed: ${event.code} - ${event.reason}`
     this.handleSessionDisconnection(reason)
 
+    // Adaptive schema negotiation trigger: broadened - any 1007 now advances variant.
+    if (event.code === 1007) {
+      // Update global close state for future client instances
+      __GLOBAL_GEMINI_SCHEMA_STATE.lastCloseCode = event.code
+      __GLOBAL_GEMINI_SCHEMA_STATE.consecutive1007 =
+        (__GLOBAL_GEMINI_SCHEMA_STATE.consecutive1007 || 0) + 1
+      // Enhanced parsing: capture multiple unknown field mentions & path
+      const unknownMatches = [...event.reason.matchAll(/Unknown name "([^"]+)"/g)].map(m => m[1])
+      const field = unknownMatches[0]
+      const pathMatch = event.reason.match(/at '([^']+)'/)
+      const path = pathMatch?.[1]
+      const maxVariantIndex = GeminiLiveWebSocketClient.MAX_SCHEMA_VARIANT
+      // If no specific field was reported (generic invalid argument) treat as structural mismatch and advance immediately
+      const genericInvalid = unknownMatches.length === 0
+      // If the same field repeats >1 times also accelerate (likely wrapper wrong rather than field itself)
+      const repeatedSameField = unknownMatches.length > 1 && new Set(unknownMatches).size === 1
+      if (this._schemaVariantIndex < maxVariantIndex) {
+        this._advanceSchemaVariant = true
+        logger.warn('Scheduling Gemini WS schema variant advance due to 1007 close', {
+          field,
+          allUnknownFields: unknownMatches,
+          path,
+          previousVariant: this._schemaVariantIndex,
+          nextVariant: this._schemaVariantIndex + 1,
+          lastVariantLabel: this._lastVariantLabel,
+          reason: event.reason || '(no reason provided)',
+          consecutive1007: __GLOBAL_GEMINI_SCHEMA_STATE.consecutive1007,
+          genericInvalid,
+          repeatedSameField
+        })
+      } else {
+        logger.error(
+          'All schema variants exhausted after 1007; triggering fallback to HTTP/Batch transport',
+          {
+            lastField: field,
+            allUnknownFields: unknownMatches,
+            path,
+            variantIndex: this._schemaVariantIndex,
+            attemptedVariants: maxVariantIndex + 1,
+            reason: event.reason || '(no reason provided)',
+            consecutive1007: __GLOBAL_GEMINI_SCHEMA_STATE.consecutive1007
+          }
+        )
+
+        // Trigger fallback system for schema exhaustion
+        this.triggerFallbackForSchemaFailure(
+          field ?? 'unknown',
+          path ?? 'unknown',
+          __GLOBAL_GEMINI_SCHEMA_STATE.consecutive1007 ?? 0
+        )
+      }
+      // Heuristic: if we keep hitting snake_case unknown fields under client_content, jump directly to official v1beta variant (index 17)
+      try {
+        const consecutive = __GLOBAL_GEMINI_SCHEMA_STATE.consecutive1007 || 0
+        const isSnakeCaseField = !!field && field.includes('_')
+        const currentlySnake = this._lastVariantLabel?.includes('snake_case')
+        // If we've had >=2 consecutive 1007s on snake_case fields and haven't yet tried the official v1beta variant
+        if (
+          consecutive >= 2 &&
+          isSnakeCaseField &&
+          currentlySnake &&
+          this._schemaVariantIndex < 17
+        ) {
+          const target = 17
+          logger.info(
+            'Heuristic jump to official v1beta realtimeInput.mediaChunks after repeated snake_case failures',
+            {
+              from: this._schemaVariantIndex,
+              target,
+              lastVariantLabel: this._lastVariantLabel,
+              field
+            }
+          )
+          this._schemaVariantIndex = target - 1 // -1 so pre-send advance moves to 17
+          this._advanceSchemaVariant = true
+        }
+        // Heuristic 1: Server rejects REST-style clientContent.contents under client_content.
+        // Prefer trying clientContent.parts (variant 12) which is commonly accepted by v1beta before falling back.
+        if (field === 'contents' && path === 'client_content' && !this._triedPartsSchemaJump) {
+          const previous = this._schemaVariantIndex
+          this._schemaVariantIndex = 11 // pre-send advance => 12 (camelCase.parts.roleUser)
+          this._advanceSchemaVariant = true
+          this._triedPartsSchemaJump = true
+          try {
+            __GLOBAL_GEMINI_SCHEMA_STATE.lastVariantTried = 12
+          } catch {
+            /* swallow */
+          }
+          logger.info(
+            'Heuristic jump to clientContent.parts (variant 12) due to contents being unknown',
+            {
+              from: previous,
+              jumpTarget: 12,
+              lastVariantLabel: this._lastVariantLabel
+            }
+          )
+        }
+        // Heuristic 2: if we specifically see Unknown name "contents" at 'client_content',
+        // the WS seems to reject the REST-style contents envelope. Jump to official v1beta realtimeInput.mediaChunks (index 17).
+        // We set the index to 16 so that the pre-send advancement moves to 17 before building payload.
+        if (field === 'contents' && path === 'client_content' && this._schemaVariantIndex !== 17) {
+          const previous = this._schemaVariantIndex
+          this._schemaVariantIndex = 16
+          this._advanceSchemaVariant = true
+          try {
+            __GLOBAL_GEMINI_SCHEMA_STATE.lastVariantTried = 17
+          } catch {
+            /* swallow */
+          }
+          logger.info(
+            'Heuristic jump to official v1beta realtimeInput.mediaChunks due to contents under client_content being unknown',
+            {
+              from: previous,
+              jumpTarget: 17,
+              lastVariantLabel: this._lastVariantLabel
+            }
+          )
+        }
+        // If generic invalid (no field) OR repeated same field, accelerate by skipping one extra variant (structural mismatch)
+        if (
+          (genericInvalid || repeatedSameField) &&
+          this._schemaVariantIndex + 2 <= maxVariantIndex
+        ) {
+          logger.info('Accelerated skip due to generic/repeated 1007 pattern', {
+            from: this._schemaVariantIndex,
+            skipTo: this._schemaVariantIndex + 2,
+            genericInvalid,
+            repeatedSameField
+          })
+          this._schemaVariantIndex = this._schemaVariantIndex + 1 // +1 now, +1 again on pre-send advance
+          this._advanceSchemaVariant = true
+        }
+        // Auto-enable probe mode after 3 consecutive failures if not explicitly disabled
+        if (
+          consecutive >= 3 &&
+          safeEnv('GEMINI_SCHEMA_PROBE') !== '1' &&
+          safeEnv('GEMINI_SCHEMA_PROBE_AUTO_DISABLED') !== '1'
+        ) {
+          if ((globalThis as unknown as {__GEMINI_AUTO_PROBE?: number}).__GEMINI_AUTO_PROBE !== 1) {
+            ;(globalThis as unknown as {__GEMINI_AUTO_PROBE?: number}).__GEMINI_AUTO_PROBE = 1
+            logger.info('Auto probe mode enabled after repeated 1007 errors', {consecutive})
+          }
+        }
+      } catch (e) {
+        logger.warn('Heuristic jump / auto-probe logic failed', {error: (e as Error)?.message})
+      }
+    } else {
+      // Reset consecutive counter on non-1007 closes
+      __GLOBAL_GEMINI_SCHEMA_STATE.lastCloseCode = event.code
+      __GLOBAL_GEMINI_SCHEMA_STATE.consecutive1007 = 0
+    }
+
     this.emit('disconnected', event)
 
     if (!this.isClosingIntentionally) {
@@ -2680,6 +3939,178 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
       })
       this.emit('sessionError', data)
     })
+  }
+
+  /**
+   * Set up fallback manager event handlers for transport switching
+   */
+  private setupFallbackManagerEvents(): void {
+    this.fallbackManager.on('transport-changed', (from: string, to: string) => {
+      logger.warn('Transport fallback triggered', {
+        from,
+        to,
+        timestamp: Date.now()
+      })
+      this.emit('transport-changed', {from, to})
+    })
+
+    this.fallbackManager.on('transport-failed', (transport: string, error: Error) => {
+      logger.error('Transport failed', {
+        transport,
+        error: error.message || error,
+        timestamp: Date.now()
+      })
+      this.emit('transport-failed', {transport, error})
+    })
+
+    this.fallbackManager.on('fallback-complete', (result: TranscriptionResult) => {
+      logger.info('Fallback transcription completed', {
+        source: result.source,
+        hasText: result.text && result.text.length > 0,
+        duration: result.duration
+      })
+      this.emit('fallback-complete', result)
+    })
+
+    this.fallbackManager.on('all-transports-failed', () => {
+      logger.error('All transport strategies have failed - transcription unavailable')
+      this.emit('all-transports-failed')
+    })
+  }
+
+  /**
+   * Trigger fallback transport when WebSocket schema failures are exhausted
+   */
+  private async triggerFallbackForSchemaFailure(
+    field: string,
+    path: string,
+    consecutive1007: number
+  ): Promise<void> {
+    try {
+      logger.warn('Triggering fallback transport due to schema failure', {
+        field,
+        path,
+        consecutive1007,
+        currentTransport: 'websocket'
+      })
+
+      // Check if we have any pending audio data to process
+      const hasPendingAudio = this.messageQueue.get(QueuePriority.HIGH)?.length ?? 0 > 0
+
+      if (hasPendingAudio) {
+        logger.info('Processing pending audio through fallback transport', {
+          queuedMessages: this.messageQueue.get(QueuePriority.HIGH)?.length ?? 0
+        })
+
+        // Attempt to process the queued audio through fallback
+        await this.processPendingAudioThroughFallback()
+      }
+
+      // Start fallback manager if not already active
+      await this.fallbackManager.start(this.currentSession?.sessionId)
+
+      // Force fallback due to schema exhaustion
+      await this.fallbackManager.forceFallback(`schema_exhaustion_${field}_${consecutive1007}`)
+    } catch (error) {
+      logger.error('Failed to trigger fallback transport', {
+        error: error instanceof Error ? error.message : error,
+        field,
+        path
+      })
+    }
+  }
+
+  /**
+   * Process pending audio messages through fallback transport
+   */
+  private async processPendingAudioThroughFallback(): Promise<void> {
+    const highPriorityQueue = this.messageQueue.get(QueuePriority.HIGH) ?? []
+
+    if (highPriorityQueue.length === 0) {
+      return
+    }
+
+    try {
+      for (const queuedMessage of highPriorityQueue) {
+        // Extract audio data from queued message input
+        const audioBuffer = this.extractAudioFromQueuedMessage(queuedMessage)
+
+        if (audioBuffer) {
+          logger.info('Sending queued audio through fallback transport', {
+            messageId: queuedMessage.id,
+            bufferSize: audioBuffer.length
+          })
+
+          // Send through fallback manager
+          const result = await this.fallbackManager.sendAudio(audioBuffer, {
+            sessionId: this.currentSession?.sessionId,
+            isLast: false
+          })
+
+          if (result && result.text) {
+            // Emit the transcription result
+            this.emit('transcription', {
+              text: result.text,
+              confidence: result.confidence ?? 1.0,
+              duration: result.duration ?? 0,
+              source: result.source ?? 'fallback'
+            })
+          }
+        }
+      }
+
+      // Clear processed messages from queue
+      this.messageQueue.set(QueuePriority.HIGH, [])
+
+      // Send turn completion through fallback
+      await this.fallbackManager.sendTurnComplete()
+    } catch (error) {
+      logger.error('Failed to process pending audio through fallback', {
+        error: error instanceof Error ? error.message : error,
+        queueSize: highPriorityQueue.length
+      })
+    }
+  }
+
+  /**
+   * Extract audio buffer from a queued message
+   */
+  private extractAudioFromQueuedMessage(message: QueuedMessage): Buffer | null {
+    try {
+      const input = message.input
+
+      if (input && typeof input === 'object') {
+        // Try to extract audio data from RealtimeInput structure
+        if ('realtimeInput' in input && input.realtimeInput) {
+          const realtimeData = input.realtimeInput as {mediaChunks?: Array<{data?: string}>}
+          if (realtimeData.mediaChunks && Array.isArray(realtimeData.mediaChunks)) {
+            // Extract base64 data from media chunks
+            const base64Data = realtimeData.mediaChunks[0]?.data
+            if (base64Data && typeof base64Data === 'string') {
+              return Buffer.from(base64Data, 'base64')
+            }
+          }
+        }
+
+        if ('clientContent' in input && input.clientContent) {
+          const content = input.clientContent as {
+            content?: {parts?: Array<{inlineData?: {data?: string}}>}
+          }
+          if (content.content?.parts?.[0]?.inlineData?.data) {
+            const base64Data = content.content.parts[0].inlineData.data
+            return Buffer.from(base64Data, 'base64')
+          }
+        }
+      }
+
+      return null
+    } catch (error) {
+      logger.error('Failed to extract audio from queued message', {
+        error: error instanceof Error ? error.message : error,
+        messageId: message.id
+      })
+      return null
+    }
   }
 
   /**

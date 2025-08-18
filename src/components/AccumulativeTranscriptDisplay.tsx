@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState, useMemo} from 'react'
+import React, {useEffect, useRef, useMemo} from 'react'
 import {useTranscriptionState} from '../hooks/useTranscriptionState'
 import {useTranscriptStore} from '../state/transcript-state'
 import GlassBox from './GlassBox'
@@ -21,12 +21,10 @@ export const AccumulativeTranscriptDisplay: React.FC<AccumulativeTranscriptDispl
   const {currentStreamingText, isStreamingActive, transcripts} = useTranscriptionState()
 
   // Get transcript store state for partial/final entries
-  const {recentEntries} = useTranscriptStore()
+  const {recentEntries, isStreaming: storeIsStreaming} = useTranscriptStore()
 
   // Refs for managing display
   const textAreaRef = useRef<HTMLDivElement>(null)
-  const [accumulatedText, setAccumulatedText] = useState('')
-  const [currentPartialText, setCurrentPartialText] = useState('')
 
   // Combine text sources for proper accumulative display
   const combinedText = useMemo(() => {
@@ -44,15 +42,53 @@ export const AccumulativeTranscriptDisplay: React.FC<AccumulativeTranscriptDispl
       return latestPartial.text.trim()
     }
 
-    // Priority 3: Show finalized recent entries (from current session)
-    const sessionFinalEntries = recentEntries
+    // Priority 3: Merge all finalized entries intelligently (avoid duplication while keeping history)
+    const finalEntries = recentEntries
       .filter(entry => entry.isFinal)
       .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
-      .map(entry => entry.text)
-      .join(' ')
 
-    if (sessionFinalEntries.trim()) {
-      return sessionFinalEntries.trim()
+    if (finalEntries.length > 0) {
+      const mergeFinals = (entries: typeof finalEntries): string => {
+        let acc = ''
+        for (const e of entries) {
+          const text = e.text?.trim() || ''
+          if (!text) continue
+          if (!acc) {
+            acc = text
+            continue
+          }
+          // If new text already fully includes accumulator (replacement / expansion)
+          if (text.startsWith(acc)) {
+            // Only treat as replacement if the new text is substantially longer (avoid losing earlier distinct sentences)
+            if (text.length > acc.length * 1.5) {
+              acc = text
+            } else {
+              // treat as minor variation; append difference if any beyond overlap
+              acc = text // keep latest (still largely superset) but loss is minimal
+            }
+            continue
+          }
+          // If accumulator already includes new text (shorter / subset) skip
+          if (acc.includes(text)) continue
+          // Overlap detection: find largest suffix of acc that is prefix of text
+          const maxOverlapLen = Math.min(acc.length, text.length)
+          let overlap = 0
+          for (let len = Math.min(120, maxOverlapLen); len >= 10; len -= 1) {
+            if (acc.slice(-len) === text.slice(0, len)) {
+              overlap = len
+              break
+            }
+          }
+          if (overlap > 0) {
+            acc = acc + text.slice(overlap)
+          } else {
+            acc = acc + ' ' + text
+          }
+        }
+        return acc
+      }
+      const merged = mergeFinals(finalEntries)
+      if (merged.trim()) return merged.trim()
     }
 
     // Priority 4: Show static transcripts as fallback
@@ -73,7 +109,9 @@ export const AccumulativeTranscriptDisplay: React.FC<AccumulativeTranscriptDispl
 
   // Get status information
   const totalTranscripts = transcripts.length + recentEntries.filter(e => e.isFinal).length
-  const hasPartialContent = isStreamingActive || recentEntries.some(e => e.isPartial && !e.isFinal)
+  // Treat either legacy streaming flag or the new store streaming flag as "live"
+  const hasPartialContent =
+    isStreamingActive || storeIsStreaming || recentEntries.some(e => e.isPartial && !e.isFinal)
 
   // Debug logging to help troubleshoot accumulation issues
   React.useEffect(() => {
@@ -111,7 +149,7 @@ export const AccumulativeTranscriptDisplay: React.FC<AccumulativeTranscriptDispl
 
       {showStatus && (
         <div className="mb-3 text-sm" style={{color: 'var(--text-muted)'}}>
-          <span>Status: {isStreamingActive ? 'Recording' : 'Ready'}</span>
+          <span>Status: {isStreamingActive || storeIsStreaming ? 'Recording' : 'Ready'}</span>
           {totalTranscripts > 0 && (
             <span className="ml-4">Total Transcripts: {totalTranscripts}</span>
           )}
@@ -157,6 +195,14 @@ export const AccumulativeTranscriptDisplay: React.FC<AccumulativeTranscriptDispl
                   aria-hidden="true"
                 />
               )}
+            </div>
+          ) : hasPartialContent ? (
+            // Live, but no text yet: show listening state with cursor immediately
+            <div className="relative flex h-full min-h-[150px] flex-col items-center justify-center text-center">
+              <div className="mb-2 text-sm" style={{color: 'var(--text-accent)'}}>
+                Listening…
+              </div>
+              <div className="h-5 w-1 animate-pulse bg-blue-500" aria-hidden="true" />
             </div>
           ) : (
             <div className="flex h-full min-h-[150px] flex-col items-center justify-center text-center">

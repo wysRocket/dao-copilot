@@ -78,7 +78,7 @@ jobs:
           script: |
             // Setup branch protection for master/main branch
             const branch = context.ref.replace('refs/heads/', '');
-            
+
             if (branch === 'master' || branch === 'main') {
               try {
                 await github.rest.repos.updateBranchProtection({

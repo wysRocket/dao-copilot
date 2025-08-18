@@ -1,4 +1,10 @@
 import {EventEmitter} from 'events'
+import {
+  resampleAudio,
+  convertFloat32ToPCM16,
+  convertAudioToBase64,
+  createAudioMimeType
+} from './gemini-audio-utils'
 
 interface TranscriptionChunk {
   text: string
@@ -22,6 +28,7 @@ export class RealTimeTranscriptionService extends EventEmitter {
   private audioContext: AudioContext | null = null
   private mediaStream: MediaStream | null = null
   private processor: ScriptProcessorNode | null = null
+  private workletNode: AudioWorkletNode | null = null
   private mediaRecorder: MediaRecorder | null = null
   private isConnected = false
   private isSetupComplete = false
@@ -31,6 +38,124 @@ export class RealTimeTranscriptionService extends EventEmitter {
   private connectionStartTime = 0
   private audioChunks: Float32Array[] = []
   private isRecording = false
+  // Buffer audio chunks that arrive before Gemini setup completes
+  private pendingAudio: string[] = [] // base64 encoded PCM frames
+  // PCM framing
+  private targetSampleRate = 16000
+  private frameDurationMs = 20 // lower latency frames
+  private samplesPerFrame = Math.floor((16000 * 20) / 1000) // 320 samples
+  private overlapMs = 10
+  private overlapSamples = Math.floor((16000 * 10) / 1000) // 160 samples
+  private floatBuffer: Float32Array = new Float32Array(0)
+  // Simple backpressure-aware send queue
+  private sendQueue: string[] = []
+  private drainTimer: number | null = null
+  private bufferedThreshold = 256 * 1024 // 256KB
+  // Congestion-aware coalescing of frames into a single WS message
+  private coalesceBuffer: string[] = []
+  private coalesceTimer: number | null = null
+  private coalesceMaxFrames = 3
+  private coalesceDelayMs = 5
+  private congestionThreshold = Math.floor((256 * 1024) / 2)
+  // Lightweight metrics interval
+  private metricsTimer: number | null = null
+  // No-text detection timer
+  private noTextTimer: number | null = null
+  private noTextTimeoutMs = 5000
+  // Adaptive tuning state
+  private metricsWindow: Array<{buffered: number; qlen: number; t: number}> = []
+  private lastAutoAdjustAt = 0
+  private autoAdjustCooldownMs = 1500
+  private coalesceMaxFramesBounds: [number, number] = [2, 6]
+  // Latency sampling (rough): timestamp last audio enqueue
+  private lastEnqueueAt = 0
+  // Optional silence gating to reduce traffic during inactivity
+  private enableSilenceDrop = false
+  private silenceRmsThreshold = 0.005 // ~ -46 dBFS
+  private silenceKeepAliveEvery = 20 // send every Nth silent frame
+  private silentFrameCounter = 0
+  // Mixed capture configuration
+  private preferredCaptureMode: 'mic' | 'system' | 'mixed' = 'mixed'
+  private mixedCaptureAttempted = false
+  // Instrumentation counters
+  private framesCaptured = 0
+  private framesQueuedBeforeSetup = 0
+  private framesSent = 0
+  private firstTranscriptionAt = 0
+  private lastTranscriptionAt = 0
+  private rawMessageLog: unknown[] = []
+  private messageCounter = 0
+
+  private updateDebugProbe(): void {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {__REALTIME_TRANSCRIPTION_DEBUG?: Record<string, unknown>}
+    if (!w.__REALTIME_TRANSCRIPTION_DEBUG) w.__REALTIME_TRANSCRIPTION_DEBUG = {}
+    w.__REALTIME_TRANSCRIPTION_DEBUG.realtime = {
+      framesCaptured: this.framesCaptured,
+      framesQueuedBeforeSetup: this.framesQueuedBeforeSetup,
+      framesSent: this.framesSent,
+      firstTranscriptionAt: this.firstTranscriptionAt,
+      lastTranscriptionAt: this.lastTranscriptionAt,
+      isSetupComplete: this.isSetupComplete,
+      isConnected: this.isConnected,
+      sendQueue: this.sendQueue.length,
+      bufferedAmount: this.websocket?.bufferedAmount ?? 0,
+      coalesceBuffer: this.coalesceBuffer.length,
+      coalesceMaxFrames: this.coalesceMaxFrames
+    }
+  }
+
+  /**
+   * Enqueue a JSON-serializable message for sending over WebSocket.
+   * Applies backpressure using websocket.bufferedAmount and drains progressively.
+   */
+  private enqueueWsMessage(obj: unknown): void {
+    try {
+      const payload = JSON.stringify(obj)
+      this.sendQueue.push(payload)
+      this.scheduleDrain()
+    } catch (e) {
+      console.warn('Failed to enqueue WS message:', e)
+    }
+  }
+
+  private scheduleDrain(): void {
+    if (this.drainTimer != null) return
+    const drain = () => {
+      if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+        // Try again soon if socket is reconnecting
+        this.drainTimer = window.setTimeout(drain, 25)
+        return
+      }
+
+      // Drain while under threshold
+      while (
+        this.sendQueue.length > 0 &&
+        this.websocket.bufferedAmount < this.bufferedThreshold &&
+        this.websocket.readyState === WebSocket.OPEN
+      ) {
+        const msg = this.sendQueue.shift()!
+        try {
+          this.websocket.send(msg)
+        } catch (e) {
+          // Put back and retry later
+          this.sendQueue.unshift(msg)
+          console.warn('WS send failed during drain, will retry:', e)
+          break
+        }
+      }
+
+      if (this.sendQueue.length > 0) {
+        // Still have backlog, schedule next tick with small delay
+        this.drainTimer = window.setTimeout(drain, 10)
+      } else {
+        // Queue empty; clear timer
+        this.drainTimer = null
+      }
+    }
+
+    this.drainTimer = window.setTimeout(drain, 0)
+  }
 
   constructor() {
     super()
@@ -50,9 +175,9 @@ export class RealTimeTranscriptionService extends EventEmitter {
       this.connectionStartTime = performance.now()
       console.log('🚀 Initializing real-time Gemini transcription service...')
 
+      // Audio context first (required by browsers), then parallelize capture + websocket
       await this.setupAudioContext()
-      await this.connectGeminiWebSocket()
-      await this.startAudioCapture()
+      await Promise.all([this.startAudioCapture(), this.connectGeminiWebSocket()])
 
       console.log(
         `✅ Real-time Gemini service initialized in ${(performance.now() - this.connectionStartTime).toFixed(2)}ms`
@@ -70,7 +195,11 @@ export class RealTimeTranscriptionService extends EventEmitter {
    */
   private async setupAudioContext(): Promise<void> {
     try {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+      const win = window as unknown as {
+        AudioContext: typeof AudioContext
+        webkitAudioContext?: typeof AudioContext
+      }
+      this.audioContext = new (win.AudioContext || win.webkitAudioContext!)({
         sampleRate: 16000, // Gemini Live prefers 16kHz
         latencyHint: 'interactive' // Minimize latency
       })
@@ -91,28 +220,65 @@ export class RealTimeTranscriptionService extends EventEmitter {
    * Get API key from environment (Electron or Web)
    */
   private getApiKey(): string | undefined {
-    // Primary method: Check Vite environment variables (works in both dev and build)
+    // Candidate variable names (order = priority)
+    const CANDIDATES = [
+      'VITE_GOOGLE_API_KEY',
+      'GOOGLE_API_KEY',
+      'GEMINI_API_KEY',
+      'GOOGLE_GENERATIVE_AI_API_KEY'
+    ] as const
+
+    let found: string | undefined
+    const foundSources: Array<{name: string; present: boolean; prefix?: string}> = []
+
     if (typeof process !== 'undefined' && process.env) {
-      const viteKey = process.env.VITE_GOOGLE_API_KEY
-      const regularKey = process.env.GOOGLE_API_KEY
-      const geminiKey = process.env.GEMINI_API_KEY
-
-      return viteKey || regularKey || geminiKey
-    }
-
-    // Fallback: Check if we're in Electron environment
-    if (typeof window !== 'undefined') {
-      const electronWindow = window as unknown as {electron?: {env?: Record<string, string>}}
-      if (electronWindow.electron?.env) {
-        return (
-          electronWindow.electron.env.GOOGLE_API_KEY ||
-          electronWindow.electron.env.GEMINI_API_KEY ||
-          electronWindow.electron.env.VITE_GOOGLE_API_KEY
-        )
+      for (const name of CANDIDATES) {
+        const val = process.env[name]
+        foundSources.push({name, present: !!val, prefix: val ? val.substring(0, 6) : undefined})
+        if (!found && val) found = val
       }
     }
 
-    return undefined
+    // Renderer / preload injected environment (Electron)
+    if (!found && typeof window !== 'undefined') {
+      const electronWindow = window as unknown as {electron?: {env?: Record<string, string>}}
+      const env = electronWindow.electron?.env
+      if (env) {
+        for (const name of CANDIDATES) {
+          const val = env[name]
+          const existing = foundSources.find(s => s.name === name)
+          if (!existing) {
+            foundSources.push({name, present: !!val, prefix: val ? val.substring(0, 6) : undefined})
+          } else if (!existing.present && val) {
+            existing.present = true
+            existing.prefix = val.substring(0, 6)
+          }
+          if (!found && val) found = val
+        }
+      }
+    }
+
+    // Expose debug info (without full key) for troubleshooting
+    if (typeof window !== 'undefined') {
+      const w = window as unknown as {__REALTIME_TRANSCRIPTION_DEBUG?: Record<string, unknown>}
+      if (!w.__REALTIME_TRANSCRIPTION_DEBUG) w.__REALTIME_TRANSCRIPTION_DEBUG = {}
+      w.__REALTIME_TRANSCRIPTION_DEBUG.apiKeyProbe = foundSources
+      w.__REALTIME_TRANSCRIPTION_DEBUG.apiKeyFound = !!found
+    }
+
+    if (!found) {
+      console.warn(
+        '🔐 Gemini API key not located. Checked variables:',
+        foundSources.map(s => `${s.name}=${s.present ? s.prefix + '…' : '∅'}`).join(', ')
+      )
+    } else {
+      console.log(
+        '🔐 Gemini API key resolved from environment (masked):',
+        found.substring(0, 6) + '…'
+      )
+    }
+
+    return found
   }
 
   /**
@@ -138,6 +304,81 @@ export class RealTimeTranscriptionService extends EventEmitter {
 
           // Send initial setup configuration
           this.sendSetupConfig()
+
+          // Start metrics emission
+          if (this.metricsTimer == null) {
+            this.metricsTimer = window.setInterval(() => {
+              try {
+                const buffered = this.websocket?.bufferedAmount ?? 0
+                const qlen = this.sendQueue.length
+                const now = performance.now()
+                // keep small rolling window (last ~5s)
+                this.metricsWindow.push({buffered, qlen, t: now})
+                const fiveSecAgo = now - 5000
+                this.metricsWindow = this.metricsWindow.filter(m => m.t >= fiveSecAgo)
+
+                // Emit
+                this.emit('metrics', {
+                  queueLength: this.sendQueue.length,
+                  bufferedAmount: buffered
+                })
+
+                // Adaptive tuning with hysteresis and cooldown
+                const samples = this.metricsWindow
+                if (samples.length >= 3) {
+                  const avgBuffered = samples.reduce((a, b) => a + b.buffered, 0) / samples.length
+                  const avgQ = samples.reduce((a, b) => a + b.qlen, 0) / samples.length
+                  const sinceAdjust = now - this.lastAutoAdjustAt
+                  if (sinceAdjust > this.autoAdjustCooldownMs) {
+                    // Congested: raise coalescing a bit
+                    if (avgBuffered > this.congestionThreshold * 1.2 || avgQ > 800) {
+                      const next = Math.min(
+                        this.coalesceMaxFrames + 1,
+                        this.coalesceMaxFramesBounds[1]
+                      )
+                      if (next !== this.coalesceMaxFrames) {
+                        this.coalesceMaxFrames = next
+                        this.coalesceDelayMs = Math.min(this.coalesceDelayMs + 2, 12)
+                        this.lastAutoAdjustAt = now
+                      }
+                    }
+                    // Clear: reduce coalescing for lower latency
+                    else if (avgBuffered < this.congestionThreshold * 0.2 && avgQ < 100) {
+                      const next = Math.max(
+                        this.coalesceMaxFrames - 1,
+                        this.coalesceMaxFramesBounds[0]
+                      )
+                      if (next !== this.coalesceMaxFrames) {
+                        this.coalesceMaxFrames = next
+                        this.coalesceDelayMs = Math.max(this.coalesceDelayMs - 2, 2)
+                        this.lastAutoAdjustAt = now
+                      }
+                    }
+                  }
+                }
+              } catch {
+                // ignore metrics emit errors
+              }
+              this.updateDebugProbe()
+            }, 1000)
+          }
+
+          // Schedule no-text warning after setup completes; if already setup, start timer now
+          if (this.noTextTimer) {
+            clearTimeout(this.noTextTimer)
+          }
+          this.noTextTimer = window.setTimeout(() => {
+            if (this.firstTranscriptionAt === 0 && this.framesSent > 10) {
+              console.warn(
+                `⚠️ No transcription text received after ${this.noTextTimeoutMs}ms. framesSent=${this.framesSent}, framesCaptured=${this.framesCaptured}`
+              )
+              this.emit('no-text', {
+                framesCaptured: this.framesCaptured,
+                framesSent: this.framesSent,
+                setupComplete: this.isSetupComplete
+              })
+            }
+          }, this.noTextTimeoutMs)
         }
 
         this.websocket.onmessage = event => {
@@ -195,8 +436,8 @@ export class RealTimeTranscriptionService extends EventEmitter {
       }
     }
 
-    console.log('📤 Sending Gemini Live setup config...')
-    this.websocket.send(JSON.stringify(setupMessage))
+    console.log('📤 Enqueueing Gemini Live setup config...')
+    this.enqueueWsMessage(setupMessage)
   }
 
   /**
@@ -204,46 +445,133 @@ export class RealTimeTranscriptionService extends EventEmitter {
    */
   private async startAudioCapture(): Promise<void> {
     try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+      // Decide capture strategy (env override optional)
+      try {
+        const envMode =
+          (typeof process !== 'undefined' && process.env.REALTIME_CAPTURE_MODE) ||
+          (typeof window !== 'undefined'
+            ? (window as unknown as {__REALTIME_TRANSCRIPTION_MODE__?: string})
+                .__REALTIME_TRANSCRIPTION_MODE__
+            : undefined)
+        if (envMode === 'mic' || envMode === 'system' || envMode === 'mixed') {
+          this.preferredCaptureMode = envMode
         }
-      })
+      } catch {
+        // ignore
+      }
 
-      // Use MediaRecorder for efficient audio capture
-      this.mediaRecorder = new MediaRecorder(this.mediaStream, {
-        mimeType: 'audio/webm;codecs=opus',
-        audioBitsPerSecond: 16000
-      })
+      const wantMixed = this.preferredCaptureMode === 'mixed'
+      let micStream: MediaStream | null = null
+      let systemStream: MediaStream | null = null
 
-      let audioBuffer: BlobPart[] = []
+      // Always get mic first (faster prompt on most platforms)
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        })
+      } catch (e) {
+        console.warn('⚠️ Mic capture failed:', e)
+      }
 
-      this.mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0 && this.isSetupComplete) {
-          audioBuffer.push(event.data)
+      if (wantMixed || this.preferredCaptureMode === 'system') {
+        try {
+          systemStream = await navigator.mediaDevices.getDisplayMedia({
+            audio: true,
+            video: {width: 320, height: 180, frameRate: 5}
+          })
+          this.mixedCaptureAttempted = true
+        } catch (e) {
+          console.warn('⚠️ System audio capture failed or denied:', e)
+        }
+      }
 
-          // Send audio data every 100ms for real-time processing
-          if (audioBuffer.length >= 1) {
-            this.sendAudioData(audioBuffer)
-            audioBuffer = []
+      // If we have both streams, mix them into single MediaStream
+      if (micStream && systemStream) {
+        console.log('🎛️ Using mixed mic+system real-time capture')
+        if (!this.audioContext) throw new Error('AudioContext not initialized')
+        const destination = this.audioContext.createMediaStreamDestination()
+        const micSource = this.audioContext.createMediaStreamSource(micStream)
+        const sysSource = this.audioContext.createMediaStreamSource(systemStream)
+        const micGain = this.audioContext.createGain()
+        const sysGain = this.audioContext.createGain()
+        micGain.gain.value = 0.9
+        sysGain.gain.value = 0.9
+        micSource.connect(micGain).connect(destination)
+        sysSource.connect(sysGain).connect(destination)
+        this.mediaStream = destination.stream
+        // Keep references so we can stop later
+        interface ExtendedStream extends MediaStream {
+          __micTracks?: MediaStreamTrack[]
+          __systemTracks?: MediaStreamTrack[]
+        }
+        const ext = this.mediaStream as ExtendedStream
+        ext.__micTracks = micStream.getTracks()
+        ext.__systemTracks = systemStream.getTracks()
+      } else if (systemStream) {
+        console.log('🎧 Using system audio only for real-time capture')
+        this.mediaStream = systemStream
+      } else if (micStream) {
+        console.log('🎤 Using microphone only for real-time capture')
+        this.mediaStream = micStream
+      } else {
+        throw new Error('No audio sources available (mic & system capture failed)')
+      }
+
+      if (!this.audioContext) throw new Error('AudioContext not initialized')
+      const source = this.audioContext.createMediaStreamSource(this.mediaStream)
+      // Silent sink keeps processing graph alive without audible output
+      const silentSink = this.audioContext.createGain()
+      silentSink.gain.value = 0
+      silentSink.connect(this.audioContext.destination)
+
+      // Prefer AudioWorklet for lower jitter; fallback to ScriptProcessor
+      let workletReady = false
+      try {
+        await this.audioContext.audioWorklet.addModule(
+          new URL('./workers/audio-streaming-worklet.js', import.meta.url)
+        )
+
+        this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-streaming-processor', {
+          processorOptions: {
+            bufferSize: 256,
+            sampleRate: this.audioContext.sampleRate
+          }
+        })
+
+        this.workletNode.port.onmessage = event => {
+          const msg = event.data as {type: string; audioData?: Float32Array; sampleRate?: number}
+          if (msg.type === 'audioData' && msg.audioData) {
+            this.handleFloatAudio(msg.audioData, msg.sampleRate || this.audioContext!.sampleRate)
           }
         }
+
+        source.connect(this.workletNode)
+        // Route to silent sink to keep node alive without audio output
+        this.workletNode.connect(silentSink)
+        workletReady = true
+        console.log('🎧 AudioWorklet capture enabled')
+      } catch (err) {
+        console.warn('AudioWorklet not available, using ScriptProcessor fallback:', err)
       }
 
-      this.mediaRecorder.onerror = event => {
-        console.error('❌ MediaRecorder error:', event)
-        this.emit('error', new Error('Audio recording failed'))
+      if (!workletReady) {
+        const bufferSize = 256
+        this.processor = this.audioContext.createScriptProcessor(bufferSize, 1, 1)
+        this.processor.onaudioprocess = e => {
+          const input = new Float32Array(e.inputBuffer.getChannelData(0))
+          this.handleFloatAudio(input, this.audioContext!.sampleRate)
+        }
+        source.connect(this.processor)
+        this.processor.connect(silentSink)
       }
 
-      // Start recording in 100ms chunks for real-time streaming
-      this.mediaRecorder.start(100)
       this.isRecording = true
-
-      console.log('🎤 Real-time audio capture started with MediaRecorder')
+      console.log('🎤 Real-time audio capture started with PCM streaming')
     } catch (error) {
       console.error('❌ Failed to start audio capture:', error)
       throw error
@@ -251,33 +579,118 @@ export class RealTimeTranscriptionService extends EventEmitter {
   }
 
   /**
+   * Ingest Float32 audio, resample to 16 kHz, frame to ~30 ms, and enqueue/send
+   */
+  private handleFloatAudio(input: Float32Array, originalRate: number): void {
+    const mono16k =
+      originalRate === this.targetSampleRate
+        ? input
+        : resampleAudio(input, originalRate, this.targetSampleRate)
+
+    // Append to rolling buffer
+    if (this.floatBuffer.length === 0) {
+      this.floatBuffer = mono16k
+    } else {
+      const tmp = new Float32Array(this.floatBuffer.length + mono16k.length)
+      tmp.set(this.floatBuffer, 0)
+      tmp.set(mono16k, this.floatBuffer.length)
+      this.floatBuffer = tmp
+    }
+
+    // While we have at least one full frame, send it
+    while (this.floatBuffer.length >= this.samplesPerFrame) {
+      const frame = this.floatBuffer.slice(0, this.samplesPerFrame)
+      // Keep overlap by not discarding the last N samples
+      const discard = Math.max(0, this.samplesPerFrame - this.overlapSamples)
+      this.floatBuffer = this.floatBuffer.slice(discard)
+      this.framesCaptured++
+
+      // Optional silence gating
+      if (this.enableSilenceDrop) {
+        let sum = 0
+        for (let i = 0; i < frame.length; i++) {
+          const v = frame[i]
+          sum += v * v
+        }
+        const rms = Math.sqrt(sum / frame.length)
+        if (rms < this.silenceRmsThreshold) {
+          this.silentFrameCounter++
+          if (this.silentFrameCounter % this.silenceKeepAliveEvery !== 0) {
+            continue
+          }
+        } else {
+          this.silentFrameCounter = 0
+        }
+      }
+
+      const pcm = convertFloat32ToPCM16(frame)
+      const base64 = convertAudioToBase64(pcm)
+
+      if (!this.isSetupComplete) {
+        this.pendingAudio.push(base64)
+        this.framesQueuedBeforeSetup++
+      } else {
+        this.sendPcmBase64(base64)
+      }
+      this.updateDebugProbe()
+    }
+  }
+
+  /**
    * Send audio data to Gemini Live API
    */
-  private async sendAudioData(audioChunks: BlobPart[]): Promise<void> {
+  private async sendPcmBase64(base64Audio: string): Promise<void> {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN || !this.isSetupComplete) {
       return
     }
 
     try {
-      // Combine audio chunks into a single blob
-      const audioBlob = new Blob(audioChunks, {type: 'audio/webm;codecs=opus'})
-
-      // Convert to base64 for Gemini API
-      const arrayBuffer = await audioBlob.arrayBuffer()
-      const base64Audio = this.arrayBufferToBase64(arrayBuffer)
-
-      const audioMessage = {
-        realtimeInput: {
-          mediaChunks: [
-            {
-              mimeType: 'audio/webm;codecs=opus',
-              data: base64Audio
-            }
-          ]
+      this.lastEnqueueAt = performance.now()
+      const enqueueSingle = () => {
+        const audioMessage = {
+          realtimeInput: {
+            mediaChunks: [
+              {
+                mimeType: createAudioMimeType(this.targetSampleRate),
+                data: base64Audio
+              }
+            ]
+          }
         }
+        this.enqueueWsMessage(audioMessage)
       }
 
-      this.websocket.send(JSON.stringify(audioMessage))
+      // If socket is congested, coalesce multiple frames into a single message
+      const buffered = this.websocket.bufferedAmount
+      if (buffered > this.congestionThreshold || this.sendQueue.length > 1000) {
+        this.coalesceBuffer.push(base64Audio)
+        if (this.coalesceTimer == null) {
+          this.coalesceTimer = window.setTimeout(() => {
+            const frames: string[] = []
+            while (frames.length < this.coalesceMaxFrames && this.coalesceBuffer.length > 0) {
+              frames.push(this.coalesceBuffer.shift()!)
+            }
+            if (frames.length > 0) {
+              const audioMessage = {
+                realtimeInput: {
+                  mediaChunks: frames.map(data => ({
+                    mimeType: createAudioMimeType(this.targetSampleRate),
+                    data
+                  }))
+                }
+              }
+              this.enqueueWsMessage(audioMessage)
+              this.framesSent += frames.length
+              this.updateDebugProbe()
+            }
+            this.coalesceTimer = null
+          }, this.coalesceDelayMs)
+        }
+      } else {
+        enqueueSingle()
+        this.framesSent++
+        this.updateDebugProbe()
+      }
     } catch (error) {
       console.error('❌ Failed to send audio data:', error)
     }
@@ -289,40 +702,120 @@ export class RealTimeTranscriptionService extends EventEmitter {
   private handleGeminiMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data)
+      this.messageCounter++
+      if (this.rawMessageLog.length < 10) {
+        this.rawMessageLog.push(data)
+        this.updateDebugProbe()
+      }
+      if (this.messageCounter <= 10) {
+        console.debug('[Gemini][RAW]', this.messageCounter, Object.keys(data))
+      }
 
       // Handle setup completion
       if (data.setupComplete) {
         this.isSetupComplete = true
         this.emit('setup-complete')
+        // Flush any audio captured before setup completed
+        this.flushPendingAudio()
+        this.updateDebugProbe()
         return
       }
 
       // Handle server content (transcription results)
       if (data.serverContent) {
-        const content = data.serverContent
+        const content: Record<string, unknown> = data.serverContent as Record<string, unknown>
+        let textCandidate: string | null = null
 
-        if (content.modelTurn && content.modelTurn.parts) {
-          const textParts = content.modelTurn.parts.filter((part: any) => part.text)
+        // Prefer explicit inputTranscription when present (adaptive parsing)
+        const it = (content as Record<string, unknown>).inputTranscription as unknown
+        if (it && typeof it === 'object') {
+          const rec = it as Record<string, unknown>
+          const direct = typeof rec.text === 'string' ? rec.text : null
+          const nested =
+            rec.transcription &&
+            typeof (rec.transcription as Record<string, unknown>).text === 'string'
+              ? ((rec.transcription as Record<string, unknown>).text as string)
+              : null
+          const alt =
+            rec.partial && typeof (rec.partial as Record<string, unknown>).text === 'string'
+              ? ((rec.partial as Record<string, unknown>).text as string)
+              : null
+          textCandidate = direct || nested || alt || textCandidate
+        }
 
-          if (textParts.length > 0) {
-            const text = textParts.map((part: any) => part.text).join(' ')
-            const isFinal = !!content.turnComplete
-
-            const chunk: TranscriptionChunk = {
-              text: text.trim(),
-              isFinal,
-              confidence: 0.9, // Gemini doesn't provide confidence scores
-              timestamp: performance.now()
+        // Heuristic scan: look for first string-valued 'text' deep inside if still empty
+        if (!textCandidate) {
+          try {
+            const stack: unknown[] = [content]
+            let safety = 0
+            while (stack.length && !textCandidate && safety < 200) {
+              safety++
+              const node = stack.pop()
+              if (!node || typeof node !== 'object') continue
+              for (const [k, v] of Object.entries(node)) {
+                if (!textCandidate && k.toLowerCase().includes('text') && typeof v === 'string') {
+                  textCandidate = v
+                  break
+                }
+                if (typeof v === 'object' && v) stack.push(v)
+              }
             }
+          } catch {
+            // ignore scan errors
+          }
+        }
 
-            // Emit immediately for zero-latency display
-            this.emit('transcription', chunk)
+        // Fallback to modelTurn.parts[].text
+        const mt = content.modelTurn as unknown as Record<string, unknown> | undefined
+        const rawParts = mt && 'parts' in mt ? (mt.parts as unknown) : undefined
+        const mtParts = Array.isArray(rawParts) ? (rawParts as Array<unknown>) : null
+        if (!textCandidate && mtParts) {
+          const parts = mtParts.filter((p): p is {text: string} => {
+            if (!p || typeof p !== 'object') return false
+            const maybe = p as Record<string, unknown>
+            return typeof maybe.text === 'string'
+          })
+          if (parts.length > 0) {
+            textCandidate = parts.map(part => part.text).join(' ')
+          }
+        }
 
-            if (isFinal) {
-              console.log(`📝 Final: "${chunk.text}"`)
-            } else {
-              console.log(`📝 Interim: "${chunk.text}"`)
+        if (typeof textCandidate === 'string' && textCandidate.trim().length > 0) {
+          const isFinal = !!content.turnComplete
+          const chunk: TranscriptionChunk = {
+            text: textCandidate.trim(),
+            isFinal,
+            confidence: 0.9,
+            timestamp: performance.now()
+          }
+          this.emit('transcription', chunk)
+          if (this.firstTranscriptionAt === 0) {
+            this.firstTranscriptionAt = performance.now()
+            if (this.noTextTimer) {
+              clearTimeout(this.noTextTimer)
+              this.noTextTimer = null
             }
+          }
+          this.lastTranscriptionAt = performance.now()
+          this.updateDebugProbe()
+          // Emit a rough latency sample from last audio enqueue to first text
+          if (this.lastEnqueueAt > 0) {
+            const latencyMs = performance.now() - this.lastEnqueueAt
+            this.emit('latency', {ms: latencyMs})
+          }
+          if (isFinal) console.log(`📝 Final: "${chunk.text}"`)
+          else console.log(`📝 Interim: "${chunk.text}"`)
+        } else if (
+          data.serverContent &&
+          (data.serverContent.turnComplete || data.serverContent.inputTranscription)
+        ) {
+          // Received a serverContent structure but no text extracted – log once per turnComplete
+          if (data.serverContent.turnComplete) {
+            console.warn(
+              '⚠️ Received turnComplete with no extractable text. serverContent keys:',
+              Object.keys(data.serverContent)
+            )
+            this.emit('empty-transcription', {serverContent: data.serverContent})
           }
         }
       }
@@ -332,8 +825,45 @@ export class RealTimeTranscriptionService extends EventEmitter {
         console.error('❌ Gemini transcription error:', data.error)
         this.emit('error', new Error(data.error.message || 'Transcription failed'))
       }
+      // If we reach many messages with no transcription, emit diagnostic snapshot
+      if (this.firstTranscriptionAt === 0 && this.framesSent > 30 && this.messageCounter > 15) {
+        this.emit('diagnostic', {
+          reason: 'no-text-after-messages',
+          framesSent: this.framesSent,
+          messageCounter: this.messageCounter,
+          sampleMessages: this.rawMessageLog.slice(0, 5)
+        })
+      }
     } catch (error) {
       console.error('❌ Failed to parse Gemini message:', error)
+    }
+  }
+
+  /**
+   * Flush any pending audio chunks captured before setup completion
+   */
+  private async flushPendingAudio(): Promise<void> {
+    if (!this.pendingAudio.length) return
+    const buffered = [...this.pendingAudio]
+    this.pendingAudio = []
+    try {
+      // Batch frames to avoid initial surge (3 frames ~= 60ms per message)
+      const batchSize = this.coalesceMaxFrames
+      for (let i = 0; i < buffered.length; i += batchSize) {
+        if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) break
+        const group = buffered.slice(i, i + batchSize)
+        const audioMessage = {
+          realtimeInput: {
+            mediaChunks: group.map(data => ({
+              mimeType: createAudioMimeType(this.targetSampleRate),
+              data
+            }))
+          }
+        }
+        this.enqueueWsMessage(audioMessage)
+      }
+    } catch (e) {
+      console.warn('Failed flushing pending audio:', e)
     }
   }
 
@@ -382,14 +912,17 @@ export class RealTimeTranscriptionService extends EventEmitter {
     this.isRecording = false
     this.isSetupComplete = false
 
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      this.mediaRecorder.stop()
-      this.mediaRecorder = null
-    }
+    // MediaRecorder not used in PCM path
+    this.mediaRecorder = null
 
     if (this.processor) {
       this.processor.disconnect()
       this.processor = null
+    }
+
+    if (this.workletNode) {
+      this.workletNode.disconnect()
+      this.workletNode = null
     }
 
     if (this.mediaStream) {
@@ -407,8 +940,68 @@ export class RealTimeTranscriptionService extends EventEmitter {
       this.websocket = null
     }
 
+    if (this.noTextTimer) {
+      clearTimeout(this.noTextTimer)
+      this.noTextTimer = null
+    }
+
+    if (this.firstTranscriptionAt === 0 && this.framesSent > 0) {
+      console.warn(
+        `⚠️ Real-time session ended with no transcription text. framesSent=${this.framesSent}, framesCaptured=${this.framesCaptured}`
+      )
+      this.emit('no-text', {
+        framesCaptured: this.framesCaptured,
+        framesSent: this.framesSent,
+        setupComplete: this.isSetupComplete
+      })
+      this.updateDebugProbe()
+    }
+
+    // Clear send queue and timers
+    this.sendQueue = []
+    if (this.drainTimer != null) {
+      clearTimeout(this.drainTimer)
+      this.drainTimer = null
+    }
+    if (this.coalesceTimer != null) {
+      clearTimeout(this.coalesceTimer)
+      this.coalesceTimer = null
+      this.coalesceBuffer = []
+    }
+    if (this.metricsTimer != null) {
+      clearInterval(this.metricsTimer)
+      this.metricsTimer = null
+    }
+
     this.isConnected = false
     this.emit('stopped')
+  }
+
+  /**
+   * Runtime tuning for streaming thresholds and silence gating.
+   */
+  setTuning(options: {
+    bufferedThreshold?: number
+    congestionThreshold?: number
+    coalesceMaxFrames?: number
+    coalesceDelayMs?: number
+    enableSilenceDrop?: boolean
+    silenceRmsThreshold?: number
+    silenceKeepAliveEvery?: number
+  }): void {
+    if (typeof options.bufferedThreshold === 'number')
+      this.bufferedThreshold = options.bufferedThreshold
+    if (typeof options.congestionThreshold === 'number')
+      this.congestionThreshold = options.congestionThreshold
+    if (typeof options.coalesceMaxFrames === 'number')
+      this.coalesceMaxFrames = options.coalesceMaxFrames
+    if (typeof options.coalesceDelayMs === 'number') this.coalesceDelayMs = options.coalesceDelayMs
+    if (typeof options.enableSilenceDrop === 'boolean')
+      this.enableSilenceDrop = options.enableSilenceDrop
+    if (typeof options.silenceRmsThreshold === 'number')
+      this.silenceRmsThreshold = options.silenceRmsThreshold
+    if (typeof options.silenceKeepAliveEvery === 'number')
+      this.silenceKeepAliveEvery = options.silenceKeepAliveEvery
   }
 
   /**

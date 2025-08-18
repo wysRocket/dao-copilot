@@ -1,0 +1,49 @@
+# Task ID: 19
+# Title: Implement Fallback and Replay Mechanism
+# Status: cancelled
+# Dependencies: 16, 18
+# Priority: high
+# Description: Create a multi-tier fallback system (WebSocket → Streaming HTTP → Batch finalize) with replay capabilities to handle connection interruptions and ensure transcript continuity.
+# Details:
+Develop a robust fallback system with:
+1. Implement detection of WebSocket interruptions mid-utterance
+2. Create logic to capture residual buffered audio on interruption
+3. Implement batch API sending mechanism for fallback
+4. Add reconciliation logic to merge batch results into existing utterance IDs
+5. Implement retry policy with exponential backoff (250ms, 500ms, 1s, 2s, 5s)
+6. Add circuit breaker after 5 failures to degrade to batch-only mode
+7. Implement UI notification system for degraded mode
+8. Create replay mechanism to resend failed transcripts
+
+Code structure:
+```typescript
+class FallbackManager {
+  private retryCount: Map<string, number>;
+  private circuitBreakerStatus: 'closed' | 'open';
+  private fallbackMode: 'websocket' | 'streaming-http' | 'batch-only';
+  
+  constructor(private connectionManager: ConnectionManager) {...}
+  
+  handleInterruption(utteranceId: string, bufferedAudio: AudioData): Promise<void> {...}
+  sendViaBatchAPI(utteranceId: string, audio: AudioData): Promise<TranscriptResult> {...}
+  reconcileResults(utteranceId: string, batchResult: TranscriptResult): void {...}
+  resetCircuitBreaker(): void {...}
+}
+
+class RetryManager {
+  private retryQueue: RetryItem[];
+  
+  scheduleRetry(item: RetryItem, attempt: number): void {...}
+  processRetryQueue(): Promise<void> {...}
+}
+```
+
+# Test Strategy:
+1. Unit tests for interruption detection and handling
+2. Test batch API fallback mechanism
+3. Verify reconciliation of batch results with existing utterances
+4. Test retry policy with various failure scenarios
+5. Verify circuit breaker functionality and degradation to batch-only mode
+6. Integration tests simulating network failures at different points
+7. Test UI notification system for degraded mode
+8. Verify end-to-end recovery from various failure modes

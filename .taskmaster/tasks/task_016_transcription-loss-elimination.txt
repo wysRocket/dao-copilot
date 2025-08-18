@@ -1,0 +1,51 @@
+# Task ID: 16
+# Title: Design and Implement Transcript Lifecycle FSM
+# Status: cancelled
+# Dependencies: None
+# Priority: high
+# Description: Create a deterministic Finite State Machine (FSM) to manage transcript lifecycle with states: pending-partial → streaming-active → awaiting-final → finalized | aborted | recovered.
+# Details:
+Implement a robust FSM that tracks transcript state transitions with the following components:
+1. Create a TranscriptState enum with all required states
+2. Implement UUID generation for each utterance on first partial
+3. Add state transition validation logic to prevent invalid transitions
+4. Implement logging for all state transitions
+5. Add telemetry emission on state changes
+6. Create logic to ignore late-arriving partials after finalization (with logging)
+7. Design the state transition diagram with clear rules
+
+Code structure:
+```typescript
+enum TranscriptState {
+  PENDING_PARTIAL = 'pending-partial',
+  STREAMING_ACTIVE = 'streaming-active',
+  AWAITING_FINAL = 'awaiting-final',
+  FINALIZED = 'finalized',
+  ABORTED = 'aborted',
+  RECOVERED = 'recovered'
+}
+
+interface TranscriptSegment {
+  id: string; // UUID
+  state: TranscriptState;
+  content: string;
+  timestamp: number;
+  lastUpdated: number;
+  confidence?: number;
+  // Additional metadata
+}
+
+class TranscriptLifecycleManager {
+  // Methods for state transitions with validation
+  // Logging and telemetry hooks
+  // Late-arrival handling
+}
+```
+
+# Test Strategy:
+1. Unit tests for each state transition with valid and invalid cases
+2. Test UUID stability across partial updates
+3. Verify telemetry emission for each transition
+4. Test late-arriving partial handling after finalization
+5. Integration test with mocked audio input to verify complete lifecycle
+6. Stress test with rapid transitions to detect race conditions

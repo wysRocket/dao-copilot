@@ -11,6 +11,10 @@ import {
   OptimizedTranscriptProcessor,
   ProcessingStats
 } from '../services/optimized-transcript-processor'
+// FSM integration (incremental adoption)
+import {TranscriptFSM} from '../transcription/fsm'
+import {TranscriptionFlags} from '../config/transcription-flags'
+import {GlobalOrphanWorker} from '../transcription/fsm/OrphanWorker'
 
 export interface SearchOptions {
   caseSensitive?: boolean
@@ -129,7 +133,8 @@ export const useTranscriptStore = create<TranscriptStore>()(
     showPartialResults: true,
     showConfidenceScores: false,
     autoScroll: true,
-    maxDisplayEntries: 100,
+    // Increased to reduce perceived loss in UI when many segments accumulate quickly
+    maxDisplayEntries: 500,
 
     // Entry management actions
     addEntry: (entry: TranscriptEntry) => {
@@ -165,8 +170,8 @@ export const useTranscriptStore = create<TranscriptStore>()(
           lastUpdateTime: Date.now()
         }))
       } else {
-        // Create new partial entry
-        console.log(`Adding new partial entry: ${entryId}, text: "${result.text.trim()}"`)
+        // Create new partial entry directly in state (avoid async processor latency)
+        console.log(`Adding new partial entry directly: ${entryId}, text: "${result.text.trim()}"`)
         const entry: TranscriptEntry = {
           id: entryId,
           text: result.text.trim(),
@@ -175,8 +180,26 @@ export const useTranscriptStore = create<TranscriptStore>()(
           isPartial: true,
           isFinal: false
         }
-
-        get().addEntry(entry)
+        set(state => ({
+          recentEntries: [...state.recentEntries, entry].slice(-state.maxDisplayEntries),
+          lastUpdateTime: Date.now()
+        }))
+        if (TranscriptionFlags.ENABLE_FSM) {
+          // Mirror into FSM (create or update utterance) behind feature flag
+          try {
+            const existing = TranscriptFSM.getUtterance(entryId)
+            if (!existing) {
+              TranscriptFSM.createUtterance({
+                sessionId: 'default',
+                firstPartial: {text: entry.text, confidence: entry.confidence}
+              })
+            } else {
+              TranscriptFSM.applyPartial(entryId, entry.text, entry.confidence)
+            }
+          } catch (e) {
+            console.debug('FSM mirror partial failed (non-fatal):', e)
+          }
+        }
       }
     },
 
@@ -223,6 +246,30 @@ export const useTranscriptStore = create<TranscriptStore>()(
         }))
       }
 
+      // Light final dedup: only remove exact same id or exact same text duplicates
+      try {
+        const normalizedFinalText = result.text.trim()
+        const finalsToRemove = state.recentEntries.filter(entry => {
+          if (!entry.isFinal) return false
+          if (result.id && entry.id === result.id) return true
+          const t = (entry.text || '').trim()
+          return t === normalizedFinalText // exact match only
+        })
+        if (finalsToRemove.length > 0) {
+          console.log(
+            `Removing ${finalsToRemove.length} exact duplicate finals before adding new final entry`
+          )
+          set(state => ({
+            recentEntries: state.recentEntries.filter(
+              entry => !finalsToRemove.some(f => f.id === entry.id)
+            ),
+            lastUpdateTime: Date.now()
+          }))
+        }
+      } catch (e) {
+        console.debug('addFinalEntry light dedup error (non-fatal):', e)
+      }
+
       console.log(`Adding final entry: "${result.text.trim()}"`)
       const entry: TranscriptEntry = {
         id: result.id || `final_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -234,6 +281,22 @@ export const useTranscriptStore = create<TranscriptStore>()(
       }
 
       get().addEntry(entry)
+      if (TranscriptionFlags.ENABLE_FSM) {
+        // Mirror finalize into FSM behind feature flag
+        try {
+          const utteranceId = result.id || entry.id
+          const existing = TranscriptFSM.getUtterance(utteranceId)
+          if (!existing) {
+            const createdId = TranscriptFSM.createUtterance({sessionId: 'default'})
+            TranscriptFSM.applyPartial(createdId, entry.text, entry.confidence)
+            TranscriptFSM.applyFinal(createdId, entry.text, entry.confidence)
+          } else {
+            TranscriptFSM.applyFinal(utteranceId, entry.text, entry.confidence)
+          }
+        } catch (e) {
+          console.debug('FSM mirror final failed (non-fatal):', e)
+        }
+      }
     },
 
     addBatch: (entries: TranscriptEntry[]) => {
@@ -362,6 +425,31 @@ export const useTranscriptStore = create<TranscriptStore>()(
 
       // Get recent entries with filtering
       let entries = processor.getRecentEntries(state.maxDisplayEntries, !state.showPartialResults)
+
+      // De-duplicate entries by ID while preserving order and preferring finals/newer items
+      if (entries.length > 1) {
+        const idToIndex = new Map<string, number>()
+        const deduped: TranscriptEntry[] = []
+
+        for (const entry of entries) {
+          const existingIndex = idToIndex.get(entry.id)
+          if (existingIndex === undefined) {
+            idToIndex.set(entry.id, deduped.length)
+            deduped.push(entry)
+          } else {
+            const prev = deduped[existingIndex]
+            // Prefer final over partial; otherwise prefer the newer timestamp
+            const choose =
+              (entry.isFinal && !prev.isFinal) ||
+              (entry.isFinal === prev.isFinal && (entry.timestamp || 0) >= (prev.timestamp || 0))
+                ? entry
+                : prev
+            deduped[existingIndex] = choose
+          }
+        }
+
+        entries = deduped
+      }
 
       // Apply confidence filter
       if (state.minConfidence !== undefined) {
@@ -658,3 +746,13 @@ export const transcriptSelectors = {
 
 // Initialize the state manager
 TranscriptStateManager.getInstance()
+
+// Bootstrap feature-flagged background workers (side-effect module init)
+if (TranscriptionFlags.ENABLE_ORPHAN_WORKER) {
+  try {
+    GlobalOrphanWorker.start()
+    console.debug('[TranscriptionFlags] OrphanWorker started')
+  } catch (e) {
+    console.warn('[TranscriptionFlags] Failed to start OrphanWorker', e)
+  }
+}

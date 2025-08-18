@@ -9,12 +9,15 @@ This guide walks you through setting up and using the automated publishing pipel
 After merging the CI/CD pipeline PR, follow these steps to configure your repository:
 
 #### Enable GitHub Pages
+
 1. Go to your repository Settings → Pages
 2. Under "Source", select "GitHub Actions"
 3. This enables automatic documentation deployment
 
 #### Configure Repository Settings (Automatic)
+
 Run the repository setup workflow to automatically configure:
+
 - Labels for issue/PR management
 - Branch protection rules
 - Repository metadata and topics
@@ -27,15 +30,19 @@ Run the repository setup workflow to automatically configure:
 ### 2. Publishing Configuration
 
 #### GitHub Releases (Automatic)
+
 No additional setup required. The pipeline automatically:
+
 - Publishes to GitHub Releases
 - Uses `GITHUB_TOKEN` (automatically provided)
 - Attaches cross-platform installers
 
 #### NPM Publishing (Optional)
+
 To enable npm publishing:
 
 1. Generate an NPM token:
+
    - Go to [npm.com](https://www.npmjs.com) → Account → Access Tokens
    - Create a new "Publish" token
 
@@ -46,6 +53,7 @@ To enable npm publishing:
 #### Code Signing (Optional but Recommended)
 
 ##### Windows Code Signing
+
 1. Obtain a code signing certificate (`.p12` file)
 2. Add to repository secrets:
    ```
@@ -54,6 +62,7 @@ To enable npm publishing:
 3. Place certificate file at `certificates/windows.p12`
 
 ##### macOS Code Signing
+
 1. Obtain Apple Developer certificates
 2. Add to repository secrets:
    ```
@@ -74,7 +83,7 @@ Use the built-in scripts for streamlined releases:
 # Prepare a patch release (1.0.0 → 1.0.1)
 npm run release:prepare
 
-# Prepare a minor release (1.0.0 → 1.1.0) 
+# Prepare a minor release (1.0.0 → 1.1.0)
 npm run release:prepare:minor
 
 # Prepare a major release (1.0.0 → 2.0.0)
@@ -82,6 +91,7 @@ npm run release:prepare:major
 ```
 
 These scripts will:
+
 - ✅ Check git status and branch
 - ✅ Run tests and quality checks
 - ✅ Bump version in package.json
@@ -94,7 +104,7 @@ These scripts will:
 ```bash
 # Quick release (just version bump + push)
 npm run release         # patch
-npm run release:minor   # minor  
+npm run release:minor   # minor
 npm run release:major   # major
 ```
 
@@ -126,18 +136,18 @@ npm run distribute:publish
 
 The pipeline automatically builds for:
 
-| Platform | Formats | Architecture |
-|----------|---------|-------------|
-| Windows | `.exe`, `.exe` (portable) | x64, arm64 |
-| macOS | `.dmg`, `.zip` | x64, arm64, universal |
-| Linux | `.AppImage`, `.deb`, `.rpm`, `.snap`, `.tar.gz` | x64, arm64 |
+| Platform | Formats                                         | Architecture          |
+| -------- | ----------------------------------------------- | --------------------- |
+| Windows  | `.exe`, `.exe` (portable)                       | x64, arm64            |
+| macOS    | `.dmg`, `.zip`                                  | x64, arm64, universal |
+| Linux    | `.AppImage`, `.deb`, `.rpm`, `.snap`, `.tar.gz` | x64, arm64            |
 
 ### Distribution Files
 
 After a release, users can download:
 
 - **Windows**: `DAO-Copilot-1.0.0-x64-setup.exe`
-- **macOS**: `DAO-Copilot-1.0.0-arm64.dmg` 
+- **macOS**: `DAO-Copilot-1.0.0-arm64.dmg`
 - **Linux**: `DAO-Copilot-1.0.0-x64.AppImage`
 
 ## 🔄 Automated Workflows
@@ -155,20 +165,20 @@ graph TD
     G --> H[Create GitHub Release]
     H --> I[Upload Assets]
     I --> J[Deploy Docs]
-    
+
     K[Manual Trigger] --> F
     L[Tag Push] --> F
 ```
 
 ### Workflow Triggers
 
-| Workflow | Triggers | Purpose |
-|----------|----------|---------|
-| **CI** | Push, PR | Testing, linting, security |
-| **Build & Release** | Tags, manual | Cross-platform builds |
-| **Release** | Version change in main | Auto-tagging |
-| **Publish** | Releases | Package registries |
-| **Deploy** | Main branch, releases | Documentation |
+| Workflow            | Triggers               | Purpose                    |
+| ------------------- | ---------------------- | -------------------------- |
+| **CI**              | Push, PR               | Testing, linting, security |
+| **Build & Release** | Tags, manual           | Cross-platform builds      |
+| **Release**         | Version change in main | Auto-tagging               |
+| **Publish**         | Releases               | Package registries         |
+| **Deploy**          | Main branch, releases  | Documentation              |
 
 ### Auto-Updates
 
@@ -197,20 +207,21 @@ publish:
 
 ### Environment Variables
 
-| Variable | Purpose | Required | Where to Set |
-|----------|---------|----------|--------------|
-| `GITHUB_TOKEN` | GitHub API access | Auto | GitHub provides |
-| `NPM_TOKEN` | npm publishing | Optional | Repository secrets |
-| `GH_TOKEN` | Release publishing | Auto | GitHub provides |
-| `WIN_CERT_PASSWORD` | Windows signing | Optional | Repository secrets |
-| `APPLE_ID` | macOS notarization | Optional | Repository secrets |
-| `NOTARIZE` | Enable macOS notarization | Optional | Repository secrets |
+| Variable            | Purpose                   | Required | Where to Set       |
+| ------------------- | ------------------------- | -------- | ------------------ |
+| `GITHUB_TOKEN`      | GitHub API access         | Auto     | GitHub provides    |
+| `NPM_TOKEN`         | npm publishing            | Optional | Repository secrets |
+| `GH_TOKEN`          | Release publishing        | Auto     | GitHub provides    |
+| `WIN_CERT_PASSWORD` | Windows signing           | Optional | Repository secrets |
+| `APPLE_ID`          | macOS notarization        | Optional | Repository secrets |
+| `NOTARIZE`          | Enable macOS notarization | Optional | Repository secrets |
 
 ## 🚨 Troubleshooting
 
 ### Common Issues
 
 #### Build Fails
+
 ```bash
 # Check dependencies
 npm ci
@@ -221,16 +232,19 @@ npm run build
 ```
 
 #### Release Not Created
+
 - Check if `GITHUB_TOKEN` has proper permissions
 - Verify tag format (`v1.0.0`)
 - Check workflow logs in Actions tab
 
 #### Code Signing Fails
+
 - Verify certificates are valid and not expired
 - Check password secrets are correct
 - Ensure certificate files are in correct locations
 
 #### Auto-Update Not Working
+
 - Check `publish` configuration in `electron-builder.yml`
 - Verify GitHub releases have proper assets
 - Test update server endpoints
@@ -264,6 +278,7 @@ DEBUG=electron-builder npm run build
 ### Analytics
 
 Track release performance:
+
 - Download counts per platform
 - Update adoption rates
 - Issue reports per version
@@ -271,16 +286,19 @@ Track release performance:
 ## 🎯 Best Practices
 
 ### Version Management
+
 - Use semantic versioning (semver)
 - Tag releases consistently (`v1.0.0`)
 - Maintain changelog for each release
 
 ### Security
+
 - Keep dependencies updated (Dependabot helps)
 - Sign releases when possible
 - Review security alerts promptly
 
 ### Quality Assurance
+
 - Always run tests before releasing
 - Use staging/beta releases for major changes
 - Monitor crash reports and user feedback

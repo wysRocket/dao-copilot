@@ -1,7 +1,9 @@
 ## Description
+
 Brief description of the changes made.
 
 ## Type of change
+
 Please delete options that are not relevant.
 
 - [ ] Bug fix (non-breaking change which fixes an issue)
@@ -10,6 +12,7 @@ Please delete options that are not relevant.
 - [ ] This change requires a documentation update
 
 ## How Has This Been Tested?
+
 Please describe the tests that you ran to verify your changes.
 
 - [ ] Unit tests
@@ -18,9 +21,10 @@ Please describe the tests that you ran to verify your changes.
 - [ ] End-to-end testing
 
 ## Test Configuration:
-* Operating System:
-* Node.js version:
-* Electron version:
+
+- Operating System:
+- Node.js version:
+- Electron version:
 
 ## Checklist:
 
@@ -36,4 +40,5 @@ Please describe the tests that you ran to verify your changes.
 ## Screenshots (if appropriate):
 
 ## Additional Notes:
+
 Add any additional notes about the PR here.

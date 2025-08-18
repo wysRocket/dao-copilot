@@ -479,7 +479,7 @@ export const OptimizedTranscriptionComponent: React.FC<OptimizedTranscriptionPro
               <strong>💡 Recommendations:</strong>
               <ul style={{margin: '5px 0 0 0', paddingLeft: '20px'}}>
                 {metrics.recommendations.map((rec, index) => (
-                  <li key={index}>{rec}</li>
+                  <li key={`rec-${rec.substring(0, 20).replace(/\s+/g, '-')}-${index}`}>{rec}</li>
                 ))}
               </ul>
             </div>
@@ -504,7 +504,7 @@ export const OptimizedTranscriptionComponent: React.FC<OptimizedTranscriptionPro
               .reverse()
               .map((item, index) => (
                 <div
-                  key={index}
+                  key={`history-${item.timestamp || Date.now()}-${index}`}
                   style={{
                     padding: '8px',
                     marginBottom: '5px',

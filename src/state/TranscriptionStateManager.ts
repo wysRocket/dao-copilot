@@ -3,8 +3,7 @@ import {
   generateTranscriptId,
   areTranscriptsDuplicate,
   sanitizeTranscript,
-  processTranscriptsWithMetrics,
-  type DuplicateDetectionOptions
+  processTranscriptsWithMetrics
 } from '../utils/transcript-deduplication'
 
 // WebSocket diagnostics
@@ -192,6 +191,17 @@ export class TranscriptionStateManager {
     throttledUpdates: 0,
     lastUpdateTime: 0
   }
+  // Accumulation helpers to prevent loss of earlier partial segments when model restarts or fragments
+  private streamingAccumulatedText: string = ''
+  private streamingLastPartial: string = ''
+  // Keep historical partial snapshots to guard against model regressions / truncations
+  private streamingSnapshots: string[] = []
+  // Stable ID used for all partial updates (so UI replaces rather than appends multiples)
+  private stableStreamingId: string | null = null
+  // Raw partials sequence for diagnostics (capped)
+  private streamingRawPartials: string[] = []
+  // Feature flag for regression guard (disabled by default after observing excessive skips)
+  private enableRegressionGuard = false
   private totalUpdateTime = 0 // For calculating averages
   private updateThrottleTimeout: NodeJS.Timeout | null = null
   private readonly UPDATE_THROTTLE_MS = 0 // Disable throttling for immediate real-time updates
@@ -309,9 +319,18 @@ export class TranscriptionStateManager {
       isPartial: true
     }
 
+    // Establish a stable ID for this streaming session (prefer incoming id else generate deterministic one)
+    this.stableStreamingId = streamingTranscription.id || `stream_${Date.now()}`
+    streamingTranscription.id = this.stableStreamingId
+
     this.state.streaming.current = streamingTranscription
     this.state.streaming.isActive = true
     this.state.streaming.progress = 0
+
+    // Initialize accumulation buffers
+    this.streamingAccumulatedText = transcription.text || ''
+    this.streamingLastPartial = transcription.text || ''
+    this.streamingSnapshots = transcription.text ? [transcription.text] : []
 
     // Mark transcription system as ready
     markPerformance(PERFORMANCE_MARKERS.TRANSCRIPTION_READY)
@@ -353,58 +372,181 @@ export class TranscriptionStateManager {
 
     // Optimize for real-time rendering: update state immediately, throttle notifications
     if (isPartial) {
-      // Immediate state update for real-time responsiveness
+      const newClean = text.trim()
+      if (newClean.length === 0) {
+        const updateTime = endWebSocketTiming(updateId)
+        logWebSocketTiming('streaming-updated-partial', updateTime, {
+          textLength: 0,
+          throttled: false
+        })
+        return
+      }
+
+      // IMPORTANT: Reset the auto-complete timeout on every partial activity so an active
+      // speaking session isn't force-completed after the initial fixed window (default 3s).
+      // Previously we only scheduled the timeout at startStreaming which caused the stream to
+      // auto-complete even while new partials were still arriving (observed as "stops after a few chunks").
+      if (this.config.autoCompleteStreaming) {
+        if (this.streamingTimeoutId) clearTimeout(this.streamingTimeoutId)
+        this.streamingTimeoutId = setTimeout(() => {
+          console.debug('[StreamingTimeout] Auto-completing stream after inactivity window', {
+            timeoutMs: this.config.streamingTimeout,
+            accumulatedLength: this.streamingAccumulatedText.length
+          })
+          this.completeStreaming()
+        }, this.config.streamingTimeout)
+      }
+
+      const prevPartial = this.streamingLastPartial
+      let accumulated = this.streamingAccumulatedText
+      // Collect raw partials for diagnostics
+      this.streamingRawPartials.push(newClean)
+      if (this.streamingRawPartials.length > 200) this.streamingRawPartials.shift()
+
+      // Optional regression guard (currently disabled by default). If enabled, only skip when
+      // there's a drastic shrink (>60% reduction) AND newClean is a subset of accumulated.
+      if (this.enableRegressionGuard && accumulated.length > 40) {
+        const shrinkRatio = newClean.length / Math.max(prevPartial.length, 1)
+        if (shrinkRatio < 0.4 && accumulated.includes(newClean)) {
+          console.debug('[RegressionGuard] Skipping suspected truncation fragment', {
+            accumulatedLen: accumulated.length,
+            prevLen: prevPartial.length,
+            newLen: newClean.length,
+            newClean
+          })
+          const updateTime = endWebSocketTiming(updateId)
+          logWebSocketTiming('streaming-updated-partial-skipped-regression', updateTime, {
+            textLength: accumulated.length,
+            throttled: false
+          })
+          return
+        }
+      }
+
+      // Helper: find overlap between end of accumulated and start of newClean
+      const findOverlap = (a: string, b: string): number => {
+        const max = Math.min(a.length, b.length)
+        for (let len = max; len > 0; len--) {
+          if (a.endsWith(b.slice(0, len))) return len
+        }
+        return 0
+      }
+
+      const hasWordOverlap = (a: string, b: string): boolean => {
+        const tail = a.split(/\s+/).slice(-4).join(' ')
+        return b.includes(tail) || a.includes(b)
+      }
+
+      if (!accumulated) {
+        accumulated = newClean
+      } else if (newClean.startsWith(prevPartial) && newClean.length >= prevPartial.length) {
+        // Model is giving expanding prefix - treat newClean as the full current accumulated segment
+        accumulated = accumulated.endsWith(prevPartial)
+          ? accumulated.slice(0, accumulated.length - prevPartial.length) + newClean
+          : newClean.length > accumulated.length
+            ? newClean
+            : accumulated
+      } else if (
+        prevPartial &&
+        (prevPartial.startsWith(newClean) || !hasWordOverlap(prevPartial, newClean))
+      ) {
+        // Reset or new fragment: append previous partial if not already fully captured
+        if (!accumulated.endsWith(prevPartial)) {
+          accumulated += (accumulated ? ' ' : '') + prevPartial
+        }
+        if (!accumulated.endsWith(newClean) && !accumulated.includes(newClean)) {
+          accumulated += (accumulated ? ' ' : '') + newClean
+        }
+      } else {
+        // Overlap case: merge intelligently
+        const overlap = findOverlap(accumulated, newClean)
+        accumulated += newClean.slice(overlap)
+      }
+
+      // De-duplicate accidental double spaces
+      accumulated = accumulated.replace(/\s{2,}/g, ' ').trim()
+
+      this.streamingAccumulatedText = accumulated
+      this.streamingLastPartial = newClean
+      if (
+        this.streamingSnapshots.length === 0 ||
+        this.streamingSnapshots[this.streamingSnapshots.length - 1] !== accumulated
+      ) {
+        this.streamingSnapshots.push(accumulated)
+        // Cap snapshots to prevent unbounded memory (keep last 50)
+        if (this.streamingSnapshots.length > 50) this.streamingSnapshots.shift()
+      }
+
       if (this.state.streaming.current) {
         this.state.streaming.current = {
           ...this.state.streaming.current,
-          text,
-          isPartial,
+          // Use accumulated combined text for display to avoid losing earlier fragments
+          text: accumulated,
+          isPartial: true,
           timestamp: Date.now()
         }
-
-        // Simple heuristic: progress based on text stability
-        this.state.streaming.progress = Math.min(0.9, text.length / 100)
+        this.state.streaming.progress = Math.min(0.9, accumulated.length / 120)
       }
 
-      // CRITICAL FIX: Persist partial transcriptions to transcript store
-      if (text.trim().length > 0) {
-        try {
-          import('../state/transcript-state').then(({useTranscriptStore}) => {
-            useTranscriptStore.getState().addPartialEntry({
-              text: text.trim(),
-              id: this.state.streaming.current?.id || `partial_${Date.now()}`
-            })
+      // Persist combined partial
+      try {
+        import('../state/transcript-state').then(({useTranscriptStore}) => {
+          useTranscriptStore.getState().addPartialEntry({
+            text: accumulated,
+            id:
+              this.stableStreamingId || this.state.streaming.current?.id || `partial_${Date.now()}`
           })
-        } catch (error) {
-          console.error('Failed to persist partial transcription:', error)
-        }
+        })
+      } catch (error) {
+        console.error('Failed to persist accumulated partial transcription:', error)
       }
 
-      // Immediate notification for real-time responsiveness
+      // Lightweight telemetry (can be replaced with unified telemetry system)
+      if (accumulated.length % 200 === 0) {
+        console.debug(
+          '[AccumulationTelemetry] length',
+          accumulated.length,
+          'snapshots',
+          this.streamingSnapshots.length
+        )
+        console.debug(
+          '[AccumulationTelemetry] rawPartials(count,last5)',
+          this.streamingRawPartials.length,
+          this.streamingRawPartials.slice(-5)
+        )
+      }
+
       const updateTime = endWebSocketTiming(updateId)
       logWebSocketTiming('streaming-updated-partial', updateTime, {
-        textLength: text.length,
+        textLength: accumulated.length,
         throttled: false
       })
       this.notifyListeners('streaming-updated')
     } else {
       // Immediate updates for final text
+      const finalClean = text.trim()
+      // Prefer accumulated if it contains more content
+      const chosen =
+        this.streamingAccumulatedText.length > finalClean.length
+          ? this.streamingAccumulatedText
+          : finalClean
       this.state.streaming.current = {
         ...this.state.streaming.current,
-        text,
-        isPartial,
+        text: chosen,
+        isPartial: false,
         timestamp: Date.now()
       }
 
       this.state.streaming.progress = 1
 
       // CRITICAL FIX: Persist final transcriptions to transcript store
-      if (text.trim().length > 0) {
+      if (chosen.length > 0) {
         try {
           import('../state/transcript-state').then(({useTranscriptStore}) => {
             useTranscriptStore.getState().addFinalEntry({
-              text: text.trim(),
-              id: this.state.streaming.current?.id || `final_${Date.now()}`
+              text: chosen,
+              id:
+                this.stableStreamingId || this.state.streaming.current?.id || `final_${Date.now()}`
             })
           })
         } catch (error) {
@@ -446,8 +588,14 @@ export class TranscriptionStateManager {
     })
 
     // Create static transcript with enhanced ID generation
+    // Prefer accumulated text if it captured more segments than the current final snapshot
+    const finalText =
+      this.streamingAccumulatedText.length > completedTranscription.text.length
+        ? this.streamingAccumulatedText
+        : completedTranscription.text
+
     const staticTranscriptBase = {
-      text: completedTranscription.text,
+      text: finalText,
       timestamp: completedTranscription.timestamp,
       confidence: completedTranscription.confidence,
       source: this.sourceToString(completedTranscription.source)
@@ -477,6 +625,10 @@ export class TranscriptionStateManager {
 
     // Clear streaming state
     this.clearStreamingState()
+    this.streamingAccumulatedText = ''
+    this.streamingLastPartial = ''
+    this.streamingSnapshots = []
+    this.stableStreamingId = null
 
     this.notifyListeners('streaming-completed')
   }
@@ -665,9 +817,6 @@ export class TranscriptionStateManager {
     }
 
     const now = Date.now()
-    const oneHourAgo = now - 60 * 60 * 1000
-    const oneDayAgo = now - 24 * 60 * 60 * 1000
-    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000
 
     // Prioritize keeping recent, high-confidence, or long transcripts
     const prioritizedTranscripts = transcripts
@@ -1311,6 +1460,35 @@ export class TranscriptionStateManager {
       performanceMetrics: this.performanceManager.getMetrics(),
       config: this.performanceManager.getConfig()
     }
+  }
+
+  /**
+   * Diagnostic info for debugging losses.
+   */
+  getStreamingDiagnostics(): {
+    accumulatedLength: number
+    lastPartial: string
+    snapshots: number
+    rawPartialsCount: number
+    lastRawPartials: string[]
+    stableId: string | null
+    regressionGuardEnabled: boolean
+  } {
+    return {
+      accumulatedLength: this.streamingAccumulatedText.length,
+      lastPartial: this.streamingLastPartial,
+      snapshots: this.streamingSnapshots.length,
+      rawPartialsCount: this.streamingRawPartials.length,
+      lastRawPartials: this.streamingRawPartials.slice(-10),
+      stableId: this.stableStreamingId,
+      regressionGuardEnabled: this.enableRegressionGuard
+    }
+  }
+
+  /** Enable / disable regression guard dynamically */
+  setRegressionGuard(enabled: boolean): void {
+    this.enableRegressionGuard = enabled
+    console.debug('[Diagnostics] Regression guard set to', enabled)
   }
 
   /**

@@ -1,0 +1,49 @@
+{
+  "orphanDetection": {
+    "scanIntervalMs": 2000,
+    "stuckThresholdMs": 4000,
+    "trailingTimeoutMs": 3000,
+    "trailingMinChars": 150,
+    "maxOrphansPerScan": 10,
+    "aggressiveDetection": false,
+    "enabled": true
+  },
+  "gapDetection": {
+    "timestampGapThresholdMs": 1500,
+    "maxSilencePeriodMs": 2000,
+    "minAudioDurationMs": 500,
+    "speechConfidenceThreshold": 0.7,
+    "audioAlignmentToleranceMs": 300,
+    "enableSpeechPatternAnalysis": true,
+    "enableAudioAlignment": true,
+    "enabled": true
+  },
+  "recovery": {
+    "maxRecoveryAttempts": 3,
+    "recoveryTimeoutMs": 5000,
+    "retryDelayMs": 1000,
+    "exponentialBackoff": true,
+    "maxBackoffDelayMs": 8000,
+    "enableContextReconstruction": true,
+    "enableSessionRestart": true,
+    "enableForcedFinalization": true,
+    "enabled": true
+  },
+  "telemetry": {
+    "maxEventHistory": 1000,
+    "aggregationIntervalMs": 30000,
+    "exportIntervalMs": 300000,
+    "logLevel": "info",
+    "enableDebugEvents": false,
+    "enablePerformanceMetrics": true,
+    "enableAutoReporting": true,
+    "enabled": true
+  },
+  "system": {
+    "autoSave": true,
+    "saveIntervalMs": 60000,
+    "enableValidation": true,
+    "enableEnvOverrides": true,
+    "configFilePath": "./config/feature-flags.json"
+  }
+}

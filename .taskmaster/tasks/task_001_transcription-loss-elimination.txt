@@ -1,0 +1,43 @@
+# Task ID: 1
+# Title: Implement Transcript Lifecycle FSM
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Design and implement a strict Finite State Machine (FSM) for transcript lifecycle management with deterministic state transitions.
+# Details:
+Create a TypeScript class for TranscriptLifecycle that implements the following states: pending-partial → streaming-active → awaiting-final → finalized | aborted | recovered. Each transcript should be assigned a stable UUID on first partial. Implement state transition methods with validation rules to prevent invalid transitions. Log all state transitions and emit telemetry events. Implement logic to ignore late-arriving partials after finalization (with logging). Design the system to support the orphan detector that will sweep for entries stuck in awaiting-final state. Use TypeScript's type system to enforce valid state transitions at compile time. The FSM should be the single source of truth for transcript state.
+
+# Test Strategy:
+Create unit tests for each state transition, including valid and invalid transitions. Test edge cases like late-arriving partials after finalization. Mock time to test timeout-based transitions. Verify telemetry events are emitted correctly. Create integration tests that simulate real transcript flows through the complete lifecycle.
+
+# Subtasks:
+## 1. Define State Interface and Transition Types [in-progress]
+### Dependencies: None
+### Description: Create TypeScript interfaces and types for the transcript lifecycle states and transitions
+### Details:
+Define TypeScript interfaces for each state (pending-partial, streaming-active, awaiting-final, finalized, aborted, recovered). Create type definitions for valid state transitions. Implement type guards to enforce state validity at compile time. Define event types for state transitions. Create a comprehensive state diagram documenting all possible transitions and their conditions.
+
+## 2. Implement Core FSM Class with State Validation [pending]
+### Dependencies: None
+### Description: Create the TranscriptLifecycle class with strict state transition validation
+### Details:
+Implement the TranscriptLifecycle class with internal state management. Create methods for each valid state transition with validation logic. Implement error handling for invalid state transitions. Add support for the state transition history. Create unit tests for all valid and invalid state transitions. Ensure the FSM is the single source of truth for transcript state.
+
+## 3. Add UUID Generation and Assignment [pending]
+### Dependencies: None
+### Description: Implement stable UUID generation and assignment for transcript identification
+### Details:
+Research and select an appropriate UUID generation library or implement a custom solution. Ensure UUIDs are assigned on first partial receipt and remain stable throughout the transcript lifecycle. Add storage and retrieval mechanisms for transcript UUIDs. Implement tests to verify UUID stability across state transitions. Document the UUID format and generation approach.
+
+## 4. Implement Telemetry and Logging for Transitions [pending]
+### Dependencies: None
+### Description: Add comprehensive logging and telemetry for all state transitions
+### Details:
+Create a logging strategy for state transitions with appropriate detail levels. Implement telemetry event emission for each state change. Add performance metrics for transition timing. Create a visualization mechanism for state transition history. Implement configurable logging levels. Ensure all edge cases and errors are properly logged with context.
+
+## 5. Create Handlers for Edge Cases [pending]
+### Dependencies: None
+### Description: Implement special case handling for late partials and orphaned transcripts
+### Details:
+Implement logic to detect and ignore late-arriving partials after finalization. Create the orphan detection system for transcripts stuck in awaiting-final state. Add timeout-based transition logic for stalled states. Implement recovery mechanisms for orphaned transcripts. Create comprehensive tests for all edge cases. Document recovery strategies and their limitations.
+

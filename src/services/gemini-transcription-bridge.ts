@@ -54,6 +54,10 @@ export class GeminiTranscriptionBridge extends EventEmitter {
   private middleware = getTranscriptionEventMiddleware()
   private config: BridgeConfig
   private isConnected = false
+  // Diagnostics history
+  private partialHistory: Array<{len: number; ts: number; sample: string; isFinal: boolean}> = []
+  private lastLength = 0
+  private growthResets = 0
 
   constructor(config: Partial<BridgeConfig> = {}) {
     super()
@@ -174,6 +178,10 @@ export class GeminiTranscriptionBridge extends EventEmitter {
 
     this.forwardToMiddleware(transcriptionEvent)
 
+  // Diagnostics capture for finals / modelTurn style messages
+  const len = (data.content || '').length
+  this.recordLength(len, !!data.isPartial)
+
     if (this.config.enableLogging) {
       logger.debug('Bridge: Forwarded text response', {
         textLength: transcriptionEvent.text.length,
@@ -201,6 +209,10 @@ export class GeminiTranscriptionBridge extends EventEmitter {
     }
 
     this.forwardToMiddleware(transcriptionEvent)
+
+  // Diagnostics capture for partial updates
+  const len = (data.text || '').length
+  this.recordLength(len, !data.isFinal)
 
     if (this.config.enableLogging) {
       logger.debug('Bridge: Forwarded transcription update', {
@@ -266,6 +278,43 @@ export class GeminiTranscriptionBridge extends EventEmitter {
       logger.error('Bridge: Failed to forward event to middleware', {
         error: error instanceof Error ? error.message : 'Unknown error'
       })
+    }
+  }
+
+  /**
+   * Record length progression for diagnostics.
+   */
+  private recordLength(len: number, isPartial: boolean): void {
+    const now = Date.now()
+    // Detect reset (length shrinks significantly)
+    if (len < this.lastLength * 0.5 && len < this.lastLength - 10) {
+      this.growthResets++
+      console.debug('[BridgeDiagnostics] Detected length reset', {
+        previous: this.lastLength,
+        current: len,
+        resets: this.growthResets
+      })
+    }
+    this.lastLength = len
+    this.partialHistory.push({
+      len,
+      ts: now,
+  sample: (isPartial ? 'P:' : 'F:') + String(len),
+      isFinal: !isPartial
+    })
+    if (this.partialHistory.length > 300) this.partialHistory.shift()
+  }
+
+  /** Return diagnostics snapshot */
+  getDiagnostics(): {
+    lastLength: number
+    resets: number
+    history: Array<{len: number; ts: number; isFinal: boolean}>
+  } {
+    return {
+      lastLength: this.lastLength,
+      resets: this.growthResets,
+      history: this.partialHistory.map(h => ({len: h.len, ts: h.ts, isFinal: h.isFinal}))
     }
   }
 

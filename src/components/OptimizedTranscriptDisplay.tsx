@@ -6,6 +6,10 @@
 import React, {memo, useMemo, useCallback, useState, useEffect, useRef} from 'react'
 import {useTranscriptStore, transcriptSelectors} from '../state/transcript-state'
 import {TranscriptEntry, TranscriptChunk} from '../services/optimized-transcript-processor'
+import {
+  useTranscriptCountInvariant,
+  TranscriptCountValidation
+} from '../utils/transcript-count-invariant'
 
 // Performance monitoring hook
 const useRenderPerformance = (componentName: string) => {
@@ -339,6 +343,26 @@ export const OptimizedTranscriptDisplay = memo<OptimizedTranscriptDisplayProps>(
     const chunks = useTranscriptStore(state => state.chunks)
     const searchResults = useTranscriptStore(state => state.searchResults)
     const isStreaming = useTranscriptStore(state => state.isStreaming)
+
+    // Development-mode invariant check for transcript count consistency
+    useTranscriptCountInvariant('OptimizedTranscriptDisplay', filteredEntries.length, {
+      includeFiltered: true,
+      additionalInfo: {
+        viewMode,
+        isStreaming,
+        enableVirtualization
+      }
+    })
+
+    // Validate count matches for development debugging
+    useEffect(() => {
+      if (process.env.NODE_ENV === 'development') {
+        TranscriptCountValidation.validateFilteredCount(
+          'OptimizedTranscriptDisplay',
+          filteredEntries.length
+        )
+      }
+    }, [filteredEntries.length])
 
     // Actions
     const setSelectedEntry = useTranscriptStore(state => state.setSelectedEntry)

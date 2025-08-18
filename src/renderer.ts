@@ -4,25 +4,29 @@ import App from './App'
 
 console.log('🚀 DAO Copilot: Renderer starting...')
 
-// Wait for DOM to be ready
-window.addEventListener('DOMContentLoaded', () => {
-  console.log('� DAO Copilot: DOM loaded, mounting React...')
+// We previously mounted React only inside a DOMContentLoaded listener. Because the script
+// tag is placed at the end of <body>, the DOM is already parsed when this executes, so
+// the listener never fired and the page stayed stuck on the static "Loading..." text.
+// Fix: mount immediately if the document is already ready; otherwise attach a listener.
 
+declare global {
+  interface Window {
+    __APP_MOUNTED?: boolean
+  }
+}
+
+function mountReactApp() {
+  console.log('✅ DAO Copilot: Mounting React application...')
   try {
     const appElement = document.getElementById('app')
-    if (!appElement) {
-      throw new Error('App element not found')
-    }
-
-    console.log('✅ DAO Copilot: App element found, mounting full app...')
+    if (!appElement) throw new Error('App element not found')
 
     const root = createRoot(appElement)
     root.render(React.createElement(React.StrictMode, null, React.createElement(App)))
-
-    console.log('✅ DAO Copilot: FULL App rendered successfully!')
+    console.log('✅ DAO Copilot: App rendered successfully!')
+    window.__APP_MOUNTED = true
   } catch (error) {
-    console.error('🚨 DAO Copilot: Error in renderer:', error)
-
+    console.error('🚨 DAO Copilot: Error mounting renderer:', error)
     const appElement = document.getElementById('app')
     if (appElement) {
       appElement.innerHTML = `
@@ -34,6 +38,14 @@ window.addEventListener('DOMContentLoaded', () => {
       `
     }
   }
-})
+}
 
-console.log('✅ DAO Copilot: Renderer script loaded, waiting for DOM...')
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', mountReactApp, {once: true})
+  console.log('⏳ DAO Copilot: DOM still loading, deferred mount registered...')
+} else {
+  // DOM already parsed; mount immediately
+  mountReactApp()
+}
+
+console.log('✅ DAO Copilot: Renderer bootstrap complete.')
