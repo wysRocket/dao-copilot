@@ -1,0 +1,106 @@
+# Live Streaming Text Renderer - Deep Refactoring PRD
+
+## Product Overview
+Completely refactor the Live Streaming Text Renderer system to properly handle real-time WebSocket transcriptions with character-by-character animations, while maintaining a clear separation between streaming and static transcription display.
+
+## Problem Statement
+Current implementation has critical issues:
+1. **Transcription Conflicts**: WebSocket and batch transcriptions are overwriting each other instead of WebSocket being the primary streaming source
+2. **Static Block Rendering**: Transcriptions appear as separate static blocks instead of live streaming animations
+3. **Context Separation**: Poor separation between streaming and static transcript management
+4. **Event Flow Issues**: WebSocket transcription events are not properly routing through the streaming renderer
+5. **Performance Problems**: Multiple stream buffers and conflicting state management
+
+## Core Requirements
+
+### 1. WebSocket-First Architecture
+- WebSocket transcriptions must be the PRIMARY streaming source
+- Batch transcriptions should only be fallback for non-real-time scenarios
+- Clear priority system: WebSocket > Streaming > Static
+
+### 2. Live Streaming Animation System
+- Character-by-character typewriter animation for real-time WebSocket results
+- Smooth transitions from streaming to static display
+- Real-time text correction highlighting
+- Configurable animation speeds and modes
+
+### 3. Transcription Source Management
+- Detect transcription source (websocket-gemini, batch, etc.)
+- Route WebSocket sources through streaming renderer
+- Route batch sources directly to static display
+- Prevent source conflicts and overwrites
+
+### 4. State Management Refactoring
+- Single source of truth for streaming state
+- Clear separation between active streaming and historical transcripts
+- Proper cleanup and memory management
+- Event-driven architecture
+
+### 5. UI/UX Requirements
+- Live streaming text appears above static transcripts
+- Smooth transitions when streaming completes
+- Visual indicators for streaming vs. static content
+- Accessibility compliance maintained
+
+## Technical Specifications
+
+### Architecture Components
+1. **StreamingTranscriptionManager**: Central coordinator for all transcription routing
+2. **WebSocketTranscriptionHandler**: Dedicated handler for WebSocket sources
+3. **LiveStreamingRenderer**: Real-time character animation component
+4. **TranscriptionStateManager**: Unified state management
+5. **SourcePriorityRouter**: Routes transcriptions based on source priority
+
+### Data Flow
+```
+Audio Input → WebSocket API → StreamingTranscriptionManager 
+    ↓
+WebSocketTranscriptionHandler → LiveStreamingRenderer (with animations)
+    ↓
+Animation Complete → Static Transcript List
+```
+
+### Integration Points
+- Main transcription service integration
+- IPC communication with main process
+- React component lifecycle management
+- Theme and accessibility systems
+
+## Success Criteria
+1. WebSocket transcriptions display with character-by-character animations
+2. No conflicts between transcription sources
+3. Smooth transitions from streaming to static
+4. Performance improvements with single stream management
+5. Proper accessibility and theme integration
+6. Clean separation of concerns in codebase
+
+## Technical Constraints
+- Must maintain backward compatibility with existing transcription system
+- TypeScript type safety throughout
+- Performance optimization for real-time rendering
+- Memory efficiency for long transcription sessions
+- Cross-platform compatibility (Electron app)
+
+## Implementation Priority
+1. **Critical**: Fix transcription source conflicts
+2. **Critical**: Implement proper WebSocket-to-streaming routing
+3. **High**: Live character animation rendering
+4. **High**: State management refactoring
+5. **Medium**: Performance optimizations
+6. **Low**: Advanced animation features
+
+## Testing Requirements
+- Unit tests for streaming components
+- Integration tests for transcription routing
+- Performance tests for animation rendering
+- Accessibility compliance testing
+- Cross-browser compatibility testing
+
+## Acceptance Criteria
+- [ ] WebSocket transcriptions appear with live animations
+- [ ] No transcription source conflicts
+- [ ] Smooth character-by-character typewriter effects
+- [ ] Proper transition from streaming to static display
+- [ ] Performance metrics within acceptable ranges
+- [ ] Accessibility features fully functional
+- [ ] Clean, maintainable code architecture

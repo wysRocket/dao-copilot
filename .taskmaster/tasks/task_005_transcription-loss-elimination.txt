@@ -1,0 +1,11 @@
+# Task ID: 5
+# Title: Create Orphan and Gap Detection Worker
+# Status: pending
+# Dependencies: 1, 2
+# Priority: medium
+# Description: Implement a background worker that detects and recovers orphaned transcripts and identifies gaps in transcription.
+# Details:
+Develop an OrphanDetectionWorker class that runs every 2 seconds to perform the following tasks: 1) Scan for partials with no update for more than 4 seconds and attempt to finalize them via forced flush call, 2) Scan for sessions with trailing partial < 150 chars and no final within 3 seconds and attempt to finalize them, 3) Emit telemetry events when recovery is performed. The worker should use a non-blocking approach to avoid impacting the main thread performance. Make timeout thresholds configurable via feature flags. Implement a GapDetector that uses audio alignment heuristics to identify potential missed segments. Create recovery strategies for each type of detected issue.
+
+# Test Strategy:
+Unit test the orphan detection logic with various scenarios of stuck partials and sessions. Test the gap detection algorithm with known audio samples containing intentional gaps. Create integration tests that simulate orphaned transcripts and verify recovery. Measure performance impact to ensure the worker doesn't affect main thread responsiveness. Test telemetry emission to verify correct reporting of recovery actions.

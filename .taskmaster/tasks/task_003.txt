@@ -1,21 +1,113 @@
 # Task ID: 3
-# Title: Integrate WebSocket Client with Audio Streaming
-# Status: pending
+# Title: Refactor CustomTitleBar Component
+# Status: done
 # Dependencies: 1, 2
-# Priority: high
-# Description: Connect the WebSocket client to the audio capture service for real-time streaming of audio data to the Gemini Live API.
+# Priority: medium
+# Description: Redesign the CustomTitleBar component using glassmorphism effects and the new dark theme.
 # Details:
-1. Create an AudioStreamingService class to bridge WebSocketClient and AudioCaptureService.
-2. Implement method to start streaming that initializes both WebSocket connection and audio capture.
-3. Convert audio chunks to base64-encoded strings for WebSocket transmission.
-4. Implement flow control to handle backpressure (use a queue with configurable max size).
-5. Use the 'buffer' npm package (version 6.x) for efficient binary data handling.
-6. Implement error handling for both WebSocket and audio capture failures.
-7. Use RxJS (version 7.x) for reactive stream processing if complex stream management is needed.
+1. Import necessary components from @rdev/liquid-glass-react
+2. Refactor CustomTitleBar.tsx to use GlassBox component for the main container
+3. Apply appropriate blur and opacity settings
+4. Implement glass effect for the Ask AI button
+5. Ensure window controls (minimize, maximize, close) are styled correctly
+6. Maintain existing functionality for dragging the window
+7. Implement subtle hover effects for interactive elements
 
 # Test Strategy:
-1. Unit test AudioStreamingService methods.
-2. Integration test with mock WebSocket server and audio input.
-3. Test flow control and backpressure handling.
-4. Verify correct audio data transmission format.
-5. Measure and assert on streaming performance metrics.
+1. Verify that the title bar renders correctly with glass effects
+2. Test window dragging functionality
+3. Ensure all buttons (Ask AI, window controls) work as expected
+4. Check that the title bar is responsive and adapts to different window sizes
+5. Validate that the component maintains its appearance and functionality across different operating systems
+
+# Subtasks:
+## 1. Fix ChatPage input area visibility [done]
+### Dependencies: None
+### Description: Fix the chat input area that was not visible due to layout issues
+### Details:
+1. Remove sticky positioning from input area\n2. Use flex-none layout for proper container flow\n3. Update parent container to remove overflow-hidden\n4. Use GlassBox for input wrapper consistency\n5. Ensure input is always visible and functional
+<info added on 2025-06-17T11:25:22.729Z>
+6. Fixed AssistantWindowLayout to use proper flex container with full height
+7. Added min-h-0 to main content area to prevent flex issues
+8. Added extra bottom padding (pb-6) to input area to prevent cut-off
+9. Enhanced input styling with proper glassmorphism effects
+10. Added send icon and improved button states
+11. Fixed container height issues that were causing input to be clipped
+</info added on 2025-06-17T11:25:22.729Z>
+<info added on 2025-06-17T11:29:58.312Z>
+12. Added proper background styling to AssistantWindowLayout
+13. Enhanced input area glass effects with gradient background and better shadows
+14. Improved GlassBox variant for input (medium instead of light)
+15. Enhanced glass CSS variables for more prominent effects
+16. Added better shadow and border styling
+17. Fixed additional container height issues to ensure chat input is fully visible
+</info added on 2025-06-17T11:29:58.312Z>
+<info added on 2025-06-17T11:32:34.920Z>
+18. Simplified ChatPage input styling to fix rendering issues:
+   - Removed complex GlassBox wrapper that was causing styling conflicts
+   - Used direct inline styling with CSS variables for reliable glass effect
+   - Simplified the input container structure
+   - Fixed input area being cut off at bottom
+   - Ensured proper backdrop blur and border styling
+   - Maintained clean, functional glassmorphism design
+</info added on 2025-06-17T11:32:34.920Z>
+<info added on 2025-06-17T11:35:03.878Z>
+19. Fixed message styling issues:
+   - Replaced GlassBox component with direct CSS glassmorphism for messages
+   - Enhanced backdrop blur effects (16px for better visibility)
+   - Added different shadow intensities for user vs assistant messages
+   - Added subtle border highlights with rgba for glass effect
+   - Improved hover effects with scale and shadow transitions
+   - User messages now have more prominent glass effect than assistant messages
+   - Messages now display proper glassmorphism with clear visual distinction between user and assistant messages
+</info added on 2025-06-17T11:35:03.878Z>
+
+## 2. Fix Chat Input Glassmorphism and Layout [done]
+### Dependencies: None
+### Description: Resolve chat input visibility and styling issues to ensure proper glassmorphism effects and user interaction.
+### Details:
+Enhanced chat input area with improved glassmorphism effects:
+
+- Fixed input area visibility and positioning issues
+- Enhanced glass effects with proper blur amounts (20px for heavy sections)
+- Added focus ring animation with blue glow effect
+- Improved button styling with dynamic colors based on input state
+- Added send icon to the submit button for better UX
+- Increased input height to 48px (h-12) for better usability
+- Added shadow effects for proper depth perception
+- Enhanced placeholder opacity transitions
+- Made button responsive to input state (colored when text is present)
+- Fixed layout container issues that were causing input clipping
+
+The chat input is now fully functional with proper glassmorphism styling and seamless user interaction.
+
+## 3. Synchronize theme toggle across all windows [done]
+### Dependencies: None
+### Description: Fix ThemeToggle to affect both MainWindow and Assistant window simultaneously
+### Details:
+1. Add window communication to ThemeToggle component\n2. Broadcast theme changes to all windows when toggle is clicked\n3. Add listener in ThemeProvider to handle theme changes from other windows\n4. Ensure theme state is synchronized across all windows
+
+## 4. Synchronize theme toggle across windows [done]
+### Dependencies: None
+### Description: Fix theme synchronization between MainWindow and Assistant window
+### Details:
+1. Update ThemeProvider to use useWindowCommunication hook\n2. Add proper message listener for theme-changed events\n3. Ensure theme toggle affects both windows simultaneously\n4. Add enhanced logging for debugging
+
+## 5. Fix theme sync with correct IPC method [done]
+### Dependencies: None
+### Description: Fix inter-window communication for theme synchronization
+### Details:
+1. Update ThemeProvider to use onInterWindowMessage instead of onMessage\n2. Ensure theme messages are properly received across windows\n3. Add enhanced logging for debugging theme sync issues\n4. Test theme toggle functionality across main and assistant windows
+
+## 6. Enhance Assistant window glassmorphism [done]
+### Dependencies: None
+### Description: Improve glassmorphism and color scheme in Assistant window
+### Details:
+1. Update AssistantWindowLayout header and footer with glass effects\n2. Apply glassmorphism to sidebar with proper backdrop blur\n3. Enhance TranscriptsPage with glass styling\n4. Replace Tailwind color classes with theme CSS variables\n5. Add consistent glass borders and shadows throughout\n6. Improve visual hierarchy with better glassmorphism
+
+## 7. Style Analysis and Settings pages with glassmorphism [done]
+### Dependencies: None
+### Description: Enhance Analysis and Settings pages with glassmorphism design
+### Details:
+1. Update AnalysisPage with glass card designs for statistics\n2. Apply glassmorphism to recent activity items\n3. Refactor SettingsPage with glass section containers\n4. Style form inputs with glass backgrounds and proper theming\n5. Replace all Tailwind color classes with CSS theme variables\n6. Add consistent glass borders, shadows, and backdrop blur effects\n7. Improve checkbox and button styling with theme colors\n8. Fix TypeScript errors for better type safety
+

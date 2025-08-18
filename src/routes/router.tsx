@@ -1,6 +1,7 @@
 import {createMemoryHistory, createRouter, createRoute} from '@tanstack/react-router'
 import {RootRoute} from './__root'
 import HomePage from '../pages/HomePage'
+import ZeroLatencyTestPage from '../pages/ZeroLatencyTestPage'
 
 declare module '@tanstack/react-router' {
   interface Register {
@@ -15,8 +16,14 @@ const HomeRoute = createRoute({
   component: HomePage
 })
 
+const ZeroLatencyTestRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: '/zero-latency-test',
+  component: ZeroLatencyTestPage
+})
+
 // Create route tree
-const rootTree = RootRoute.addChildren([HomeRoute])
+const rootTree = RootRoute.addChildren([HomeRoute, ZeroLatencyTestRoute])
 
 // Create router
 const history = createMemoryHistory({

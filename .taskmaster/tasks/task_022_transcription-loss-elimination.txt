@@ -1,0 +1,57 @@
+# Task ID: 22
+# Title: Implement Comprehensive Telemetry and Observability
+# Status: cancelled
+# Dependencies: 16, 17, 19, 20
+# Priority: medium
+# Description: Create a telemetry system that tracks key metrics, provides observability into the transcript pipeline, and enables alerting on anomalies.
+# Details:
+Develop a telemetry and observability system that:
+1. Tracks key metrics: partial_count, final_count, orphan_recovered, fallback_used, late_partial_ignored, wal_flush_ms, finalize_latency_ms (histogram), completeness_estimate
+2. Implements histogram tracking for latency metrics
+3. Sets up alert thresholds for orphan_recovered and fallback_used spikes
+4. Creates a dashboard for real-time monitoring
+5. Implements sampling and aggregation to reduce telemetry noise
+6. Adds context-aware logging throughout the transcript pipeline
+7. Creates anomaly detection for unusual patterns
+
+Code structure:
+```typescript
+interface TelemetryOptions {
+  sampleRate: number;
+  aggregationWindowMs: number;
+  alertThresholds: Record<string, number>;
+}
+
+class TelemetryManager {
+  private metrics: Map<string, number>;
+  private histograms: Map<string, number[]>;
+  private alertStatus: Map<string, boolean>;
+  
+  constructor(private options: TelemetryOptions) {...}
+  
+  
+  incrementCounter(name: string, value: number = 1): void {...}
+  recordHistogram(name: string, value: number): void {...}
+  emitMetrics(): void {...}
+  checkAlerts(): void {...}
+  resetCounters(): void {...}
+}
+
+class ObservabilityService {
+  constructor(private telemetry: TelemetryManager) {...}
+  
+  logStateTransition(from: string, to: string, context: any): void {...}
+  logRecoveryAttempt(success: boolean, context: any): void {...}
+  logPerformance(operation: string, durationMs: number): void {...}
+}
+```
+
+# Test Strategy:
+1. Unit tests for metric tracking and histogram recording
+2. Test alert threshold detection
+3. Verify sampling and aggregation logic
+4. Test telemetry emission with various sample rates
+5. Verify context-aware logging
+6. Integration tests to ensure metrics are captured correctly
+7. Test dashboard data flow
+8. Performance impact testing to ensure minimal overhead

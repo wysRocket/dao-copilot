@@ -1,0 +1,61 @@
+# Task ID: 23
+# Title: Develop Testing Framework and Chaos Suite
+# Status: cancelled
+# Dependencies: 16, 17, 18, 19
+# Priority: medium
+# Description: Create a comprehensive testing framework including network simulation, crash injection, and chaos testing to verify transcription resilience.
+# Details:
+Implement a testing framework that:
+1. Creates simulated network flaps (drop, jitter, latency injection)
+2. Implements crash-injection during critical points: mid-partial, pre-final flush, WAL write
+3. Develops an audio tail loss harness to verify captured transcription completeness
+4. Integrates chaos suite into CI for nightly runs
+5. Creates deterministic test scenarios for reproducible results
+6. Implements verification tools to compare transcription against reference
+7. Adds performance benchmarking capabilities
+
+Code structure:
+```typescript
+class NetworkSimulator {
+  simulateDrops(dropRate: number, duration: number): void {...}
+  simulateLatency(minMs: number, maxMs: number, duration: number): void {...}
+  simulateJitter(jitterMs: number, duration: number): void {...}
+  restoreNormalConditions(): void {...}
+}
+
+class CrashInjector {
+  injectCrashAtPoint(point: 'mid-partial' | 'pre-flush' | 'wal-write'): void {...}
+  scheduleRandomCrash(probabilityPerSecond: number): void {...}
+}
+
+class AudioTailTester {
+  private referenceAudio: AudioData;
+  private referenceTranscript: string;
+  
+  constructor(referenceAudio: AudioData, referenceTranscript: string) {...}
+  
+  runTest(): Promise<{
+    completeness: number;
+    missingSegments: string[];
+    passed: boolean;
+  }> {...}
+}
+
+class ChaosSuite {
+  private tests: Array<() => Promise<boolean>>;
+  
+  addTest(name: string, test: () => Promise<boolean>): void {...}
+  runAll(): Promise<TestResults> {...}
+  generateReport(): TestReport {...}
+}
+```
+
+# Test Strategy:
+1. Verify network simulation accurately reproduces real-world conditions
+2. Test crash injection at various critical points
+3. Validate audio tail loss harness against known reference transcripts
+4. Verify chaos suite integration with CI
+5. Test deterministic scenarios for reproducibility
+6. Verify performance benchmarking accuracy
+7. Test the test framework itself for reliability
+8. Ensure minimal false positives/negatives in test results

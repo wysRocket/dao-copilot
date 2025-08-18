@@ -1,0 +1,53 @@
+# Task ID: 26
+# Title: Implement Session Boundary Handling
+# Status: cancelled
+# Dependencies: 16, 17, 20
+# Priority: high
+# Description: Improve session boundary handling to prevent ID reuse/mismatch and ensure orphaned partials are properly finalized during session transitions.
+# Details:
+Develop session boundary handling that:
+1. Implements unique session ID generation and validation
+2. Prevents session ID reuse or collision
+3. Creates proper cleanup procedures for session end
+4. Implements handling for orphaned partials during session transitions
+5. Adds session metadata tracking
+6. Creates session boundary event hooks
+7. Implements session recovery for interrupted sessions
+
+Code structure:
+```typescript
+class SessionManager {
+  private activeSessions: Map<string, SessionInfo>;
+  private sessionHistory: Set<string>;
+  
+  constructor(private transcriptManager: TranscriptLifecycleManager) {...}
+  
+  createSession(): string {...} // Returns unique session ID
+  endSession(sessionId: string): Promise<void> {...}
+  validateSessionId(sessionId: string): boolean {...}
+  getSessionInfo(sessionId: string): SessionInfo | null {...}
+  handleOrphanedPartials(sessionId: string): Promise<number> {...} // Returns count of recovered partials
+  registerSessionBoundaryHook(hook: SessionBoundaryHook): void {...}
+}
+
+interface SessionInfo {
+  id: string;
+  startTime: number;
+  endTime?: number;
+  partialCount: number;
+  finalizedCount: number;
+  metadata: Record<string, any>;
+}
+
+type SessionBoundaryHook = (event: 'start' | 'end', sessionId: string) => Promise<void>;
+```
+
+# Test Strategy:
+1. Unit tests for session ID generation and validation
+2. Test session cleanup procedures
+3. Verify orphaned partial handling during transitions
+4. Test session metadata tracking
+5. Verify session boundary event hooks
+6. Test session recovery for interrupted sessions
+7. Integration tests with multiple sequential sessions
+8. Verify no ID collisions under high volume

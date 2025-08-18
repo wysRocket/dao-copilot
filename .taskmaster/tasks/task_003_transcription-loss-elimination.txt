@@ -1,0 +1,11 @@
+# Task ID: 3
+# Title: Implement Connection Management and Pre-Roll Buffer
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Create a connection pool manager with warm connections and implement an audio pre-roll buffer to prevent clipping of initial speech.
+# Details:
+Develop a ConnectionPoolManager class that maintains a pool of warm WebSocket connections to the transcription service. Implement heartbeat verification every 15 seconds to ensure connections remain active. Create an AudioPreRollBuffer class that retains 500ms of audio before detected speech to prevent clipping. Implement a queueing mechanism for partials when a connection is not ready when recording starts, with flush on ready within a 1s window. The connection pool should be configurable via feature flags (pool size, pre-warm strategy). Implement graceful connection recycling to prevent resource leaks.
+
+# Test Strategy:
+Unit test connection pool management, including creation, verification, and recycling of connections. Test the audio pre-roll buffer with various audio inputs to verify it correctly captures speech onset. Create integration tests that simulate recording start with both ready and not-ready connections. Measure and verify that the first utterance clipping is eliminated. Test connection heartbeat and verify dead connections are properly detected and replaced.

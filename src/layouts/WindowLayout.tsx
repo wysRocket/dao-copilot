@@ -2,6 +2,7 @@ import React from 'react'
 import {useWindowState} from '../contexts/WindowStateProvider'
 import {useGlassEffects} from '../contexts/GlassEffectsProvider'
 
+// Re-enabling components now that renderer safety is established
 import CustomTitleBar from '../components/CustomTitleBar'
 import {FocusManager} from '../components/FocusManager'
 import {BackgroundEffect} from '../components/ui/BackgroundEffect'
@@ -11,7 +12,6 @@ import {useKeyboardShortcuts, useWindowShortcuts} from '../hooks/useKeyboardShor
 
 interface WindowLayoutProps {
   children: React.ReactNode
-  showTitleBar?: boolean
   showDragRegion?: boolean
   padding?: string
   className?: string
@@ -19,8 +19,6 @@ interface WindowLayoutProps {
 
 export default function WindowLayout({
   children,
-  showTitleBar = true,
-
   padding = 'p-2 pb-20',
   className = ''
 }: WindowLayoutProps) {
@@ -44,8 +42,8 @@ export default function WindowLayout({
 
       case 'assistant':
         return {
-          showTitleBar: true,
-          showDragRegion: true,
+          showTitleBar: false,
+          showDragRegion: false,
           padding: 'p-0',
           containerClass: 'h-screen flex flex-col'
         }
@@ -79,8 +77,6 @@ export default function WindowLayout({
   const layoutConfig = getLayoutConfig()
 
   // Override with props
-  const finalShowTitleBar = showTitleBar && layoutConfig.showTitleBar
-
   const finalPadding = padding || layoutConfig.padding
 
   return (
@@ -106,7 +102,8 @@ export default function WindowLayout({
           />
         )}
 
-        {finalShowTitleBar && <CustomTitleBar />}
+        {/* Re-enabling CustomTitleBar now that renderer safety is established */}
+        {layoutConfig.showTitleBar && <CustomTitleBar />}
 
         <main className={`relative z-10 ${finalPadding}`}>{children}</main>
 

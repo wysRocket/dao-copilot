@@ -35,6 +35,7 @@ const GlassEffectsContext = createContext<GlassEffectsContextType | null>(null)
 export const GlassEffectsProvider: React.FC<{children: ReactNode}> = ({children}) => {
   const [config, setConfig] = useState<GlassEffectsConfig>(defaultConfig)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isUpdatingFromBroadcast = useRef(false)
 
   // Load config from localStorage on mount
   useEffect(() => {
@@ -51,6 +52,12 @@ export const GlassEffectsProvider: React.FC<{children: ReactNode}> = ({children}
 
   // Save config to localStorage when it changes (debounced)
   useEffect(() => {
+    // Skip broadcasting if this update came from a broadcast to prevent loops
+    if (isUpdatingFromBroadcast.current) {
+      isUpdatingFromBroadcast.current = false
+      return
+    }
+
     // Clear existing timeout
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
@@ -87,6 +94,8 @@ export const GlassEffectsProvider: React.FC<{children: ReactNode}> = ({children}
     if (typeof window !== 'undefined' && window.electronWindow?.onInterWindowMessage) {
       const unsubscribe = window.electronWindow.onInterWindowMessage((channel, ...args) => {
         if (channel === 'glass-effects-changed' && args[0]) {
+          // Mark that this update is from a broadcast to prevent feedback loop
+          isUpdatingFromBroadcast.current = true
           setConfig(args[0])
         }
       })

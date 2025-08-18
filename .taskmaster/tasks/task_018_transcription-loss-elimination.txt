@@ -1,0 +1,53 @@
+# Task ID: 18
+# Title: Develop Connection Management and Audio Pre-Roll Buffer
+# Status: cancelled
+# Dependencies: 16
+# Priority: high
+# Description: Implement a connection pool with warm connections and heartbeat verification, plus an audio pre-roll buffer to prevent clipping of the first utterance.
+# Details:
+Create a robust connection management system with:
+1. Implement a connection pool that maintains warm WebSocket connections
+2. Add heartbeat verification every 15 seconds to ensure connections are alive
+3. Create an audio pre-roll buffer that retains 500ms of audio before detected speech
+4. Implement queuing mechanism for partials when connection isn't ready
+5. Add flush logic to send queued partials within 1s window once connection is ready
+6. Implement connection status tracking and events
+7. Add graceful degradation when connections cannot be established
+
+Code structure:
+```typescript
+class ConnectionManager {
+  private connections: WebSocket[];
+  private heartbeatInterval: number;
+  private connectionStatus: 'ready' | 'connecting' | 'degraded';
+  
+  constructor(options: {
+    poolSize: number;
+    heartbeatIntervalMs: number;
+  }) {...}
+  
+  getConnection(): WebSocket {...}
+  verifyConnections(): void {...}
+  handleDisconnect(conn: WebSocket): void {...}
+}
+
+class AudioPreRollBuffer {
+  private buffer: AudioData[];
+  private bufferSizeMs: number;
+  
+  constructor(bufferSizeMs: number = 500) {...}
+  
+  addAudioChunk(chunk: AudioData): void {...}
+  getPreRollAudio(): AudioData {...}
+  clear(): void {...}
+}
+```
+
+# Test Strategy:
+1. Unit tests for connection pool management
+2. Test heartbeat verification and reconnection logic
+3. Verify audio pre-roll buffer captures correct amount of audio
+4. Test partial queuing and flushing when connection becomes ready
+5. Simulate network conditions to test connection status transitions
+6. Integration tests with mock audio input to verify end-to-end flow
+7. Stress test with rapid connection cycling

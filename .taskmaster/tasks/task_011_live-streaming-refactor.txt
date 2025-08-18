@@ -1,0 +1,31 @@
+# Task ID: 11
+# Title: Consolidate State Management Systems
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Remove redundancy between unified TranscriptionStateManager and StreamingTextContext to use single source of truth for transcription state
+# Details:
+
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Analyze Current State Usage [done]
+### Dependencies: None
+### Description: Analyze current dual state usage in TranscriptsPage to identify redundancies
+### Details:
+
+
+## 2. Remove StreamingTextContext Dependencies [done]
+### Dependencies: None
+### Description: Remove StreamingTextContext dependencies and consolidate to unified TranscriptionStateManager
+### Details:
+
+
+## 3. Update StreamingTextRenderer Integration [done]
+### Dependencies: None
+### Description: Update StreamingTextRenderer to work directly with unified state manager
+### Details:
+
+

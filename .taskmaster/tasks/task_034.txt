@@ -1,0 +1,625 @@
+# Task ID: 34
+# Title: Implement Live Streaming Text Renderer for Real-Time WebSocket Transcription Display
+# Status: pending
+# Dependencies: 4, 13, 16, 17, 33
+# Priority: high
+# Description: Create a sophisticated live text rendering system that displays streaming transcription results in real-time as they arrive from the Gemini Live API WebSocket connection, with smooth animations and proper handling of partial and final results.
+# Details:
+1. Update TranscriptDisplay Component:
+   a. Modify the existing TranscriptDisplay component to support streaming text:
+   ```typescript
+   interface StreamingTextProps {
+     text: string;
+     isPartial: boolean;
+     animationSpeed?: number;
+   }
+   
+   const StreamingText: React.FC<StreamingTextProps> = ({ 
+     text, 
+     isPartial, 
+     animationSpeed = 30 
+   }) => {
+     // Implementation of typewriter effect with React hooks
+   };
+   ```
+   
+   b. Create custom hooks for text animation:
+   ```typescript
+   function useTypewriterEffect(text: string, speed: number): string {
+     const [displayedText, setDisplayedText] = useState('');
+     // Implementation of typewriter animation logic
+   }
+   ```
+
+2. Implement Text Streaming Buffer:
+   a. Create a buffer manager for handling rapid text updates:
+   ```typescript
+   class TextStreamBuffer {
+     private buffer: string[] = [];
+     private debounceTimer: NodeJS.Timeout | null = null;
+     
+     public addChunk(text: string): void { /* Implementation */ }
+     public flush(): string { /* Implementation */ }
+     public clear(): void { /* Implementation */ }
+   }
+   ```
+   
+   b. Implement debouncing for smooth text updates during rapid streaming
+
+3. Create Visual State Indicators:
+   a. Implement visual indicators for different streaming states:
+     - Listening: Subtle pulsing animation
+     - Processing: Loading spinner
+     - Receiving: Animated cursor
+     - Complete: Stable text with completion indicator
+   
+   b. Add CSS transitions for smooth state changes:
+   ```css
+   .transcript-partial {
+     color: rgba(255, 255, 255, 0.7);
+     font-style: italic;
+   }
+   
+   .transcript-final {
+     color: rgba(255, 255, 255, 1);
+   }
+   
+   .transcript-correction {
+     animation: flash-highlight 0.5s ease-out;
+   }
+   ```
+
+4. Implement Text Correction Animations:
+   a. Create a diff algorithm to identify changed portions of text
+   b. Apply highlight animations to corrected text segments
+   c. Implement smooth transitions for text replacements
+
+5. Add Auto-Scrolling Functionality:
+   a. Implement smooth auto-scrolling to follow new content
+   b. Add scroll position memory to maintain user-defined scroll position
+   c. Provide visual indicator when new content is added out of view
+
+6. Optimize Performance:
+   a. Use React.memo and useMemo for component optimization
+   b. Implement virtualized rendering for long transcripts
+   c. Use requestAnimationFrame for smooth animations
+   d. Batch state updates to minimize re-renders
+
+7. Implement Connection Status Indicators:
+   a. Add visual feedback for WebSocket connection status
+   b. Create graceful degradation UI for connection issues
+   c. Implement reconnection animations
+
+8. Ensure Accessibility:
+   a. Maintain ARIA attributes during streaming updates
+   b. Ensure screen reader compatibility with live regions
+   c. Provide keyboard controls for transcript navigation
+
+# Test Strategy:
+1. Unit Testing:
+   a. Create unit tests for the StreamingText component:
+      - Test typewriter animation with various text lengths and speeds
+      - Verify correct rendering of partial vs. final text
+      - Test handling of text corrections and replacements
+      - Validate performance with rapid text updates
+   
+   b. Test the TextStreamBuffer implementation:
+      - Verify correct buffering of text chunks
+      - Test debouncing functionality with various timing scenarios
+      - Validate buffer flushing and clearing operations
+
+2. Integration Testing:
+   a. Test integration with WebSocket message handlers:
+      - Verify correct rendering of streaming text from WebSocket events
+      - Test handling of connection status changes
+      - Validate proper display of partial and final transcriptions
+   
+   b. Test with the glass UI components:
+      - Ensure compatibility with existing glass overlay effects
+      - Verify proper rendering within glass containers
+      - Test performance impact of animations with glass effects
+
+3. Performance Testing:
+   a. Measure rendering performance with Chrome DevTools:
+      - Test with various text streaming rates (slow, medium, fast)
+      - Verify frame rate remains above 30fps during animations
+      - Measure memory usage during extended streaming sessions
+   
+   b. Test on different devices and browsers:
+      - Verify consistent performance across platforms
+      - Test on lower-end devices to ensure acceptable performance
+
+4. Accessibility Testing:
+   a. Test with screen readers (NVDA, VoiceOver):
+      - Verify proper announcement of streaming text
+      - Test navigation through transcript content
+   
+   b. Validate keyboard accessibility:
+      - Test focus management during streaming
+      - Verify all controls are keyboard accessible
+
+5. Visual Regression Testing:
+   a. Create snapshot tests for different streaming states
+   b. Compare visual appearance before and after implementation
+   c. Verify animations render correctly across browsers
+
+# Subtasks:
+## 1. Create useStreamingText React hook [pending]
+### Dependencies: None
+### Description: Create useStreamingText React hook for managing streaming text state and animations
+### Details:
+Implement a custom React hook that manages the state of streaming text, including partial updates, text buffers, animation timing, and connection to WebSocket events. This hook will be the foundation for all streaming text components.
+
+## 2. Update TranscriptDisplay for streaming support [pending]
+### Dependencies: 34.1
+### Description: Update TranscriptDisplay component to support live streaming text display
+### Details:
+Enhance the existing TranscriptDisplay component to handle real-time streaming text updates. Add support for partial transcription display, smooth text animation, and connection status indicators while maintaining compatibility with existing functionality.
+
+## 3. Implement typewriter animation effects [pending]
+### Dependencies: 34.2
+### Description: Implement typewriter animation effect for real-time text streaming
+### Details:
+Create smooth typewriter-style animations that show text appearing character by character as it streams in from the WebSocket. Include configurable animation speeds, smooth cursor effects, and performance optimizations for long text streams.
+
+## 4. Create StreamingTextRenderer component [pending]
+### Dependencies: 34.1
+### Description: Create a core StreamingTextRenderer component that handles character-by-character and word-by-word streaming with configurable animation modes
+### Details:
+Develop the main streaming text renderer component that supports multiple rendering modes:
+
+1. Character-by-character streaming with typewriter effect
+2. Word-by-word streaming for better readability  
+3. Configurable animation speeds and timing
+4. Support for text formatting and rich content
+5. Handle text corrections and replacements smoothly
+6. Implement partial vs final text differentiation
+7. Add visual cursor and animation states
+
+```typescript
+interface StreamingTextRendererProps {
+  text: string;
+  isPartial: boolean;
+  mode: 'character' | 'word' | 'instant';
+  animationSpeed?: number;
+  onAnimationComplete?: () => void;
+}
+
+const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
+  text,
+  isPartial,
+  mode = 'character',
+  animationSpeed = 30
+}) => {
+  // Implementation with smooth animations and performance optimization
+};
+```
+
+## 5. Implement TextStreamBuffer [pending]
+### Dependencies: 34.4
+### Description: Implement TextStreamBuffer for handling rapid text updates and managing streaming text state efficiently
+### Details:
+Create a sophisticated text stream buffer system that manages incoming text chunks and optimizes rendering performance:
+
+1. Buffer rapid text updates to prevent UI thrashing
+2. Implement debouncing for smooth text transitions
+3. Handle text corrections and replacements efficiently
+4. Manage partial vs final text states
+5. Support text chunk reordering and merging
+6. Implement memory-efficient storage for long streams
+
+```typescript
+class TextStreamBuffer {
+  private buffer: TextChunk[] = [];
+  private debounceTimer: NodeJS.Timeout | null = null;
+  private listeners: ((text: string) => void)[] = [];
+  
+  public addChunk(chunk: TextChunk): void { /* Implementation */ }
+  public flush(): string { /* Implementation */ }
+  public clear(): void { /* Implementation */ }
+  public subscribe(listener: (text: string) => void): void { /* Implementation */ }
+}
+
+interface TextChunk {
+  id: string;
+  text: string;
+  isPartial: boolean;
+  timestamp: number;
+  correction?: boolean;
+}
+```
+
+## 6. Create visual state indicators [pending]
+### Dependencies: 34.4, 34.5
+### Description: Create visual state indicators for different streaming states (listening, processing, receiving, complete)
+### Details:
+Implement comprehensive visual feedback system for streaming text states:
+
+1. **Listening State**: Subtle pulsing animation to indicate ready for input
+2. **Processing State**: Loading spinner or progress indicator
+3. **Receiving State**: Animated cursor and streaming text effects
+4. **Complete State**: Stable text with completion indicator
+5. **Error State**: Visual error indicators and recovery prompts
+6. **Connection State**: WebSocket connection status indicators
+
+```typescript
+interface StreamingStateIndicatorProps {
+  state: 'listening' | 'processing' | 'receiving' | 'complete' | 'error' | 'disconnected';
+  connectionQuality?: 'good' | 'poor' | 'unstable';
+}
+
+const StreamingStateIndicator: React.FC<StreamingStateIndicatorProps> = ({
+  state,
+  connectionQuality
+}) => {
+  // Implementation with smooth state transitions and animations
+};
+```
+
+CSS animations for smooth transitions:
+```css
+.streaming-cursor {
+  animation: blink 1s linear infinite;
+}
+
+.streaming-partial {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.streaming-correction {
+  animation: flash-highlight 0.5s ease-out;
+}
+```
+
+## 7. Implement text correction animations [pending]
+### Dependencies: 34.4, 34.5
+### Description: Implement text correction animations with diff algorithm for highlighting changed portions
+### Details:
+Create sophisticated text correction and replacement animations that smoothly handle real-time transcription updates:
+
+1. **Diff Algorithm**: Implement efficient text diffing to identify changes
+2. **Highlight Animations**: Apply visual highlights to corrected segments
+3. **Smooth Transitions**: Implement seamless text replacement animations
+4. **Word-level Corrections**: Handle individual word corrections gracefully
+5. **Rollback Animations**: Support undo/redo visual effects
+6. **Performance Optimization**: Efficient DOM updates for rapid corrections
+
+```typescript
+interface TextDiff {
+  type: 'insert' | 'delete' | 'replace' | 'unchanged';
+  oldText?: string;
+  newText?: string;
+  position: number;
+}
+
+class TextDiffer {
+  public diff(oldText: string, newText: string): TextDiff[] { /* Implementation */ }
+  public applyDiff(element: HTMLElement, diffs: TextDiff[]): void { /* Implementation */ }
+}
+
+const useTextCorrection = (text: string) => {
+  const [displayText, setDisplayText] = useState('');
+  const [corrections, setCorrections] = useState<TextDiff[]>([]);
+  
+  // Implementation of text correction logic with animations
+};
+```
+
+CSS for correction animations:
+```css
+@keyframes highlight-correction {
+  0% { background-color: rgba(255, 215, 0, 0.3); }
+  100% { background-color: transparent; }
+}
+
+.text-correction {
+  animation: highlight-correction 1s ease-out;
+}
+```
+
+## 8. Add auto-scrolling functionality [pending]
+### Dependencies: 34.2, 34.4
+### Description: Add auto-scrolling functionality with smooth scrolling and scroll position memory
+### Details:
+Implement intelligent auto-scrolling behavior for the streaming text display:
+
+1. **Smart Auto-Scroll**: Automatically scroll to follow new content
+2. **User Scroll Detection**: Detect when user manually scrolls and pause auto-scroll
+3. **Scroll Position Memory**: Maintain user-defined scroll position preferences
+4. **Smooth Scrolling**: Use smooth CSS transitions for scroll animations
+5. **Viewport Optimization**: Only scroll when content is out of view
+6. **New Content Indicator**: Show notification when new content is added out of view
+7. **Scroll-to-Bottom Control**: Provide quick return to bottom functionality
+
+```typescript
+const useAutoScroll = (containerRef: RefObject<HTMLDivElement>) => {
+  const [isAutoScrolling, setIsAutoScrolling] = useState(true);
+  const [hasNewContent, setHasNewContent] = useState(false);
+  
+  const scrollToBottom = useCallback(() => {
+    // Smooth scroll to bottom implementation
+  }, []);
+  
+  const handleUserScroll = useCallback(() => {
+    // Detect manual scroll and pause auto-scroll
+  }, []);
+  
+  return {
+    isAutoScrolling,
+    hasNewContent,
+    scrollToBottom,
+    enableAutoScroll: () => setIsAutoScrolling(true),
+    disableAutoScroll: () => setIsAutoScrolling(false)
+  };
+};
+```
+
+CSS for smooth scrolling:
+```css
+.transcript-container {
+  scroll-behavior: smooth;
+  overflow-y: auto;
+}
+
+.new-content-indicator {
+  position: sticky;
+  bottom: 0;
+  background: rgba(0, 123, 255, 0.1);
+  border: 1px solid rgba(0, 123, 255, 0.3);
+  padding: 8px;
+  text-align: center;
+  cursor: pointer;
+}
+```
+
+## 9. Optimize performance [pending]
+### Dependencies: 34.4, 34.5, 34.6, 34.7
+### Description: Optimize performance with React.memo, virtualization, and efficient DOM updates
+### Details:
+Implement comprehensive performance optimizations for streaming text rendering:
+
+1. **React Optimization**: Use React.memo, useMemo, and useCallback for component optimization
+2. **Virtualized Rendering**: Implement virtual scrolling for long transcripts
+3. **Efficient Animations**: Use requestAnimationFrame for smooth 60fps animations
+4. **DOM Update Batching**: Batch state updates to minimize re-renders
+5. **Memory Management**: Implement cleanup and garbage collection for long sessions
+6. **Intersection Observer**: Only animate visible text elements
+7. **Web Workers**: Offload text processing to background threads when possible
+
+```typescript
+// Memoized streaming text component
+const StreamingTextRenderer = React.memo<StreamingTextRendererProps>(({
+  text,
+  isPartial,
+  mode,
+  animationSpeed
+}) => {
+  // Optimized implementation with useMemo and useCallback
+});
+
+// Virtual scrolling for long transcripts
+const VirtualizedTranscript = React.memo<VirtualizedTranscriptProps>(({
+  items,
+  height,
+  itemHeight
+}) => {
+  const [startIndex, endIndex] = useVirtualization(items.length, height, itemHeight);
+  
+  return (
+    <div style={{ height }}>
+      {items.slice(startIndex, endIndex).map((item, index) => (
+        <StreamingTextRenderer key={item.id} {...item} />
+      ))}
+    </div>
+  );
+});
+
+// Performance monitoring hook
+const usePerformanceMonitor = () => {
+  const [metrics, setMetrics] = useState({
+    fps: 0,
+    renderTime: 0,
+    memoryUsage: 0
+  });
+  
+  // Implementation of performance monitoring
+};
+```
+
+Performance optimization techniques:
+- Use React DevTools Profiler to identify bottlenecks
+- Implement shouldComponentUpdate logic
+- Optimize CSS with will-change property
+- Use transform3d for hardware acceleration
+
+## 10. Integrate with WebSocket events [pending]
+### Dependencies: 34.1, 34.2, 34.4, 34.5, 34.6
+### Description: Integrate with WebSocket message handlers and connection status events
+### Details:
+Create seamless integration between the streaming text renderer and the WebSocket connection system:
+
+1. **Event Integration**: Connect streaming text components to WebSocket events
+2. **Message Parsing**: Handle various message types from Gemini Live API
+3. **Connection Status**: Reflect WebSocket connection state in UI
+4. **Error Handling**: Graceful degradation when connection issues occur
+5. **Reconnection Support**: Handle reconnection scenarios smoothly
+6. **Message Queue**: Buffer messages during connection issues
+7. **State Synchronization**: Keep streaming state in sync with connection state
+
+```typescript
+// WebSocket integration hook
+const useWebSocketStreaming = () => {
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const [streamingText, setStreamingText] = useState('');
+  const [isPartial, setIsPartial] = useState(false);
+  
+  const handleWebSocketMessage = useCallback((message: GeminiLiveMessage) => {
+    if (message.type === 'text' || message.type === 'transcription') {
+      setStreamingText(message.content);
+      setIsPartial(message.metadata?.isPartial || false);
+    }
+  }, []);
+  
+  const handleConnectionStateChange = useCallback((state: ConnectionState) => {
+    setConnectionState(state);
+    // Handle connection state changes
+  }, []);
+  
+  return {
+    connectionState,
+    streamingText,
+    isPartial,
+    isConnected: connectionState === 'connected'
+  };
+};
+
+// Enhanced TranscriptDisplay with WebSocket integration
+const EnhancedTranscriptDisplay: React.FC = () => {
+  const { connectionState, streamingText, isPartial } = useWebSocketStreaming();
+  
+  return (
+    <GlassBox>
+      <StreamingStateIndicator state={connectionState} />
+      <StreamingTextRenderer 
+        text={streamingText}
+        isPartial={isPartial}
+        mode="character"
+      />
+    </GlassBox>
+  );
+};
+```
+
+## 11. Ensure accessibility compliance [pending]
+### Dependencies: 34.2, 34.6, 34.8, 34.9, 34.10
+### Description: Ensure accessibility compliance with ARIA attributes and screen reader support
+### Details:
+Implement comprehensive accessibility features for the streaming text renderer:
+
+1. **ARIA Live Regions**: Use aria-live for announcing streaming text to screen readers
+2. **Keyboard Navigation**: Ensure all controls are keyboard accessible
+3. **Screen Reader Support**: Optimize for NVDA, JAWS, and VoiceOver compatibility
+4. **Focus Management**: Proper focus handling during streaming updates
+5. **High Contrast**: Support for high contrast mode and custom themes
+6. **Reduced Motion**: Respect prefers-reduced-motion user preferences
+7. **Semantic HTML**: Use proper semantic elements for content structure
+
+```typescript
+// Accessible streaming text component
+const AccessibleStreamingText: React.FC<StreamingTextRendererProps> = ({
+  text,
+  isPartial,
+  mode,
+  animationSpeed
+}) => {
+  const announceToScreenReader = useCallback((text: string) => {
+    // Implementation for screen reader announcements
+  }, []);
+  
+  return (
+    <div
+      role="log"
+      aria-live="polite"
+      aria-label="Live transcription"
+      className="streaming-text-container"
+    >
+      <StreamingTextRenderer
+        text={text}
+        isPartial={isPartial}
+        mode={mode}
+        animationSpeed={animationSpeed}
+      />
+    </div>
+  );
+};
+
+// Accessibility hook
+const useAccessibility = () => {
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [highContrast, setHighContrast] = useState(false);
+  
+  useEffect(() => {
+    // Detect user preferences for reduced motion and high contrast
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mediaQuery.matches);
+  }, []);
+  
+  return { reducedMotion, highContrast };
+};
+```
+
+CSS for accessibility:
+```css
+@media (prefers-reduced-motion: reduce) {
+  .streaming-text-animation {
+    animation: none !important;
+  }
+}
+
+@media (prefers-contrast: high) {
+  .streaming-text {
+    color: var(--high-contrast-text);
+    background: var(--high-contrast-background);
+  }
+}
+
+.streaming-text:focus {
+  outline: 2px solid var(--focus-color);
+  outline-offset: 2px;
+}
+```
+
+## 12. Create comprehensive test suite [pending]
+### Dependencies: 34.1, 34.2, 34.3, 34.4, 34.5, 34.6, 34.7, 34.8, 34.9, 34.10, 34.11
+### Description: Create comprehensive test suite for streaming text renderer components
+### Details:
+Develop a comprehensive testing strategy for all streaming text renderer components:
+
+1. **Unit Tests**: Test individual components and hooks in isolation
+2. **Integration Tests**: Test component interactions and WebSocket integration
+3. **Performance Tests**: Validate rendering performance under various conditions
+4. **Accessibility Tests**: Ensure WCAG 2.1 AA compliance
+5. **Visual Regression Tests**: Verify animations and visual consistency
+6. **End-to-End Tests**: Test complete user workflows with streaming text
+7. **Load Tests**: Test performance with high-frequency text updates
+
+```typescript
+// Unit test example
+describe('StreamingTextRenderer', () => {
+  it('should render text with typewriter effect', async () => {
+    render(<StreamingTextRenderer text="Hello World" mode="character" />);
+    // Test typewriter animation
+  });
+  
+  it('should handle text corrections smoothly', async () => {
+    const { rerender } = render(<StreamingTextRenderer text="Hello Wrld" />);
+    rerender(<StreamingTextRenderer text="Hello World" />);
+    // Test correction animation
+  });
+});
+
+// Performance test example
+describe('Performance Tests', () => {
+  it('should maintain 60fps during rapid text updates', async () => {
+    const performanceMonitor = new PerformanceMonitor();
+    // Simulate rapid text updates and measure performance
+  });
+});
+
+// Accessibility test example
+describe('Accessibility Tests', () => {
+  it('should announce text to screen readers', async () => {
+    render(<AccessibleStreamingText text="Test" />);
+    // Test screen reader announcements
+  });
+});
+```
+
+Test scenarios to cover:
+- Various text lengths and update frequencies
+- Different animation modes and speeds
+- Connection state changes and error conditions
+- Accessibility with different assistive technologies
+- Performance on different devices and browsers
+

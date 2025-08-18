@@ -1,0 +1,11 @@
+# Task ID: 9
+# Title: Enhance UI Integrity and Status Indicators
+# Status: pending
+# Dependencies: 1, 4, 6
+# Priority: medium
+# Description: Improve UI integrity with stable keys and add visual status indicators for transcript state.
+# Details:
+Audit and enhance React component key stability to prevent render-level collisions. Implement an invariant check in development mode that asserts visible transcript count equals store transcript count. Add visual status indicators in the UI for recovered transcripts, fallback mode, and degraded mode. Create a TranscriptStatusBadge component that displays the appropriate badge based on transcript state. Implement smooth transitions when transcript state changes to avoid jarring UI updates. Add tooltips to explain the meaning of each status indicator to users.
+
+# Test Strategy:
+Unit test the React components with various transcript states to verify correct rendering. Test the invariant check with known good and bad states. Create visual regression tests to ensure status indicators appear correctly across different browsers and screen sizes. Test accessibility of the status indicators to ensure they work with screen readers and other assistive technologies. Test performance to ensure adding status indicators doesn't impact rendering speed.

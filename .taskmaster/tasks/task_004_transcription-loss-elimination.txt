@@ -1,0 +1,55 @@
+# Task ID: 4
+# Title: Develop Fallback and Replay Mechanism
+# Status: pending
+# Dependencies: 1, 2, 3
+# Priority: high
+# Description: Implement a multi-tier fallback system with replay capabilities to handle WebSocket interruptions and network issues.
+# Details:
+Create a FallbackManager class that implements the multi-tier fallback strategy: WebSocket → Streaming HTTP → Batch finalize. When a WebSocket is interrupted mid-utterance, capture residual buffered audio, send via batch API, and reconcile into the existing utterance ID. Implement an exponential backoff retry policy (250ms, 500ms, 1s, 2s, 5s) with circuit breaking after 5 failures, degrading to batch-only mode and surfacing a UI banner. Develop a ReplayEngine that can resend missed audio segments when connections are restored. Ensure all fallback operations maintain the transcript's UUID for proper reconciliation. Add telemetry events for fallback usage and recovery attempts.
+
+# Test Strategy:
+Unit test each fallback tier and the transition logic between tiers. Test the retry policy with simulated failures to verify correct backoff behavior. Create integration tests that simulate various network conditions (disconnects, high latency, packet loss) to verify the fallback mechanism correctly preserves transcripts. Test the circuit breaker functionality and verify proper degradation to batch-only mode. Verify that the UI banner is correctly displayed when in degraded mode.
+
+# Subtasks:
+## 1. Implement WebSocket Interruption Detection [pending]
+### Dependencies: None
+### Description: Create a system to detect and respond to WebSocket connection interruptions in real-time.
+### Details:
+Implement ConnectionMonitor class in src/network/ConnectionMonitor.ts that detects WebSocket disconnections, timeouts, and errors. Add event listeners for connection state changes. Create a heartbeat mechanism to detect silent failures. Implement metrics collection for connection quality and interruption frequency. Add unit tests in tests/network/ConnectionMonitor.test.ts to verify detection works under various failure scenarios.
+
+## 2. Create Multi-tier Fallback Strategy [pending]
+### Dependencies: None
+### Description: Implement the core fallback logic to transition between WebSocket, Streaming HTTP, and Batch API modes.
+### Details:
+Create FallbackManager class in src/fallback/FallbackManager.ts that orchestrates transitions between connection modes. Implement TransportStrategy interface with concrete implementations for each tier (WebSocketTransport, StreamingHttpTransport, BatchApiTransport). Add state machine to track current transport mode. Implement smooth transition logic that preserves in-flight data. Create tests in tests/fallback/FallbackManager.test.ts that verify correct transitions between tiers.
+
+## 3. Develop Exponential Backoff Retry Policy [pending]
+### Dependencies: None
+### Description: Implement retry mechanism with exponential backoff for handling transient failures.
+### Details:
+Create RetryPolicy class in src/fallback/RetryPolicy.ts implementing exponential backoff (250ms, 500ms, 1s, 2s, 5s). Add jitter to prevent thundering herd problems. Implement retry count tracking and timeout calculation. Create RetryContext to maintain state across retry attempts. Add unit tests in tests/fallback/RetryPolicy.test.ts to verify timing sequences and retry behavior.
+
+## 4. Implement Circuit Breaker Logic [pending]
+### Dependencies: None
+### Description: Create circuit breaker pattern implementation to prevent repeated failures and degrade gracefully.
+### Details:
+Implement CircuitBreaker class in src/fallback/CircuitBreaker.ts with Open, Half-Open, and Closed states. Add failure threshold configuration (5 failures). Implement automatic degradation to batch-only mode when circuit is open. Create recovery logic to test connections and restore service. Add UI notification system integration in src/ui/StatusNotifier.ts. Create tests in tests/fallback/CircuitBreaker.test.ts to verify state transitions and recovery behavior.
+
+## 5. Create Audio Segment Replay Engine [pending]
+### Dependencies: None
+### Description: Develop system to buffer, store, and replay missed audio segments when connections are restored.
+### Details:
+Implement ReplayEngine class in src/fallback/ReplayEngine.ts that buffers recent audio segments. Create AudioSegmentBuffer to store audio data with timestamps and sequence IDs. Implement replay prioritization logic to handle backlog efficiently. Add reconciliation with existing partial transcripts. Create cleanup policy for expired segments. Add tests in tests/fallback/ReplayEngine.test.ts to verify correct buffering and replay behavior.
+
+## 6. Add Transcript UUID Reconciliation [pending]
+### Dependencies: None
+### Description: Ensure all fallback operations maintain transcript continuity by preserving and reconciling UUIDs.
+### Details:
+Create TranscriptReconciler class in src/fallback/TranscriptReconciler.ts to maintain transcript identity across transport changes. Implement UUID preservation in all transport implementations. Add logic to merge partial transcripts from different sources. Create conflict resolution for overlapping segments. Implement tests in tests/fallback/TranscriptReconciler.test.ts to verify transcript continuity across transport changes.
+
+## 7. Implement UI Indicators for Degraded Modes [pending]
+### Dependencies: None
+### Description: Create user interface components to notify users of connection issues and degraded service modes.
+### Details:
+Implement ConnectionStatusBanner component in src/ui/ConnectionStatusBanner.tsx that displays current connection state. Create StatusIndicator component for subtle status display. Add internationalization support for error messages. Implement toast notifications for transient issues. Create status event system to propagate connection state changes to UI. Add tests in tests/ui/ConnectionStatusBanner.test.tsx to verify correct rendering of different states.
+

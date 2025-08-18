@@ -1,175 +1,87 @@
-# Product Requirements Document: Gemini Live API WebSocket Integration
+Title: Real-Time Transcription Reliability & Loss Elimination Initiative
+Tag: transcription-reliability
+Version: 1.0
+Owner: Streaming Pipeline Team
+Last-Updated: 2025-08-09
 
-## Overview
-Update the DAO Copilot transcribing flow to integrate with Google's Gemini Live API using WebSocket connections for real-time transcription capabilities. This migration from the current batch-based approach will provide better performance, lower latency, and improved accuracy.
+Objective
+Eliminate partial/final transcript text loss, premature completion, duplication, and silent truncation during long-form (>5 min) continuous speech sessions using Gemini Live. Provide diagnostic observability and adaptive strategies to ensure >99.5% token retention and stable user-visible continuity.
 
-## Background
-The current implementation uses batch-based transcription where audio is recorded in intervals and sent to the Gemini API via HTTP requests. Google has released the Gemini Live API which provides enhanced real-time transcription features through WebSocket connections, offering better performance and lower latency.
+Success Metrics
+- Token Retention: >= 99.5% of characters compared to ground-truth reference (offline batch run) for 10-minute speech samples.
+- Latency: Additional processing adds < 20ms P95 over current path.
+- Premature Finalization Incidents: 0 during active speech (VAD / energy > threshold) across test set.
+- Reset Recovery: After model length reset events, accumulated text divergence < 1.0% (Levenshtein) from ideal aggregation.
+- Observability: Real-time panel shows length growth, reset events, guard status, and raw tail; exportable session diagnostics file.
 
-## Objectives
-- Replace the current batch-based transcription with real-time WebSocket streaming
-- Implement WebSocket client for Gemini Live API integration
-- Maintain all existing functionality while improving performance
-- Provide seamless user experience with real-time transcription updates
-- Implement robust error handling and reconnection logic
+Current Issues (Observed)
+1. Early stream auto-complete due to fixed timeout not being extended by incoming partials (fixed, regression risk remains).
+2. Severe losses: Long speech reducing to 1–N words (suspected overwrites after resets / guard pruning / diff-mode tokens).
+3. Over-aggressive regression guard previously filtered legitimate short fragments (guard now disabled by default).
+4. Model length resets (shrink >50%) causing accumulation to overwrite tail segments.
+5. Lack of adaptive distinction: full-text replacement vs incremental diff emissions.
+6. Limited post-session forensic artifact; difficult to compare with ground truth.
+7. UI not yet surfacing diagnostics (panel component added but not wired/integrated into app layout and export flow).
 
-## Technical Requirements
+Scope (In)
+- Adaptive accumulation strategies (hybrid replace/append with overlap & reset heuristics)
+- Dynamic regression guard enablement tied to reset frequency & false-positive mitigation
+- Forensic session logging (structured JSON, optional compressed) and export button
+- Offline comparison harness (playback recorded audio -> offline transcription -> diff vs live session) to measure retention
+- UI diagnostics integration & controls (toggle guard, export logs, highlight resets)
+- Resilience to diff-only token mode / late-arriving partial fragments
+- Improved finalization reliability (ensure final always >= max of partial snapshots)
 
-### 1. WebSocket Implementation
-- Implement WebSocket client for Gemini Live API integration
-- Establish bidirectional communication with the API
-- Handle connection lifecycle (open, close, error events)
-- Implement reconnection logic with exponential backoff
-- Support binary and text message formats
+Scope (Out)
+- Switching transcription provider
+- Full-featured VAD redesign
+- Multi-language translation pipeline
+- Advanced semantic error correction (post-processing language model passes)
 
-### 2. Real-time Audio Streaming
-- Replace batch audio processing with continuous streaming
-- Implement audio capture using Web Audio API
-- Convert audio data to required format (16-bit PCM)
-- Stream audio chunks in real-time over WebSocket
-- Implement audio buffering and backpressure handling
+Constraints / Non-Goals
+- Keep added memory bounded (caps & ring buffers) – < 5MB per 10-minute session for diagnostics.
+- Avoid blocking UI thread; heavy diffing done off main via web worker if needed.
 
-### 3. Connection Management
-- Proper WebSocket connection lifecycle management
-- Handle network interruptions gracefully
-- Implement heartbeat mechanism for connection health
-- Support authentication and session management
-- Clean up resources on disconnection
+Key Risks
+- Misclassification of diff-mode could create duplications.
+- Excessive snapshotting may inflate memory.
+- Export logs may contain PII (user speech); need redaction toggle.
 
-### 4. Error Handling and Recovery
-- Graceful handling of WebSocket connection failures
-- Fallback to HTTP-based approach when WebSocket fails
-- Network interruption recovery
-- API error handling and user feedback
-- Connection state management and status indicators
+High-Level Approach
+A. Instrumentation Completion: Wire diagnostics panel, bridge + manager data feed, export facility.
+B. Adaptive Strategy Layer: Detect reset/diff patterns -> choose merge policy (append, overlap-merge, or protected replacement).
+C. Guard Orchestration: Enable regression guard only when reset rate exceeds threshold & disable automatically when stable.
+D. Finalization Integrity: Reconcile final with max-length snapshot; never shrink.
+E. Offline Validation Harness: Deterministic audio playback -> capture live & offline transcripts -> diff metrics.
+F. Reporting & Telemetry: Aggregated counters (resets/min, shrink events averted, guard toggles, retention estimates).
 
-### 5. UI/UX Updates
-- Real-time transcription display updates
-- Connection status indicators
-- Streaming progress feedback
-- Smooth animations for live transcription
-- Performance optimizations for continuous updates
+Milestones
+1. Diagnostics Integration & Export
+2. Adaptive Detection Heuristics (diff vs full-text)
+3. Merge Policy Implementation & Guard Automation
+4. Finalization Safety & No-Shrink Enforcement
+5. Offline Playback Harness & Retention Metric Pipeline
+6. PII-Redactable Log Export & Session Report
+7. Performance Optimization & Memory Bound Validation
+8. Release Hardening & Documentation
 
-### 6. Performance Optimization
-- Efficient audio data processing
-- Memory management for continuous streaming
-- CPU usage optimization
-- Network bandwidth optimization
-- Responsive UI during streaming operations
+Non-Functional Requirements
+- Type-safe utilities (TS) with test coverage for merging & diff classification (>=90% lines in those modules).
+- All new logic behind feature flag `enableAdaptiveTranscription`.
 
-## Functional Requirements
+Testing Strategy Overview
+- Unit: overlap merge, diff classifier, guard toggle state machine, no-shrink finalization.
+- Integration: simulated reset streams, mixed diff/full sequences, long continuous (10 min) synthetic test.
+- E2E: Automated harness feeding prerecorded audio; compare logs & ground truth.
 
-### Core Functionality
-1. **Real-time Transcription**: Continuous audio capture and transcription
-2. **WebSocket Communication**: Bidirectional communication with Gemini Live API
-3. **Connection Management**: Robust connection handling and recovery
-4. **Audio Streaming**: Efficient real-time audio data streaming
-5. **Error Recovery**: Graceful degradation and fallback mechanisms
+Open Questions
+- Do we need compression (gzip) for log export? (Default: yes, optional).
+- Acceptable privacy model for raw partial storage? (Potential redaction by hashing words after export if flagged.)
 
-### User Experience
-1. **Immediate Feedback**: Real-time transcription results displayed instantly
-2. **Connection Status**: Visual indicators for connection state
-3. **Seamless Operation**: No interruption to existing workflow
-4. **Performance**: No degradation in responsiveness
-5. **Reliability**: Consistent operation under various network conditions
+Initial Task Quantity Guidance
+Aim for 10–14 top-level tasks with structured subtasks for heuristics, harness, and UI.
 
-## Non-Functional Requirements
+Additional Notes
+Use existing snapshots & raw partial buffers; avoid duplicating large string arrays—store incremental metadata (lengths, hashes) where possible.
 
-### Performance
-- Latency: < 200ms from audio input to transcription display
-- CPU Usage: No significant increase from current implementation
-- Memory Usage: Efficient memory management for continuous operation
-- Network Usage: Optimized data transmission
-
-### Reliability
-- 99.9% uptime for WebSocket connections
-- Automatic recovery from network failures
-- Fallback mechanism availability
-- Data integrity during transmission
-
-### Scalability
-- Support for extended recording sessions
-- Handle high-frequency audio updates
-- Manage large transcription histories
-- Efficient resource cleanup
-
-## Implementation Phases
-
-### Phase 1: WebSocket Client Foundation
-- Implement basic WebSocket client
-- Establish connection to Gemini Live API
-- Handle basic message exchange
-- Implement connection lifecycle management
-
-### Phase 2: Audio Streaming Integration
-- Update audio recording service for real-time streaming
-- Implement audio format conversion
-- Integrate WebSocket client with audio service
-- Handle audio data transmission
-
-### Phase 3: Real-time Transcription Processing
-- Process incoming transcription results
-- Update UI components for real-time display
-- Implement partial result handling
-- Optimize rendering performance
-
-### Phase 4: Error Handling and Recovery
-- Implement comprehensive error handling
-- Add reconnection logic
-- Create fallback mechanisms
-- Add connection status indicators
-
-### Phase 5: Testing and Optimization
-- Performance testing and optimization
-- End-to-end testing
-- Error scenario testing
-- User acceptance testing
-
-## Technical Specifications
-
-### WebSocket Configuration
-- Protocol: WSS (WebSocket Secure)
-- Message Format: JSON and Binary
-- Compression: Optional gzip compression
-- Heartbeat: 30-second intervals
-
-### Audio Specifications
-- Format: 16-bit PCM
-- Sample Rate: 16kHz (configurable)
-- Channels: Mono
-- Chunk Size: 100ms buffers
-
-### API Integration
-- Endpoint: Gemini Live API WebSocket endpoint
-- Authentication: API key-based
-- Session Management: Connection-based sessions
-- Rate Limiting: Respect API limits
-
-## Dependencies
-- Existing audio capture service (audio-recording.ts)
-- Current transcription infrastructure
-- WebSocket library (ws or native WebSocket API)
-- Electron IPC system
-- React UI components
-
-## Risks and Mitigation
-1. **WebSocket Connectivity**: Implement fallback to HTTP-based approach
-2. **Performance Impact**: Thorough performance testing and optimization
-3. **API Changes**: Monitor API documentation and implement version handling
-4. **Network Issues**: Robust reconnection and error handling
-5. **Browser Compatibility**: Test across different Electron versions
-
-## Success Criteria
-- Successful WebSocket connection to Gemini Live API
-- Real-time transcription functionality working
-- No degradation in existing features
-- Improved latency compared to batch approach
-- Robust error handling and recovery
-- Comprehensive test coverage
-- Updated documentation
-
-## References
-- [Gemini Live API Documentation](https://ai.google.dev/gemini-api/docs/live#javascript)
-- [Gemini Live API Reference](https://ai.google.dev/api/live)
-- Current implementation in src/services/
-- Existing audio capture system
+END

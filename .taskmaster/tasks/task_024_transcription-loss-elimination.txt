@@ -1,0 +1,70 @@
+# Task ID: 24
+# Title: Implement UI Integrity and Status Indicators
+# Status: cancelled
+# Dependencies: 16, 19, 21
+# Priority: medium
+# Description: Enhance UI with stable React keys, status indicators for recovered/fallback/degraded modes, and ensure visual consistency with the transcript store.
+# Details:
+Develop UI improvements that:
+1. Ensure stable React keys for transcript components
+2. Add visual status indicators for recovered, fallback, and degraded mode
+3. Implement invariant checking: visible transcript count equals store transcript count
+4. Add dev-mode assertions for transcript integrity
+5. Create UI components for displaying transcript status
+6. Implement smooth transitions for transcript updates
+7. Add visual feedback for recovery operations
+
+Code structure:
+```typescript
+interface TranscriptUIProps {
+  segments: TranscriptSegment[];
+  showStatusIndicators: boolean;
+}
+
+const TranscriptStatusBadge: React.FC<{
+  status: 'recovered' | 'fallback' | 'degraded';
+}> = ({ status }) => {
+  // Render appropriate badge based on status
+};
+
+const TranscriptSegmentComponent: React.FC<{
+  segment: TranscriptSegment;
+  showStatus: boolean;
+}> = ({ segment, showStatus }) => {
+  // Render segment with stable key and status if needed
+};
+
+const TranscriptList: React.FC<TranscriptUIProps> = ({ segments, showStatusIndicators }) => {
+  // In dev mode, verify segment count matches store
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.assert(
+        segments.length === store.getTranscriptCount(),
+        'UI transcript count mismatch with store'
+      );
+    }
+  }, [segments]);
+  
+  return (
+    <div className="transcript-list">
+      {segments.map(segment => (
+        <TranscriptSegmentComponent
+          key={segment.id} // Stable UUID
+          segment={segment}
+          showStatus={showStatusIndicators}
+        />
+      ))}
+    </div>
+  );
+};
+```
+
+# Test Strategy:
+1. Unit tests for UI components with various transcript states
+2. Test stable key generation and usage
+3. Verify status indicators display correctly
+4. Test dev-mode assertions
+5. Visual regression tests for UI components
+6. Integration tests with transcript state changes
+7. Verify smooth transitions during updates
+8. Test UI performance with large transcript volumes

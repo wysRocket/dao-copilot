@@ -1,0 +1,43 @@
+# Task ID: 31
+# Title: Validate real-time signaling fix (audioStreamEnd + turn completion)
+# Status: in-progress
+# Dependencies: None
+# Priority: high
+# Description: Capture 3+ Gemini Live sessions (short/medium/long utterances) post-fix and confirm serverContent/modelTurn events now produce partial+final text (not just setupComplete).
+# Details:
+Steps:
+1. Instrument GeminiLiveWebSocketClient to ensure raw inbound messages are logged (already partially in place).
+2. Run three scenarios: (a) 1-2s utterance, (b) 5-8s continuous speech, (c) mixed pause/resume over 12s.
+3. Record metrics: time_to_first_partial_ms, time_to_final_ms, total_partials, final_text_length, any missing tail detection.
+4. If any session lacks final text within 10s post audioStreamEnd, capture raw frames & state (connection readyState, last sent messages).
+5. Produce docs/REALTIME_SIGNALING_VALIDATION.md summarizing sessions, metrics table, pass/fail.
+Exit Criteria: All sessions yield final text; latency within acceptable (<1200ms final for short, <2500ms final for long); no missing tail segments.
+
+# Test Strategy:
+Manual run logging plus generated markdown report; verify metrics and presence of final text for each run.
+
+# Subtasks:
+## 1. Instrumentation review & log toggle [in-progress]
+### Dependencies: None
+### Description: Verify raw Gemini inbound message logging, add explicit dump (timestamp, type, truncated payload) and ensure latency timers start/stop.
+### Details:
+Add helper in gemini-live-websocket.ts to emit structured log objects {ts, kind, hasText, partialLen} and guard via env flag GEMINI_SIGNAL_VALIDATE=1.
+
+## 2. Capture 3 validation sessions [pending]
+### Dependencies: None
+### Description: Run short (1-2s), medium (5-8s), long (12s w/ pauses) utterance sessions and store raw logs.
+### Details:
+Record metrics: firstPartialLatency, finalLatency, partialCount, finalChars. Save raw JSON lines to logs/realtime-validation-session{n}.log.
+
+## 3. Generate validation report [pending]
+### Dependencies: None
+### Description: Produce docs/REALTIME_SIGNALING_VALIDATION.md summarizing metrics & pass/fail.
+### Details:
+Table columns: scenario, firstPartialLatency(ms), finalLatency(ms), partialCount, finalChars, success(bool), notes. Add remediation section if any failure.
+
+## 4. Instrumentation note (auto-log) [pending]
+### Dependencies: None
+### Description: Documentation placeholder since update_subtask failed (auth).
+### Details:
+Instrumentation implemented in gemini-live-websocket.ts: validationMode + metrics + structured logs. See code diff for details. Proceed to session capture (31.2).
+

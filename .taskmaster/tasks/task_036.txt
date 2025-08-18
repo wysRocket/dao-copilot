@@ -1,0 +1,160 @@
+# Task ID: 36
+# Title: Create Streaming Text Animation Components for Real-Time Transcription Display
+# Status: pending
+# Dependencies: 13, 16, 34, 35, 9
+# Priority: high
+# Description: Develop sophisticated React components that provide smooth, performant animations for streaming text display in the transcription interface, handling the visual presentation of live text as it streams in from the WebSocket connection.
+# Details:
+1. Create a StreamingTextRenderer component:
+```typescript
+interface StreamingTextRendererProps {
+  text: string;
+  isPartial: boolean;
+  animationSpeed?: number;
+  animationType?: 'typewriter' | 'fade' | 'none';
+  className?: string;
+}
+
+const StreamingTextRenderer: React.FC<StreamingTextRendererProps> = ({
+  text,
+  isPartial,
+  animationSpeed = 30,
+  animationType = 'typewriter',
+  className
+}) => {
+  // Implementation with useRef and useState for animation state
+}
+```
+
+2. Implement TextAnimationProvider context:
+```typescript
+interface TextAnimationContextType {
+  animationSpeed: number;
+  animationType: 'typewriter' | 'fade' | 'none';
+  preferReducedMotion: boolean;
+  setAnimationSpeed: (speed: number) => void;
+  setAnimationType: (type: 'typewriter' | 'fade' | 'none') => void;
+}
+
+const TextAnimationContext = createContext<TextAnimationContextType | undefined>(undefined);
+
+export const TextAnimationProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
+  const [animationSpeed, setAnimationSpeed] = useState(30);
+  const [animationType, setAnimationType] = useState<'typewriter' | 'fade' | 'none'>('typewriter');
+  const preferReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  
+  // Context provider implementation
+}
+```
+
+3. Create useStreamingAnimation custom hook:
+```typescript
+function useStreamingAnimation(
+  text: string,
+  isPartial: boolean,
+  options?: {
+    speed?: number;
+    type?: 'typewriter' | 'fade' | 'none';
+    onComplete?: () => void;
+  }
+) {
+  const [displayText, setDisplayText] = useState('');
+  const [isAnimating, setIsAnimating] = useState(false);
+  const animationRef = useRef<number | null>(null);
+  const textRef = useRef(text);
+  
+  // Animation logic implementation using requestAnimationFrame
+  // Return displayText, isAnimating, and control functions
+}
+```
+
+4. Implement AnimatedText component for individual text segments:
+```typescript
+const AnimatedText: React.FC<{
+  text: string;
+  isPartial: boolean;
+  className?: string;
+}> = ({ text, isPartial, className }) => {
+  const { animationSpeed, animationType, preferReducedMotion } = useContext(TextAnimationContext);
+  const { displayText, isAnimating } = useStreamingAnimation(text, isPartial, {
+    speed: animationSpeed,
+    type: preferReducedMotion ? 'none' : animationType
+  });
+  
+  return (
+    <span 
+      className={`${className} ${isPartial ? 'text-partial' : 'text-final'} ${isAnimating ? 'animating' : ''}`}
+    >
+      {preferReducedMotion ? text : displayText}
+      {isPartial && isAnimating && <TypingIndicator />}
+    </span>
+  );
+}
+```
+
+5. Create ConnectionIndicatorAnimation component:
+```typescript
+interface ConnectionIndicatorProps {
+  status: 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+}
+
+const ConnectionIndicatorAnimation: React.FC<ConnectionIndicatorProps> = ({ status }) => {
+  // Implementation with CSS animations for different connection states
+}
+```
+
+6. Implement performance optimizations:
+   - Use CSS transforms and opacity for animations instead of layout properties
+   - Implement debouncing for rapid text updates
+   - Use React.memo for components to prevent unnecessary re-renders
+   - Implement virtualization for long transcripts
+   - Use requestAnimationFrame for smooth animations
+
+7. Add accessibility features:
+   - Respect prefers-reduced-motion media query
+   - Provide ARIA attributes for screen readers
+   - Ensure keyboard focus management
+   - Maintain proper color contrast for text visibility
+
+8. Integrate with existing glass UI design system:
+   - Use consistent styling with the glass theme
+   - Apply appropriate blur and transparency effects
+   - Ensure animations complement the overall UI aesthetics
+
+# Test Strategy:
+1. Unit Testing:
+   a. Test individual animation components:
+      - Verify StreamingTextRenderer correctly animates text with different animation types
+      - Test TextAnimationProvider context properly manages animation settings
+      - Validate useStreamingAnimation hook correctly handles text updates and animation states
+      - Ensure AnimatedText component properly displays partial vs final text
+      - Test ConnectionIndicatorAnimation shows correct visual state for each connection status
+
+   b. Test performance optimizations:
+      - Measure render performance with React Profiler
+      - Test memory usage during long transcription sessions
+      - Verify debouncing prevents animation conflicts during rapid updates
+
+2. Integration Testing:
+   a. Test integration with WebSocket message stream:
+      - Verify components correctly display streaming text from WebSocket messages
+      - Test handling of partial and final transcription results
+      - Validate proper animation of text corrections and updates
+      - Ensure smooth transitions between different message states
+
+   b. Test integration with glass UI design system:
+      - Verify consistent styling with the overall glass theme
+      - Test animations work correctly with glass background effects
+      - Ensure proper contrast and readability of animated text
+
+3. Accessibility Testing:
+   a. Test with screen readers to ensure proper announcement of transcription text
+   b. Verify animations are disabled when prefers-reduced-motion is active
+   c. Test keyboard navigation and focus management
+   d. Validate color contrast meets WCAG 2.1 AA standards
+
+4. Performance Testing:
+   a. Measure FPS during continuous text streaming
+   b. Test with large volumes of transcription text (1000+ lines)
+   c. Verify smooth scrolling performance with auto-scroll feature
+   d. Test on lower-end devices to ensure acceptable performance

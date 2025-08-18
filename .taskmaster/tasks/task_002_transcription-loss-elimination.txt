@@ -1,0 +1,149 @@
+# Task ID: 2
+# Title: Develop Persistence Layer with WAL
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Create a robust persistence layer with an append-only in-memory ring buffer and Write-Ahead Log (WAL) to ensure transcript durability.
+# Details:
+Implement a TranscriptPersistenceManager class that maintains an in-memory ring buffer for active transcripts. Add a WAL implementation that persists every N partials or every 250ms (whichever comes first). The WAL should use a binary compact encoding format to minimize IO overhead. Implement crash recovery functionality that reads the WAL on startup, replays incomplete sessions, and marks uncertain segments for retry. Add flush triggers on: transcript finalization, session stop, graceful app close, and tab visibility change (when in background for >10s). Implement WAL rotation after 10MB or 15 minutes to bound storage use. Ensure the persistence layer clears ephemeral buffers when a user deletes a session for privacy compliance.
+
+# Test Strategy:
+Unit test the ring buffer operations and WAL write/read functionality. Create integration tests that simulate crashes at various points (mid-partial, pre-final flush, during WAL write) and verify recovery. Benchmark WAL IO overhead to ensure it meets performance constraints. Test WAL rotation and verify old data is properly cleaned up. Verify privacy requirements by testing session deletion clears all associated buffers.
+
+# Subtasks:
+## 1. Design and implement in-memory ring buffer [pending]
+### Dependencies: None
+### Description: Create the core in-memory ring buffer data structure for the TranscriptPersistenceManager
+### Details:
+Implement the TranscriptRingBuffer class that maintains active transcripts in memory with the following features:
+- Fixed-size circular buffer with configurable capacity
+- Thread-safe append operations with atomic updates
+- Efficient read/write operations with minimal locking
+- Transcript metadata indexing for quick lookups
+- Buffer overflow handling with appropriate warnings
+
+Files to modify:
+- src/persistence/TranscriptRingBuffer.ts (new)
+- src/persistence/TranscriptPersistenceManager.ts (new)
+
+Test coverage:
+- Unit tests for all ring buffer operations
+- Overflow tests with high-volume data
+- Thread safety tests with concurrent operations
+
+## 2. Create binary WAL encoding format [pending]
+### Dependencies: None
+### Description: Design and implement a compact binary encoding format for the Write-Ahead Log
+### Details:
+Develop a binary encoding format for WAL entries with these requirements:
+- Compact representation to minimize IO overhead
+- Include record type, timestamp, session ID, and payload
+- Support for partial and complete transcript entries
+- CRC32 checksums for data integrity verification
+- Version field for future format evolution
+
+Files to modify:
+- src/persistence/WalEncoder.ts (new)
+- src/persistence/WalDecoder.ts (new)
+- src/persistence/WalEntry.ts (new)
+
+Test coverage:
+- Unit tests for encoding/decoding all entry types
+- Round-trip tests to verify data integrity
+- Benchmark tests to measure encoding/decoding performance
+- Size comparison tests against JSON alternatives
+
+## 3. Implement WAL write and flush triggers [pending]
+### Dependencies: None
+### Description: Create the WAL writer with configurable flush triggers based on time and event conditions
+### Details:
+Implement the WalWriter class with the following features:
+- Write operations that append to the current WAL file
+- Flush triggers based on:
+  * Every N partial transcripts
+  * Time-based interval (every 250ms)
+  * Transcript finalization events
+  * Session stop events
+  * App close events
+  * Tab visibility changes (after 10s in background)
+- Asynchronous flush operations to minimize UI thread blocking
+
+Files to modify:
+- src/persistence/WalWriter.ts (new)
+- src/persistence/FlushPolicy.ts (new)
+- src/events/AppLifecycleEvents.ts (modify to add hooks)
+
+Test coverage:
+- Unit tests for each flush trigger type
+- Timing tests to verify flush intervals
+- Integration tests with simulated app lifecycle events
+
+## 4. Develop crash recovery functionality [pending]
+### Dependencies: None
+### Description: Implement WAL recovery process to restore state after crashes or unexpected shutdowns
+### Details:
+Create the WalRecoveryManager with these capabilities:
+- Read and parse WAL files on startup
+- Identify incomplete sessions that need recovery
+- Replay transcript segments in correct order
+- Mark uncertain segments for potential retry
+- Reconcile recovered data with the in-memory buffer
+- Generate recovery metrics and logs
+
+Files to modify:
+- src/persistence/WalRecoveryManager.ts (new)
+- src/persistence/TranscriptPersistenceManager.ts (modify)
+- src/startup/AppBootstrap.ts (modify to add recovery step)
+
+Test coverage:
+- Unit tests for WAL parsing and recovery logic
+- Integration tests with simulated crashes at various points
+- Recovery performance benchmarks with large WAL files
+- Edge case tests with corrupted WAL entries
+
+## 5. Implement WAL rotation and cleanup [pending]
+### Dependencies: None
+### Description: Add WAL file rotation and cleanup mechanisms to bound storage usage
+### Details:
+Implement WAL rotation and cleanup with these features:
+- Rotate WAL files after reaching 10MB size threshold
+- Time-based rotation every 15 minutes
+- Maintain a configurable number of historical WAL files
+- Implement cleanup of old WAL files after successful processing
+- Add storage usage monitoring and warnings
+- Implement emergency cleanup if storage limits are approached
+
+Files to modify:
+- src/persistence/WalRotationManager.ts (new)
+- src/persistence/StorageMonitor.ts (new)
+- src/persistence/WalWriter.ts (modify)
+
+Test coverage:
+- Unit tests for rotation triggers and cleanup logic
+- Storage usage tests with simulated large files
+- Integration tests for rotation during active transcription
+- Stress tests with rapid rotation scenarios
+
+## 6. Add privacy-compliant buffer clearing [pending]
+### Dependencies: None
+### Description: Implement secure buffer clearing for privacy compliance when sessions are deleted
+### Details:
+Create privacy-compliant buffer clearing functionality with these requirements:
+- Immediate clearing of in-memory buffers when a session is deleted
+- Secure overwriting of WAL entries for deleted sessions
+- Verification that all traces of deleted sessions are removed
+- Audit logging of deletion operations for compliance
+- Support for both user-initiated and retention policy deletions
+
+Files to modify:
+- src/persistence/PrivacyManager.ts (new)
+- src/persistence/TranscriptRingBuffer.ts (modify)
+- src/persistence/WalWriter.ts (modify)
+- src/persistence/TranscriptPersistenceManager.ts (modify)
+
+Test coverage:
+- Unit tests for buffer clearing operations
+- Verification tests to ensure no data remains after deletion
+- Integration tests with the session deletion workflow
+- Performance tests to measure deletion time for large sessions
+

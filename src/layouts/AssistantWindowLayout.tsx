@@ -1,64 +1,78 @@
 import React, {useEffect} from 'react'
 import {useWindowState} from '../contexts/WindowStateProvider'
 import {useTranscriptionState, useWindowCommunication} from '../hooks/useSharedState'
+import {useTranscriptStore} from '../state/transcript-state'
 import {useGlassEffects} from '../contexts/GlassEffectsProvider'
 import {useTheme} from '../contexts/ThemeProvider'
-import {
-  AssistantNavigationProvider,
-  useAssistantNavigation
-} from '../contexts/AssistantNavigationContext'
+import {StreamingTextProvider} from '../contexts/StreamingTextContext'
 import {WindowButton} from '../components/ui/window-button'
 import {WindowStatus} from '../components/ui/window-status'
 import {BackgroundEffect} from '../components/ui/BackgroundEffect'
-
-// Import page components
-import ChatPage from '../pages/assistant/ChatPage'
-import TranscriptsPage from '../pages/assistant/TranscriptsPage'
-import AnalysisPage from '../pages/assistant/AnalysisPage'
-import SettingsPage from '../pages/assistant/SettingsPage'
+import {useNavigate, useRouter} from '@tanstack/react-router'
 
 interface AssistantWindowLayoutProps {
-  children?: React.ReactNode
-  initialTab?: 'chat' | 'transcripts' | 'analysis' | 'settings'
+  children: React.ReactNode
 }
 
-function AssistantContent() {
-  const {currentTab, navigateToTab} = useAssistantNavigation()
+export default function AssistantWindowLayout({children}: AssistantWindowLayoutProps) {
   const {windowState, updateLocalState} = useWindowState()
   const {transcripts} = useTranscriptionState()
+  const {recentEntries} = useTranscriptStore()
   const {sendToWindow, onMessage} = useWindowCommunication()
   const {config: glassConfig} = useGlassEffects()
   const {mode: themeMode} = useTheme()
+  const navigate = useNavigate()
+  const router = useRouter()
+
+  // Narrowed navigation helper to avoid any-casts while keeping routes safe
+  const nav = React.useMemo(() => {
+    return (to: AssistantRoute) => {
+      // cast navigate to a generic string-based API without using 'any'
+      const navFn = navigate as unknown as (opts: {to: string}) => void
+      navFn({to})
+    }
+  }, [navigate])
+
+  // Supported assistant routes
+  type AssistantRoute = '/chat' | '/transcripts' | '/analysis' | '/settings'
+  const allowedRoutes: readonly AssistantRoute[] = [
+    '/chat',
+    '/transcripts',
+    '/analysis',
+    '/settings'
+  ] as const
+  const toAssistantRoute = (candidate: string): AssistantRoute =>
+    allowedRoutes.includes(candidate as AssistantRoute)
+      ? (candidate as AssistantRoute)
+      : '/transcripts'
 
   // Listen for navigation messages from other windows
   useEffect(() => {
     const unsubscribe = onMessage((channel, ...args) => {
       if (channel === 'set-assistant-view' && args[0]) {
-        navigateToTab(args[0])
+        const route = toAssistantRoute(`/${args[0]}`)
+        nav(route)
       }
       if (channel === 'navigate-assistant-tab' && args[0]) {
-        navigateToTab(args[0])
+        const route = toAssistantRoute(`/${args[0]}`)
+        nav(route)
       }
     })
 
     return unsubscribe
-  }, [onMessage, navigateToTab])
+  }, [onMessage, navigate])
 
-  // Render current page based on tab
-  const renderCurrentPage = () => {
-    switch (currentTab) {
-      case 'chat':
-        return <ChatPage />
-      case 'transcripts':
-        return <TranscriptsPage />
-      case 'analysis':
-        return <AnalysisPage />
-      case 'settings':
-        return <SettingsPage />
-      default:
-        return <ChatPage />
-    }
+  // Get current route to determine active tab
+  const currentPath = router.state.location.pathname
+  const getCurrentTab = () => {
+    if (currentPath.includes('/chat')) return 'chat'
+    if (currentPath.includes('/transcripts')) return 'transcripts'
+    if (currentPath.includes('/analysis')) return 'analysis'
+    if (currentPath.includes('/settings')) return 'settings'
+    return 'transcripts' // default
   }
+
+  const currentTab = getCurrentTab()
 
   // Assistant-specific header with transcription status
   const AssistantHeader = () => (
@@ -140,19 +154,20 @@ function AssistantContent() {
         boxShadow: '0 -2px 12px var(--glass-shadow), inset 0 -1px 0 rgba(255, 255, 255, 0.1)'
       }}
     >
-      <WindowStatus
+      {/* WindowStatus disabled to remove diagnostic info from footer */}
+      {/* <WindowStatus
         showWindowInfo
         showConnectionStatus={false}
         showRecordingStatus={false}
         showTranscriptCount={false}
         compact
-      />
+      /> */}
 
       <div className="flex space-x-2">
         <WindowButton
           variant={currentTab === 'chat' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => navigateToTab('chat')}
+          onClick={() => nav('/chat')}
           className="transition-all duration-200"
         >
           💬 Chat
@@ -160,7 +175,7 @@ function AssistantContent() {
         <WindowButton
           variant={currentTab === 'transcripts' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => navigateToTab('transcripts')}
+          onClick={() => nav('/transcripts')}
           className="transition-all duration-200"
         >
           📝 Transcripts
@@ -168,7 +183,7 @@ function AssistantContent() {
         <WindowButton
           variant={currentTab === 'analysis' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => navigateToTab('analysis')}
+          onClick={() => nav('/analysis')}
           className="transition-all duration-200"
         >
           📊 Analysis
@@ -176,7 +191,7 @@ function AssistantContent() {
         <WindowButton
           variant={currentTab === 'settings' ? 'default' : 'ghost'}
           size="compact"
-          onClick={() => navigateToTab('settings')}
+          onClick={() => nav('/settings')}
           className="transition-all duration-200"
         >
           ⚙️ Settings
@@ -273,50 +288,109 @@ function AssistantContent() {
                 Recent Topics
               </div>
               <div className="space-y-2">
-                {transcripts.slice(-5).map(transcript => (
-                  <div
-                    key={transcript.id}
-                    className="cursor-pointer rounded-lg p-3 text-xs transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
-                    style={{
-                      background: 'var(--glass-light)',
-                      backdropFilter: 'blur(8px)',
-                      WebkitBackdropFilter: 'blur(8px)',
-                      border: '1px solid var(--glass-border)',
-                      color: 'var(--text-primary)',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-                    }}
-                    onClick={() => updateLocalState('selectedItems', [transcript.id])}
-                  >
-                    <div className="mb-1 truncate font-medium">
-                      {transcript.text.slice(0, 35)}...
+                {(() => {
+                  // Prefer the most recent finalized entry from the live session
+                  const sortedByTime = (arr: Array<{timestamp?: number}>) =>
+                    [...arr].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+
+                  // Collapse duplicates by ID (prefer final and newer)
+                  const collapseById = (
+                    arr: Array<{id?: string; isFinal?: boolean; timestamp?: number; text?: string}>
+                  ) => {
+                    const map = new Map<
+                      string,
+                      {id?: string; isFinal?: boolean; timestamp?: number; text?: string}
+                    >()
+                    for (const e of arr) {
+                      const id = String(e.id ?? '')
+                      const prev = map.get(id)
+                      if (!prev) {
+                        map.set(id, e)
+                      } else {
+                        const choose =
+                          (e.isFinal && !prev.isFinal) ||
+                          (e.isFinal === prev.isFinal &&
+                            (e.timestamp || 0) >= (prev.timestamp || 0))
+                            ? e
+                            : prev
+                        map.set(id, choose)
+                      }
+                    }
+                    return Array.from(map.values())
+                  }
+
+                  const finals = sortedByTime(
+                    collapseById((recentEntries || []).filter(e => e.isFinal))
+                  )
+                  const partials = sortedByTime(
+                    collapseById((recentEntries || []).filter(e => e.isPartial))
+                  )
+
+                  const sessionItem =
+                    finals.length > 0
+                      ? finals[finals.length - 1]
+                      : partials.length > 0
+                        ? partials[partials.length - 1]
+                        : undefined
+
+                  // Normalize to a single consistent shape
+                  type SidebarItem = {id: string; text: string; timestamp: number}
+                  type RecentLike = {id?: string; text?: string; timestamp?: number}
+                  const normalize = (item: RecentLike): SidebarItem => ({
+                    id: String(item.id ?? `item-${Date.now()}`),
+                    text: String(item.text ?? ''),
+                    timestamp: Number(item.timestamp ?? Date.now())
+                  })
+
+                  // Always show exactly one topic: current session if present, otherwise last historical transcript
+                  const fallback: SidebarItem[] =
+                    transcripts.length > 0 ? [normalize(transcripts[transcripts.length - 1])] : []
+                  const sidebarItems: SidebarItem[] = sessionItem
+                    ? [normalize(sessionItem)]
+                    : fallback
+
+                  return sidebarItems.map(transcript => (
+                    <div
+                      key={transcript.id}
+                      className="cursor-pointer rounded-lg p-3 text-xs transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
+                      style={{
+                        background: 'var(--glass-light)',
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                        border: '1px solid var(--glass-border)',
+                        color: 'var(--text-primary)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+                      }}
+                      onClick={() => updateLocalState('selectedItems', [transcript.id])}
+                    >
+                      <div className="mb-1 truncate font-medium">
+                        {transcript.text.slice(0, 35)}...
+                      </div>
+                      <div className="text-xs opacity-70" style={{color: 'var(--text-muted)'}}>
+                        Recent
+                      </div>
                     </div>
-                    <div className="text-xs opacity-70" style={{color: 'var(--text-muted)'}}>
-                      Recent
-                    </div>
-                  </div>
-                ))}
+                  ))
+                })()}
               </div>
             </div>
           </div>
         )}
 
-        {/* Main content area */}
-        <div className="flex min-h-0 flex-1 flex-col">{renderCurrentPage()}</div>
+        {/* Main content area - this is where the routed pages will render */}
+        <StreamingTextProvider
+          onTranscriptionComplete={transcription => {
+            console.log('🔴 AssistantWindowLayout: Transcription completed:', transcription)
+            // You can handle completed transcriptions here if needed
+          }}
+        >
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        </StreamingTextProvider>
       </div>
 
       <div className="relative z-10">
         <AssistantFooter />
       </div>
     </div>
-  )
-}
-
-export default function AssistantWindowLayout({
-  initialTab = 'transcripts'
-}: AssistantWindowLayoutProps) {
-  return (
-    <AssistantNavigationProvider initialTab={initialTab}>
-      <AssistantContent />
-    </AssistantNavigationProvider>
   )
 }

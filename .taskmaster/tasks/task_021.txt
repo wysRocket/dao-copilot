@@ -1,0 +1,62 @@
+# Task ID: 21
+# Title: Update WebSocket Connection Configuration for Live API
+# Status: pending
+# Dependencies: 13, 20
+# Priority: high
+# Description: Update the WebSocket connection configuration to use the correct Live API endpoint and parameters for the Gemini Live API, ensuring proper authentication and connection establishment.
+# Details:
+1. Update WebSocket connection URL:
+   a. Modify the connection URL in the WebSocket client to use: wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent
+   b. Update the API version parameter to v1alpha to access Live API features
+
+2. Update authentication mechanism:
+   a. Ensure the API key is properly included in the connection parameters
+   b. Implement secure storage and retrieval of API credentials
+   c. Add validation to check for API key presence before connection attempts
+
+3. Update connection headers and parameters:
+   a. Set appropriate Content-Type headers for WebSocket communication
+   b. Configure any required protocol-specific parameters
+   c. Ensure proper formatting of connection initialization messages
+
+4. Update environment configuration:
+   a. Add new environment variables for the Live API endpoint
+   b. Update .env.example file with the new variables
+   c. Create a configuration validation function to check for required variables
+   d. Document the new environment variables in the codebase
+
+5. Implement connection validation:
+   a. Add logging for connection establishment events
+   b. Create a connection test function to verify endpoint accessibility
+   c. Implement proper error handling for connection failures
+   d. Add retry logic with appropriate backoff for failed connections
+
+6. Address GitHub issue #161:
+   a. Review the specific connection issues mentioned in the issue
+   b. Implement the necessary fixes based on the issue description
+   c. Add comments in the code referencing the GitHub issue number
+
+# Test Strategy:
+1. Unit Testing:
+   a. Create unit tests for the updated WebSocket connection configuration
+   b. Test connection establishment with valid and invalid API keys
+   c. Verify proper error handling for connection failures
+   d. Test the configuration validation function
+
+2. Integration Testing:
+   a. Set up a test environment with the Live API endpoint
+   b. Verify successful connection to the endpoint with valid credentials
+   c. Test the complete connection flow from initialization to message exchange
+   d. Validate that the connection can handle the expected message formats
+
+3. End-to-End Testing:
+   a. Test the full application flow using the updated WebSocket connection
+   b. Verify that real-time transcription works correctly with the new endpoint
+   c. Test reconnection scenarios by intentionally disrupting the connection
+   d. Measure and compare performance with the previous implementation
+
+4. Manual Verification:
+   a. Manually test the connection using WebSocket debugging tools
+   b. Verify that the connection parameters match the API documentation
+   c. Check that the GitHub issue #161 is resolved with the changes
+   d. Document any remaining issues or limitations

@@ -20,7 +20,37 @@ vi.mock('../../helpers/proxy-server', () => ({
   getProxyAuthToken: () => 'mock-auth-token'
 }))
 
+// Mock the WebSocket client
+vi.mock('../../services/gemini-live-websocket', () => {
+  const mockWebSocketClient = {
+    connect: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn().mockResolvedValue(undefined),
+    sendRealtimeInput: vi.fn().mockResolvedValue(undefined),
+    getConnectionState: vi.fn().mockReturnValue('connected'),
+    isSetupCompleted: vi.fn().mockReturnValue(true),
+    on: vi.fn(),
+    off: vi.fn(),
+    emit: vi.fn()
+  }
+
+  return {
+    default: vi.fn(() => mockWebSocketClient),
+    ResponseModality: {
+      TEXT: 'text',
+      AUDIO: 'audio'
+    },
+    QueuePriority: {
+      HIGH: 'high',
+      NORMAL: 'normal',
+      LOW: 'low'
+    }
+  }
+})
+
 describe('Proxy STT Transcription Service', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockWebSocketInstance: any
+
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
@@ -32,6 +62,32 @@ describe('Proxy STT Transcription Service', () => {
     delete process.env.GEMINI_REALTIME_THRESHOLD
     delete process.env.PROXY_URL
     delete process.env.GEMINI_MODEL
+
+    // Create fresh mock WebSocket instance for each test
+    mockWebSocketInstance = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      sendRealtimeInput: vi.fn().mockResolvedValue(undefined),
+      getConnectionState: vi.fn().mockReturnValue('connected'),
+      isSetupCompleted: vi.fn().mockReturnValue(true),
+      on: vi.fn(),
+      off: vi.fn(),
+      emit: vi.fn()
+    }
+
+    // Mock the WebSocket client constructor to return our mock instance
+    vi.doMock('../../services/gemini-live-websocket', () => ({
+      default: vi.fn(() => mockWebSocketInstance),
+      ResponseModality: {
+        TEXT: 'text',
+        AUDIO: 'audio'
+      },
+      QueuePriority: {
+        HIGH: 'high',
+        NORMAL: 'normal',
+        LOW: 'low'
+      }
+    }))
   })
 
   afterEach(() => {
@@ -134,16 +190,22 @@ describe('Proxy STT Transcription Service', () => {
 
     it('should use WebSocket mode when enabled', async () => {
       process.env.GEMINI_WEBSOCKET_ENABLED = 'true'
+      process.env.GOOGLE_API_KEY = mockApiKey
 
-      const mockWsResponse = {
-        text: 'WebSocket transcription result',
-        confidence: 0.95
-      }
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockWsResponse)
-      } as Response)
+      // Set up the mock WebSocket instance to simulate a successful response
+      mockWebSocketInstance.on.mockImplementation(
+        (event: string, callback: (data: unknown) => void) => {
+          if (event === 'textResponse') {
+            // Simulate a text response event after a short delay
+            setTimeout(() => {
+              callback({
+                content: 'WebSocket transcription result',
+                metadata: {isPartial: false, turnComplete: true, confidence: 0.95}
+              })
+            }, 10)
+          }
+        }
+      )
 
       const result = await transcribeAudioViaProxyEnhanced(mockAudioData, {
         mode: TranscriptionMode.WEBSOCKET,
@@ -153,28 +215,28 @@ describe('Proxy STT Transcription Service', () => {
       expect(result.text).toBe('WebSocket transcription result')
       expect(result.source).toBe('websocket-proxy')
       expect(result.confidence).toBe(0.95)
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/gemini/websocket/transcribe'),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'x-transcription-mode': 'websocket'
-          })
-        })
-      )
+      expect(mockWebSocketInstance.connect).toHaveBeenCalled()
+      expect(mockWebSocketInstance.sendRealtimeInput).toHaveBeenCalled()
     })
 
     it('should handle hybrid mode with short audio', async () => {
       process.env.GEMINI_WEBSOCKET_ENABLED = 'true'
+      process.env.GOOGLE_API_KEY = mockApiKey
 
-      const mockWsResponse = {
-        text: 'Short audio WebSocket result',
-        confidence: 0.9
-      }
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockWsResponse)
-      } as Response)
+      // Set up the mock WebSocket instance for hybrid mode with short audio
+      mockWebSocketInstance.on.mockImplementation(
+        (event: string, callback: (data: unknown) => void) => {
+          if (event === 'textResponse') {
+            // Simulate a text response event after a short delay
+            setTimeout(() => {
+              callback({
+                content: 'Short audio WebSocket result',
+                metadata: {isPartial: false, turnComplete: true, confidence: 0.9}
+              })
+            }, 10)
+          }
+        }
+      )
 
       // Create short audio buffer
       const shortAudioData = Buffer.from('short')
@@ -325,7 +387,7 @@ describe('Proxy STT Transcription Service', () => {
       expect(config.fallbackToBatch).toBe(true)
       expect(config.realTimeThreshold).toBe(3000)
       expect(config.proxyUrl).toBe('http://localhost:8001')
-      expect(config.modelName).toBe('gemini-2.5-flash-preview-05-20')
+      expect(config.modelName).toBe('gemini-1.5-flash')
     })
   })
 

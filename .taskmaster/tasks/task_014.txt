@@ -1,0 +1,247 @@
+# Task ID: 14
+# Title: Migrate Transcription Flow to WebSocket-based Gemini Live API
+# Status: pending
+# Dependencies: 13
+# Priority: high
+# Description: Refactor the existing main-stt-transcription.ts and proxy-stt-transcription.ts services to use the new WebSocket client for the Gemini Live API, maintaining backward compatibility and preserving all existing functionality while providing improved real-time transcription capabilities.
+# Details:
+1. Update main-stt-transcription.ts:
+   a. Import the new WebSocket client for Gemini Live API
+   b. Modify the transcription initialization process to establish a WebSocket connection
+   c. Refactor the audio streaming logic to send data over WebSocket instead of HTTP
+   d. Implement error handling and reconnection logic for WebSocket connection
+   e. Update the transcription result processing to handle real-time updates
+
+2. Update proxy-stt-transcription.ts:
+   a. Modify the proxy service to handle WebSocket connections
+   b. Implement message forwarding between the main process and renderer process using IPC
+   c. Ensure proper handling of connection state and error scenarios
+
+3. Implement backward compatibility:
+   a. Create a feature flag to toggle between WebSocket and HTTP-based approaches
+   b. Implement a fallback mechanism to use the old HTTP-based method if WebSocket connection fails
+
+4. Optimize real-time capabilities:
+   a. Implement efficient buffering and debouncing for incoming transcription results
+   b. Ensure smooth updates to the UI without causing performance issues
+
+5. Update configuration and environment variables:
+   a. Add new configuration options for WebSocket URL, protocols, and connection parameters
+   b. Update environment variable handling to include new WebSocket-related settings
+
+6. Refactor existing code:
+   a. Remove deprecated HTTP-specific code once WebSocket implementation is stable
+   b. Update type definitions and interfaces to reflect the new WebSocket-based approach
+
+7. Implement logging and monitoring:
+   a. Add detailed logging for WebSocket connection events and data flow
+   b. Implement performance metrics to compare WebSocket vs HTTP approaches
+
+8. Update documentation:
+   a. Document the new WebSocket-based transcription flow
+   b. Update API references and usage examples
+   c. Provide migration guide for any breaking changes
+
+# Test Strategy:
+1. Unit Testing:
+   a. Write unit tests for WebSocket connection management functions
+   b. Test error handling and reconnection logic
+   c. Verify correct parsing and processing of WebSocket messages
+
+2. Integration Testing:
+   a. Set up a test environment with a mock Gemini Live API WebSocket server
+   b. Verify end-to-end transcription flow using WebSocket communication
+   c. Test fallback mechanism to HTTP-based approach
+
+3. Performance Testing:
+   a. Measure and compare latency between WebSocket and HTTP-based approaches
+   b. Evaluate CPU and memory usage under high load scenarios
+   c. Test with large volumes of audio data to ensure stability
+
+4. Compatibility Testing:
+   a. Verify functionality across different Electron versions
+   b. Test on various operating systems (Windows, macOS, Linux)
+
+5. UI/UX Testing:
+   a. Ensure real-time updates are reflected smoothly in the TranscriptDisplay component
+   b. Verify that the UI remains responsive during continuous transcription
+
+6. Error Handling and Recovery:
+   a. Simulate network interruptions and verify reconnection behavior
+   b. Test various error scenarios (invalid API key, server errors, etc.)
+
+7. Backward Compatibility:
+   a. Verify that the feature flag correctly toggles between WebSocket and HTTP methods
+   b. Ensure all existing functionality works with both approaches
+
+8. Security Testing:
+   a. Verify secure WebSocket connection (wss://)
+   b. Test for potential vulnerabilities in WebSocket implementation
+
+9. Regression Testing:
+   a. Run existing test suite to ensure no regressions in other parts of the application
+   b. Verify that all other components interacting with transcription services still function correctly
+
+# Subtasks:
+## 1. Analyze current codebase [completed]
+### Dependencies: None
+### Description: Review main-stt-transcription.ts and proxy-stt-transcription.ts to identify areas for refactoring
+### Details:
+Examine the existing code structure, identify key functionalities, and note areas that need to be adapted for WebSocket support
+<info added on 2025-06-18T09:31:58.562Z>
+# Code Analysis Findings
+
+## Main Transcription Service
+- **main-stt-transcription.ts** implements batch processing via HTTP-based Gemini API
+- Uses `transcribeAudio()` function accepting Buffer input
+- Leverages GoogleGenAI SDK for content generation
+- Supports multiple environment variable patterns for API keys
+- Returns `TranscriptionResult` with text and duration metrics
+- Processes audio as base64-encoded WAV files
+
+## Fallback Proxy Service
+- **proxy-stt-transcription.ts** provides HTTP-based proxy fallback
+- Implements `transcribeAudioViaProxy()` function
+- Uses fetch API to call proxy server endpoint
+- Maintains consistent audio format and response structure
+- Includes proxy authentication token handling
+
+## Integration Opportunities
+- Both services share similar interfaces that can be unified
+- Existing `GeminiLiveIntegrationService` provides necessary WebSocket bridging
+- Can reuse current audio format conversion utilities
+- Environment variable handling patterns are consistent across services
+
+## Recommended Migration Strategy
+- Update both services to use `GeminiLiveIntegrationService` as primary interface
+- Maintain existing function signatures for backward compatibility
+- Implement mode switching (WebSocket, Batch, Hybrid)
+- Add feature flags for gradual rollout
+</info added on 2025-06-18T09:31:58.562Z>
+
+## 2. Design WebSocket integration [completed]
+### Dependencies: 14.1
+### Description: Create a detailed design for integrating WebSocket functionality into the existing services
+### Details:
+Outline the WebSocket connection handling, message formats, and how it will interact with the current HTTP-based system
+<info added on 2025-06-18T09:33:31.138Z>
+## WebSocket Integration Design
+
+### 1. Unified Transcription Interface
+- Create `UnifiedTranscriptionService` that wraps both HTTP and WebSocket modes
+- Maintain existing function signatures: `transcribeAudio(buffer, options)`
+- Add mode selection via options: `{mode: 'websocket' | 'batch' | 'hybrid'}`
+
+### 2. Service Layer Integration
+- `main-stt-transcription.ts` becomes a wrapper around `GeminiLiveIntegrationService`
+- `proxy-stt-transcription.ts` enhanced to support WebSocket proxy endpoints
+- Automatic mode detection based on audio characteristics and connection quality
+
+### 3. Backward Compatibility
+- All existing function signatures preserved
+- Default mode is 'hybrid' for seamless transition
+- Feature flags: `GEMINI_WEBSOCKET_ENABLED`, `GEMINI_FALLBACK_MODE`
+- Gradual rollout support with percentage-based enablement
+
+### 4. Data Flow Design
+```
+Audio Buffer → Format Detection → Mode Selection → Integration Service
+                                      ↓
+WebSocket Mode: Real-time streaming ← GeminiLiveWebSocketClient
+Batch Mode: HTTP processing ← Original GoogleGenAI SDK
+Hybrid Mode: Smart switching based on audio length/quality
+```
+
+### 5. Error Handling & Fallback
+- WebSocket failures automatically fallback to batch mode
+- Network quality monitoring influences mode selection
+- Comprehensive error classification and user feedback
+</info added on 2025-06-18T09:33:31.138Z>
+
+## 3. Refactor main-stt-transcription.ts [completed]
+### Dependencies: 14.2
+### Description: Modify main-stt-transcription.ts to support both HTTP and WebSocket connections
+### Details:
+Implement WebSocket handling, ensure existing HTTP functionality is preserved, and optimize for real-time capabilities
+<info added on 2025-06-18T11:12:28.290Z>
+Completed refactoring main-stt-transcription.ts with WebSocket integration. Implemented multiple transcription modes (WebSocket, batch, hybrid) while maintaining backward compatibility through preserved function signatures. Added GEMINI_WEBSOCKET_ENABLED feature flag for controlled rollout. Integrated with GeminiLiveIntegrationService for real-time processing with automatic fallback to batch mode on WebSocket failures. Enhanced configuration options with mode selection, real-time threshold controls, and comprehensive error handling including timeouts. Added source tracking to identify which transcription method was used. The refactored service successfully bridges real-time WebSocket capabilities with traditional batch processing.
+</info added on 2025-06-18T11:12:28.290Z>
+
+## 4. Refactor proxy-stt-transcription.ts [in-progress]
+### Dependencies: 14.3
+### Description: Update proxy-stt-transcription.ts to work with the refactored main service and support WebSockets
+### Details:
+Modify the proxy to handle WebSocket connections and maintain compatibility with the updated main service
+<info added on 2025-06-18T12:11:59.437Z>
+Refactored proxy-stt-transcription.ts to implement WebSocket support while maintaining backward compatibility. The implementation now features:
+
+1. Multiple transcription modes: WebSocket, batch, and hybrid
+2. Intelligent mode selection and fallback logic
+3. Configuration validation for each mode
+4. Health checking mechanisms to verify service availability
+5. Comprehensive test suite with 24 passing tests
+
+The proxy now intelligently switches between modes based on availability and request parameters, ensuring seamless integration with both new WebSocket-based clients and legacy systems.
+</info added on 2025-06-18T12:11:59.437Z>
+<info added on 2025-06-18T12:37:28.691Z>
+Refactored proxy-stt-transcription.ts to implement WebSocket support while maintaining backward compatibility. The implementation now features:
+
+1. Multiple transcription modes: WebSocket, batch, and hybrid
+2. Intelligent mode selection and fallback logic
+3. Configuration validation for each mode
+4. Health checking mechanisms to verify service availability
+5. Environment configuration helpers and proxy setup utilities
+6. Integrated backward compatibility layer with legacy wrapper functions
+7. Comprehensive test suite with 24 passing tests
+8. Complete lint/type compliance
+
+The proxy now intelligently switches between modes based on availability and request parameters, ensuring seamless integration with both new WebSocket-based clients and legacy systems. Automatic failover mechanisms provide resilience when services become unavailable.
+</info added on 2025-06-18T12:37:28.691Z>
+
+## 5. Implement backward compatibility layer [pending]
+### Dependencies: 14.3, 14.4
+### Description: Create a compatibility layer to ensure existing clients can still use the HTTP-based API
+### Details:
+Develop a mechanism to translate HTTP requests to WebSocket messages and vice versa, maintaining support for legacy clients
+<info added on 2025-06-18T12:36:56.270Z>
+Implemented a comprehensive backward compatibility layer for translating between HTTP and WebSocket interfaces. The solution includes:
+
+1. A dedicated transcription-compatibility.ts module with:
+   - Automatic detection and migration of legacy options
+   - Environment variable migration utilities
+   - Wrapper functions that maintain API consistency
+   - Informative deprecation warnings with migration guidance
+
+2. Integration with main-stt-transcription.ts through:
+   - Legacy wrapper function (transcribeAudioLegacy)
+   - Compatibility-aware function (transcribeAudioWithCompatibility)
+   - Exported legacy aliases for seamless transition
+
+3. Integration with proxy-stt-transcription.ts including:
+   - Legacy wrappers for all proxy functions
+   - Automatic option migration support
+   - Backward-compatible function exports
+
+4. Rigorous testing with:
+   - 26 dedicated compatibility test cases
+   - 24 proxy-specific tests
+   - All tests passing with no lint/type issues
+
+The implementation ensures full backward compatibility by preserving existing function signatures, automatically migrating legacy configuration options, and providing clear deprecation warnings that guide users toward modern usage patterns without forcing immediate code changes.
+</info added on 2025-06-18T12:36:56.270Z>
+
+## 6. Update configuration and environment setup [pending]
+### Dependencies: 14.3, 14.4
+### Description: Modify configuration files and environment variables to support new WebSocket functionality
+### Details:
+Update config files, add new environment variables for WebSocket ports and settings, and ensure proper configuration management
+<info added on 2025-06-18T12:54:14.147Z>
+Configuration and environment setup completed successfully. Created gemini-websocket-config.ts module with comprehensive features including environment variable migration paths, validation logic, and development helper utilities. Updated .env.example file with all WebSocket-related configuration options and added deprecation notices for legacy settings. All configuration validation tests are passing (17/17). The configuration module now properly handles WebSocket ports, connection settings, and authentication parameters required for the Gemini Live API integration.
+</info added on 2025-06-18T12:54:14.147Z>
+
+## 7. Develop comprehensive test suite [pending]
+### Dependencies: 14.5, 14.6
+### Description: Create and execute tests to verify functionality and performance of the refactored system
+### Details:
+Develop unit tests, integration tests, and performance tests to ensure the system works as expected with both WebSocket and HTTP connections
+

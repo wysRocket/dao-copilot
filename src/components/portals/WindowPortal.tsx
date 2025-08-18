@@ -94,15 +94,21 @@ export const WindowPortal: React.FC<WindowPortalProps> = ({
 }
 
 // Helper function to get window reference by ID
-// This is a simplified implementation - in a real scenario, you'd need to
-// coordinate with the main process to get actual window references
+// This version uses only APIs exposed via the preload script (window.electronWindow)
 async function getWindowById(windowId: string): Promise<Window | null> {
-  const {ipcRenderer} = window.require('electron')
-  try {
-    const windowReference = await ipcRenderer.invoke('get-window-by-id', windowId)
-    return windowReference || null
-  } catch (error) {
-    console.error(`Failed to retrieve window with ID ${windowId}:`, error)
+  if (window.electronWindow && typeof window.electronWindow.getWindowReference === 'function') {
+    try {
+      // getWindowReference should be implemented in your preload script to safely return a reference or proxy
+      const windowReference = await window.electronWindow.getWindowReference(windowId)
+      return windowReference || null
+    } catch (error) {
+      console.error(`Failed to retrieve window with ID ${windowId}:`, error)
+      return null
+    }
+  } else {
+    console.warn(
+      'window.electronWindow.getWindowReference is not available in preload. Returning null.'
+    )
     return null
   }
 }

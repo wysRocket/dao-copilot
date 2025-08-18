@@ -1,0 +1,89 @@
+# Task ID: 6
+# Title: Implement Live Streaming UI with Visual Separation
+# Status: done
+# Dependencies: None
+# Priority: medium
+# Description: Implement visual separation between live streaming content and static transcripts with proper transitions and UI indicators.
+# Details:
+## Problem Analysis
+Current UI doesn't clearly distinguish between live streaming content and historical transcripts, causing confusion and poor user experience.
+
+## Implementation Steps
+1. **Design Live Streaming UI Section**:
+   - Create dedicated streaming area above static transcripts
+   - Add visual indicators for live transcription status
+   - Implement animated borders or highlights for active streaming
+   - Design loading states and progress indicators
+
+2. **Implement Transition Animations**:
+   - Smooth animation when streaming text completes
+   - Fade/slide transition from streaming area to static list
+   - Visual feedback for transcription completion
+   - Handle multiple overlapping streams gracefully
+
+3. **Status Indicators and Feedback**:
+   - Add "Live Transcribing..." indicator during active streams
+   - Show transcription source (WebSocket, Batch, etc.)
+   - Display confidence scores for completed transcriptions
+   - Add timestamp formatting for better readability
+
+4. **Layout and Styling**:
+   - Separate streaming area with distinct styling
+   - Use glass morphism effects consistent with app theme
+   - Responsive design for different screen sizes
+   - Accessibility features (screen reader announcements)
+
+## Files to Create/Modify
+- Create `/src/components/LiveStreamingArea.tsx` - Dedicated streaming UI
+- Create `/src/components/TranscriptionStatusIndicator.tsx` - Status display
+- `/src/components/TranscriptDisplay.tsx` - Update layout with separate areas
+- Create `/src/styles/live-streaming-ui.css` - Streaming-specific styles
+
+## UI Specifications
+- **Streaming Area**: Fixed height section at top with animated content
+- **Transition Zone**: Visual separator with completion animations
+- **Static Area**: Scrollable list of historical transcripts
+- **Status Bar**: Compact indicator showing current streaming status
+
+## Visual Design Elements
+- Pulsing border for active streaming
+- Gradient backgrounds for streaming vs. static areas
+- Smooth fade transitions (300ms duration)
+- Consistent glass morphism styling
+- Color coding for different transcription sources
+
+## Success Criteria
+- Clear visual separation between streaming and static content
+- Smooth transitions when streaming completes
+- Intuitive status indicators and feedback
+- Responsive design across devices
+- Accessibility compliance maintained
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Design Live Streaming Area Layout [done]
+### Dependencies: None
+### Description: Design and implement a dedicated live streaming area that visually separates from static transcripts
+### Details:
+Create a fixed-height streaming area at the top of the transcript display with distinct visual styling, animated borders, and clear separation from the scrollable static transcript list below.
+
+## 2. Implement Completion Transition Animations [done]
+### Dependencies: None
+### Description: Create smooth transition animations when streaming text completes and moves to static transcript list
+### Details:
+Implement fade/slide animations when live streaming text finishes, transitioning from the streaming area to the static transcript list with proper timing and visual feedback.
+
+## 3. Create Status Indicators and Feedback [done]
+### Dependencies: None
+### Description: Create visual status indicators and feedback components for live transcription activity
+### Details:
+Design and implement status indicators including 'Live Transcribing...' messages, transcription source badges, confidence scores, and animated progress indicators for active streaming.
+
+## 4. Apply Styling and Responsive Design [done]
+### Dependencies: None
+### Description: Apply glass morphism styling and responsive design to live streaming UI components
+### Details:
+Create consistent glass morphism effects for the streaming area, implement responsive design for different screen sizes, and ensure accessibility features are maintained across all UI improvements.
+

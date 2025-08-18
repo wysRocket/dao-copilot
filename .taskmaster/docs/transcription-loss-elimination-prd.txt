@@ -1,0 +1,130 @@
+# Transcription Loss Elimination PRD
+
+## Objective
+Eliminate all remaining causes of "transcription loss" (missing, disappearing, truncated, duplicated-then-dropped, or silently failed transcript segments) across the real-time + post-processing pipeline so that >99.95% of verbally produced content during an active recording session is captured, persisted, de-duplicated, visible, exportable, and resilient to transient failures.
+
+## Current Symptoms / Loss Vectors
+1. Occasional gaps between partial streaming segments and final consolidation (partial updated, final never persisted)
+2. Race conditions during rapid session stop/start causing last ~200-500ms of speech to be missing
+3. Rare disappearance after UI reconciliation (render-level key collisions previously fixed; need regression protection)
+4. Lost final entries when WebSocket disconnects mid-utterance without fallback batch flush
+5. Missed segments during connection warm-up (first utterance clipped)
+6. Potential overwrites when late-arriving partial updates supersede already-finalized text
+7. Persistence timing windows where app close / navigation loses in-memory but not yet flushed transcripts
+8. Buffer saturation edge cases (when exceeding retention or high burst input) leading to oldest partial not finalized
+9. Error paths (network, auth refresh, model quota) that currently abort silently without retroactive recovery
+10. Session boundary handling (ID reuse / mismatch) leading to orphaned partials that never finalize
+
+## Root Cause Categories
+- Connection Lifecycle & Recovery
+- Session & ID Management
+- Partial→Final State Transition Robustness
+- Persistence & Flush Semantics
+- Backpressure / Buffer Management
+- Error Detection, Classification & Replay
+- UI Integrity & Reconciliation Guarantees
+- Telemetry & Gap Detection
+
+## Success Metrics (Acceptance Criteria)
+| Metric | Target |
+| ------ | ------ |
+| Capture completeness (verified via audio alignment heuristic) | >= 99.95% |
+| Partial→Final orphan rate | < 0.05% of totals |
+| Finalization latency (95th percentile) | < 1.5s after speech end |
+| Missed tail-on-stop (avg) | < 100ms |
+| Recovery success after transient network loss | >= 99% |
+| Duplicate visual artifacts | 0 per 10k entries |
+| Persistence durability (app crash mid-stream) | Lose < 1s recent audio only |
+
+## Non-Goals (This Phase)
+- Advanced semantic correction / diarization quality improvements
+- Offline STT model integration
+- Multi-language auto-detect (assume configured language)
+
+## High-Level Strategy Pillars
+1. Deterministic, Idempotent Transcript Lifecycle (STRICT FSM)
+2. Transactional Persistence Buffer with Journaling
+3. Real-Time Gap & Orphan Detection + Auto-Heal Workers
+4. Multi-Tier Fallback (WebSocket → Streaming HTTP → Batch finalize) with replay
+5. Resilient Connection & Pre-Warm Pool + Audio Pre-Roll Buffer
+6. Unified Deduplication & Merge Engine (content, timing, confidence aware)
+7. Continuous Telemetry & Alerting (anomaly detection)
+8. Hardening Tests & Chaos Automation
+
+## Detailed Requirements
+### 1. Transcript Lifecycle FSM
+States: pending-partial → streaming-active → awaiting-final → finalized | aborted | recovered.
+Requirements:
+- Each utterance assigned stable UUID on first partial
+- State transitions logged & telemetry-emitted
+- Late-arriving partial after finalized is ignored (logged)
+- Orphan detector sweeps every 2s for entries stuck > timeout (configurable ~5s) in awaiting-final; triggers recovery
+
+### 2. Persistence Layer
+- Introduce an append-only in-memory ring buffer + WAL (write-ahead log) persisted every N partials or 250ms (whichever first)
+- Crash recovery reads WAL, replays incomplete sessions, marks uncertain segments for retry
+- Flush on: finalize, session stop, graceful app close, tab visibility change (background) > 10s
+
+### 3. Connection & Audio Pre-Roll
+- Maintain warm connection pool (already started) + verify heartbeat every 15s
+- Audio pre-roll buffer (500ms) retained before first detected speech to prevent clipping
+- If connection not ready when recording starts, partials queued and flushed on ready within 1s window
+
+### 4. Fallback & Replay
+- On WebSocket interruption mid-utterance: capture residual buffered audio, send via batch API, reconcile into existing utterance ID
+- Retry policy: exponential backoff (250ms, 500ms, 1s, 2s, 5s) with circuit break after 5 failures → degrade to batch-only mode & surface UI banner
+
+### 5. Orphan & Gap Detection Worker
+- Every 2s perform:
+  - Scan partials with no update > 4s => attempt finalize via forced flush call
+  - Scan sessions with trailing partial < 150 chars + no final within 3s => attempt finalize
+  - Emit telemetry events when recovery performed
+
+### 6. Deduplication & Merge
+- Maintain hash (rolling content hash + time bucket) for each partial sequence
+- If content regress (shorter) arrives: treat as revision; keep longest unless confidence dictates replacement
+- Merge algorithm chooses most confident consistent growth path
+
+### 7. Telemetry & Observability
+- Metrics: partial_count, final_count, orphan_recovered, fallback_used, late_partial_ignored, wal_flush_ms, finalize_latency_ms (histogram), completeness_estimate
+- Alert thresholds for orphan_recovered > X / hr or fallback_used spike
+
+### 8. Testing & Quality Gates
+- Simulated network flaps (drop, jitter, latency injection)
+- Crash-injection during: mid-partial, pre-final flush, WAL write
+- Audio tail loss harness: play deterministic audio & verify captured transcription length >= 99.95% reference
+- Chaos suite integrated into CI (nightly)
+
+### 9. UI Integrity
+- Stable React keys (already improved) + invariant: visible transcript count equals store transcript count; assert in dev
+- Visual status indicators: recovered, fallback, degraded mode badges
+
+### 10. Configuration & Feature Flags
+- Flags: enableWAL, enableFallbackReplay, orphanRecoveryIntervalMs, finalizeTimeoutMs, audioPreRollMs
+- Safe runtime toggles via ENV or in-app dev panel
+
+## Constraints & Considerations
+- Must not materially increase average end-to-end latency > +50ms
+- WAL size bounded (rotate after 10MB or 15 min)
+- Privacy: ensure ephemeral buffer cleared if user deletes session
+
+## Milestones (Proposed)
+1. Lifecycle & WAL Foundations
+2. Recovery & Fallback Mechanics
+3. Pre-Roll & Start Latency Improvements
+4. Orphan Detector + Merge Engine
+5. Telemetry & Alerting
+6. Chaos & Benchmarking Suite
+7. UI Indicators & Final Hardening
+
+## Risks & Mitigations
+| Risk | Mitigation |
+| ---- | ---------- |
+| Increased complexity introduces new bugs | Strict FSM, exhaustive tests, type constraints |
+| WAL IO overhead | Batch + debounce, binary compact encoding |
+| False orphan recoveries | Conservative thresholds + confidence checks |
+| Fallback inconsistency | Unified reconciliation layer with ID mapping |
+| Telemetry noise | Sampling & aggregation before emit |
+
+## Acceptance / Done Definition
+Feature flag rollout path, all metrics meet targets over 48h canary, chaos suite pass rate > 99%, no P1 regression in latency, WAL recovery verified in manual crash tests.

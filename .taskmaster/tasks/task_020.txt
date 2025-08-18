@@ -1,0 +1,334 @@
+# Task ID: 20
+# Title: Fix Gemini Live API WebSocket Implementation for gemini-2.0-flash-live-001 Model
+# Status: done
+# Dependencies: 13, 16
+# Priority: high
+# Description: Update the WebSocket client implementation to properly connect to the Gemini Live API using the gemini-2.0-flash-live-001 model, fixing connection issues and ensuring bidirectional communication works correctly.
+# Details:
+1. Update the WebSocket client configuration:
+   a. Modify the connection URL to use the correct Gemini Live API WebSocket endpoint
+   b. Update model specification to explicitly use gemini-2.0-flash-live-001
+   c. Implement proper authentication headers with API key
+
+2. Fix the WebSocket connection setup:
+   a. Implement the correct initial setup message structure as specified in the Gemini Live API documentation
+   b. Configure the proper JSON format for the setup message including:
+      - Model: gemini-2.0-flash-live-001
+      - Generation config parameters
+      - Safety settings
+   c. Add proper session ID handling for connection tracking
+
+3. Implement session resumption configuration:
+   a. Add logic to handle server-side connection resets
+   b. Implement session state tracking to resume from the last known state
+   c. Store and reuse session IDs when reconnecting
+
+4. Configure response modalities:
+   a. Set up proper TEXT modality configuration for text responses
+   b. Configure AUDIO modality settings if applicable
+   c. Ensure the client can handle multiple response types
+
+5. Enhance error handling:
+   a. Implement comprehensive error detection for connection issues
+   b. Add specific error handling for authentication failures
+   c. Create recovery mechanisms for network interruptions
+   d. Log detailed error information for debugging
+
+6. Ensure bidirectional communication:
+   a. Verify message sending functionality works correctly
+   b. Implement proper message receiving and parsing
+   c. Add message queuing for reliability
+   d. Ensure proper event handling for WebSocket lifecycle events
+
+7. Update related components:
+   a. Modify any dependent services that use the WebSocket client
+   b. Update configuration files with new endpoint and model information
+   c. Ensure environment variables are properly documented
+
+# Test Strategy:
+1. Unit Testing:
+   a. Create unit tests for the updated WebSocket client implementation
+   b. Test connection establishment with the correct model and endpoint
+   c. Verify proper message formatting for setup messages
+   d. Test error handling with simulated connection failures
+   e. Validate session resumption logic
+
+2. Integration Testing:
+   a. Test end-to-end connection to the actual Gemini Live API
+   b. Verify successful authentication with valid API keys
+   c. Test sending text messages and receiving responses
+   d. Validate that the gemini-2.0-flash-live-001 model is correctly specified
+   e. Measure response times and connection stability
+
+3. Error Handling Testing:
+   a. Test behavior with invalid API keys
+   b. Simulate network interruptions to verify reconnection logic
+   c. Test with malformed messages to ensure proper error handling
+   d. Verify logging of connection issues for debugging
+
+4. Functional Testing:
+   a. Test bidirectional communication with sample conversations
+   b. Verify that text responses are correctly received and parsed
+   c. Test with various input lengths and content types
+   d. Ensure the WebSocket connection remains stable during extended use
+
+5. Performance Testing:
+   a. Measure connection establishment time
+   b. Test with high message throughput to ensure stability
+   c. Verify memory usage during extended sessions
+
+# Subtasks:
+## 1. Update WebSocket Connection URL and Authentication [done]
+### Dependencies: None
+### Description: Modify the WebSocket client to use the correct Gemini Live API endpoint and implement proper authentication with API key headers.
+### Details:
+1. Update the connection URL to the Gemini Live API WebSocket endpoint
+2. Implement authentication header generation with the API key
+3. Create a connection factory that properly configures these parameters
+4. Update any environment configuration to include the new endpoint
+
+## 2. Implement Correct Initial Setup Message Structure [done]
+### Dependencies: 20.1
+### Description: Create the proper JSON structure for the initial setup message that configures the model and session parameters.
+### Details:
+1. Create a message builder for the initial setup message
+2. Configure the model specification to use gemini-2.0-flash-live-001
+3. Implement generation config parameters in the message
+4. Add safety settings configuration
+5. Ensure the message format matches the Gemini Live API documentation
+<info added on 2025-06-20T12:50:48.789Z>
+Completed implementation of the correct initial setup message structure for the Gemini Live API. Key accomplishments:
+
+1. Added SetupMessage interface with proper JSON structure for the Gemini Live API
+2. Implemented validateSetupMessage() method to validate setup message structure
+3. Added sendSetupMessage() method that sends the setup message immediately after WebSocket connection
+4. Updated the connection flow to automatically send setup message after connection established
+5. Improved logging to info level for setup message operations
+6. Ensured the setup message includes all required fields:
+   - Model: gemini-2.0-flash-live-001
+   - Generation config parameters
+   - Response modalities configuration
+   - System instruction setup
+7. Added proper error handling for setup message validation
+8. Created comprehensive test script (test-gemini-websocket.ts) to verify the implementation
+
+The setup message now follows the exact structure required by the Gemini Live API documentation and is automatically sent when the WebSocket connection is established. The implementation includes validation to ensure the message structure is correct before sending.
+</info added on 2025-06-20T12:50:48.789Z>
+
+## 3. Implement Session Management and Resumption [done]
+### Dependencies: 20.2
+### Description: Add logic to track session state, handle session IDs, and implement session resumption after disconnections.
+### Details:
+1. Create a session manager class to track session state
+2. Implement storage and retrieval of session IDs
+3. Add logic to detect disconnections and trigger reconnection
+4. Implement the session resumption protocol using stored session information
+5. Add timeout and retry logic for connection attempts
+<info added on 2025-06-27T08:07:48.956Z>
+Starting implementation of session management integration into the WebSocket client. Current status:
+
+ANALYSIS:
+- The GeminiSessionManager class exists and provides comprehensive session tracking capabilities
+- The WebSocket client (GeminiLiveWebSocketClient) does not currently integrate with any session manager
+- Need to integrate these two components for proper session tracking and resumption
+
+IMPLEMENTATION PLAN:
+1. Import and integrate GeminiSessionManager into the WebSocket client
+2. Add session creation during connection establishment  
+3. Add session suspension/resumption logic for disconnections/reconnections
+4. Track session activity (messages, turns, connection events)
+5. Implement session-based connection state recovery
+
+NEXT STEPS:
+- Add GeminiSessionManager as a dependency in the WebSocket client
+- Initialize session manager in constructor
+- Hook into connection lifecycle events to manage sessions
+- Add session resumption logic to the reconnection process
+</info added on 2025-06-27T08:07:48.956Z>
+<info added on 2025-06-27T08:11:00.694Z>
+PROGRESS UPDATE:
+
+Session management integration is partially complete. The GeminiSessionManager is now imported and initialized in the WebSocket client with basic functionality working.
+
+COMPLETED:
+- GeminiSessionManager is imported and initialized in the WebSocket client
+- Session creation during connection establishment is implemented
+- Session resumption logic exists in handleSessionConnection()
+- Session disconnection handling is implemented
+- Event listeners for session manager events are set up
+
+REMAINING WORK:
+1. Enhance session resumption with connection state recovery
+2. Add session ID tracking in setup messages for proper session resumption
+3. Improve session persistence across reconnection attempts
+4. Add session validation and cleanup during connection failures
+5. Implement session-based message tracking and recovery
+6. Add comprehensive logging for session lifecycle events
+
+NEXT STEPS:
+- Review and enhance the session resumption logic to include connection state recovery
+- Ensure session IDs are properly included in WebSocket setup messages
+- Add session validation during reconnection attempts
+- Test session persistence across multiple connection cycles
+</info added on 2025-06-27T08:11:00.694Z>
+<info added on 2025-06-27T08:28:21.699Z>
+IMPLEMENTATION COMPLETE:
+
+Session management and resumption functionality has been fully integrated into the WebSocket client. The implementation includes:
+
+1. GeminiSessionManager integration with WebSocket client
+   - Initialized with 24h timeout and 30min inactivity settings
+   - Comprehensive event listeners for session lifecycle events
+
+2. Robust session creation and resumption logic
+   - handleSessionConnection() method with smart session resumption
+   - validateSessionForResumption() method with validation checks
+   - Automatic new session creation when resumption fails
+   - Session validation based on model match, age, and inactivity
+
+3. Connection lifecycle integration
+   - Session creation/resumption on WebSocket connection
+   - Session suspension on disconnection with reason tracking
+   - Connection event recording for session history
+
+4. Comprehensive activity tracking
+   - Message sent/received tracking in sessions
+   - Turn completion recording for conversation tracking
+   - Automatic session activity updates on all interactions
+   - Session state persistence across reconnections
+
+5. Public API methods for session management
+   - getCurrentSession(), getSessionStats(), getResumableSessions()
+   - suspendCurrentSession(), clearAllSessions()
+
+6. Error handling and cleanup mechanisms
+   - Graceful error handling in session operations
+   - Session manager cleanup in destroy() method
+   - Detailed session validation logging
+   - Non-blocking session operations
+
+The implementation ensures seamless user experience across connection interruptions and provides detailed session analytics.
+</info added on 2025-06-27T08:28:21.699Z>
+<info added on 2025-06-27T08:31:56.649Z>
+COMPLETED: Session management and resumption implementation
+
+IMPLEMENTATION COMPLETED:
+✅ Integrated GeminiSessionManager into WebSocket client as a private property
+✅ Initialized session manager in constructor with proper configuration
+✅ Added comprehensive session event listeners (sessionCreated, sessionResumed, sessionSuspended, sessionError)
+✅ Implemented handleSessionConnection() method that:
+   - Automatically tries to resume most recent session on reconnection
+   - Creates new session if no resumable session available or resumption fails
+   - Includes proper error handling for session operations
+✅ Implemented handleSessionDisconnection() method for session suspension
+✅ Added session activity tracking:
+   - Records sent messages in sendRealtimeInput()
+   - Records received messages in handleMessage()  
+   - Tracks conversation turns and updates activity timestamps
+✅ Enhanced error handling to mark sessions with errors
+✅ Added public API methods:
+   - getCurrentSession(): Get current active session
+   - getSessionStats(): Get session statistics
+   - getResumableSessions(): Get list of resumable sessions
+   - suspendCurrentSession(): Manually suspend current session
+   - resumeSpecificSession(): Manually resume a specific session
+   - clearAllSessions(): Clear all stored sessions
+✅ Enhanced setup message to include session context logging
+✅ Added session cleanup to destroy() method
+
+FUNCTIONALITY ACHIEVED:
+- Session persistence across disconnections and reconnections
+- Automatic session resumption on reconnection attempts
+- Session activity tracking (messages, turns, connection events)  
+- Session state management (active, suspended, expired, error)
+- Manual session control via public API
+- Session statistics and monitoring
+- Proper cleanup and resource management
+
+The session management system is now fully operational and ready for testing.
+</info added on 2025-06-27T08:31:56.649Z>
+
+## 4. Configure Response Modalities and Message Parsing [done]
+### Dependencies: 20.2
+### Description: Set up the client to handle different response modalities and implement proper message parsing for received data.
+### Details:
+1. Configure TEXT modality settings in the client
+2. Add AUDIO modality configuration if needed
+3. Implement response parsers for each supported modality
+4. Create data models for structured responses
+5. Add validation for received messages
+<info added on 2025-06-27T08:39:09.804Z>
+# Modality Configuration and Response Parsing Implementation
+
+## Response Modality Configuration
+- Implemented `ResponseModality` enum with TEXT and AUDIO options
+- Added dynamic configuration methods for enabling/disabling modalities at runtime
+- Created validation system for response modalities in setup messages
+- Developed utility methods: `enableAudioModality()`, `resetToTextOnly()`, `enableMultimodalResponses()`
+
+## Enhanced Message Parsing
+- Developed `Gemini2FlashMessageParser` class specifically for gemini-2.0-flash-live-001 responses
+- Created structured data models: `ParsedGeminiResponse`, `AudioResponseData`, `TextResponseData`, `ToolCallResponseData`
+- Implemented support for multiple message types (text, audio, tool_call, error, setup_complete, turn_complete)
+- Added comprehensive response validation with detailed error reporting
+- Built support for streaming/partial responses with metadata tracking
+
+## Bidirectional Message Handling
+- Enhanced event system with new events: `textResponse`, `audioResponse`, `toolCall`, `geminiResponse`
+- Maintained backward compatibility with existing event system
+- Improved error categorization and recovery for parsing failures
+- Enhanced session tracking with turn completion and message counting
+
+## Configuration API
+- `configureResponseModalities(modalities: ResponseModality[])`
+- `getResponseModalities()`, `isModalityEnabled(modality: ResponseModality)`
+- Modality-specific methods: `enableAudioModality()`, `disableAudioModality()`
+- `getModalityConfiguration()` for detailed status reporting
+</info added on 2025-06-27T08:39:09.804Z>
+
+## 5. Enhance Error Handling and Recovery Mechanisms [done]
+### Dependencies: 20.3, 20.4
+### Description: Implement comprehensive error detection, handling, and recovery for various failure scenarios.
+### Details:
+1. Create specific error types for different failure scenarios
+2. Implement error detection for connection issues
+3. Add specific handling for authentication failures
+4. Create recovery mechanisms for network interruptions
+5. Implement detailed error logging
+6. Add circuit breaker pattern to prevent repeated failures
+<info added on 2025-06-27T08:49:56.580Z>
+Successfully implemented comprehensive error handling and recovery mechanisms:
+
+1. Enhanced Connection Error Handling with circuit breaker integration, detailed logging, and automatic recovery
+2. Improved Message Send Error Handling with pre-send circuit breaker checks, automatic retry for retryable errors, and error context tracking
+3. Overhauled Message Receive Error Handling with server error classification, validation error processing, and circuit breaker state management
+4. Implemented Server Error Classification system with methods for error type mapping, retry eligibility, and reconnection logic
+5. Integrated Circuit Breaker Pattern across all major operations with success/failure recording and state-aware logging
+6. Added Enhanced Error Context capturing connection state, session ID, timestamps, and structured error data
+7. Developed Recovery Mechanisms for retryable errors with fallback reconnection options and asynchronous error recovery
+
+The implementation now robustly handles network interruptions, authentication failures, rate limiting, quota exceeded scenarios, service unavailability, message parsing errors, session errors, and prevents cascading failures.
+</info added on 2025-06-27T08:49:56.580Z>
+
+## 6. Implement Bidirectional Communication and Update Dependent Components [done]
+### Dependencies: 20.5
+### Description: Ensure reliable bidirectional message exchange and update any dependent services to use the new implementation.
+### Details:
+1. Implement message sending queue for reliability
+2. Add proper event handling for WebSocket lifecycle events
+3. Create a message retry mechanism for failed sends
+4. Update any dependent services to use the new WebSocket client
+5. Update configuration files with new endpoint and model information
+6. Document the API changes and new environment variables
+<info added on 2025-06-27T09:05:25.862Z>
+7. Enhanced bidirectional communication with the following improvements:
+   - Implemented priority-based message queue (LOW, NORMAL, HIGH, CRITICAL) with QueuedMessage interface
+   - Added advanced message retry logic with exponential backoff (1s, 2s, 4s, 8s, max 30s)
+   - Enhanced sendRealtimeInput() method with MessageSendOptions parameter and circuit breaker pre-checks
+   - Implemented priority-based queue processing for message handling
+   - Added comprehensive statistics and monitoring with getQueueStatistics() method
+   - Integrated circuit breaker pattern for failure detection and service protection
+   - Updated configuration with new endpoint for gemini-2.0-flash-live-001 model
+   - Ensured backward compatibility with existing implementations
+</info added on 2025-06-27T09:05:25.862Z>
+

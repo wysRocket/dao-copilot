@@ -1,0 +1,55 @@
+# Task ID: 20
+# Title: Create Orphan and Gap Detection Worker
+# Status: cancelled
+# Dependencies: 16, 17
+# Priority: medium
+# Description: Implement a background worker that periodically scans for orphaned partials, gaps in transcription, and attempts recovery of incomplete transcripts.
+# Details:
+Develop an orphan and gap detection system that:
+1. Implements a worker that runs every 2 seconds to scan for issues
+2. Detects partials with no updates for more than 4 seconds
+3. Attempts to finalize orphaned partials via forced flush calls
+4. Scans sessions with trailing partials < 150 chars with no final within 3s
+5. Implements recovery mechanisms for detected issues
+6. Emits telemetry events when recovery is performed
+7. Maintains statistics on recovery attempts and success rates
+
+Code structure:
+```typescript
+interface OrphanDetectionConfig {
+  scanIntervalMs: number;
+  orphanThresholdMs: number;
+  trailingPartialTimeoutMs: number;
+  minTrailingPartialLength: number;
+}
+
+class OrphanDetectionWorker {
+  private timer: number;
+  private config: OrphanDetectionConfig;
+  private recoveryStats: {
+    detected: number;
+    recovered: number;
+    failed: number;
+  };
+  
+  constructor(config: OrphanDetectionConfig) {...}
+  
+  start(): void {...}
+  stop(): void {...}
+  private scan(): void {...}
+  private detectOrphans(): TranscriptSegment[] {...}
+  private detectTrailingPartials(): TranscriptSegment[] {...}
+  private attemptRecovery(segment: TranscriptSegment): Promise<boolean> {...}
+  private emitTelemetry(event: string, data: any): void {...}
+}
+```
+
+# Test Strategy:
+1. Unit tests for orphan detection logic
+2. Test trailing partial detection
+3. Verify recovery mechanisms for different scenarios
+4. Test telemetry emission on recovery attempts
+5. Integration tests with simulated orphaned partials
+6. Verify worker scheduling and execution timing
+7. Test statistics tracking for recovery attempts
+8. Performance testing to ensure minimal impact on main thread

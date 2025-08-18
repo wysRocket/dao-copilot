@@ -1,0 +1,90 @@
+# Task ID: 5
+# Title: Fix WebSocket Event Flow for Streaming Renderer
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Fix event flow to ensure WebSocket transcription events properly trigger streaming renderer instead of being added directly to static list.
+# Details:
+## Problem Analysis
+WebSocket transcription events are bypassing the streaming renderer and going directly to static transcript display, causing transcriptions to appear as blocks instead of animated text.
+
+## Current Event Flow Issues
+1. IPC transcription events are handled generically
+2. No source-aware routing in event listeners
+3. StreamingTextContext is not being triggered
+4. Events are processed synchronously without streaming consideration
+
+## Implementation Steps
+1. **Debug Current Event Flow**:
+   - Trace WebSocket transcription from main process to renderer
+   - Identify where events are being intercepted for static display
+   - Document current IPC communication patterns
+   - Find bottlenecks in event routing
+
+2. **Implement Source-Aware Event Handling**:
+   - Modify IPC listeners to check transcription source
+   - Create dedicated WebSocket event handlers
+   - Route WebSocket events to streaming system first
+   - Fallback to static display only after streaming completes
+
+3. **Create Event Middleware System**:
+   - Create TranscriptionEventMiddleware class
+   - Implement event interception and routing
+   - Add event transformation for streaming compatibility
+   - Include error handling and fallback mechanisms
+
+4. **Update Event Subscriptions**:
+   - Modify HomePage to subscribe to streaming events
+   - Update StreamingTextContext to handle WebSocket events
+   - Ensure proper event cleanup and memory management
+   - Add event debugging and logging
+
+## Files to Modify
+- `/src/helpers/ipc/transcription/transcription-listeners.ts` - Add source-aware routing
+- Create `/src/services/TranscriptionEventMiddleware.ts` - Event routing system
+- `/src/pages/HomePage.tsx` - Update event subscriptions
+- `/src/contexts/StreamingTextContext.tsx` - Add WebSocket event handling
+
+## Event Flow Diagram
+```
+WebSocket Transcription → IPC Main → Event Middleware → 
+  ↓ (if websocket-gemini)
+Streaming Text Context → Live Animation → Static Display
+  ↓ (if batch/other)
+Static Display Directly
+```
+
+## Success Criteria
+- WebSocket events trigger streaming renderer
+- No bypassing of animation system for WebSocket sources
+- Proper event debugging and error handling
+- Maintainable event architecture
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Analyze Current WebSocket Event Flow [done]
+### Dependencies: None
+### Description: Trace and analyze the current WebSocket event flow from main process to renderer to identify where events are being intercepted for static display
+### Details:
+Debug the complete WebSocket transcription event flow: IPC communication → event listeners → state updates → UI rendering. Identify bottlenecks and points where streaming renderer is bypassed.
+
+## 2. Integrate with Unified State Manager [done]
+### Dependencies: None
+### Description: Integrate the WebSocket transcription events with our new unified TranscriptionStateManager
+### Details:
+Update IPC listeners and event handlers to use the unified TranscriptionStateManager instead of scattered state updates. Ensure WebSocket events trigger streaming lifecycle properly.
+
+## 3. Create Event Routing Middleware [done]
+### Dependencies: None
+### Description: Create middleware system to route WebSocket events to streaming system before static display
+### Details:
+Implement TranscriptionEventMiddleware to intercept and route WebSocket events to streaming renderer first, with fallback to static display only after streaming completes.
+
+## 4. Test End-to-End Event Flow [done]
+### Dependencies: None
+### Description: Test and validate the complete WebSocket to streaming renderer flow end-to-end
+### Details:
+Validate that WebSocket transcription events now properly trigger streaming animations, integrate with unified state management, and maintain proper fallback behavior.
+

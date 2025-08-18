@@ -1,0 +1,11 @@
+# Task ID: 8
+# Title: Develop Testing Framework and Chaos Suite
+# Status: pending
+# Dependencies: 1, 2, 3, 4
+# Priority: medium
+# Description: Create a comprehensive testing framework including chaos testing to verify system resilience under adverse conditions.
+# Details:
+Develop a TranscriptionTestHarness class that can simulate various network conditions (drop, jitter, latency injection). Implement crash-injection capabilities to test system behavior during: mid-partial, pre-final flush, and WAL write. Create an audio tail loss test that plays deterministic audio and verifies captured transcription length >= 99.95% of reference. Develop a full chaos test suite that can be integrated into CI for nightly runs. Implement performance benchmarking to track latency and resource usage. Create a test dashboard to visualize test results and identify regressions.
+
+# Test Strategy:
+Meta-test the test framework itself by verifying it correctly detects known issues in test implementations. Validate that the chaos tests produce consistent results across multiple runs. Verify that the audio tail loss test correctly identifies missing content. Test the CI integration to ensure tests run correctly in the automated environment. Benchmark the test suite itself to ensure it completes within reasonable time limits.

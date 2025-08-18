@@ -1,0 +1,11 @@
+# Task ID: 7
+# Title: Implement Comprehensive Telemetry and Observability
+# Status: pending
+# Dependencies: 1, 2, 4, 5, 6
+# Priority: medium
+# Description: Develop a telemetry system to track key metrics, detect anomalies, and provide observability into the transcription pipeline.
+# Details:
+Create a TranscriptionTelemetry class that tracks the following metrics: partial_count, final_count, orphan_recovered, fallback_used, late_partial_ignored, wal_flush_ms, finalize_latency_ms (histogram), and completeness_estimate. Implement alert thresholds for orphan_recovered > X/hr or fallback_used spikes. Add detailed logging for all critical operations with appropriate sampling to prevent excessive log volume. Implement an anomaly detection system that can identify unusual patterns in the metrics. Create dashboards for monitoring the health of the transcription system. Add distributed tracing for end-to-end visibility into transcript processing.
+
+# Test Strategy:
+Unit test the telemetry emission for each metric to ensure correct values are reported. Test the alert threshold logic with simulated metric spikes. Create integration tests that generate known patterns of activity and verify the telemetry correctly captures them. Test sampling logic to ensure it doesn't miss important events. Verify dashboard visualizations correctly represent the system state.

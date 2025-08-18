@@ -1,0 +1,52 @@
+# Task ID: 21
+# Title: Implement Deduplication and Merge Engine
+# Status: cancelled
+# Dependencies: 16, 17
+# Priority: medium
+# Description: Create a sophisticated deduplication and merge engine that handles content hash comparison, confidence-based selection, and consistent growth path determination.
+# Details:
+Develop a deduplication and merge system that:
+1. Implements rolling content hash + time bucket for each partial sequence
+2. Handles content regression by treating shorter content as a revision
+3. Implements logic to keep longest content unless confidence dictates replacement
+4. Creates a merge algorithm that chooses the most confident consistent growth path
+5. Handles edge cases like overlapping content and partial duplicates
+6. Provides conflict resolution for competing transcripts
+7. Maintains transcript integrity during merges
+
+Code structure:
+```typescript
+interface MergeOptions {
+  preferLongest: boolean;
+  confidenceThreshold: number;
+  timeToleranceMs: number;
+}
+
+class DeduplicationEngine {
+  private contentHashes: Map<string, TranscriptSegment[]>;
+  
+  constructor(private options: MergeOptions) {...}
+  
+  generateHash(segment: TranscriptSegment): string {...}
+  isDuplicate(segment: TranscriptSegment): boolean {...}
+  handlePotentialDuplicate(segment: TranscriptSegment): TranscriptSegment {...}
+}
+
+class MergeEngine {
+  constructor(private options: MergeOptions) {...}
+  
+  mergeSegments(segments: TranscriptSegment[]): TranscriptSegment {...}
+  determineGrowthPath(segments: TranscriptSegment[]): TranscriptSegment[] {...}
+  resolveConflict(a: TranscriptSegment, b: TranscriptSegment): TranscriptSegment {...}
+}
+```
+
+# Test Strategy:
+1. Unit tests for hash generation and comparison
+2. Test duplicate detection with various content similarities
+3. Verify content regression handling
+4. Test merge algorithm with different confidence levels
+5. Verify consistent growth path determination
+6. Test conflict resolution with competing transcripts
+7. Integration tests with real-world transcript patterns
+8. Performance testing with large volumes of similar transcripts

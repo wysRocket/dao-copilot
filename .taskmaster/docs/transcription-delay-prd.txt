@@ -1,0 +1,66 @@
+# Transcription Initial Display Delay Fix - Product Requirements Document
+
+## Problem Statement
+The live transcription system has a significant initial delay (~30 seconds) before transcriptions appear in the UI, despite the system showing that transcripts are being received and counted (Total Transcripts: 13). Users experience a frustrating delay where the transcription count increases but no content is visible.
+
+## Current State Analysis
+- Transcription count increments correctly (showing 13 total transcripts)
+- Status shows "Recording" indicating active session
+- No visible transcription content for ~30 seconds despite data being received
+- Previous fixes addressed persistence but not initial display timing
+
+## Root Cause Hypothesis
+1. **Display Logic Delays**: Component rendering logic may have thresholds or delays before showing content
+2. **State Synchronization Issues**: Disconnect between transcript counting and display rendering
+3. **UI Component Lazy Loading**: Components may not mount or render until certain conditions are met
+4. **Buffering Logic**: System may wait for minimum content before displaying
+5. **WebSocket to UI Pipeline**: Delays in the data flow from WebSocket to visual components
+
+## Technical Requirements
+
+### 1. Immediate Display Capability
+- Transcriptions should appear within 1-2 seconds of being received
+- No artificial delays or buffering for initial display
+- Real-time visual feedback when transcription data arrives
+
+### 2. State Synchronization Fix
+- Ensure transcript count and visible content are synchronized
+- Display components should react immediately to new transcription data
+- Remove any lazy loading or deferred rendering
+
+### 3. WebSocket to UI Pipeline Optimization
+- Minimize steps between WebSocket data receipt and UI display
+- Eliminate any batching or throttling for initial content
+- Ensure streaming state immediately triggers UI updates
+
+### 4. Component Mounting & Rendering
+- Verify components mount immediately when transcription starts
+- Remove conditional rendering that delays initial display
+- Ensure CSS animations don't delay visibility
+
+### 5. Debugging & Monitoring
+- Add telemetry to track time from data receipt to UI display
+- Log pipeline stages to identify bottlenecks
+- Performance metrics for initial display latency
+
+## Success Criteria
+- Initial transcription appears within 2 seconds of starting recording
+- Transcript count and visible content are synchronized
+- No 30-second delay before content becomes visible
+- Smooth real-time updates after initial display
+
+## Implementation Approach
+1. **Audit Display Pipeline**: Trace data flow from WebSocket to UI rendering
+2. **Remove Display Delays**: Eliminate artificial delays, thresholds, or buffering
+3. **Fix Component Logic**: Ensure immediate mounting and rendering
+4. **Optimize State Flow**: Direct path from transcript data to display
+5. **Add Monitoring**: Track display latency metrics
+
+## Testing Strategy
+- Test initial display timing with fresh sessions
+- Measure time from first transcript to UI appearance
+- Verify transcript count matches visible content
+- Performance testing for real-time responsiveness
+
+## Priority: CRITICAL
+This issue significantly impacts user experience and makes the transcription feature appear broken during the crucial first 30 seconds of use.

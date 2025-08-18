@@ -1,0 +1,274 @@
+/* StreamingStateDemo Component Styles */
+
+.streaming-demo-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+.streaming-demo-container h2 {
+  color: var(--text-primary, #ffffff);
+  margin-bottom: 2rem;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.streaming-demo-container h3 {
+  color: var(--text-primary, #ffffff);
+  margin: 2rem 0 1rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.5rem;
+}
+
+.streaming-demo-container h4 {
+  color: var(--text-secondary, #a1a1aa);
+  margin: 1rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+/* Demo Controls */
+.demo-controls {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  backdrop-filter: blur(10px);
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.mode-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary, #ffffff);
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.mode-toggle label:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mode-toggle input[type='radio'] {
+  margin: 0;
+  accent-color: var(--accent-color, #3b82f6);
+}
+
+.state-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.state-buttons button {
+  padding: 0.5rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary, #ffffff);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(5px);
+}
+
+.state-buttons button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.state-buttons button:active {
+  transform: scale(0.98);
+}
+
+/* Indicator Variants */
+.indicator-variants {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.variant-section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.variant-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Integrated Demo */
+.integrated-demo {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.demo-renderer {
+  min-height: 120px;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+/* State Information */
+.state-info {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.info-grid > div {
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary, #a1a1aa);
+}
+
+.info-grid strong {
+  color: var(--text-primary, #ffffff);
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .streaming-demo-container {
+    padding: 1rem;
+  }
+
+  .demo-controls {
+    padding: 1rem;
+  }
+
+  .mode-toggle {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .state-buttons {
+    justify-content: center;
+  }
+
+  .state-buttons button {
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .variant-section {
+    padding: 0.75rem;
+  }
+}
+
+/* Animation Effects */
+.streaming-demo-container {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Focus and Accessibility */
+.state-buttons button:focus,
+.mode-toggle input[type='radio']:focus {
+  outline: 2px solid var(--focus-color, #007acc);
+  outline-offset: 2px;
+}
+
+.mode-toggle label:focus-within {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* High Contrast Support */
+@media (prefers-contrast: high) {
+  .streaming-demo-container {
+    background: var(--background-high-contrast, #000000);
+    color: var(--text-high-contrast, #ffffff);
+  }
+
+  .demo-controls,
+  .indicator-variants,
+  .integrated-demo,
+  .state-info {
+    border: 2px solid currentColor;
+    background: transparent;
+  }
+
+  .state-buttons button {
+    border: 2px solid currentColor;
+    background: transparent;
+  }
+}
+
+/* Dark Theme Adjustments */
+@media (prefers-color-scheme: dark) {
+  .streaming-demo-container {
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+    --accent-color: #60a5fa;
+    --focus-color: #3b82f6;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .streaming-demo-container,
+  .state-buttons button,
+  .mode-toggle label {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .state-buttons button:hover {
+    transform: none !important;
+  }
+}

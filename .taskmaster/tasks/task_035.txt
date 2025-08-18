@@ -1,0 +1,207 @@
+# Task ID: 35
+# Title: Implement Enhanced WebSocket Message Stream Handler for Live Transcription Events
+# Status: pending
+# Dependencies: 13, 16, 22, 33
+# Priority: medium
+# Description: Create a sophisticated message stream processing system that handles various types of messages from the Gemini Live API WebSocket connection, optimized for real-time transcription display and user interaction.
+# Details:
+1. Create a MessageStreamHandler class to process WebSocket messages:
+```typescript
+class MessageStreamHandler {
+  private messageBuffer: ServerMessage[] = [];
+  private bufferTimeout: number = 50; // ms
+  private eventEmitter: EventEmitter = new EventEmitter();
+  
+  constructor(private webSocketClient: GeminiLiveWebSocketClient) {
+    this.webSocketClient.on('message', this.handleIncomingMessage.bind(this));
+  }
+  
+  private handleIncomingMessage(message: ServerMessage): void {
+    // Process different message types
+    if (message.serverContent?.inputTranscription) {
+      this.handleTranscriptionMessage(message);
+    } else if (message.serverContent?.modelTurn) {
+      this.handleModelTurnMessage(message);
+    } else if (message.serverContent?.turnComplete) {
+      this.handleTurnCompleteMessage(message);
+    } else if (message.error) {
+      this.handleErrorMessage(message);
+    }
+  }
+  
+  private handleTranscriptionMessage(message: ServerMessage): void {
+    const transcription = message.serverContent.inputTranscription;
+    const isPartial = !transcription.isFinal;
+    
+    if (isPartial) {
+      this.bufferPartialTranscription(transcription);
+    } else {
+      this.emitFinalTranscription(transcription);
+    }
+  }
+  
+  private bufferPartialTranscription(transcription: TranscriptionResult): void {
+    this.messageBuffer.push(transcription);
+    this.scheduleBufferProcessing();
+  }
+  
+  private scheduleBufferProcessing(): void {
+    // Debounce rapid updates
+    clearTimeout(this.bufferProcessingTimeout);
+    this.bufferProcessingTimeout = setTimeout(() => {
+      this.processBuffer();
+    }, this.bufferTimeout);
+  }
+  
+  private processBuffer(): void {
+    if (this.messageBuffer.length === 0) return;
+    
+    // Deduplicate and order messages
+    const processedMessages = this.deduplicateAndOrderMessages(this.messageBuffer);
+    this.eventEmitter.emit('transcriptionUpdate', processedMessages);
+    this.messageBuffer = [];
+  }
+  
+  private deduplicateAndOrderMessages(messages: ServerMessage[]): ServerMessage[] {
+    // Implement deduplication and ordering logic
+    // ...
+  }
+  
+  // Additional handler methods for other message types
+  // ...
+  
+  // Public API
+  public on(event: string, listener: Function): void {
+    this.eventEmitter.on(event, listener);
+  }
+  
+  public setBufferTimeout(timeout: number): void {
+    this.bufferTimeout = timeout;
+  }
+  
+  public getLatencyMetrics(): LatencyMetrics {
+    // Return performance metrics
+    // ...
+  }
+}
+```
+
+2. Implement typed interfaces for different message structures:
+```typescript
+interface ServerMessage {
+  serverContent?: {
+    inputTranscription?: TranscriptionResult;
+    modelTurn?: ModelTurnResponse;
+    turnComplete?: TurnCompleteEvent;
+  };
+  error?: ErrorMessage;
+  timestamp?: number;
+  sequenceId?: number;
+}
+
+interface TranscriptionResult {
+  text: string;
+  isFinal: boolean;
+  confidence?: number;
+  languageCode?: string;
+}
+
+interface ModelTurnResponse {
+  content: string;
+  isComplete: boolean;
+}
+
+interface TurnCompleteEvent {
+  turnId: string;
+}
+
+interface ErrorMessage {
+  code: number;
+  message: string;
+  details?: any;
+}
+
+interface LatencyMetrics {
+  averageProcessingTime: number;
+  messageCount: number;
+  bufferSize: number;
+}
+```
+
+3. Implement intelligent buffering with timeout controls:
+   - Buffer partial transcription results to prevent UI flickering
+   - Use configurable timeout for buffer processing
+   - Implement adaptive timeout based on message frequency
+
+4. Add message validation and error recovery:
+   - Validate incoming messages against expected schema
+   - Handle malformed messages gracefully
+   - Implement recovery strategies for out-of-order messages
+
+5. Create logging and debugging capabilities:
+```typescript
+private logMessage(message: ServerMessage, level: LogLevel = 'debug'): void {
+  const timestamp = new Date().toISOString();
+  const messageType = this.getMessageType(message);
+  
+  this.logger[level](`[${timestamp}] [${messageType}] ${JSON.stringify(message)}`);
+  
+  // Track performance metrics
+  this.updatePerformanceMetrics(message);
+}
+```
+
+6. Implement event emission for UI component integration:
+   - Emit typed events for different message types
+   - Support multiple subscriber patterns
+   - Provide filtered event streams for specific message types
+
+7. Add performance monitoring and latency tracking:
+   - Track message processing time
+   - Monitor buffer size and processing delays
+   - Provide metrics for UI performance optimization
+
+# Test Strategy:
+1. Unit Testing:
+   a. Test message type differentiation:
+      - Create mock messages for each type (serverContent.inputTranscription, modelTurn, turnComplete)
+      - Verify correct handler method is called for each message type
+      - Test edge cases with malformed or unexpected message structures
+
+   b. Test buffering and debouncing:
+      - Simulate rapid message sequences with varying intervals
+      - Verify buffer collects messages correctly
+      - Test that debouncing prevents excessive UI updates
+      - Validate timeout behavior with different configurations
+
+   c. Test message processing:
+      - Verify deduplication correctly removes duplicate messages
+      - Test message ordering with out-of-sequence messages
+      - Validate partial vs final transcription handling
+
+2. Integration Testing:
+   a. Test with live WebSocket client:
+      - Verify correct event emission for UI components
+      - Test end-to-end flow from WebSocket message to UI update
+      - Validate error handling and recovery in integrated environment
+
+   b. Performance testing:
+      - Measure processing latency under various message loads
+      - Test with simulated network conditions (latency, packet loss)
+      - Verify memory usage remains stable during extended sessions
+
+3. UI Component Integration:
+   a. Test with TranscriptDisplay component:
+      - Verify smooth rendering of streaming text
+      - Test handling of partial and final transcriptions
+      - Validate correct visual indicators for transcription status
+
+   b. Test with recording status components:
+      - Verify connection quality indicators update correctly
+      - Test error message display and user feedback
+
+4. Automated End-to-End Testing:
+   a. Create automated tests that simulate complete transcription sessions
+   b. Verify all message types are handled correctly
+   c. Test recovery from connection interruptions
+   d. Validate session resumption after disconnection

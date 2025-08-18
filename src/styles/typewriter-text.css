@@ -1,0 +1,213 @@
+/* TypewriterText Component Styles */
+
+.typewriter-container {
+  display: inline-block;
+  position: relative;
+  font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+}
+
+.typewriter-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.typewriter-cursor {
+  display: inline-block;
+  animation: typewriter-blink 1.06s infinite;
+  color: var(--text-accent, #007acc);
+  font-weight: normal;
+  margin-left: 1px;
+}
+
+.typewriter-progress {
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.typewriter-progress-bar {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--text-accent, #007acc),
+    var(--text-accent-light, #4dabf7)
+  );
+  transition: width 0.2s ease-out;
+  border-radius: 1px;
+  box-shadow: 0 0 4px rgba(0, 122, 204, 0.3);
+}
+
+/* Typewriter cursor animation */
+@keyframes typewriter-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Alternative cursor styles for different effects */
+.typewriter-cursor.block {
+  background-color: currentColor;
+  color: transparent;
+  width: 0.6em;
+  height: 1.2em;
+  display: inline-block;
+  animation: typewriter-block-blink 1s infinite;
+}
+
+.typewriter-cursor.underline {
+  border-bottom: 2px solid currentColor;
+  width: 0.8em;
+  height: 1em;
+  display: inline-block;
+  animation: typewriter-underline-blink 1s infinite;
+}
+
+@keyframes typewriter-block-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes typewriter-underline-blink {
+  0%,
+  50% {
+    border-bottom-color: currentColor;
+  }
+  51%,
+  100% {
+    border-bottom-color: transparent;
+  }
+}
+
+/* Typing speed indicators */
+.typewriter-container.typing-slow .typewriter-cursor {
+  animation-duration: 1.5s;
+}
+
+.typewriter-container.typing-fast .typewriter-cursor {
+  animation-duration: 0.5s;
+}
+
+/* Character emphasis effects */
+.typewriter-text .char-emphasis {
+  animation: char-pop 0.3s ease-out;
+}
+
+@keyframes char-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Sound visualization */
+.typewriter-container.sound-enabled::after {
+  content: '🔊';
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  font-size: 12px;
+  opacity: 0.6;
+  animation: sound-pulse 0.5s ease-out;
+}
+
+@keyframes sound-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .typewriter-cursor,
+  .typewriter-cursor.block,
+  .typewriter-cursor.underline {
+    animation: none !important;
+    opacity: 1;
+  }
+
+  .typewriter-progress-bar {
+    transition: none;
+  }
+
+  .char-emphasis {
+    animation: none !important;
+  }
+
+  .typewriter-container.sound-enabled::after {
+    animation: none !important;
+  }
+}
+
+/* High contrast support */
+@media (prefers-contrast: high) {
+  .typewriter-cursor {
+    color: Highlight;
+  }
+
+  .typewriter-progress {
+    background-color: ButtonFace;
+    border: 1px solid ButtonText;
+  }
+
+  .typewriter-progress-bar {
+    background: Highlight;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .typewriter-progress {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Focus styles for accessibility */
+.typewriter-container:focus-within {
+  outline: 2px solid var(--focus-color, #007acc);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
