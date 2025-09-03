@@ -1,87 +1,384 @@
-Title: Real-Time Transcription Reliability & Loss Elimination Initiative
-Tag: transcription-reliability
-Version: 1.0
-Owner: Streaming Pipeline Team
-Last-Updated: 2025-08-09
+# Advanced Voice Assistant Improvements with Gemini Live API - Product Requirements Document
 
-Objective
-Eliminate partial/final transcript text loss, premature completion, duplication, and silent truncation during long-form (>5 min) continuous speech sessions using Gemini Live. Provide diagnostic observability and adaptive strategies to ensure >99.5% token retention and stable user-visible continuity.
+## Executive Summary
 
-Success Metrics
-- Token Retention: >= 99.5% of characters compared to ground-truth reference (offline batch run) for 10-minute speech samples.
-- Latency: Additional processing adds < 20ms P95 over current path.
-- Premature Finalization Incidents: 0 during active speech (VAD / energy > threshold) across test set.
-- Reset Recovery: After model length reset events, accumulated text divergence < 1.0% (Levenshtein) from ideal aggregation.
-- Observability: Real-time panel shows length growth, reset events, guard status, and raw tail; exportable session diagnostics file.
+This PRD outlines the development of advanced voice assistant improvements for the DAO Copilot project using the Gemini Live API. The focus is on implementing sophisticated question detection, audio segmentation, conversation state management, tool integration, latency optimization, and error handling to create a production-ready conversational AI system.
 
-Current Issues (Observed)
-1. Early stream auto-complete due to fixed timeout not being extended by incoming partials (fixed, regression risk remains).
-2. Severe losses: Long speech reducing to 1–N words (suspected overwrites after resets / guard pruning / diff-mode tokens).
-3. Over-aggressive regression guard previously filtered legitimate short fragments (guard now disabled by default).
-4. Model length resets (shrink >50%) causing accumulation to overwrite tail segments.
-5. Lack of adaptive distinction: full-text replacement vs incremental diff emissions.
-6. Limited post-session forensic artifact; difficult to compare with ground truth.
-7. UI not yet surfacing diagnostics (panel component added but not wired/integrated into app layout and export flow).
+## Project Background
 
-Scope (In)
-- Adaptive accumulation strategies (hybrid replace/append with overlap & reset heuristics)
-- Dynamic regression guard enablement tied to reset frequency & false-positive mitigation
-- Forensic session logging (structured JSON, optional compressed) and export button
-- Offline comparison harness (playback recorded audio -> offline transcription -> diff vs live session) to measure retention
-- UI diagnostics integration & controls (toggle guard, export logs, highlight resets)
-- Resilience to diff-only token mode / late-arriving partial fragments
-- Improved finalization reliability (ensure final always >= max of partial snapshots)
+The current DAO Copilot project has a basic voice assistant implementation that relies on simple question detection patterns ("?" character) and basic transcription. The system needs significant improvements to handle real-world conversational scenarios with reliable intent classification, proper audio segmentation, interruption handling, and seamless tool integration for web searches.
 
-Scope (Out)
-- Switching transcription provider
-- Full-featured VAD redesign
-- Multi-language translation pipeline
-- Advanced semantic error correction (post-processing language model passes)
+## Business Objectives
 
-Constraints / Non-Goals
-- Keep added memory bounded (caps & ring buffers) – < 5MB per 10-minute session for diagnostics.
-- Avoid blocking UI thread; heavy diffing done off main via web worker if needed.
+### Primary Goals
+1. Create a sophisticated intent classification system that goes beyond simple punctuation-based question detection
+2. Implement proper audio segmentation with stabilized segments for reliable transcription
+3. Develop a conversation state machine for managing complex dialogue flows
+4. Integrate Google Search tools with the Gemini Live API for grounded responses
+5. Optimize response latency with two-stage response strategies
+6. Implement streaming TTS with robust interruption handling
+7. Create comprehensive error handling and fallback mechanisms
 
-Key Risks
-- Misclassification of diff-mode could create duplications.
-- Excessive snapshotting may inflate memory.
-- Export logs may contain PII (user speech); need redaction toggle.
+### Success Metrics
+- Reduce false positive question detection by 80%
+- Improve transcription accuracy by 50% through better audio segmentation
+- Achieve sub-2-second response times for simple queries
+- Handle user interruptions within 200ms
+- Maintain 99.5% uptime for core conversation features
+- Support multiple languages including Russian with specialized processing
 
-High-Level Approach
-A. Instrumentation Completion: Wire diagnostics panel, bridge + manager data feed, export facility.
-B. Adaptive Strategy Layer: Detect reset/diff patterns -> choose merge policy (append, overlap-merge, or protected replacement).
-C. Guard Orchestration: Enable regression guard only when reset rate exceeds threshold & disable automatically when stable.
-D. Finalization Integrity: Reconcile final with max-length snapshot; never shrink.
-E. Offline Validation Harness: Deterministic audio playback -> capture live & offline transcripts -> diff metrics.
-F. Reporting & Telemetry: Aggregated counters (resets/min, shrink events averted, guard toggles, retention estimates).
+## Target Audience
 
-Milestones
-1. Diagnostics Integration & Export
-2. Adaptive Detection Heuristics (diff vs full-text)
-3. Merge Policy Implementation & Guard Automation
-4. Finalization Safety & No-Shrink Enforcement
-5. Offline Playback Harness & Retention Metric Pipeline
-6. PII-Redactable Log Export & Session Report
-7. Performance Optimization & Memory Bound Validation
-8. Release Hardening & Documentation
+### Primary Users
+- Russian-speaking users requiring high-quality voice transcription and responses
+- Users conducting conversational searches and information retrieval
+- Developers and researchers working with voice AI systems
+- Business users requiring hands-free information access
 
-Non-Functional Requirements
-- Type-safe utilities (TS) with test coverage for merging & diff classification (>=90% lines in those modules).
-- All new logic behind feature flag `enableAdaptiveTranscription`.
+### User Personas
+1. **Research Professional**: Needs accurate, cited information quickly during meetings or research sessions
+2. **Multilingual User**: Requires support for Russian and English with seamless language switching
+3. **Technical User**: Expects reliable interruption handling and minimal latency
+4. **Business User**: Needs consistent, professional responses with error recovery
 
-Testing Strategy Overview
-- Unit: overlap merge, diff classifier, guard toggle state machine, no-shrink finalization.
-- Integration: simulated reset streams, mixed diff/full sequences, long continuous (10 min) synthetic test.
-- E2E: Automated harness feeding prerecorded audio; compare logs & ground truth.
+## Product Requirements
 
-Open Questions
-- Do we need compression (gzip) for log export? (Default: yes, optional).
-- Acceptable privacy model for raw partial storage? (Potential redaction by hashing words after export if flagged.)
+### Functional Requirements
 
-Initial Task Quantity Guidance
-Aim for 10–14 top-level tasks with structured subtasks for heuristics, harness, and UI.
+#### 1. Advanced Intent Classification System
+- **Requirement**: Replace simple "?" detection with sophisticated intent classification
+- **Features**:
+  - Natural language understanding for question detection
+  - Multi-intent classification (questions, commands, small talk)
+  - Context-aware intent resolution
+  - Support for embedded questions in longer utterances
+  - Confidence scoring for intent decisions
+- **Acceptance Criteria**:
+  - Correctly identify questions without "?" punctuation
+  - Handle embedded questions in complex sentences
+  - Achieve >95% accuracy on question classification
+  - Process intent classification in <100ms
 
-Additional Notes
-Use existing snapshots & raw partial buffers; avoid duplicating large string arrays—store incremental metadata (lengths, hashes) where possible.
+#### 2. Audio Segmentation and Stabilization
+- **Requirement**: Implement proper audio segmentation using Live API stabilized segments
+- **Features**:
+  - Voice Activity Detection (VAD) integration
+  - Endpointer implementation with configurable silence thresholds
+  - Audio buffer management for stable segments
+  - Segment boundary detection
+  - Debouncing strategies to prevent double-triggering
+- **Acceptance Criteria**:
+  - Only trigger tool calls on stabilized segments
+  - Implement 200-400ms debounce timeout
+  - Handle segment boundary signals correctly
+  - Reduce transcription errors by 50%
 
-END
+#### 3. Conversation State Machine
+- **Requirement**: Orchestrate conversations with a finite state machine
+- **Features**:
+  - States: Listening → Transcribing → UtteranceDetected → Intent → Plan → Execute → Respond
+  - Interruption handling with immediate state transitions
+  - Context preservation across state changes
+  - Barge-in detection and response cancellation
+  - State persistence for conversation resumption
+- **Acceptance Criteria**:
+  - Handle all defined state transitions correctly
+  - Cancel TTS and tool work on user interruption
+  - Maintain conversation context across interruptions
+  - Resume conversations within 100ms of interruption end
+
+#### 4. Google Search Tool Integration
+- **Requirement**: Integrate Google Search with Gemini Live API tool calling
+- **Features**:
+  - google_search(query, country, language, max_results) tool
+  - fetch_page(url) for deeper content analysis
+  - summarize_results(items[], question) for citation generation
+  - Intelligent query optimization
+  - Result caching and deduplication
+- **Acceptance Criteria**:
+  - Register tools correctly in Gemini Live session
+  - Execute searches based on model decisions
+  - Provide cited, grounded responses
+  - Cache results for 5 minutes to avoid duplicate calls
+
+#### 5. Two-Stage Response System
+- **Requirement**: Implement latency optimization with staged responses
+- **Features**:
+  - Stage 1: Immediate acknowledgment within 200ms
+  - Stage 2: Comprehensive, grounded response
+  - Progressive result streaming
+  - Incremental update notifications
+  - Response cancellation on interruption
+- **Acceptance Criteria**:
+  - Provide immediate response in <200ms
+  - Stream comprehensive response progressively
+  - Cancel responses immediately on user interruption
+  - Maintain context between response stages
+
+#### 6. Streaming TTS with Interruption Handling
+- **Requirement**: Implement interruptible text-to-speech streaming
+- **Features**:
+  - Real-time audio streaming
+  - Voice Activity Detection during TTS playback
+  - Immediate interruption response
+  - Audio queue management
+  - Seamless transition back to listening mode
+- **Acceptance Criteria**:
+  - Detect user speech within 100ms during TTS
+  - Stop TTS playback within 200ms of interruption
+  - Clear audio queue on interruption
+  - Resume listening mode immediately
+
+#### 7. Enhanced Russian Language Support
+- **Requirement**: Specialized processing for Russian audio and text
+- **Features**:
+  - Russian-specific audio preprocessing
+  - Enhanced grammar pattern correction
+  - Mixed language detection and handling
+  - Cyrillic text processing optimizations
+  - Russian-specific endpointing parameters
+- **Acceptance Criteria**:
+  - Improve Russian transcription accuracy by 40%
+  - Handle mixed Russian-English conversations
+  - Process Cyrillic characters correctly
+  - Apply Russian grammar corrections effectively
+
+#### 8. Comprehensive Error Handling
+- **Requirement**: Robust error handling with graceful degradation
+- **Features**:
+  - Centralized error handling system
+  - Retry mechanisms with exponential backoff
+  - Fallback search providers
+  - User-friendly error messages
+  - Error logging and monitoring integration
+- **Acceptance Criteria**:
+  - Retry failed operations up to 3 times
+  - Provide fallback responses when tools fail
+  - Never crash on tool failures
+  - Log all errors for monitoring
+
+### Technical Requirements
+
+#### Performance Requirements
+- **Response Latency**: <2 seconds for search-based queries
+- **Interruption Response**: <200ms detection and response
+- **Audio Processing**: Real-time with <100ms buffer delay
+- **Memory Usage**: <500MB for conversation state and caches
+- **CPU Usage**: <30% average during active conversations
+
+#### Scalability Requirements
+- Support 100+ concurrent conversations
+- Handle 1000+ search requests per hour
+- Cache management for 10,000+ recent queries
+- Scale horizontally with load balancing
+
+#### Reliability Requirements
+- 99.5% uptime for core conversation features
+- Graceful degradation when external services fail
+- Automatic error recovery within 30 seconds
+- Data persistence for conversation history
+
+#### Security Requirements
+- PII redaction before sending to external tools
+- Secure API key management
+- Rate limiting for external API calls
+- Audit logging for sensitive operations
+
+## Technical Implementation
+
+### Architecture Components
+
+#### 1. Enhanced Question Detector
+- NLP-based intent classification using node-nlp
+- Training data for multiple intent categories
+- Confidence scoring and threshold management
+- Context-aware question detection
+
+#### 2. Audio Segmentation Pipeline
+- VAD integration with node-vad
+- Endpointer with configurable thresholds
+- Audio buffer management
+- Segment stability verification
+
+#### 3. Conversation State Machine
+- State enum definition and transition logic
+- Event-driven state management
+- Interruption handling capabilities
+- Context preservation mechanisms
+
+#### 4. Tool Orchestration System
+- Chain of responsibility pattern for tool handling
+- Mediator pattern for tool coordination
+- Strategy pattern for tool selection
+- Error handling and retry logic
+
+#### 5. Two-Stage Response Manager
+- Quick response generation templates
+- Progressive result streaming
+- Incremental update notifications
+- Response cancellation mechanisms
+
+#### 6. Interruptible TTS Manager
+- Streaming TTS service integration
+- VAD-based interruption detection
+- Audio queue management
+- Seamless transition handling
+
+#### 7. Enhanced Russian Processor
+- Russian-specific audio preprocessing
+- Grammar pattern correction
+- Mixed language detection
+- Cyrillic text processing
+
+#### 8. Error Handling Framework
+- Centralized error handling
+- Retry mechanisms with backoff
+- Fallback service integration
+- User-friendly message generation
+
+### Integration Points
+
+#### Existing Services
+- **TranscriptionService**: Enhanced with segmentation and Russian support
+- **QuestionDetector**: Replaced with advanced intent classification
+- **ConversationManager**: Extended with state machine integration
+- **AnswerDisplayManager**: Enhanced with two-stage responses
+- **ToolCallHandler**: Expanded with comprehensive error handling
+
+#### New Services
+- **AudioSegmenter**: New service for audio segmentation
+- **ConversationStateMachine**: New state management service
+- **ToolOrchestrator**: New tool coordination service
+- **InterruptibleTTSManager**: New TTS management service
+- **EnhancedRussianProcessor**: New Russian language service
+
+### Development Phases
+
+#### Phase 1: Foundation (Weeks 1-2)
+- Implement enhanced question detector
+- Set up audio segmentation pipeline
+- Create conversation state machine
+- Basic error handling framework
+
+#### Phase 2: Tool Integration (Weeks 3-4)
+- Implement Google Search tool integration
+- Develop tool orchestration system
+- Create two-stage response system
+- Add comprehensive error handling
+
+#### Phase 3: Advanced Features (Weeks 5-6)
+- Implement streaming TTS with interruption
+- Enhance Russian language support
+- Add performance optimizations
+- Comprehensive testing and debugging
+
+#### Phase 4: Production Readiness (Weeks 7-8)
+- Performance tuning and optimization
+- Security hardening
+- Monitoring and logging integration
+- Documentation and deployment guides
+
+## Testing Strategy
+
+### Unit Testing
+- Individual component testing with 90%+ coverage
+- Mock external dependencies
+- Test error conditions and edge cases
+- Performance benchmarking for critical paths
+
+### Integration Testing
+- End-to-end conversation flow testing
+- Tool integration testing with real APIs
+- Interruption handling scenarios
+- Multi-language conversation testing
+
+### Performance Testing
+- Latency testing under various loads
+- Memory usage profiling
+- Concurrent user simulation
+- Stress testing with edge cases
+
+### User Acceptance Testing
+- Real user conversations with feedback collection
+- Multi-language testing with native speakers
+- Accessibility testing for various user needs
+- A/B testing for response quality
+
+## Deployment and Monitoring
+
+### Deployment Strategy
+- Gradual rollout with feature flags
+- Blue-green deployment for zero downtime
+- Automated testing in staging environment
+- Rollback capabilities for quick recovery
+
+### Monitoring and Observability
+- Real-time performance metrics
+- Error rate tracking and alerting
+- User satisfaction scoring
+- API usage and cost tracking
+
+### Maintenance and Support
+- 24/7 monitoring with automated alerts
+- Regular performance reviews and optimizations
+- User feedback integration for improvements
+- Documentation updates and training materials
+
+## Risks and Mitigation
+
+### Technical Risks
+1. **API Rate Limits**: Implement caching and fallback mechanisms
+2. **Latency Issues**: Optimize with two-stage responses and caching
+3. **Accuracy Degradation**: Comprehensive testing and monitoring
+4. **Integration Complexity**: Phased development and thorough testing
+
+### Business Risks
+1. **User Adoption**: Gradual rollout with user feedback integration
+2. **Cost Overruns**: Careful monitoring of API usage and costs
+3. **Competitive Pressure**: Focus on unique features and quality
+4. **Scalability Challenges**: Design for horizontal scaling from start
+
+## Success Criteria
+
+### Quantitative Metrics
+- Question detection accuracy: >95%
+- Response latency: <2 seconds average
+- Interruption response time: <200ms
+- Russian transcription accuracy improvement: >40%
+- System uptime: >99.5%
+- User satisfaction score: >4.5/5
+
+### Qualitative Metrics
+- Natural conversation flow
+- Reliable interruption handling
+- Accurate and relevant responses
+- Seamless multi-language support
+- Professional error recovery
+
+## Timeline and Milestones
+
+### Week 1-2: Foundation Development
+- Enhanced question detector implementation
+- Audio segmentation pipeline setup
+- Conversation state machine creation
+- Basic error handling framework
+
+### Week 3-4: Tool Integration
+- Google Search tool implementation
+- Tool orchestration system development
+- Two-stage response system creation
+- Comprehensive error handling
+
+### Week 5-6: Advanced Features
+- Streaming TTS with interruption handling
+- Enhanced Russian language support
+- Performance optimization
+- Comprehensive testing
+
+### Week 7-8: Production Readiness
+- Security hardening and optimization
+- Monitoring and logging integration
+- Documentation and deployment preparation
+- User acceptance testing and feedback integration
+
+This PRD provides a comprehensive roadmap for implementing advanced voice assistant improvements using the Gemini Live API, with clear requirements, technical specifications, and success criteria for each component.

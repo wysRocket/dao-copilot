@@ -1,0 +1,472 @@
+/* 
+ * Enhanced Visual Transitions and Indicators
+ * Additional styles for smooth animations and visual feedback
+ */
+
+/* Custom transition durations for Tailwind */
+.duration-100 {
+  transition-duration: 100ms;
+}
+.duration-200 {
+  transition-duration: 200ms;
+}
+.duration-300 {
+  transition-duration: 300ms;
+}
+.duration-400 {
+  transition-duration: 400ms;
+}
+.duration-500 {
+  transition-duration: 500ms;
+}
+
+/* Smooth scaling animations */
+.scale-enter {
+  transform: scale(0.95);
+  opacity: 0;
+}
+
+.scale-enter-active {
+  transform: scale(1);
+  opacity: 1;
+  transition: all 300ms ease-out;
+}
+
+.scale-exit {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.scale-exit-active {
+  transform: scale(0.95);
+  opacity: 0;
+  transition: all 200ms ease-in;
+}
+
+/* Slide transitions */
+.slide-up-enter {
+  transform: translateY(20px);
+  opacity: 0;
+}
+
+.slide-up-enter-active {
+  transform: translateY(0);
+  opacity: 1;
+  transition: all 300ms ease-out;
+}
+
+.slide-up-exit {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.slide-up-exit-active {
+  transform: translateY(-20px);
+  opacity: 0;
+  transition: all 200ms ease-in;
+}
+
+/* Fade transitions */
+.fade-enter {
+  opacity: 0;
+}
+
+.fade-enter-active {
+  opacity: 1;
+  transition: opacity 300ms ease-out;
+}
+
+.fade-exit {
+  opacity: 1;
+}
+
+.fade-exit-active {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+
+/* Enhanced loading animations */
+.loading-pulse {
+  animation: loading-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes loading-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.loading-bounce {
+  animation: loading-bounce 1.4s ease-in-out infinite both;
+}
+
+@keyframes loading-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+/* Advanced spinner animations */
+.spinner-rotate {
+  animation: spinner-rotate 1s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner-dash {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: spinner-dash 1.5s ease-in-out infinite;
+}
+
+@keyframes spinner-dash {
+  0% {
+    stroke-dasharray: 1, 50;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 25, 50;
+    stroke-dashoffset: -35;
+  }
+  100% {
+    stroke-dasharray: 25, 50;
+    stroke-dashoffset: -60;
+  }
+}
+
+/* Message appearance animations */
+.message-appear {
+  animation: message-appear 0.3s ease-out;
+}
+
+@keyframes message-appear {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Button interaction enhancements */
+.button-press {
+  transform: scale(0.95);
+  transition: transform 100ms ease-out;
+}
+
+.button-release {
+  transform: scale(1);
+  transition: transform 150ms ease-out;
+}
+
+/* Glass morphism hover effects */
+.glass-hover {
+  transition: all 200ms ease-out;
+}
+
+.glass-hover:hover {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Progress bar enhancements */
+.progress-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: progress-shimmer 2s infinite;
+}
+
+@keyframes progress-shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Accessibility enhancements */
+@media (prefers-reduced-motion: reduce) {
+  .message-appear,
+  .loading-pulse,
+  .loading-bounce,
+  .spinner-rotate,
+  .spinner-dash,
+  .progress-shimmer {
+    animation: none !important;
+  }
+
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus indicators for keyboard navigation */
+.focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .glass-hover:hover {
+    border: 2px solid white;
+    background: rgba(0, 0, 0, 0.8);
+  }
+}
+
+/* Custom scrollbar for message history */
+.message-history::-webkit-scrollbar {
+  width: 6px;
+}
+
+.message-history::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.message-history::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  transition: background 200ms ease;
+}
+
+.message-history::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Staggered animation utility */
+.stagger-animation > * {
+  animation-delay: calc(var(--stagger-delay, 50ms) * var(--stagger-index, 0));
+}
+
+/* New message subtle glow animation */
+@keyframes subtle-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.message-new {
+  animation: subtle-glow 1.5s ease-out;
+}
+
+/* Tooltip fade animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-in-out forwards;
+}
+
+/* Typing indicator animations */
+@keyframes typing-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes typing-bounce-slow {
+  0%,
+  60%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes typing-bounce-fast {
+  0%,
+  60%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* Typing dot animation classes */
+.animate-typing-dot-1 {
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.animate-typing-dot-2 {
+  animation: typing-bounce 1.4s ease-in-out infinite;
+  animation-delay: 0.2s;
+}
+
+.animate-typing-dot-3 {
+  animation: typing-bounce 1.4s ease-in-out infinite;
+  animation-delay: 0.4s;
+}
+
+/* Speed variations */
+.typing-dots-slow .animate-typing-dot-1,
+.typing-dots-slow .animate-typing-dot-2,
+.typing-dots-slow .animate-typing-dot-3 {
+  animation: typing-bounce-slow 2s ease-in-out infinite;
+}
+
+.typing-dots-fast .animate-typing-dot-1,
+.typing-dots-fast .animate-typing-dot-2,
+.typing-dots-fast .animate-typing-dot-3 {
+  animation: typing-bounce-fast 1s ease-in-out infinite;
+}
+
+/* Progress bar animations */
+@keyframes indeterminate {
+  0% {
+    transform: scaleX(0) translateX(-100%);
+    transform-origin: left;
+  }
+  50% {
+    transform: scaleX(0.6) translateX(0%);
+    transform-origin: left;
+  }
+  100% {
+    transform: scaleX(0) translateX(100%);
+    transform-origin: right;
+  }
+}
+
+@keyframes indeterminate-slow {
+  0% {
+    transform: scaleX(0) translateX(-100%);
+    transform-origin: left;
+  }
+  50% {
+    transform: scaleX(0.6) translateX(0%);
+    transform-origin: left;
+  }
+  100% {
+    transform: scaleX(0) translateX(100%);
+    transform-origin: right;
+  }
+}
+
+@keyframes indeterminate-fast {
+  0% {
+    transform: scaleX(0) translateX(-100%);
+    transform-origin: left;
+  }
+  50% {
+    transform: scaleX(0.6) translateX(0%);
+    transform-origin: left;
+  }
+  100% {
+    transform: scaleX(0) translateX(100%);
+    transform-origin: right;
+  }
+}
+
+.animate-indeterminate {
+  animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+.animate-progress {
+  animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+.animate-progress-slow {
+  animation: indeterminate-slow 2.5s ease-in-out infinite;
+}
+
+.animate-progress-fast {
+  animation: indeterminate-fast 1s ease-in-out infinite;
+}
+
+/* Shimmer animation for skeleton screens */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-shimmer-slow {
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+.animate-shimmer-fast {
+  animation: shimmer 1s ease-in-out infinite;
+}

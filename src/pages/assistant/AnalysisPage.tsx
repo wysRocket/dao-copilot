@@ -1,9 +1,27 @@
-import React from 'react'
+import React, {useMemo} from 'react'
 import {useTranscriptionState} from '../../hooks/useSharedState'
 import GlassCard from '../../components/GlassCard'
+import {globalTranscriptionDeduplicator} from '../../services/TranscriptionDeduplicator'
 
 export default function AnalysisPage() {
-  const {transcripts} = useTranscriptionState()
+  const {transcripts: rawTranscripts} = useTranscriptionState()
+
+  // Apply deduplication to transcripts
+  const deduplicationResult = useMemo(() => {
+    if (rawTranscripts.length === 0) {
+      return {
+        deduplicated: [],
+        removed: [],
+        duplicateCount: 0,
+        removalReasons: []
+      }
+    }
+
+    return globalTranscriptionDeduplicator.deduplicate(rawTranscripts)
+  }, [rawTranscripts])
+
+  const transcripts = deduplicationResult.deduplicated
+  const duplicateCount = deduplicationResult.duplicateCount
 
   const totalWords = transcripts.reduce((total, t) => total + t.text.split(' ').length, 0)
   const averageConfidence =
@@ -41,6 +59,11 @@ export default function AnalysisPage() {
             <p className="text-3xl font-bold" style={{color: 'var(--text-primary)'}}>
               {transcripts.length}
             </p>
+            {duplicateCount > 0 && (
+              <p className="mt-1 text-xs" style={{color: 'var(--text-muted)'}}>
+                {duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''} removed
+              </p>
+            )}
           </GlassCard>
 
           <GlassCard variant="medium">
@@ -61,6 +84,40 @@ export default function AnalysisPage() {
             </p>
           </GlassCard>
         </div>
+
+        {/* Show deduplication summary if duplicates were found */}
+        {duplicateCount > 0 && (
+          <div className="mb-6">
+            <GlassCard variant="light" className="p-4">
+              <div className="mb-2 flex items-center space-x-2">
+                <div className="h-2 w-2 rounded-full bg-yellow-400" />
+                <h3 className="text-sm font-semibold" style={{color: 'var(--text-accent)'}}>
+                  Deduplication Applied
+                </h3>
+              </div>
+              <p className="text-sm" style={{color: 'var(--text-secondary)'}}>
+                Removed {duplicateCount} duplicate transcript{duplicateCount !== 1 ? 's' : ''} to
+                improve analysis accuracy.
+              </p>
+              {deduplicationResult.removalReasons.length > 0 && (
+                <div className="mt-2 text-xs" style={{color: 'var(--text-muted)'}}>
+                  Reasons:{' '}
+                  {Object.entries(
+                    deduplicationResult.removalReasons.reduce(
+                      (acc, {reason}) => {
+                        acc[reason] = (acc[reason] || 0) + 1
+                        return acc
+                      },
+                      {} as Record<string, number>
+                    )
+                  )
+                    .map(([reason, count]) => `${reason.replace(/_/g, ' ')}: ${count}`)
+                    .join(', ')}
+                </div>
+              )}
+            </GlassCard>
+          </div>
+        )}
 
         {transcripts.length > 0 ? (
           <div className="space-y-4">

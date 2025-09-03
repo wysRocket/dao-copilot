@@ -1,0 +1,98 @@
+{
+  "version": "1.0.0",
+  "api": {
+    "name": "Google Custom Search API",
+    "version": "v1",
+    "baseUrl": "https://www.googleapis.com/customsearch/v1",
+    "documentation": "https://developers.google.com/custom-search/v1/overview"
+  },
+  "rateLimits": {
+    "free": {
+      "dailyLimit": 100,
+      "intervalMs": 86400000,
+      "description": "Free tier allows 100 search queries per day"
+    },
+    "paid": {
+      "dailyLimit": 10000,
+      "intervalMs": 86400000,
+      "description": "Paid tier allows up to 10,000 search queries per day at $5 per 1,000 queries"
+    }
+  },
+  "defaultSearchOptions": {
+    "num": 10,
+    "safe": "active",
+    "fileType": "",
+    "rights": "",
+    "imgType": "",
+    "imgSize": "",
+    "imgDominantColor": "",
+    "imgColorType": "",
+    "searchType": "",
+    "filter": "",
+    "gl": "",
+    "hl": "",
+    "hq": "",
+    "linkSite": "",
+    "lowRange": "",
+    "highRange": "",
+    "orTerms": "",
+    "excludeTerms": "",
+    "exactTerms": "",
+    "dateRestrict": "",
+    "sort": ""
+  },
+  "caching": {
+    "enabled": true,
+    "ttlSeconds": 3600,
+    "maxEntries": 1000,
+    "strategy": "lru",
+    "compressionEnabled": false
+  },
+  "errorHandling": {
+    "maxRetries": 3,
+    "retryDelayMs": 1000,
+    "exponentialBackoff": true,
+    "backoffMultiplier": 2,
+    "maxRetryDelay": 10000,
+    "retryableErrors": [429, 500, 502, 503, 504]
+  },
+  "performance": {
+    "timeoutMs": 10000,
+    "maxConcurrentRequests": 5,
+    "requestDelayMs": 100
+  },
+  "security": {
+    "sanitizeQueries": true,
+    "maxQueryLength": 2048,
+    "allowedDomains": [],
+    "blockedDomains": [],
+    "contentFiltering": {
+      "enabled": true,
+      "blockAdultContent": true,
+      "blockMaliciousContent": true
+    }
+  },
+  "logging": {
+    "enabled": true,
+    "level": "info",
+    "logRequests": true,
+    "logResponses": false,
+    "logErrors": true,
+    "maxLogSize": "10MB",
+    "logRotation": true
+  },
+  "monitoring": {
+    "trackUsage": true,
+    "trackPerformance": true,
+    "alertThresholds": {
+      "quotaUsagePercent": 80,
+      "errorRatePercent": 10,
+      "responseTimeMs": 5000
+    }
+  },
+  "development": {
+    "mockResponses": false,
+    "debugMode": false,
+    "verboseLogging": false
+  }
+}

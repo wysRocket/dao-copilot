@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useCallback} from 'react'
+import React, {useEffect, useRef, useCallback, useState} from 'react'
 
 // Local hooks
 import {useWindowCommunication} from '../../hooks/useSharedState'
@@ -10,11 +10,15 @@ import {useRealTimeTranscription} from '../../hooks/useRealTimeTranscription'
 import {TranscriptionResult} from '../../services/main-stt-transcription'
 import {TranscriptionSource} from '../../services/TranscriptionSourceManager'
 import {useTranscriptStore} from '../../state/transcript-state'
+import TranscriptionQuestionBridge from '../../services/TranscriptionQuestionBridge'
 
 // Components
 import AccumulativeTranscriptDisplay from '../../components/AccumulativeTranscriptDisplay'
+import AnswerDisplayCard from '../../components/AnswerDisplayCard'
 
 export default function TranscriptsPage() {
+  console.log('📋 TranscriptsPage component is mounting/rendering')
+
   // Zero-latency transcription system (runs seamlessly in background)
   const {
     isInitialized,
@@ -41,6 +45,62 @@ export default function TranscriptsPage() {
   const {onMessage} = useWindowCommunication()
   const {isRecording} = useSharedState()
 
+  // Initialize TranscriptionQuestionBridge for live question detection and answer generation
+  const bridgeRef = useRef<TranscriptionQuestionBridge | null>(null)
+  const [bridgeInitialized, setBridgeInitialized] = useState(false)
+
+  // Initialize bridge on component mount
+  useEffect(() => {
+    console.log('🔥 TranscriptsPage useEffect for bridge initialization is executing')
+    const initializeBridge = async () => {
+      try {
+        console.log('🤖 Initializing TranscriptionQuestionBridge...')
+        const bridge = new TranscriptionQuestionBridge({
+          questionConfidenceThreshold: 0.85,
+          questionMinLength: 5,
+          contextBufferSize: 10,
+          autoGenerateAnswers: true,
+          answerTimeoutMs: 30000,
+          maxConcurrentAnswers: 2,
+          bufferTimeoutMs: 1000,
+          enableRealTimeProcessing: true,
+          maxProcessingTimeMs: 5000,
+          enableDebugLogging: true, // Enable debug logging
+          logTranscriptionEvents: true // Enable transcription event logging
+        })
+
+        console.log('🔧 Bridge created, now initializing...')
+        await bridge.initialize()
+        bridgeRef.current = bridge
+        setBridgeInitialized(true)
+        console.log('✅ TranscriptionQuestionBridge initialized successfully')
+
+        // Listen for question detection events
+        bridge.on('question_detected', event => {
+          console.log('🔍 Question detected:', event)
+        })
+
+        bridge.on('answer_generated', event => {
+          console.log('💬 Answer generated:', event)
+        })
+      } catch (error) {
+        console.error('❌ Failed to initialize TranscriptionQuestionBridge:', error)
+        console.error('🔍 Error details:', error instanceof Error ? error.stack : String(error))
+      }
+    }
+
+    initializeBridge()
+
+    // Cleanup on unmount
+    return () => {
+      if (bridgeRef.current) {
+        bridgeRef.current.stop()
+        bridgeRef.current = null
+        setBridgeInitialized(false)
+      }
+    }
+  }, [])
+
   // Auto-start zero-latency transcription when component mounts (no-op until user clicks REC)
   useEffect(() => {
     if (isInitialized && !isActive) {
@@ -62,7 +122,7 @@ export default function TranscriptsPage() {
     }
   }, [isRecording, isActive, start])
 
-  // Bridge zero-latency transcription data to transcript store
+  // Bridge zero-latency transcription data to transcript store AND process for question detection
   useEffect(() => {
     if (currentTranscript && currentTranscript.trim()) {
       // Add or update partial entry for real-time display
@@ -77,10 +137,38 @@ export default function TranscriptsPage() {
         text: currentTranscript.trim(),
         confidence: 0.95
       })
-    }
-  }, [currentTranscript, addPartialEntry])
 
-  // Bridge final transcripts to transcript store
+      // Process with TranscriptionQuestionBridge for question detection (partial transcripts)
+      if (bridgeRef.current && bridgeInitialized) {
+        console.log(
+          '🔍 Processing partial transcription for question detection:',
+          currentTranscript.trim()
+        )
+        const transcriptionEvent = {
+          id: partialId,
+          text: currentTranscript.trim(),
+          confidence: 0.95,
+          isFinal: false, // This is a partial transcription
+          source: 'websocket' as const,
+          timestamp: Date.now()
+        }
+
+        // Process transcription for question detection
+        bridgeRef.current.processTranscription(transcriptionEvent).catch(error => {
+          console.warn('🔍 Question bridge processing failed:', error)
+        })
+      } else {
+        console.log(
+          '⚠️ Bridge not ready for partial processing - bridgeRef:',
+          !!bridgeRef.current,
+          'initialized:',
+          bridgeInitialized
+        )
+      }
+    }
+  }, [currentTranscript, addPartialEntry, bridgeInitialized])
+
+  // Bridge final transcripts to transcript store AND process for question detection
   useEffect(() => {
     if (finalTranscripts.length > 0) {
       const latestFinal = finalTranscripts[finalTranscripts.length - 1]
@@ -97,12 +185,38 @@ export default function TranscriptsPage() {
           text: latestFinal.text,
           confidence: latestFinal.confidence || 0.95
         })
+
+        // Process with TranscriptionQuestionBridge for question detection (final transcripts)
+        if (bridgeRef.current && bridgeInitialized) {
+          console.log('🔍 Processing final transcription for question detection:', latestFinal.text)
+          const transcriptionEvent = {
+            id: 'realtime-final',
+            text: latestFinal.text,
+            confidence: latestFinal.confidence || 0.95,
+            isFinal: true, // This is a final transcription
+            source: 'websocket' as const,
+            timestamp: latestFinal.timestamp || Date.now()
+          }
+
+          // Process final transcription for question detection
+          bridgeRef.current.processTranscription(transcriptionEvent).catch(error => {
+            console.warn('🔍 Question bridge processing failed for final transcript:', error)
+          })
+        } else {
+          console.log(
+            '⚠️ Bridge not ready for final processing - bridgeRef:',
+            !!bridgeRef.current,
+            'initialized:',
+            bridgeInitialized
+          )
+        }
+
         // Reset session refs
         accumulatedTextRef.current = ''
         currentPartialIdRef.current = null
       }
     }
-  }, [finalTranscripts, addFinalEntry])
+  }, [finalTranscripts, addFinalEntry, bridgeInitialized])
 
   // Debug logging for real-time transcription state
   useEffect(() => {
@@ -388,6 +502,16 @@ export default function TranscriptsPage() {
             Real-time transcription results from audio recording
           </p>
         </div>
+      </div>
+
+      {/* Answer Display Card - Shows persistent answer state */}
+      <div className="mb-4">
+        <AnswerDisplayCard
+          showOnlyWithAnswer={true}
+          compact={true}
+          className="w-full"
+          maxHeight="max-h-32"
+        />
       </div>
 
       {/* Enhanced Transcript Display */}

@@ -11,6 +11,8 @@ import GeminiLiveWebSocketClient, {ResponseModality} from './gemini-live-websock
 import {initializeGeminiTranscriptionBridge} from './gemini-transcription-bridge'
 import WindowManager from '../services/window-manager'
 import {transcribeAudioViaProxy} from './proxy-stt-transcription'
+import {createRussianAudioPreprocessor} from './russian-audio-preprocessor'
+import {createRussianTranscriptionCorrector} from './russian-transcription-corrector'
 
 // Live API model for WebSocket (recommended half-cascade model)
 const DEFAULT_GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
@@ -28,6 +30,24 @@ export interface TranscriptionOptions {
   enableWebSocket?: boolean // Feature flag to enable WebSocket functionality
   fallbackToBatch?: boolean // Whether to fallback to batch mode on WebSocket failure
   realTimeThreshold?: number // Minimum audio length for real-time processing (ms)
+  enableRussianPreprocessing?: boolean // Enable Russian language audio preprocessing
+  enableRussianPostProcessing?: boolean // Enable Russian language transcription corrections
+  russianPreprocessorConfig?: {
+    noiseReductionLevel?: number
+    normalizationLevel?: number
+    enableBandpassFilter?: boolean
+    enableRussianPhonemeOptimization?: boolean
+    enableSpeechEnhancement?: boolean
+  }
+  russianCorrectorConfig?: {
+    enableProperNameCorrection?: boolean
+    enableTechnicalTermCorrection?: boolean
+    enableContextualSpelling?: boolean
+    enableGrammarCorrection?: boolean
+    enableCommonPatternFixes?: boolean
+    customDictionary?: Map<string, string>
+    confidenceThreshold?: number
+  }
 }
 
 /**
@@ -567,23 +587,51 @@ async function transcribeAudioViaWebSocket(
       const originalSampleRate = audioFormat.sampleRate || 16000
       const channels = audioFormat.channels || 1
       const bitDepth = audioFormat.bitDepth || 16
+      let currentSampleRate = originalSampleRate
+
+      // Apply Russian audio preprocessing if enabled
+      if (options.enableRussianPreprocessing) {
+        console.log('🇷🇺 Applying Russian language audio preprocessing...')
+        const preprocessor = createRussianAudioPreprocessor({
+          sampleRate: 16000, // Target Gemini's required sample rate directly
+          channels: channels,
+          bitDepth: bitDepth,
+          ...options.russianPreprocessorConfig
+        })
+
+        try {
+          const preprocessingResult = await preprocessor.process(pcmData)
+          pcmData = preprocessingResult.processedAudio
+          currentSampleRate = preprocessor.getConfig().sampleRate // Update current rate
+
+          console.log(
+            `📊 Russian preprocessing complete: Applied ${preprocessingResult.applied.join(', ')}`
+          )
+          console.log(
+            `📈 Audio quality metrics: SNR=${preprocessingResult.metrics.signalToNoiseRatio.toFixed(1)}dB, ` +
+              `Max=${preprocessingResult.metrics.maxAmplitude}, ` +
+              `Russian frequencies detected=${preprocessingResult.metrics.containsRussianFrequencies}`
+          )
+        } catch (preprocessingError) {
+          console.error(
+            '⚠️ Russian preprocessing failed, continuing with original audio:',
+            preprocessingError
+          )
+          // Continue with original audio if preprocessing fails
+        }
+      }
 
       // Gemini Live API requires 16000Hz sample rate
       const targetSampleRate = 16000
 
-      if (originalSampleRate !== targetSampleRate) {
+      // Check if we need additional resampling after preprocessing
+      if (currentSampleRate !== targetSampleRate) {
         console.log(
-          `Resampling audio from ${originalSampleRate}Hz to ${targetSampleRate}Hz for Gemini Live API compatibility`
+          `Resampling audio from ${currentSampleRate}Hz to ${targetSampleRate}Hz for Gemini Live API compatibility`
         )
-        pcmData = resamplePcmAudio(
-          pcmData,
-          originalSampleRate,
-          targetSampleRate,
-          channels,
-          bitDepth
-        )
+        pcmData = resamplePcmAudio(pcmData, currentSampleRate, targetSampleRate, channels, bitDepth)
       } else {
-        // Audio sample rate is already correct
+        console.log(`✅ Audio sample rate is already ${targetSampleRate}Hz - no resampling needed`)
       }
 
       // Validate audio format for Gemini Live API compatibility
@@ -862,18 +910,57 @@ async function transcribeAudioViaWebSocket(
         }
       }, 1000) // 1 second after completing
 
+      // Apply Russian post-processing corrections if enabled
+      let processedTranscriptionText = finalTranscriptionText || ''
+
+      if (options.enableRussianPostProcessing && processedTranscriptionText.length > 0) {
+        console.log('🇷🇺 Applying Russian transcription post-processing corrections...')
+
+        try {
+          const corrector = createRussianTranscriptionCorrector({
+            ...options.russianCorrectorConfig
+          })
+
+          const correctionResult = await corrector.correct(processedTranscriptionText)
+          processedTranscriptionText = correctionResult.correctedText
+
+          console.log(
+            `📝 Russian post-processing complete: ${correctionResult.corrections.length} corrections applied in ${correctionResult.processingTimeMs}ms`
+          )
+
+          if (correctionResult.corrections.length > 0) {
+            console.log(
+              '🔧 Applied corrections:',
+              correctionResult.corrections
+                .map(c => `"${c.original}" → "${c.corrected}" (${c.type})`)
+                .join(', ')
+            )
+          }
+
+          console.log(
+            `📊 Post-processing confidence: ${(correctionResult.confidence * 100).toFixed(1)}%`
+          )
+        } catch (correctionError) {
+          console.error(
+            '⚠️ Russian post-processing failed, using original transcription:',
+            correctionError
+          )
+          // Continue with original transcription if post-processing fails
+        }
+      }
+
       // Return the final transcription result
       const transcriptionResult = {
-        text: finalTranscriptionText || '', // Return the actual transcribed text
+        text: processedTranscriptionText, // Use processed text instead of original
         duration: Date.now() - startTime,
         source: 'websocket' as const,
-        confidence: finalTranscriptionText ? 0.8 : 0.0
+        confidence: processedTranscriptionText ? 0.8 : 0.0
       }
 
       console.log('🎯 WebSocket transcription completed:', {
-        hasText: !!finalTranscriptionText,
-        textLength: finalTranscriptionText.length,
-        textPreview: finalTranscriptionText.substring(0, 50),
+        hasText: !!processedTranscriptionText,
+        textLength: processedTranscriptionText.length,
+        textPreview: processedTranscriptionText.substring(0, 50),
         duration: transcriptionResult.duration
       })
 
