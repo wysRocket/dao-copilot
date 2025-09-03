@@ -6,6 +6,7 @@ import {
   TranscriptionSourceManager
 } from '../services/TranscriptionSourceManager'
 import {getTranscriptionStateManager} from '../state/TranscriptionStateManager'
+import {globalTranscriptionDeduplicator} from '../services/TranscriptionDeduplicator'
 
 interface WindowState {
   windowType: string
@@ -118,11 +119,23 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
           source: transcript.source
         }))
 
-        // Merge with existing shared state transcripts
-        setSharedState(prev => ({
-          ...prev,
-          transcripts: [...prev.transcripts, ...existingTranscripts]
-        }))
+        // Merge with existing shared state transcripts and apply deduplication
+        setSharedState(prevState => {
+          const combinedTranscripts = [...prevState.transcripts, ...existingTranscripts]
+          const deduplicationResult =
+            globalTranscriptionDeduplicator.deduplicate(combinedTranscripts)
+
+          if (deduplicationResult.duplicateCount > 0) {
+            console.log(
+              `🔄 MultiWindowContext: Removed ${deduplicationResult.duplicateCount} duplicates during initialization`
+            )
+          }
+
+          return {
+            ...prevState,
+            transcripts: deduplicationResult.deduplicated
+          }
+        })
 
         // Subscribe to TranscriptionStateManager changes
         const unsubscribe = stateManager.subscribe((type, state) => {
@@ -136,10 +149,24 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
                 confidence: latestTranscript.confidence,
                 source: latestTranscript.source
               }
-              setSharedState(prev => ({
-                ...prev,
-                transcripts: [...prev.transcripts, formattedTranscript]
-              }))
+
+              // Apply deduplication when adding transcripts from state manager
+              setSharedState(prev => {
+                const newTranscripts = [...prev.transcripts, formattedTranscript]
+                const deduplicationResult =
+                  globalTranscriptionDeduplicator.deduplicate(newTranscripts)
+
+                if (deduplicationResult.duplicateCount > 0) {
+                  console.log(
+                    `🔄 MultiWindowContext: Removed ${deduplicationResult.duplicateCount} duplicate(s) from state manager update`
+                  )
+                }
+
+                return {
+                  ...prev,
+                  transcripts: deduplicationResult.deduplicated
+                }
+              })
             }
           }
         })
@@ -282,8 +309,17 @@ export const MultiWindowProvider: React.FC<MultiWindowProviderProps> = ({childre
           source: result.staticTranscription.source
         }
 
-        // Add to static transcripts
-        broadcastStateChange('transcripts', [...sharedState.transcripts, staticTranscript])
+        // Add to static transcripts with deduplication
+        const newTranscripts = [...sharedState.transcripts, staticTranscript]
+        const deduplicationResult = globalTranscriptionDeduplicator.deduplicate(newTranscripts)
+
+        if (deduplicationResult.duplicateCount > 0) {
+          console.log(
+            `🔄 MultiWindowContext: Removed ${deduplicationResult.duplicateCount} duplicate(s) when adding static transcription`
+          )
+        }
+
+        broadcastStateChange('transcripts', deduplicationResult.deduplicated)
       }
     },
     [sharedState.transcripts, broadcastStateChange, sourceManager]
