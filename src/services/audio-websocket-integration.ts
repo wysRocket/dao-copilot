@@ -5,7 +5,7 @@
  * Handles audio capture, processing, format conversion, and streaming to the WebSocket.
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {
   GeminiLiveWebSocketClient,
   type GeminiLiveConfig,

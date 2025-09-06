@@ -6,7 +6,7 @@
  * to the Gemini Live API WebSocket connection.
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {GeminiLiveIntegrationService} from './gemini-live-integration'
 
 // Audio streaming configuration optimized for Gemini Live API

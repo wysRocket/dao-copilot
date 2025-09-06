@@ -5,7 +5,7 @@
  * Handles the core data flow: audio chunks → format conversion → WebSocket transmission.
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {GeminiLiveWebSocketClient} from './gemini-live-websocket'
 import {RealTimeAudioStreamingService, type AudioChunk} from './real-time-audio-streaming'
 import {AudioFormatConverter} from './audio-format-converter'

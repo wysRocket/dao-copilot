@@ -8,7 +8,7 @@ import {
   DEFAULT_STREAMING_CONFIG
 } from '../../services/real-time-audio-streaming'
 import {GeminiLiveIntegrationService} from '../../services/gemini-live-integration'
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 
 // Mock AudioContext and related APIs
 const mockScriptProcessor = {

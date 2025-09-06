@@ -5,7 +5,7 @@
  * SSL/TLS handling, authentication, and comprehensive logging.
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {logger} from './gemini-logger'
 import {GeminiErrorHandler, ErrorType} from './gemini-error-handler'
 

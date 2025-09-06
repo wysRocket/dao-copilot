@@ -3,7 +3,7 @@
  * Bridges the WebSocket client with existing audio capture and transcription services
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import GeminiLiveWebSocketClient, {
   ConnectionState,
   type GeminiLiveConfig,

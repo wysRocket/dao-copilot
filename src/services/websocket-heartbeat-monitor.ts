@@ -4,7 +4,7 @@
  * missed heartbeat detection, and automatic recovery triggers.
  */
 
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {logger} from './gemini-logger'
 
 export interface HeartbeatConfig {

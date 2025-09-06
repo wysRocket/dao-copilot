@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {describe, it, expect, beforeEach, afterEach, vi, MockedFunction} from 'vitest'
-import {EventEmitter} from 'events'
+import EventEmitter from 'eventemitter3'
 import {
   WebSocketHeartbeatMonitor,
   HeartbeatStatus,
