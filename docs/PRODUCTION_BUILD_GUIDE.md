@@ -295,4 +295,7 @@ For automated builds, set up CI/CD with:
 3. **Artifact Storage**: Save builds for distribution
 4. **Release Automation**: Auto-tag and publish releases
 
-Example GitHub Actions workflow available in `.github/workflows/production-build.yml`
+### GitHub Actions Templates
+
+- `.github/workflows/build.yml` orchestrates the full cross-platform matrix (macOS, Linux, Windows) and can be triggered on tags or manually for release packaging.
+- `.github/workflows/windows-build.yml` runs on a dedicated Windows runner to produce Squirrel installers via `npm run build:production:win`, cache Electron assets, execute unit tests, and upload `.exe` / `.nupkg` artifacts. Trigger it from the Actions tab (workflow dispatch) or by pushing to `master`/`main` once credentials are configured.
