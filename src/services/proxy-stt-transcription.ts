@@ -1,6 +1,6 @@
 import fetch from 'node-fetch'
 import {getProxyAuthToken} from '../helpers/proxy-server'
-import {TranscriptionMode} from './gemini-live-integration'
+import {TranscriptionMode} from '../types/gemini-types'
 import {
   createLegacyWrapper,
   migrateLegacyConfig,

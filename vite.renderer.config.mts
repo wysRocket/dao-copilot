@@ -21,5 +21,17 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src')
     }
+  },
+  build: {
+    rollupOptions: {
+      external: [
+        'events',
+        'src/services/gemini-message-handler',
+        'src/services/gemini-live-websocket',
+        'src/services/gemini-reconnection-manager',
+        'src/services/gemini-logger',
+        'src/services/gemini-live-integration'
+      ]
+    }
   }
 })
