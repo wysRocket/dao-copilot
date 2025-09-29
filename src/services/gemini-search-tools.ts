@@ -90,6 +90,38 @@ export class GeminiSearchTools extends EventEmitter {
   private config: Required<GeminiSearchConfig>
   private cache: NodeCache
 
+  /**
+   * Browser-safe environment variable access
+   */
+  private getBrowserEnvVar(key: string): string | undefined {
+    try {
+      // Check if we're in a browser environment
+      if (typeof window !== 'undefined') {
+        // For Vite/Create React App with REACT_APP_ prefix
+        const reactAppKey = `REACT_APP_${key}`
+        if (import.meta?.env?.[reactAppKey]) {
+          return import.meta.env[reactAppKey]
+        }
+
+        // Check for global environment variables
+        const globalEnv = (window as unknown as {__ENV__?: Record<string, string>}).__ENV__
+        if (globalEnv && globalEnv[key]) {
+          return globalEnv[key]
+        }
+      }
+
+      // For Node.js environments (development/server-side)
+      if (typeof process !== 'undefined' && process.env) {
+        return process.env[key]
+      }
+
+      return undefined
+    } catch (error) {
+      console.warn(`Failed to access environment variable ${key}:`, error)
+      return undefined
+    }
+  }
+
   constructor(config: GeminiSearchConfig) {
     super()
 
@@ -98,8 +130,8 @@ export class GeminiSearchTools extends EventEmitter {
       ...config,
       geminiApiKey:
         config.geminiApiKey ||
-        process.env.GEMINI_API_KEY ||
-        process.env.GOOGLE_API_KEY ||
+        this.getBrowserEnvVar('GEMINI_API_KEY') ||
+        this.getBrowserEnvVar('GOOGLE_API_KEY') ||
         config.apiKey,
       geminiModel: config.geminiModel || 'gemini-2.5-flash',
       enableIntelligentSummarization: config.enableIntelligentSummarization ?? true,

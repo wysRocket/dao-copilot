@@ -365,8 +365,46 @@ export default function TranscriptsPage() {
           )
           return
         }
-        // Handle live streaming transcriptions for real-time display
+        // ===== DEBUGGING: TRANSCRIPTS PAGE MESSAGE INTERCEPTION =====
+        console.group('📝 TranscriptsPage Message Received')
+        console.log('🔍 Channel:', channel)
+        console.log('🔍 Args:', args)
+        console.log('🔍 First Arg:', args[0])
+
+        // Handle live streaming transcriptions for real-time display (user speech only)
         const streamingData = args[0] as {text: string; isFinal: boolean; source: string}
+
+        console.log('🔍 Parsed streaming data:', streamingData)
+        console.log('🔍 Text content preview:', streamingData.text?.substring(0, 200) + '...')
+        console.log(
+          '🔍 Text contains "Charlie Kirk":',
+          streamingData.text?.includes('Charlie Kirk')
+        )
+        console.log('🔍 Text contains "news":', streamingData.text?.toLowerCase().includes('news'))
+        console.groupEnd()
+
+        // ===== EMERGENCY CONTENT FILTERING =====
+        const searchIndicators = [
+          'assassination of charlie kirk',
+          'latest news',
+          "here's a summary",
+          'conservative activist',
+          'trump ally',
+          'international news',
+          'notable news',
+          'supreme court',
+          'manhunt is underway'
+        ]
+
+        const textLower = streamingData.text?.toLowerCase() || ''
+        const isSearchResult = searchIndicators.some(indicator => textLower.includes(indicator))
+
+        if (isSearchResult) {
+          console.warn('🚨 EMERGENCY FILTER: Blocking search result from TranscriptsPage!')
+          console.warn('🚨 Detected content:', streamingData.text?.substring(0, 100) + '...')
+          console.warn('🚨 This should be going to ChatPage instead!')
+          return // Block this content from appearing in transcriptions
+        }
 
         // Debug logging to understand what we're receiving
         console.log('📝 Received streaming transcription:', {

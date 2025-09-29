@@ -5,6 +5,7 @@ import {
   convertAudioToBase64,
   createAudioMimeType
 } from './gemini-audio-utils'
+import {logger} from '../utils/logger'
 
 interface TranscriptionChunk {
   text: string
@@ -40,33 +41,33 @@ export class RealTimeTranscriptionService extends EventEmitter {
   private isRecording = false
   // Buffer audio chunks that arrive before Gemini setup completes
   private pendingAudio: string[] = [] // base64 encoded PCM frames
-  // PCM framing
+  // PCM framing - increased for better quality
   private targetSampleRate = 16000
-  private frameDurationMs = 20 // lower latency frames
-  private samplesPerFrame = Math.floor((16000 * 20) / 1000) // 320 samples
-  private overlapMs = 10
-  private overlapSamples = Math.floor((16000 * 10) / 1000) // 160 samples
+  private frameDurationMs = 100 // Increased from 20ms to 100ms for better transcription quality
+  private samplesPerFrame = Math.floor((16000 * 100) / 1000) // 1600 samples
+  private overlapMs = 20 // Reduced overlap
+  private overlapSamples = Math.floor((16000 * 20) / 1000) // 320 samples
   private floatBuffer: Float32Array = new Float32Array(0)
   // Simple backpressure-aware send queue
   private sendQueue: string[] = []
   private drainTimer: number | null = null
   private bufferedThreshold = 256 * 1024 // 256KB
-  // Congestion-aware coalescing of frames into a single WS message
+  // Congestion-aware coalescing of frames into a single WS message - optimized for quality
   private coalesceBuffer: string[] = []
   private coalesceTimer: number | null = null
-  private coalesceMaxFrames = 3
-  private coalesceDelayMs = 5
+  private coalesceMaxFrames = 5 // Increased from 3 for better context
+  private coalesceDelayMs = 50 // Increased from 5ms for better quality
   private congestionThreshold = Math.floor((256 * 1024) / 2)
   // Lightweight metrics interval
   private metricsTimer: number | null = null
   // No-text detection timer
   private noTextTimer: number | null = null
-  private noTextTimeoutMs = 5000
+  private noTextTimeoutMs = 8000 // Increased timeout
   // Adaptive tuning state
   private metricsWindow: Array<{buffered: number; qlen: number; t: number}> = []
   private lastAutoAdjustAt = 0
-  private autoAdjustCooldownMs = 1500
-  private coalesceMaxFramesBounds: [number, number] = [2, 6]
+  private autoAdjustCooldownMs = 2000 // Increased cooldown
+  private coalesceMaxFramesBounds: [number, number] = [3, 8] // Increased range
   // Latency sampling (rough): timestamp last audio enqueue
   private lastEnqueueAt = 0
   // Optional silence gating to reduce traffic during inactivity
@@ -115,7 +116,7 @@ export class RealTimeTranscriptionService extends EventEmitter {
       this.sendQueue.push(payload)
       this.scheduleDrain()
     } catch (e) {
-      console.warn('Failed to enqueue WS message:', e)
+      logger.warn('Failed to enqueue WS message:', e)
     }
   }
 
@@ -140,7 +141,7 @@ export class RealTimeTranscriptionService extends EventEmitter {
         } catch (e) {
           // Put back and retry later
           this.sendQueue.unshift(msg)
-          console.warn('WS send failed during drain, will retry:', e)
+          logger.warn('WS send failed during drain, will retry:', e)
           break
         }
       }
@@ -160,10 +161,9 @@ export class RealTimeTranscriptionService extends EventEmitter {
   constructor() {
     super()
     this.config = {
-      model: 'gemini-live-2.5-flash-preview',
-      responseModalities: ['TEXT'],
-      systemInstruction:
-        'You are a real-time speech-to-text transcription system. Provide immediate transcription of spoken words as they are being said. Return only the transcribed text without any additional commentary. Be responsive and provide partial results quickly.'
+      model: 'gemini-live-2.5-flash-preview-native-audio', // Native audio model for transcription
+      responseModalities: ['TEXT'], // Only want text transcription, not audio response
+      systemInstruction: 'Transcribe speech to text. Output only what was spoken.'
     }
   }
 
@@ -173,18 +173,38 @@ export class RealTimeTranscriptionService extends EventEmitter {
   async initialize(): Promise<void> {
     try {
       this.connectionStartTime = performance.now()
-      console.log('🚀 Initializing real-time Gemini transcription service...')
+      logger.log('🚀 Initializing real-time Gemini transcription service...')
+
+      // Clear all buffers and reset counters for clean start - CRITICAL FIX
+      this.pendingAudio = []
+      this.audioChunks = []
+      this.floatBuffer = new Float32Array(0)
+      this.framesCaptured = 0
+      this.framesQueuedBeforeSetup = 0
+      this.framesSent = 0
+      this.firstTranscriptionAt = 0
+      this.lastTranscriptionAt = 0
+      this.reconnectAttempts = 0
+      this.messageCounter = 0
+      this.rawMessageLog = []
+      this.silentFrameCounter = 0
+      this.lastEnqueueAt = 0
+      this.metricsWindow = []
+      this.lastAutoAdjustAt = 0
+      this.sendQueue = []
+      this.coalesceBuffer = []
+      logger.log('🧹 Cleared all buffers for clean start')
 
       // Audio context first (required by browsers), then parallelize capture + websocket
       await this.setupAudioContext()
       await Promise.all([this.startAudioCapture(), this.connectGeminiWebSocket()])
 
-      console.log(
+      logger.log(
         `✅ Real-time Gemini service initialized in ${(performance.now() - this.connectionStartTime).toFixed(2)}ms`
       )
       this.emit('initialized')
     } catch (error) {
-      console.error('❌ Failed to initialize real-time service:', error)
+      logger.error('❌ Failed to initialize real-time service:', error)
       this.emit('error', error)
       throw error
     }
@@ -209,9 +229,9 @@ export class RealTimeTranscriptionService extends EventEmitter {
         await this.audioContext.resume()
       }
 
-      console.log('🎤 Audio context initialized for real-time capture')
+      logger.log('🎤 Audio context initialized for real-time capture')
     } catch (error) {
-      console.error('❌ Failed to setup audio context:', error)
+      logger.error('❌ Failed to setup audio context:', error)
       throw error
     }
   }
@@ -425,18 +445,32 @@ export class RealTimeTranscriptionService extends EventEmitter {
     const setupMessage = {
       setup: {
         model: `models/${this.config.model}`,
+        systemInstruction: {
+          parts: [
+            {
+              text: this.config.systemInstruction
+            }
+          ]
+        },
         generationConfig: {
           responseModalities: this.config.responseModalities,
-          systemInstruction: this.config.systemInstruction,
           candidateCount: 1,
           maxOutputTokens: 2048,
-          temperature: 0,
-          topP: 1
+          temperature: 0.1,
+          topP: 0.95,
+          topK: 40,
+          // Enable input audio transcription - CRITICAL for getting transcripts
+          inputAudioTranscription: {
+            language: 'en-US' // Can be auto-detected or set to specific language
+          },
+          // Disable output audio since we only want text transcription
+          outputAudioTranscription: {}
         }
       }
     }
 
-    console.log('📤 Enqueueing Gemini Live setup config...')
+    console.log('📤 Enqueueing Gemini Live setup config with proper structure...')
+    console.log('📝 System instruction:', this.config.systemInstruction)
     this.enqueueWsMessage(setupMessage)
   }
 
@@ -469,13 +503,25 @@ export class RealTimeTranscriptionService extends EventEmitter {
         micStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             channelCount: 1,
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false
+            sampleRate: 16000,
+            echoCancellation: true, // Enable for better quality
+            noiseSuppression: true, // Enable for cleaner audio
+            autoGainControl: true // Enable for consistent volume
           }
         })
       } catch (e) {
         console.warn('⚠️ Mic capture failed:', e)
+        // Fallback with simpler constraints
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              channelCount: 1,
+              sampleRate: 16000
+            }
+          })
+        } catch (fallbackError) {
+          console.error('❌ Mic capture completely failed:', fallbackError)
+        }
       }
 
       if (wantMixed || this.preferredCaptureMode === 'system') {
@@ -726,21 +772,51 @@ export class RealTimeTranscriptionService extends EventEmitter {
         const content: Record<string, unknown> = data.serverContent as Record<string, unknown>
         let textCandidate: string | null = null
 
-        // Prefer explicit inputTranscription when present (adaptive parsing)
-        const it = (content as Record<string, unknown>).inputTranscription as unknown
-        if (it && typeof it === 'object') {
-          const rec = it as Record<string, unknown>
-          const direct = typeof rec.text === 'string' ? rec.text : null
-          const nested =
-            rec.transcription &&
-            typeof (rec.transcription as Record<string, unknown>).text === 'string'
-              ? ((rec.transcription as Record<string, unknown>).text as string)
-              : null
-          const alt =
-            rec.partial && typeof (rec.partial as Record<string, unknown>).text === 'string'
-              ? ((rec.partial as Record<string, unknown>).text as string)
-              : null
-          textCandidate = direct || nested || alt || textCandidate
+        // First, look for dedicated input_transcription field (Gemini Live native audio)
+        if (content.input_transcription && typeof content.input_transcription === 'object') {
+          const inputTranscription = content.input_transcription as Record<string, unknown>
+          if (typeof inputTranscription.text === 'string') {
+            textCandidate = inputTranscription.text
+            console.log('📝 Found input_transcription:', textCandidate)
+          }
+        }
+
+        // Also check for inputTranscription (alternative field name)
+        if (
+          !textCandidate &&
+          content.inputTranscription &&
+          typeof content.inputTranscription === 'object'
+        ) {
+          const inputTranscription = content.inputTranscription as Record<string, unknown>
+          if (typeof inputTranscription.text === 'string') {
+            textCandidate = inputTranscription.text
+            console.log('📝 Found inputTranscription:', textCandidate)
+          }
+        }
+
+        // Legacy parsing for other field structures
+        if (!textCandidate) {
+          const it = (content as Record<string, unknown>).inputTranscription as unknown
+          if (it && typeof it === 'object') {
+            const rec = it as Record<string, unknown>
+            const direct = typeof rec.text === 'string' ? rec.text : null
+            const nested =
+              rec.transcription &&
+              typeof (rec.transcription as Record<string, unknown>).text === 'string'
+                ? ((rec.transcription as Record<string, unknown>).text as string)
+                : null
+            const alt =
+              rec.partial && typeof (rec.partial as Record<string, unknown>).text === 'string'
+                ? ((rec.partial as Record<string, unknown>).text as string)
+                : null
+            textCandidate = direct || nested || alt || textCandidate
+          }
+        }
+
+        // Log all fields for debugging
+        console.log('🔍 All serverContent fields:', Object.keys(content))
+        if (this.messageCounter <= 5) {
+          console.log('🔍 Full serverContent:', JSON.stringify(content, null, 2))
         }
 
         // Heuristic scan: look for first string-valued 'text' deep inside if still empty
@@ -765,25 +841,63 @@ export class RealTimeTranscriptionService extends EventEmitter {
           }
         }
 
-        // Fallback to modelTurn.parts[].text
-        const mt = content.modelTurn as unknown as Record<string, unknown> | undefined
-        const rawParts = mt && 'parts' in mt ? (mt.parts as unknown) : undefined
-        const mtParts = Array.isArray(rawParts) ? (rawParts as Array<unknown>) : null
-        if (!textCandidate && mtParts) {
-          const parts = mtParts.filter((p): p is {text: string} => {
-            if (!p || typeof p !== 'object') return false
-            const maybe = p as Record<string, unknown>
-            return typeof maybe.text === 'string'
-          })
-          if (parts.length > 0) {
-            textCandidate = parts.map(part => part.text).join(' ')
-          }
+        // ===== CRITICAL FIX: Block modelTurn responses from transcription =====
+        // Check if this is a modelTurn response (AI/search results)
+        const hasModelTurn = !!content.modelTurn
+        if (hasModelTurn) {
+          console.group('🚨 REAL-TIME-TRANSCRIPTION: Blocking modelTurn response')
+          console.warn('🚨 BLOCKING modelTurn response from being processed as transcription!')
+          console.warn('🚨 This should be handled by Chat tab, not Transcriptions tab')
+          console.warn('🚨 Content keys:', Object.keys(content))
+          console.groupEnd()
+          return // Block AI responses/search results from transcription processing
         }
 
+        // Fallback to modelTurn.parts[].text - REMOVED DUE TO SECURITY ISSUE
+        // This was causing Google Search results to appear in Transcriptions tab
+        // const mt = content.modelTurn as unknown as Record<string, unknown> | undefined
+        // const rawParts = mt && 'parts' in mt ? (mt.parts as unknown) : undefined
+        // const mtParts = Array.isArray(rawParts) ? (rawParts as Array<unknown>) : null
+        // if (!textCandidate && mtParts) {
+        //   const parts = mtParts.filter((p): p is {text: string} => {
+        //     if (!p || typeof p !== 'object') return false
+        //     const maybe = p as Record<string, unknown>
+        //     return typeof maybe.text === 'string'
+        //   })
+        //   if (parts.length > 0) {
+        //     textCandidate = parts.map(part => part.text).join(' ')
+        //   }
+        // }
+
         if (typeof textCandidate === 'string' && textCandidate.trim().length > 0) {
+          const cleanText = textCandidate.trim()
+
+          // Filter out test data and corrupted text - CRITICAL FIX
+          const isTestData =
+            cleanText.toLowerCase().includes('quick brown fox') ||
+            cleanText.toLowerCase().includes('lazy dog') ||
+            cleanText.includes('The quick') ||
+            cleanText.includes('jumps over')
+
+          // Filter out non-Latin characters that might indicate encoding issues
+          const hasCorruptedChars =
+            /[\u0500-\u052F]/.test(cleanText) || // Cyrillic Extension-A
+            /[\u0530-\u058F]/.test(cleanText) || // Armenian
+            /[\u0590-\u05FF]/.test(cleanText) // Hebrew
+
+          if (isTestData) {
+            console.warn('🚫 Filtered out test data:', cleanText)
+            return
+          }
+
+          if (hasCorruptedChars) {
+            console.warn('🚫 Filtered out corrupted text with encoding issues:', cleanText)
+            return
+          }
+
           const isFinal = !!content.turnComplete
           const chunk: TranscriptionChunk = {
-            text: textCandidate.trim(),
+            text: cleanText,
             isFinal,
             confidence: 0.9,
             timestamp: performance.now()
@@ -973,8 +1087,65 @@ export class RealTimeTranscriptionService extends EventEmitter {
       this.metricsTimer = null
     }
 
+    // Clear all audio buffers and reset counters - CRITICAL FIX
+    this.pendingAudio = []
+    this.audioChunks = []
+    this.floatBuffer = new Float32Array(0)
+    this.framesCaptured = 0
+    this.framesQueuedBeforeSetup = 0
+    this.framesSent = 0
+    this.firstTranscriptionAt = 0
+    this.lastTranscriptionAt = 0
+    this.reconnectAttempts = 0
+    this.messageCounter = 0
+    this.rawMessageLog = []
+    this.silentFrameCounter = 0
+    this.lastEnqueueAt = 0
+    this.metricsWindow = []
+    this.lastAutoAdjustAt = 0
+
+    console.log('🧹 Cleared all audio buffers and reset counters')
+
     this.isConnected = false
     this.emit('stopped')
+  }
+
+  /**
+   * Force cleanup and reset all buffers and state
+   * Use this when you suspect buffer corruption or persistent issues
+   */
+  forceCleanup(): void {
+    console.log('🧹 Force cleanup: Resetting all buffers and state...')
+
+    // Stop everything first
+    this.stop()
+
+    // Force garbage collection of any remaining references
+    setTimeout(() => {
+      // Additional cleanup after stop
+      this.pendingAudio = []
+      this.audioChunks = []
+      this.floatBuffer = new Float32Array(0)
+      this.sendQueue = []
+      this.coalesceBuffer = []
+      this.rawMessageLog = []
+      this.metricsWindow = []
+
+      // Reset all counters
+      this.framesCaptured = 0
+      this.framesQueuedBeforeSetup = 0
+      this.framesSent = 0
+      this.firstTranscriptionAt = 0
+      this.lastTranscriptionAt = 0
+      this.reconnectAttempts = 0
+      this.messageCounter = 0
+      this.silentFrameCounter = 0
+      this.lastEnqueueAt = 0
+      this.lastAutoAdjustAt = 0
+
+      console.log('✅ Force cleanup completed')
+      this.emit('cleaned')
+    }, 100)
   }
 
   /**

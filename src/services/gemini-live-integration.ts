@@ -68,15 +68,18 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     super()
 
     this.config = {
-      mode: TranscriptionMode.HYBRID,
-      fallbackToBatch: true,
-      realTimeThreshold: 1000, // 1 second
-      batchFallbackDelay: 5000, // 5 seconds
+      // Default configuration
+      reconnectAttempts: 3,
+      reconnectDelay: 1000,
       audioBufferSize: 4096, // Buffer size for streaming
       enableAudioStreaming: true,
       ...config,
       // Required fields
-      apiKey: config.apiKey || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || ''
+      apiKey:
+        config.apiKey ||
+        this.getEnvironmentVariable('GOOGLE_API_KEY') ||
+        this.getEnvironmentVariable('GEMINI_API_KEY') ||
+        ''
     }
 
     if (!this.config.apiKey) {
@@ -157,8 +160,34 @@ export class GeminiLiveIntegrationService extends EventEmitter {
    * Initialize and configure the WebSocket client
    */
   private initializeWebSocketClient(): void {
-    this.websocketClient = new GeminiLiveWebSocketClient(this.config)
+    // Optimize configuration for transcription quality
+    const optimizedConfig = this.optimizeConfigForTranscription(this.config)
+    this.websocketClient = new GeminiLiveWebSocketClient(optimizedConfig)
     this.setupWebSocketEventHandlers()
+  }
+
+  /**
+   * Optimize configuration for better transcription quality
+   */
+  private optimizeConfigForTranscription(config: IntegrationConfig): IntegrationConfig {
+    return {
+      ...config,
+      // Use the proper model for live transcription
+      model: 'gemini-live-2.5-flash-preview',
+      apiVersion: 'v1beta',
+
+      // Simple, focused system instruction for transcription
+      systemInstruction:
+        'You are a speech-to-text transcription system. Transcribe exactly what is spoken. Return only the transcribed text without commentary or formatting.',
+
+      // Generation config optimized for transcription accuracy
+      generationConfig: {
+        temperature: 0.1, // Very low temperature for consistency
+        maxOutputTokens: 2048,
+        topP: 0.95,
+        topK: 40
+      }
+    }
   }
 
   /**
@@ -198,6 +227,31 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     })
 
     this.websocketClient.on('serverContent', content => {
+      // ===== CRITICAL FIX: Filter out modelTurn responses =====
+      console.group('🔍 GEMINI-LIVE-INTEGRATION: serverContent received')
+      console.log('📦 Raw content:', {
+        type: content?.type,
+        hasMetadata: !!content?.metadata,
+        modelTurn: content?.metadata?.modelTurn,
+        inputTranscription: content?.metadata?.inputTranscription,
+        contentKeys: Object.keys(content || {})
+      })
+
+      // Only block modelTurn responses (AI/search results), allow everything else
+      if (content?.metadata?.modelTurn === true) {
+        console.warn('🚨 BLOCKING modelTurn response from being processed as transcription!')
+        console.warn('🚨 This should be handled by Chat tab, not Transcriptions tab')
+        console.warn('🚨 Content preview:', content?.content?.substring(0, 200) + '...')
+        console.groupEnd()
+        return // Block AI responses/search results from transcription handling
+      }
+
+      // Allow all non-modelTurn content to be processed as potential transcriptions
+      // This includes inputTranscription and other legitimate message types
+
+      console.log('✅ Processing valid inputTranscription content')
+      console.groupEnd()
+
       this.handleTranscriptionResult(content, 'websocket')
     })
 
@@ -794,6 +848,27 @@ export class GeminiLiveIntegrationService extends EventEmitter {
     this.removeAllListeners()
 
     logger.info('GeminiLiveIntegrationService destroyed')
+  }
+
+  /**
+   * Browser-safe environment variable access
+   */
+  private getEnvironmentVariable(key: string): string {
+    // Check if running in Node.js environment
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env[key] || ''
+    }
+
+    // For Electron renderer process, check if window has env variables
+    if (typeof window !== 'undefined') {
+      const env = (window as {__ENV__?: Record<string, string>}).__ENV__
+      if (env && env[key]) {
+        return env[key]
+      }
+    }
+
+    // Fallback - return empty string
+    return ''
   }
 }
 

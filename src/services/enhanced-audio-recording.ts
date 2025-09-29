@@ -14,18 +14,18 @@ import {
 } from './real-time-audio-streaming'
 import {GeminiLiveIntegrationService} from './gemini-live-integration'
 import {sanitizeLogMessage} from './log-sanitizer'
-import type {TranscriptionResult} from './audio-recording'
-
-// Re-export existing types for compatibility
-export {
-  TranscriptionResult,
-  RecordingState,
+import type {TranscriptionResult, RecordingState} from './audio-recording'
+import {
   INTERVAL_SECONDS,
   TARGET_SAMPLE_RATE,
   DEVICE_SAMPLE_RATE,
   resampleAudio,
   renderAudioToWav
 } from './audio-recording'
+
+// Re-export existing types for compatibility
+export type {TranscriptionResult, RecordingState}
+export {INTERVAL_SECONDS, TARGET_SAMPLE_RATE, DEVICE_SAMPLE_RATE, resampleAudio, renderAudioToWav}
 
 // Enhanced recording modes
 export enum RecordingMode {

@@ -410,6 +410,10 @@ export class Gemini2FlashMessageParser {
     serverContent: Record<string, unknown>,
     timestamp: number
   ): ParsedGeminiResponse {
+    // ===== DEBUGGING: WEBSOCKET MESSAGE CLASSIFICATION =====
+    console.group('🔍 WebSocket parseServerContent')
+    console.log('📦 Raw serverContent:', serverContent)
+
     const modelTurn = serverContent.modelTurn as Record<string, unknown> | undefined
     const turnComplete = serverContent.turnComplete as boolean | undefined
     // Some Gemini messages include a generationComplete flag without additional parts. We treat these
@@ -420,8 +424,18 @@ export class Gemini2FlashMessageParser {
       | Record<string, unknown>
       | undefined
 
+    console.log('🏷️ Message classification:')
+    console.log('  • inputTranscription:', !!inputTranscription)
+    console.log('  • modelTurn:', !!modelTurn)
+    console.log('  • turnComplete:', turnComplete)
+    console.log('  • generationComplete:', generationComplete)
+
     // Check for input transcription first (for speech-to-text)
     if (inputTranscription && typeof inputTranscription.text === 'string') {
+      console.log('✅ DETECTED: inputTranscription (USER SPEECH)')
+      console.log('📝 Text content:', inputTranscription.text?.substring(0, 100) + '...')
+      console.groupEnd()
+
       return {
         type: 'text',
         content: inputTranscription.text,
@@ -444,6 +458,12 @@ export class Gemini2FlashMessageParser {
         .filter((text: unknown): text is string => typeof text === 'string')
 
       const content = textParts.join(' ')
+
+      console.log('🤖 DETECTED: modelTurn (AI RESPONSE/SEARCH)')
+      console.log('📝 Text content:', content?.substring(0, 100) + '...')
+      console.log('🔍 Contains "Charlie Kirk":', content?.includes('Charlie Kirk'))
+      console.log('🔍 Contains "news":', content?.toLowerCase().includes('news'))
+      console.groupEnd()
 
       return {
         type: 'text',
@@ -2585,31 +2605,95 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
           }
         }
 
-        // Also emit transcriptionUpdate for backward compatibility with transcription services
-        this.emit('transcriptionUpdate', {
-          text: geminiResponse.content,
-          confidence: geminiResponse.metadata.confidence,
-          isFinal: !geminiResponse.metadata.isPartial
-        })
+        // Route messages based on type:
+        // - inputTranscription: true → transcriptionUpdate (for Transcripts tab)
+        // - modelTurn: true → chatResponse (for Chat tab)
 
-        // FSM integration: Handle final text if this is a final response
-        if (!geminiResponse.metadata.isPartial && this._currentUtteranceId) {
-          TranscriptFSM.applyFinal(
-            this._currentUtteranceId,
-            this._currentTurnText,
-            geminiResponse.metadata.confidence
-          )
-          // Reset for next utterance
-          this._currentUtteranceId = null
-        }
-
-        logger.debug('Emitted transcription events', {
-          textLength:
+        // DEBUG: Enhanced logging to understand message routing
+        console.log('🔍 WebSocket routing decision:', {
+          inputTranscription: geminiResponse.metadata.inputTranscription,
+          modelTurn: geminiResponse.metadata.modelTurn,
+          content: geminiResponse.content?.slice(0, 200) + '...',
+          contentLength:
             typeof geminiResponse.content === 'string' ? geminiResponse.content.length : 0,
           isPartial: geminiResponse.metadata.isPartial,
-          confidence: geminiResponse.metadata.confidence,
-          isFinal: !geminiResponse.metadata.isPartial
+          turnId: geminiResponse.metadata.turnId,
+          messageType: geminiResponse.type
         })
+
+        // CRITICAL FIX: Proper message type separation
+        console.group('🚦 MESSAGE ROUTING DECISION')
+        console.log('📊 Message metadata:', geminiResponse.metadata)
+        console.log(
+          '📝 Content preview:',
+          typeof geminiResponse.content === 'string'
+            ? geminiResponse.content.substring(0, 100) + '...'
+            : '[Non-string content]'
+        )
+
+        if (geminiResponse.metadata.inputTranscription === true) {
+          // This is ALWAYS user speech transcription → Transcripts tab
+          console.log('✅ ROUTING DECISION: User transcription → Transcripts tab')
+          console.log('🎯 Emitting: transcriptionUpdate event')
+          console.groupEnd()
+
+          this.emit('transcriptionUpdate', {
+            text: geminiResponse.content,
+            confidence: geminiResponse.metadata.confidence,
+            isFinal: !geminiResponse.metadata.isPartial
+          })
+
+          // FSM integration: Handle final text if this is a final response
+          if (!geminiResponse.metadata.isPartial && this._currentUtteranceId) {
+            TranscriptFSM.applyFinal(
+              this._currentUtteranceId,
+              this._currentTurnText,
+              geminiResponse.metadata.confidence
+            )
+            // Reset for next utterance
+            this._currentUtteranceId = null
+          }
+
+          logger.debug('Emitted transcription events', {
+            textLength:
+              typeof geminiResponse.content === 'string' ? geminiResponse.content.length : 0,
+            isPartial: geminiResponse.metadata.isPartial,
+            confidence: geminiResponse.metadata.confidence,
+            isFinal: !geminiResponse.metadata.isPartial
+          })
+        } else if (geminiResponse.metadata.modelTurn === true) {
+          // This is ALWAYS Gemini model response (including Google Search results) → Chat tab
+          console.log('✅ ROUTING DECISION: AI model response (including search) → Chat tab')
+          console.log('🎯 Emitting: chatResponse event')
+          console.log(
+            '🔍 Content is search result:',
+            typeof geminiResponse.content === 'string' &&
+              geminiResponse.content.toLowerCase().includes('news')
+          )
+          console.groupEnd()
+
+          this.emit('chatResponse', {
+            text: geminiResponse.content,
+            metadata: geminiResponse.metadata,
+            isFinal: !geminiResponse.metadata.isPartial
+          })
+
+          logger.debug('Emitted chat response events', {
+            textLength:
+              typeof geminiResponse.content === 'string' ? geminiResponse.content.length : 0,
+            isPartial: geminiResponse.metadata.isPartial,
+            isFinal: !geminiResponse.metadata.isPartial,
+            turnId: geminiResponse.metadata.turnId
+          })
+        } else {
+          // Safety net: Log unhandled message types
+          console.warn('⚠️ ROUTING: Unhandled message type', {
+            inputTranscription: geminiResponse.metadata.inputTranscription,
+            modelTurn: geminiResponse.metadata.modelTurn,
+            content: geminiResponse.content?.slice(0, 100),
+            metadata: geminiResponse.metadata
+          })
+        }
         break
       case 'audio':
         this.emit('audioResponse', {
@@ -4148,6 +4232,13 @@ export class GeminiLiveWebSocketClient extends EventEmitter {
         parts: [{text: this.config.systemInstruction}]
       }
     }
+
+    // Add Google Search grounding tool
+    setupMessage.setup.tools = [
+      {
+        google_search: {}
+      }
+    ]
 
     return setupMessage
   }

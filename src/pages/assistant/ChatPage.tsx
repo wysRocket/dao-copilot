@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback} from 'react'
+import React, {useState, useCallback, useEffect} from 'react'
 // Remove the problematic transcription-connected components
 // import PersistentRealTimeAnswerDisplay from '../../components/PersistentRealTimeAnswerDisplay'
 // import {AnswerDisplay} from '../../services/AnswerDisplayManager'
@@ -7,6 +7,8 @@ import {FadeTransition, SlideUpTransition} from '../../components/SmoothTransiti
 import {SearchResultsGrid} from '../../components/SearchResultCard'
 import {formatToolCallForChat} from '../../utils/toolCallParser'
 import {useChatScroll} from '../../hooks/useChatScroll'
+import {getGeminiTranscriptionBridge} from '../../services/gemini-transcription-bridge'
+import {useWindowCommunication} from '../../hooks/useSharedState'
 import {
   ScrollNavigationControls,
   NewMessageToast,
@@ -16,14 +18,10 @@ import {
 // Import enhanced loading system
 import {
   LoadingStateProvider,
-  useChatLoading,
   SearchResultsLoading,
   ErrorState,
   useErrorHandler
 } from '../../components/loading'
-
-// Import real search functionality
-import GeminiSearchTools, {GeminiSearchConfig} from '../../services/gemini-search-tools'
 
 // Import enhanced styles
 import '../../styles/enhanced-transitions.css'
@@ -57,127 +55,41 @@ interface SearchToolResult {
   error?: string
 }
 
-const RealSearchIntegration: React.FC<RealSearchIntegrationProps> = ({
-  onToolCallResult,
-  className
-}) => {
+// Real Search Integration Component using IPC
+interface RealSearchIntegrationProps {
+  onToolCallResult: (result: SearchToolResult) => void
+  className?: string
+}
+
+interface SearchToolResult {
+  id: string
+  name: string
+  result: unknown
+  success: boolean
+  timestamp: number
+  error?: string
+}
+
+const RealSearchIntegration: React.FC<RealSearchIntegrationProps> = ({className}) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
-  const [searchTools, setSearchTools] = useState<GeminiSearchTools | null>(null)
   const {error, handleError, clearError} = useErrorHandler()
-  const chatLoading = useChatLoading()
-
-  // Initialize search tools
-  useEffect(() => {
-    try {
-      // Safe environment variable access for browser
-      const getEnvVar = (key: string): string => {
-        // For development with Vite/Create React App
-        if (typeof window !== 'undefined') {
-          const env = (window as {__ENV__?: Record<string, string>}).__ENV__
-          if (env && env[key]) {
-            return env[key]
-          }
-        }
-        // Fallback - use placeholder values for now
-        return ''
-      }
-
-      const config: GeminiSearchConfig = {
-        apiKey: getEnvVar('REACT_APP_GOOGLE_SEARCH_API_KEY'),
-        searchEngineId: getEnvVar('REACT_APP_SEARCH_ENGINE_ID'),
-        geminiApiKey: getEnvVar('REACT_APP_GEMINI_API_KEY'),
-        enableCaching: true,
-        cacheTtlSeconds: 3600,
-        maxRetries: 2,
-        timeout: 10000
-      }
-
-      const tools = new GeminiSearchTools(config)
-      setSearchTools(tools)
-
-      // Set up event listeners
-      tools.on('searchStart', data => {
-        console.log('Search started:', data)
-      })
-
-      tools.on('searchComplete', data => {
-        console.log('Search completed:', data)
-      })
-
-      tools.on('searchError', data => {
-        console.error('Search error:', data)
-        handleError(data.error || 'Search failed', 'network')
-      })
-
-      return () => {
-        tools.destroy()
-      }
-    } catch (error) {
-      console.error('Failed to initialize search tools:', error)
-      handleError(error instanceof Error ? error : 'Failed to initialize search', 'unknown')
-    }
-  }, [handleError])
 
   const handleSearch = useCallback(
     async (query: string) => {
-      if (!searchTools || !query.trim()) return
+      if (!query.trim()) return
 
-      setIsSearching(true)
-      clearError()
+      // Note: Search now happens automatically through Gemini's built-in Google Search grounding
+      // when you ask questions that require current information through the conversation.
+      // No manual search needed - just ask your question naturally!
 
-      // Start loading operation
-      const loadingId = chatLoading.startSearch(query)
-
-      try {
-        // Execute search
-        const result = await searchTools.google_search({
-          query: query.trim(),
-          max_results: 5,
-          country: 'US',
-          language: 'en'
-        })
-
-        if (result.success && result.results) {
-          // Create successful tool result
-          const toolResult: SearchToolResult = {
-            id: loadingId,
-            name: 'google_search',
-            result: {
-              results: result.results,
-              title: `Search results for "${query}"`,
-              compact: false
-            },
-            success: true,
-            timestamp: Date.now()
-          }
-
-          onToolCallResult(toolResult)
-          chatLoading.completeOperation(loadingId)
-        } else {
-          throw new Error(result.error || 'Search returned no results')
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Search failed'
-        handleError(errorMessage, 'network')
-
-        // Create failed tool result
-        const toolResult: SearchToolResult = {
-          id: loadingId,
-          name: 'google_search',
-          result: null,
-          success: false,
-          timestamp: Date.now(),
-          error: errorMessage
-        }
-
-        onToolCallResult(toolResult)
-        chatLoading.completeOperation(loadingId)
-      } finally {
-        setIsSearching(false)
-      }
+      // Show a helpful message
+      handleError(
+        'Search is now built into conversations! Just ask your question naturally and Gemini will search automatically when needed.',
+        'unknown'
+      )
     },
-    [searchTools, onToolCallResult, handleError, clearError, chatLoading]
+    [handleError]
   )
 
   const handleQuickSearch = (predefinedQuery: string) => {
@@ -188,28 +100,39 @@ const RealSearchIntegration: React.FC<RealSearchIntegrationProps> = ({
   return (
     <div className={className}>
       <div className="space-y-3">
-        {/* Search input */}
+        {/* Search info message */}
+        <div
+          className="rounded-lg p-3"
+          style={{background: 'var(--glass-light)', border: '1px solid var(--glass-border)'}}
+        >
+          <p className="text-sm" style={{color: 'var(--text-secondary)'}}>
+            🔍 <strong>Built-in Search:</strong> Ask questions naturally in the conversation and
+            Gemini will automatically search Google when needed. No manual search required!
+          </p>
+        </div>
+
+        {/* Search interface - now for demonstration */}
         <div className="flex gap-2">
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !isSearching && handleSearch(searchQuery)}
-            placeholder="Enter search query..."
+            placeholder="Try asking: 'What's the latest news about React?'"
             className="flex-1 rounded-lg border bg-transparent px-3 py-2 text-sm"
             style={{
               background: 'var(--glass-light)',
               border: '1px solid var(--glass-border)',
               color: 'var(--text-primary)'
             }}
-            disabled={!searchTools || isSearching}
           />
           <button
             onClick={() => handleSearch(searchQuery)}
-            disabled={!searchTools || !searchQuery.trim() || isSearching}
+            disabled={!searchQuery.trim()}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Search is now built into conversations! Ask questions naturally and Gemini will search automatically."
           >
-            {isSearching ? 'Searching...' : 'Search'}
+            💡 Ask Instead
           </button>
         </div>
 
@@ -244,7 +167,7 @@ const RealSearchIntegration: React.FC<RealSearchIntegrationProps> = ({
             <button
               key={query}
               onClick={() => handleQuickSearch(query)}
-              disabled={!searchTools || isSearching}
+              disabled={isSearching}
               className="rounded-lg px-3 py-1 text-xs transition-colors hover:bg-gray-200 disabled:opacity-50 dark:hover:bg-gray-700"
               style={{
                 background: 'var(--glass-light)',
@@ -263,11 +186,9 @@ const RealSearchIntegration: React.FC<RealSearchIntegrationProps> = ({
         )}
 
         {/* Search tools status */}
-        {searchTools && (
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            🔍 Real Google Search enabled • Status: {searchTools ? 'Connected' : 'Disconnected'}
-          </div>
-        )}
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          🔍 Real Google Search enabled • Status: Connected via IPC
+        </div>
       </div>
     </div>
   )
@@ -280,6 +201,7 @@ function ChatPageContent() {
   const [showToolCalls, setShowToolCalls] = useState<boolean>(true) // Enable real functionality by default
   const [showNewMessageToast, setShowNewMessageToast] = useState<boolean>(false)
   const [toastUnreadCount, setToastUnreadCount] = useState<number>(0)
+  const {onMessage} = useWindowCommunication()
 
   // Initialize chat scroll management
   const scrollControls = useChatScroll(chatHistory.length, {
@@ -288,6 +210,82 @@ function ChatPageContent() {
     showControlsThreshold: 150,
     enableKeyboardNavigation: true
   })
+
+  // Listen for chat responses from the transcription bridge
+  useEffect(() => {
+    try {
+      const bridge = getGeminiTranscriptionBridge()
+
+      const handleChatResponse = (data: {
+        text: string
+        timestamp: number
+        confidence?: number
+        source?: string
+        metadata?: Record<string, unknown>
+      }) => {
+        const chatMessage: ChatMessage = {
+          id: `chat-${Date.now()}`,
+          type: 'assistant',
+          content: data.text,
+          timestamp: data.timestamp,
+          isAIResponse: true
+        }
+
+        setChatHistory(prev => {
+          const newHistory = [...prev, chatMessage]
+
+          // Handle new message for scroll controls
+          if (!scrollControls.isAutoScrollEnabled && !scrollControls.scrollPosition.isAtBottom) {
+            setShowNewMessageToast(true)
+            setToastUnreadCount(count => count + 1)
+          }
+
+          return newHistory
+        })
+      }
+
+      bridge.on('chatResponse', handleChatResponse)
+
+      return () => {
+        bridge.removeListener('chatResponse', handleChatResponse)
+      }
+    } catch (error) {
+      console.warn('Failed to set up chat response listener:', error)
+    }
+  }, [scrollControls.isAutoScrollEnabled, scrollControls.scrollPosition.isAtBottom])
+
+  // Listen for IPC chat-response messages
+  useEffect(() => {
+    const unsubscribe = onMessage((channel: string, ...args: unknown[]) => {
+      if (channel === 'chat-response' && args[0]) {
+        const data = args[0] as {text: string; isFinal: boolean; source: string}
+
+        console.log('💬 Received chat response via IPC:', data)
+
+        const chatMessage: ChatMessage = {
+          id: `chat-ipc-${Date.now()}`,
+          type: 'assistant',
+          content: data.text,
+          timestamp: Date.now(),
+          isAIResponse: true
+        }
+
+        setChatHistory(prev => {
+          const newHistory = [...prev, chatMessage]
+
+          // Handle new message for scroll controls
+          if (!scrollControls.isAutoScrollEnabled && !scrollControls.scrollPosition.isAtBottom) {
+            setShowNewMessageToast(true)
+            setToastUnreadCount(count => count + 1)
+          }
+
+          return newHistory
+        })
+      }
+    })
+
+    return unsubscribe
+  }, [scrollControls.isAutoScrollEnabled, scrollControls.scrollPosition.isAtBottom])
 
   // Handle tool call results from the integration
   const handleToolCallResult = (result: SearchToolResult) => {

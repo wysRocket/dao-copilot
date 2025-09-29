@@ -277,6 +277,10 @@ export class GeminiConnectionPool extends EventEmitter {
     client.on('transcriptionUpdate', data => {
       this.emit('transcriptionUpdate', {...data, connectionId: id})
     })
+
+    client.on('chatResponse', data => {
+      this.emit('chatResponse', {...data, connectionId: id})
+    })
   }
 
   /**

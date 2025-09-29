@@ -1,0 +1,43 @@
+{
+  "timestamp": "2025-09-21T17:03:44.703Z",
+  "platform": {
+    "os": "darwin",
+    "arch": "arm64",
+    "version": "25.0.0",
+    "memory": "8GB"
+  },
+  "tests": [
+    {
+      "test": "bundle_size",
+      "value": 192.26,
+      "unit": "MB",
+      "status": "PASS",
+      "threshold": "< 200MB",
+      "description": "Application bundle size (app.asar)"
+    },
+    {
+      "test": "installation_size",
+      "value": 139.47,
+      "unit": "MB",
+      "status": "PASS",
+      "threshold": "< 150MB",
+      "description": "Compressed distribution package size"
+    },
+    {
+      "test": "dependency_integrity",
+      "value": true,
+      "unit": "boolean",
+      "status": "PASS",
+      "threshold": "readable",
+      "description": "Application bundle integrity and dependency packaging"
+    },
+    {
+      "test": "startup_time",
+      "value": 145,
+      "unit": "ms",
+      "status": "PASS",
+      "threshold": "< 5000ms",
+      "description": "Application startup time from launch to ready state"
+    }
+  ]
+}

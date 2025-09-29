@@ -763,16 +763,35 @@ async function transcribeAudioViaWebSocket(
         async (response: {
           type?: string
           content?: string
-          metadata?: {confidence?: number; isPartial?: boolean}
+          metadata?: {
+            confidence?: number
+            isPartial?: boolean
+            modelTurn?: boolean
+            inputTranscription?: boolean
+          }
         }) => {
-          console.log('🔥 RECEIVED GEMINI RESPONSE:', {
+          console.group('🔥 GEMINI RESPONSE HANDLER (LEGACY)')
+          console.log('📦 Raw response:', {
             type: response.type,
-            content: response.content?.substring(0, 100),
+            content: response.content?.substring(0, 100) + '...',
             hasMetadata: !!response.metadata,
             metadata: response.metadata,
             audioSent,
             responseKeys: Object.keys(response)
           })
+
+          // ===== CRITICAL FIX: Block modelTurn responses =====
+          if (response.metadata?.modelTurn === true) {
+            console.warn('🚨 BLOCKING modelTurn response from being broadcast as transcription!')
+            console.warn('🚨 This should be handled by chatResponse event listener')
+            console.warn('🚨 Content preview:', response.content?.substring(0, 200) + '...')
+            console.groupEnd()
+            return // Block AI responses/search results from transcription channel
+          }
+
+          // Allow all non-modelTurn responses to be processed as potential transcriptions
+          console.log('✅ Processing non-modelTurn response in legacy handler')
+          console.groupEnd()
 
           // Early return for non-text responses to reduce processing overhead
           if (!audioSent || response.type !== 'text' || !response.content?.trim()) {
@@ -842,7 +861,7 @@ async function transcribeAudioViaWebSocket(
       client.on(
         'transcriptionUpdate',
         (update: {text: string; confidence: number; isFinal: boolean}) => {
-          console.log('🎯 RECEIVED TRANSCRIPTION UPDATE:', {
+          console.log('🎯 RECEIVED TRANSCRIPTION UPDATE (USER SPEECH):', {
             text: update.text,
             textLength: update.text?.length || 0,
             confidence: update.confidence,
@@ -859,6 +878,25 @@ async function transcribeAudioViaWebSocket(
             finalTranscriptionText = update.text
             transcriptionCompleted = true
           }
+        }
+      )
+
+      // Listen for chatResponse events but do NOT rebroadcast them as transcriptions
+      // These are for Google Search results and should go to ChatPage only
+      client.on(
+        'chatResponse',
+        (response: {text: string; metadata?: Record<string, unknown>; isFinal: boolean}) => {
+          console.log('🤖 RECEIVED CHAT RESPONSE (SEARCH/AI):', {
+            text: response.text?.slice(0, 200) + '...',
+            textLength: response.text?.length || 0,
+            isFinal: response.isFinal,
+            metadata: response.metadata,
+            timestamp: Date.now()
+          })
+
+          // Do NOT rebroadcast as streaming-transcription
+          // ChatPage will handle these directly via bridge
+          console.log('💬 Chat response handled separately, not rebroadcasted as transcription')
         }
       )
 

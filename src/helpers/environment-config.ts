@@ -1,6 +1,8 @@
 // Environment configuration helper for the main process
 // This file helps ensure API keys are properly loaded in Electron's main process
 
+import {validateApiKeys, isProduction, features} from '../utils/environment'
+
 /**
  * Load environment variables from various sources
  * This is especially important in Electron where environment variables
@@ -12,29 +14,41 @@ export async function loadEnvironmentConfig(): Promise<void> {
     // Try to load dotenv if available (for development)
     const dotenv = await import('dotenv')
     dotenv.config()
-    console.log('Environment variables loaded from .env file')
+
+    if (features.consoleLogging) {
+      console.log('Environment variables loaded from .env file')
+    }
   } catch {
     // dotenv is not installed or .env file doesn't exist
-    console.log('No .env file found or dotenv not installed, using system environment variables')
+    if (features.consoleLogging) {
+      console.log('No .env file found or dotenv not installed, using system environment variables')
+    }
+  }
+
+  // Validate API keys for production
+  if (isProduction && !validateApiKeys()) {
+    throw new Error('Missing required API keys for production deployment')
   }
 
   // Log available API key sources (without revealing the actual keys)
-  const apiKeySources = [
-    'GOOGLE_API_KEY',
-    'VITE_GOOGLE_API_KEY',
-    'GOOGLE_GENERATIVE_AI_API_KEY',
-    'GEMINI_API_KEY'
-  ]
+  if (features.consoleLogging) {
+    const apiKeySources = [
+      'GOOGLE_API_KEY',
+      'VITE_GOOGLE_API_KEY',
+      'GOOGLE_GENERATIVE_AI_API_KEY',
+      'GEMINI_API_KEY'
+    ]
 
-  console.log('Checking for API keys in environment:')
-  apiKeySources.forEach(key => {
-    const value = process.env[key]
-    if (value) {
-      console.log(`✓ ${key}: ${value.substring(0, 8)}...`)
-    } else {
-      console.log(`✗ ${key}: not found`)
-    }
-  })
+    console.log('Checking for API keys in environment:')
+    apiKeySources.forEach(key => {
+      const value = process.env[key]
+      if (value) {
+        console.log(`✓ ${key}: ${value.substring(0, 8)}...`)
+      } else {
+        console.log(`✗ ${key}: not found`)
+      }
+    })
+  }
 }
 
 /**

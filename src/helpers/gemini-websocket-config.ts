@@ -58,8 +58,8 @@ export const DEFAULT_CONFIG: Partial<GeminiWebSocketConfig> = {
   websocketUrl:
     'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
 
-  // v1beta Model Configuration
-  modelName: 'gemini-live-2.5-flash-preview',
+  // v1beta Model Configuration (Using proper live transcription model)
+  modelName: 'gemini-live-2.5-flash-preview', // This is the correct model for live transcription
   apiVersion: 'v1beta',
   useV1Beta: true,
 
