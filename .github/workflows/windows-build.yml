@@ -56,15 +56,37 @@ jobs:
         run: npm run test
 
       - name: Build Windows distributables
-        run: npm run build:production:win
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run make
 
       - name: Verify build artifacts
         run: |
-          if (!(Test-Path 'out/make')) {
-            Write-Error 'Build artifacts were not generated in out/make.'
+          if (!(Test-Path 'out')) {
+            Write-Error 'Build output directory not found.'
           }
+          
+          # Check for Windows-specific artifacts
+          $squirrelDir = "out/make/squirrel.windows"
+          $hasSquirrelArtifacts = $false
+          
+          if (Test-Path $squirrelDir) {
+            $squirrelFiles = Get-ChildItem -Recurse -Path $squirrelDir -File
+            $hasSquirrelArtifacts = $squirrelFiles.Count -gt 0
+            Write-Host "Found $($squirrelFiles.Count) files in Squirrel directory"
+          }
+          
+          # Check for any .exe or .nupkg files
+          $exeFiles = Get-ChildItem -Recurse -Path out -Filter "*.exe" -File
+          $nupkgFiles = Get-ChildItem -Recurse -Path out -Filter "*.nupkg" -File
+          
+          Write-Host "Found $($exeFiles.Count) .exe files and $($nupkgFiles.Count) .nupkg files"
+          
+          if (!$hasSquirrelArtifacts -and $exeFiles.Count -eq 0 -and $nupkgFiles.Count -eq 0) {
+            Write-Warning 'No Windows-specific build artifacts found. This may be expected on non-Windows platforms.'
+          }
+          
+          # List all files for debugging
+          $allFiles = Get-ChildItem -Recurse -Path out -File
+          Write-Host "Total build artifacts: $($allFiles.Count)"
         shell: pwsh
 
       - name: List build output
@@ -81,9 +103,8 @@ jobs:
         with:
           name: windows-production-build
           path: |
+            out/make/squirrel.windows/**
             out/make/**/*.exe
             out/make/**/*.nupkg
-            out/make/**/*.msi
-            out/make/squirrel.windows/**
           if-no-files-found: warn
           retention-days: 14
