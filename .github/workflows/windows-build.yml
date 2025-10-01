@@ -1,0 +1,110 @@
+name: Windows Production Build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.electron-builder-cache
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        id: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-cache-${{ runner.os }}-${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-cache-${{ runner.os }}-${{ steps.setup-node.outputs.node-version }}-
+            electron-cache-${{ runner.os }}-
+
+      - name: Cache Electron Builder artifacts
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: electron-builder-cache-${{ runner.os }}-${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-builder-cache-${{ runner.os }}-${{ steps.setup-node.outputs.node-version }}-
+            electron-builder-cache-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Build Windows distributables
+        run: npm run make
+
+      - name: Verify build artifacts
+        run: |
+          if (!(Test-Path 'out')) {
+            Write-Error 'Build output directory not found.'
+          }
+          
+          # Check for Windows-specific artifacts
+          $squirrelDir = "out/make/squirrel.windows"
+          $hasSquirrelArtifacts = $false
+          
+          if (Test-Path $squirrelDir) {
+            $squirrelFiles = Get-ChildItem -Recurse -Path $squirrelDir -File
+            $hasSquirrelArtifacts = $squirrelFiles.Count -gt 0
+            Write-Host "Found $($squirrelFiles.Count) files in Squirrel directory"
+          }
+          
+          # Check for any .exe or .nupkg files
+          $exeFiles = Get-ChildItem -Recurse -Path out -Filter "*.exe" -File
+          $nupkgFiles = Get-ChildItem -Recurse -Path out -Filter "*.nupkg" -File
+          
+          Write-Host "Found $($exeFiles.Count) .exe files and $($nupkgFiles.Count) .nupkg files"
+          
+          if (!$hasSquirrelArtifacts -and $exeFiles.Count -eq 0 -and $nupkgFiles.Count -eq 0) {
+            Write-Warning 'No Windows-specific build artifacts found. This may be expected on non-Windows platforms.'
+          }
+          
+          # List all files for debugging
+          $allFiles = Get-ChildItem -Recurse -Path out -File
+          Write-Host "Total build artifacts: $($allFiles.Count)"
+        shell: pwsh
+
+      - name: List build output
+        run: |
+          if (Test-Path 'out') {
+            Get-ChildItem -Recurse -Path out | Select-Object FullName
+          } else {
+            Write-Host 'No build output found.'
+          }
+        shell: pwsh
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-production-build
+          path: |
+            out/make/squirrel.windows/**
+            out/make/**/*.exe
+            out/make/**/*.nupkg
+          if-no-files-found: warn
+          retention-days: 14

@@ -2,6 +2,7 @@
   "name": "capture",
   "version": "1.0.0",
   "description": "sound+mic capture",
+  "license": "MIT",
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
