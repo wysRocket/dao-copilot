@@ -3,7 +3,7 @@
  * JavaScript version that can be run directly with Node.js
  */
 
-import {BasicGeminiAPITest} from './src/tests/basic-gemini-api-test.ts'
+import {BasicGeminiAPITest} from './basic-gemini-api-test.js'
 
 async function runBasicAPITest() {
   console.log('🚀 Starting Basic Gemini API Test Runner')

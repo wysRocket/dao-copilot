@@ -5,7 +5,13 @@ on:
   push:
     branches: [master, main]
     paths:
-      - '.github/workflows/repository-setup.yml'
+      - ".github/workflows/repository-setup.yml"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  repository-projects: write
 
 jobs:
   setup-labels:

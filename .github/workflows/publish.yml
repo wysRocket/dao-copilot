@@ -6,13 +6,18 @@ on:
   workflow_dispatch:
     inputs:
       registry:
-        description: 'Registry to publish to'
+        description: "Registry to publish to"
         type: choice
         options:
           - npm
           - github
           - both
-        default: 'both'
+        default: "both"
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 jobs:
   publish-npm:
@@ -25,9 +30,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'npm'
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -53,9 +58,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://npm.pkg.github.com'
-          cache: 'npm'
+          node-version: "20"
+          registry-url: "https://npm.pkg.github.com"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci

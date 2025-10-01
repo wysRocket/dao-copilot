@@ -80,7 +80,7 @@ linux:
       arch: [x64, arm64]
     - target: tar.gz
       arch: [x64, arm64]
-  maintainer: wysRocket <contact@daocopilot.com>
+  maintainer: contact@daocopilot.com
   vendor: DAO Copilot
   category: Office
   icon: build/icon.png
@@ -88,7 +88,7 @@ linux:
   description: |
     DAO Copilot is an Electron-based AI assistant application that can record system audio and microphone, 
     transcribe audio in real-time, and provide intelligent assistance through a modern glassmorphism interface.
-    
+
     Features:
     - Real-time audio transcription
     - AI-powered assistance

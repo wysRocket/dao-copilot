@@ -4,8 +4,12 @@ on:
   push:
     branches: [master, main]
     paths:
-      - 'package.json'
+      - "package.json"
   workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
 
 jobs:
   check-version:
