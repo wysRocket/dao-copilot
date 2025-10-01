@@ -13,6 +13,7 @@ import WindowManager from '../services/window-manager'
 import {transcribeAudioViaProxy} from './proxy-stt-transcription'
 import {createRussianAudioPreprocessor} from './russian-audio-preprocessor'
 import {createRussianTranscriptionCorrector} from './russian-transcription-corrector'
+import {readRuntimeEnv, readBooleanEnv} from '../utils/env'
 
 // Live API model for WebSocket (recommended half-cascade model)
 const DEFAULT_GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
@@ -466,6 +467,7 @@ async function transcribeAudioViaWebSocket(
 ): Promise<TranscriptionResult> {
   const startTime = Date.now()
   const apiKey = getApiKey(options)
+  const autoTurnComplete = readBooleanEnv('GEMINI_AUTO_TURN_COMPLETE', false)
 
   try {
     // Check for recent quota errors using QuotaManager
@@ -489,7 +491,7 @@ async function transcribeAudioViaWebSocket(
         'You are a speech-to-text transcription system. Listen to the audio input and provide an accurate transcription of the spoken words. Only return the transcribed text, no additional commentary.',
       connectionTimeout: 15000, // Increased timeout for better reliability
       maxQueueSize: 50, // Optimized queue size for transcription
-      apiVersion: process.env.GEMINI_API_VERSION || 'v1beta', // Use configured API version or default to v1beta
+      apiVersion: readRuntimeEnv('GEMINI_API_VERSION', {defaultValue: 'v1beta'})!,
       generationConfig: {
         candidateCount: 1,
         maxOutputTokens: 2048,
@@ -692,7 +694,7 @@ async function transcribeAudioViaWebSocket(
 
         // Optionally send explicit turn completion (controlled by env flag, default OFF for v1beta)
         // NOTE: Using audioStreamEnd with variant 17 is sufficient - redundant turn completion causes 1007 errors
-        if (process.env.GEMINI_AUTO_TURN_COMPLETE === 'true') {
+        if (autoTurnComplete) {
           try {
             console.log('✅ Sending turn completion signal to trigger transcription response')
             await client.sendTurnCompletion()
@@ -730,7 +732,7 @@ async function transcribeAudioViaWebSocket(
           console.warn('Failed to send audioStreamEnd flag (single chunk):', endErr)
         }
 
-        if (process.env.GEMINI_AUTO_TURN_COMPLETE === 'true') {
+        if (autoTurnComplete) {
           try {
             console.log('✅ Sending turn completion signal (single chunk)')
             await client.sendTurnCompletion()
@@ -1039,10 +1041,9 @@ async function transcribeAudioViaWebSocket(
 function getApiKey(options: TranscriptionOptions): string {
   const apiKey =
     options.apiKey ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    process.env.GEMINI_API_KEY
+    readRuntimeEnv('GOOGLE_API_KEY', {
+      fallbackKeys: ['VITE_GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY']
+    })
 
   if (!apiKey) {
     console.error(
@@ -1066,7 +1067,7 @@ function getApiKey(options: TranscriptionOptions): string {
  */
 function shouldUseWebSocket(options: TranscriptionOptions): boolean {
   // Check feature flag
-  const webSocketEnabled = process.env.GEMINI_WEBSOCKET_ENABLED !== 'false'
+  const webSocketEnabled = readBooleanEnv('GEMINI_WEBSOCKET_ENABLED', true)
 
   // Check explicit option
   if (options.enableWebSocket !== undefined) {

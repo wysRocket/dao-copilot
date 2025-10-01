@@ -1,125 +1,158 @@
 /**
  * Gemini Live API Tool Call Integration Service
- * 
+ *
  * This service provides a complete integration of the Gemini Live API with
  * tool calling capabilities, specifically designed for the AI answering machine
  * system with Google Search functionality.
  */
 
-import { EventEmitter } from 'events';
-import { ToolEnabledGeminiLiveWebSocketClient, type ToolEnabledGeminiLiveConfig } from './tool-enabled-gemini-websocket.js';
-import { ToolCallHandler } from './tool-call-handler.js';
-import { QuestionDetector } from './question-detector.js';
-import { TranscriptionQuestionPipeline } from './transcription-question-pipeline.js';
-import { MultiPartQuestionProcessor } from './multi-part-question-processor.js';
-import { logger } from './gemini-logger.js';
-import { ResponseModality, ConnectionState, type ParsedGeminiResponse } from './gemini-live-websocket.js';
+import {EventEmitter} from 'events'
+import {
+  ToolEnabledGeminiLiveWebSocketClient,
+  type ToolEnabledGeminiLiveConfig
+} from './tool-enabled-gemini-websocket.js'
+import {ToolCallHandler} from './tool-call-handler.js'
+import {QuestionDetector} from './question-detector.js'
+import {TranscriptionQuestionPipeline} from './transcription-question-pipeline.js'
+import {MultiPartQuestionProcessor} from './multi-part-question-processor.js'
+import {logger} from './gemini-logger.js'
+import {
+  ResponseModality,
+  ConnectionState,
+  type ParsedGeminiResponse
+} from './gemini-live-websocket.js'
 
 // Configuration interface for the complete integration
 export interface GeminiToolCallIntegrationConfig {
   // Gemini Live API configuration
   gemini: {
-    apiKey: string;
-    model?: string;
-    systemInstruction?: string;
-    responseModalities?: ResponseModality[];
-  };
-  
+    apiKey: string
+    model?: string
+    systemInstruction?: string
+    responseModalities?: ResponseModality[]
+  }
+
   // Google Search API configuration
   googleSearch: {
-    apiKey: string;
-    searchEngineId: string;
-    enableCaching?: boolean;
-    cacheTtlSeconds?: number;
-    maxResultsPerQuery?: number;
-    timeout?: number;
-  };
-  
+    apiKey: string
+    searchEngineId: string
+    enableCaching?: boolean
+    cacheTtlSeconds?: number
+    maxResultsPerQuery?: number
+    timeout?: number
+  }
+
   // Question detection configuration
   questionDetection?: {
-    enabled?: boolean;
-    minConfidence?: number;
-    bufferTimeMs?: number;
-    enableContextProcessing?: boolean;
-    conversationHistoryLimit?: number;
-  };
-  
+    enabled?: boolean
+    minConfidence?: number
+    bufferTimeMs?: number
+    enableContextProcessing?: boolean
+    conversationHistoryLimit?: number
+  }
+
   // Tool calling behavior configuration
   toolCalling?: {
-    autoExecute?: boolean;
-    maxConcurrentCalls?: number;
-    callTimeout?: number;
-    retryFailedCalls?: boolean;
-    maxRetries?: number;
-  };
+    autoExecute?: boolean
+    maxConcurrentCalls?: number
+    callTimeout?: number
+    retryFailedCalls?: boolean
+    maxRetries?: number
+  }
 }
 
 // Events emitted by the integration service
 export interface GeminiToolCallIntegrationEvents {
   // Connection events
-  connected: () => void;
-  disconnected: () => void;
-  error: (error: Error) => void;
-  
+  connected: () => void
+  disconnected: () => void
+  error: (error: Error) => void
+
   // Conversation events
-  transcription: (data: { text: string; confidence: number; isFinal: boolean }) => void;
-  response: (data: { text: string; source: string; timestamp: number }) => void;
-  audioResponse: (data: { audioData: string; timestamp: number }) => void;
-  
+  transcription: (data: {text: string; confidence: number; isFinal: boolean}) => void
+  response: (data: {text: string; source: string; timestamp: number}) => void
+  audioResponse: (data: {audioData: string; timestamp: number}) => void
+
   // Question detection events
-  questionDetected: (data: { text: string; questionType: string; confidence: number; isMultiPart: boolean }) => void;
-  
+  questionDetected: (data: {
+    text: string
+    questionType: string
+    confidence: number
+    isMultiPart: boolean
+  }) => void
+
   // Tool call events
-  toolCallRequested: (data: { id: string; name: string; parameters: any; timestamp: number }) => void;
-  toolCallStarted: (data: { id: string; name: string; parameters: any }) => void;
-  toolCallCompleted: (data: { id: string; name: string; success: boolean; result?: any; error?: string; executionTime: number }) => void;
-  
+  toolCallRequested: (data: {id: string; name: string; parameters: any; timestamp: number}) => void
+  toolCallStarted: (data: {id: string; name: string; parameters: any}) => void
+  toolCallCompleted: (data: {
+    id: string
+    name: string
+    success: boolean
+    result?: any
+    error?: string
+    executionTime: number
+  }) => void
+
   // Search events
-  searchStarted: (data: { query: string; timestamp: number }) => void;
-  searchCompleted: (data: { query: string; resultCount: number; responseTime: number; cacheHit: boolean }) => void;
-  searchFailed: (data: { query: string; error: string; timestamp: number }) => void;
+  searchStarted: (data: {query: string; timestamp: number}) => void
+  searchCompleted: (data: {
+    query: string
+    resultCount: number
+    responseTime: number
+    cacheHit: boolean
+  }) => void
+  searchFailed: (data: {query: string; error: string; timestamp: number}) => void
 }
 
 declare interface GeminiToolCallIntegrationService {
-  on<K extends keyof GeminiToolCallIntegrationEvents>(event: K, listener: GeminiToolCallIntegrationEvents[K]): this;
-  emit<K extends keyof GeminiToolCallIntegrationEvents>(event: K, ...args: Parameters<GeminiToolCallIntegrationEvents[K]>): boolean;
+  on<K extends keyof GeminiToolCallIntegrationEvents>(
+    event: K,
+    listener: GeminiToolCallIntegrationEvents[K]
+  ): this
+  emit<K extends keyof GeminiToolCallIntegrationEvents>(
+    event: K,
+    ...args: Parameters<GeminiToolCallIntegrationEvents[K]>
+  ): boolean
 }
 
 /**
  * Complete Gemini Live API Tool Call Integration Service
  */
 class GeminiToolCallIntegrationService extends EventEmitter {
-  private websocketClient: ToolEnabledGeminiLiveWebSocketClient;
-  private toolCallHandler: ToolCallHandler;
-  private questionDetector: QuestionDetector;
-  private transcriptionPipeline: TranscriptionQuestionPipeline;
-  private multiPartProcessor: MultiPartQuestionProcessor;
-  private config: GeminiToolCallIntegrationConfig;
-  
+  private websocketClient: ToolEnabledGeminiLiveWebSocketClient
+  private toolCallHandler: ToolCallHandler
+  private questionDetector: QuestionDetector
+  private transcriptionPipeline: TranscriptionQuestionPipeline
+  private multiPartProcessor: MultiPartQuestionProcessor
+  private config: GeminiToolCallIntegrationConfig
+
   // State management
   private conversationHistory: Array<{
-    type: 'user' | 'model' | 'tool';
-    content: string;
-    timestamp: number;
-    metadata?: any;
-  }> = [];
-  
-  private activeTool Calls = new Map<string, {
-    id: string;
-    name: string;
-    parameters: any;
-    startTime: number;
-    retryCount: number;
-  }>();
-  
-  private isProcessingQuestion = false;
+    type: 'user' | 'model' | 'tool'
+    content: string
+    timestamp: number
+    metadata?: any
+  }> = []
+
+  private activeToolCalls = new Map<
+    string,
+    {
+      id: string
+      name: string
+      parameters: any
+      startTime: number
+      retryCount: number
+    }
+  >()
+
+  private isProcessingQuestion = false
 
   constructor(config: GeminiToolCallIntegrationConfig) {
-    super();
-    this.config = config;
-    
-    this.initializeServices();
-    this.setupEventHandlers();
+    super()
+    this.config = config
+
+    this.initializeServices()
+    this.setupEventHandlers()
   }
 
   /**
@@ -138,13 +171,13 @@ class GeminiToolCallIntegrationService extends EventEmitter {
         sanitizeQueries: true,
         maxQueryLength: 2048
       }
-    });
+    })
 
     // Initialize question detector
-    this.questionDetector = new QuestionDetector();
+    this.questionDetector = new QuestionDetector()
 
     // Initialize multi-part question processor
-    this.multiPartProcessor = new MultiPartQuestionProcessor();
+    this.multiPartProcessor = new MultiPartQuestionProcessor()
 
     // Initialize transcription question pipeline
     this.transcriptionPipeline = new TranscriptionQuestionPipeline({
@@ -153,7 +186,7 @@ class GeminiToolCallIntegrationService extends EventEmitter {
       minConfidence: this.config.questionDetection?.minConfidence ?? 0.7,
       enableContextProcessing: this.config.questionDetection?.enableContextProcessing ?? true,
       conversationHistoryLimit: this.config.questionDetection?.conversationHistoryLimit ?? 20
-    });
+    })
 
     // Create enhanced Gemini Live client with tool definitions
     const geminiConfig: ToolEnabledGeminiLiveConfig = {
@@ -162,19 +195,20 @@ class GeminiToolCallIntegrationService extends EventEmitter {
       responseModalities: this.config.gemini.responseModalities ?? [ResponseModality.TEXT],
       systemInstruction: this.createSystemInstruction(),
       tools: this.createToolDefinitions()
-    };
+    }
 
-    this.websocketClient = new ToolEnabledGeminiLiveWebSocketClient(geminiConfig);
+    this.websocketClient = new ToolEnabledGeminiLiveWebSocketClient(geminiConfig)
 
-    logger.info('Gemini tool call integration services initialized successfully');
+    logger.info('Gemini tool call integration services initialized successfully')
   }
 
   /**
    * Create comprehensive system instruction
    */
   private createSystemInstruction(): string {
-    const baseInstruction = this.config.gemini.systemInstruction ?? 
-      'You are an intelligent AI assistant with access to real-time search capabilities.';
+    const baseInstruction =
+      this.config.gemini.systemInstruction ??
+      'You are an intelligent AI assistant with access to real-time search capabilities.'
 
     return `${baseInstruction}
 
@@ -212,31 +246,35 @@ TOOL USAGE GUIDELINES:
    - Maintain a conversational, friendly tone
    - Acknowledge if a search fails and provide alternative help
 
-Always prioritize being helpful, accurate, and informative while using tools appropriately.`;
+Always prioritize being helpful, accurate, and informative while using tools appropriately.`
   }
 
   /**
    * Create tool definitions for Gemini API
    */
   private createToolDefinitions() {
-    return [{
-      name: 'google_search',
-      description: 'Search the web using Google Custom Search API to find current, accurate information and answer questions',
-      parameters: {
-        type: 'object' as const,
-        properties: {
-          query: {
-            type: 'string',
-            description: 'The search query extracted from the user\'s question. Should be clear, specific, and focused on key terms.'
+    return [
+      {
+        name: 'google_search',
+        description:
+          'Search the web using Google Custom Search API to find current, accurate information and answer questions',
+        parameters: {
+          type: 'object' as const,
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                "The search query extracted from the user's question. Should be clear, specific, and focused on key terms."
+            },
+            num_results: {
+              type: 'number',
+              description: 'Number of search results to return. Default is 5, maximum is 10.'
+            }
           },
-          num_results: {
-            type: 'number',
-            description: 'Number of search results to return. Default is 5, maximum is 10.'
-          }
-        },
-        required: ['query']
+          required: ['query']
+        }
       }
-    }];
+    ]
   }
 
   /**
@@ -245,51 +283,51 @@ Always prioritize being helpful, accurate, and informative while using tools app
   private setupEventHandlers(): void {
     // WebSocket client events
     this.websocketClient.on('connected', () => {
-      logger.info('Gemini Live API connected with tool calling support');
-      this.emit('connected');
-    });
+      logger.info('Gemini Live API connected with tool calling support')
+      this.emit('connected')
+    })
 
     this.websocketClient.on('disconnected', () => {
-      logger.info('Gemini Live API disconnected');
-      this.emit('disconnected');
-    });
+      logger.info('Gemini Live API disconnected')
+      this.emit('disconnected')
+    })
 
-    this.websocketClient.on('error', (error) => {
-      logger.error('Gemini Live API error', { error });
-      this.emit('error', error);
-    });
+    this.websocketClient.on('error', error => {
+      logger.error('Gemini Live API error', {error})
+      this.emit('error', error)
+    })
 
-    this.websocketClient.on('message', this.handleGeminiMessage.bind(this));
+    this.websocketClient.on('message', this.handleGeminiMessage.bind(this))
 
     // Tool call handler events
-    this.toolCallHandler.on('searchStart', (data) => {
-      logger.info('Search started', { query: data.query });
-      this.emit('searchStarted', { query: data.query, timestamp: Date.now() });
-    });
+    this.toolCallHandler.on('searchStart', data => {
+      logger.info('Search started', {query: data.query})
+      this.emit('searchStarted', {query: data.query, timestamp: Date.now()})
+    })
 
-    this.toolCallHandler.on('searchComplete', (data) => {
-      logger.info('Search completed', { query: data.query, resultCount: data.resultCount });
-      this.emit('searchCompleted', { 
-        query: data.query, 
-        resultCount: data.resultCount, 
+    this.toolCallHandler.on('searchComplete', data => {
+      logger.info('Search completed', {query: data.query, resultCount: data.resultCount})
+      this.emit('searchCompleted', {
+        query: data.query,
+        resultCount: data.resultCount,
         responseTime: data.responseTime,
         cacheHit: data.cacheHit || false
-      });
-    });
+      })
+    })
 
-    this.toolCallHandler.on('searchError', (data) => {
-      logger.error('Search failed', { query: data.query, error: data.error });
-      this.emit('searchFailed', { 
-        query: data.query, 
-        error: data.error, 
-        timestamp: Date.now() 
-      });
-    });
+    this.toolCallHandler.on('searchError', data => {
+      logger.error('Search failed', {query: data.query, error: data.error})
+      this.emit('searchFailed', {
+        query: data.query,
+        error: data.error,
+        timestamp: Date.now()
+      })
+    })
 
     // Transcription pipeline events
-    this.transcriptionPipeline.on('questionDetected', this.handleQuestionDetected.bind(this));
+    this.transcriptionPipeline.on('questionDetected', this.handleQuestionDetected.bind(this))
 
-    logger.info('Event handlers configured for all services');
+    logger.info('Event handlers configured for all services')
   }
 
   /**
@@ -300,23 +338,23 @@ Always prioritize being helpful, accurate, and informative while using tools app
       switch (message.type) {
         case 'text':
           if (message.content) {
-            this.addToConversationHistory('model', message.content);
-            this.emit('response', { 
-              text: message.content, 
-              source: 'gemini', 
-              timestamp: Date.now() 
-            });
+            this.addToConversationHistory('model', message.content)
+            this.emit('response', {
+              text: message.content,
+              source: 'gemini',
+              timestamp: Date.now()
+            })
           }
-          break;
+          break
 
         case 'audio':
           if (message.audioData) {
-            this.emit('audioResponse', { 
-              audioData: message.audioData, 
-              timestamp: Date.now() 
-            });
+            this.emit('audioResponse', {
+              audioData: message.audioData,
+              timestamp: Date.now()
+            })
           }
-          break;
+          break
 
         case 'tool_call':
           if (message.toolCall) {
@@ -325,33 +363,37 @@ Always prioritize being helpful, accurate, and informative while using tools app
               name: message.toolCall.name,
               parameters: message.toolCall.parameters || {},
               timestamp: Date.now()
-            });
+            })
           }
-          break;
+          break
 
         default:
-          logger.debug('Unhandled message type', { type: message.type });
+          logger.debug('Unhandled message type', {type: message.type})
       }
-
     } catch (error) {
-      logger.error('Error handling Gemini message', { 
+      logger.error('Error handling Gemini message', {
         error: error instanceof Error ? error.message : String(error),
-        messageType: message.type 
-      });
+        messageType: message.type
+      })
     }
   }
 
   /**
    * Handle tool call requests from Gemini
    */
-  private async handleToolCallRequest(request: { id: string; name: string; parameters: any; timestamp: number }): Promise<void> {
-    logger.info('Tool call requested', { 
-      id: request.id, 
-      name: request.name, 
-      parameters: request.parameters 
-    });
+  private async handleToolCallRequest(request: {
+    id: string
+    name: string
+    parameters: any
+    timestamp: number
+  }): Promise<void> {
+    logger.info('Tool call requested', {
+      id: request.id,
+      name: request.name,
+      parameters: request.parameters
+    })
 
-    this.emit('toolCallRequested', request);
+    this.emit('toolCallRequested', request)
 
     // Track active tool call
     this.activeToolCalls.set(request.id, {
@@ -360,42 +402,46 @@ Always prioritize being helpful, accurate, and informative while using tools app
       parameters: request.parameters,
       startTime: Date.now(),
       retryCount: 0
-    });
+    })
 
     // Auto-execute if configured
     if (this.config.toolCalling?.autoExecute !== false) {
-      await this.executeToolCall(request);
+      await this.executeToolCall(request)
     }
   }
 
   /**
    * Execute a tool call
    */
-  private async executeToolCall(request: { id: string; name: string; parameters: any }): Promise<void> {
-    const startTime = Date.now();
-    
-    this.emit('toolCallStarted', { 
-      id: request.id, 
-      name: request.name, 
-      parameters: request.parameters 
-    });
+  private async executeToolCall(request: {
+    id: string
+    name: string
+    parameters: any
+  }): Promise<void> {
+    const startTime = Date.now()
+
+    this.emit('toolCallStarted', {
+      id: request.id,
+      name: request.name,
+      parameters: request.parameters
+    })
 
     try {
-      let result: any;
-      let success = true;
-      let error: string | undefined;
+      let result: any
+      let success = true
+      let error: string | undefined
 
       switch (request.name) {
         case 'google_search':
-          const query = request.parameters.query as string;
-          const numResults = Math.min(request.parameters.num_results || 5, 10);
-          
-          logger.info('Executing Google search', { query, numResults });
+          const query = request.parameters.query as string
+          const numResults = Math.min(request.parameters.num_results || 5, 10)
+
+          logger.info('Executing Google search', {query, numResults})
 
           const searchResult = await this.toolCallHandler.executeGoogleSearch(query, {
             num: numResults,
             safe: 'active'
-          });
+          })
 
           if (searchResult.success && searchResult.results) {
             result = {
@@ -407,32 +453,31 @@ Always prioritize being helpful, accurate, and informative while using tools app
               })),
               totalResults: searchResult.results.length,
               searchTime: searchResult.metadata?.responseTime || 0
-            };
-            
+            }
+
             // Add formatted results to conversation history
-            const formattedResults = this.formatSearchResults(query, searchResult.results);
-            this.addToConversationHistory('tool', formattedResults);
-            
+            const formattedResults = this.formatSearchResults(query, searchResult.results)
+            this.addToConversationHistory('tool', formattedResults)
           } else {
-            success = false;
-            error = searchResult.error || 'Google search failed';
-            result = { query, results: [], error };
+            success = false
+            error = searchResult.error || 'Google search failed'
+            result = {query, results: [], error}
           }
-          break;
+          break
 
         default:
-          success = false;
-          error = `Unknown tool: ${request.name}`;
-          result = { error };
+          success = false
+          error = `Unknown tool: ${request.name}`
+          result = {error}
       }
 
-      const executionTime = Date.now() - startTime;
+      const executionTime = Date.now() - startTime
 
       // Send result back to Gemini
-      await this.websocketClient.sendToolCallResponse(request.id, request.name, result);
+      await this.websocketClient.sendToolCallResponse(request.id, request.name, result)
 
       // Clean up active tool call
-      this.activeToolCalls.delete(request.id);
+      this.activeToolCalls.delete(request.id)
 
       this.emit('toolCallCompleted', {
         id: request.id,
@@ -441,42 +486,45 @@ Always prioritize being helpful, accurate, and informative while using tools app
         result,
         error,
         executionTime
-      });
+      })
 
-      logger.info('Tool call completed', { 
+      logger.info('Tool call completed', {
         id: request.id,
-        name: request.name, 
-        success, 
-        executionTime 
-      });
-
+        name: request.name,
+        success,
+        executionTime
+      })
     } catch (error) {
-      const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const executionTime = Date.now() - startTime
+      const errorMessage = error instanceof Error ? error.message : String(error)
 
       // Attempt retry if configured
-      const activeCall = this.activeToolCalls.get(request.id);
-      const maxRetries = this.config.toolCalling?.maxRetries ?? 2;
-      
-      if (activeCall && activeCall.retryCount < maxRetries && this.config.toolCalling?.retryFailedCalls) {
-        activeCall.retryCount++;
-        logger.warn('Retrying failed tool call', { 
-          id: request.id, 
-          retryCount: activeCall.retryCount, 
-          maxRetries 
-        });
-        
+      const activeCall = this.activeToolCalls.get(request.id)
+      const maxRetries = this.config.toolCalling?.maxRetries ?? 2
+
+      if (
+        activeCall &&
+        activeCall.retryCount < maxRetries &&
+        this.config.toolCalling?.retryFailedCalls
+      ) {
+        activeCall.retryCount++
+        logger.warn('Retrying failed tool call', {
+          id: request.id,
+          retryCount: activeCall.retryCount,
+          maxRetries
+        })
+
         // Retry after brief delay
-        setTimeout(() => this.executeToolCall(request), 1000);
-        return;
+        setTimeout(() => this.executeToolCall(request), 1000)
+        return
       }
 
       // Send error response to Gemini
-      await this.websocketClient.sendToolCallResponse(request.id, request.name, { 
-        error: errorMessage 
-      });
+      await this.websocketClient.sendToolCallResponse(request.id, request.name, {
+        error: errorMessage
+      })
 
-      this.activeToolCalls.delete(request.id);
+      this.activeToolCalls.delete(request.id)
 
       this.emit('toolCallCompleted', {
         id: request.id,
@@ -484,56 +532,60 @@ Always prioritize being helpful, accurate, and informative while using tools app
         success: false,
         error: errorMessage,
         executionTime
-      });
+      })
 
-      logger.error('Tool call failed', { 
+      logger.error('Tool call failed', {
         id: request.id,
-        name: request.name, 
-        error: errorMessage 
-      });
+        name: request.name,
+        error: errorMessage
+      })
     }
   }
 
   /**
    * Handle detected questions from transcription pipeline
    */
-  private async handleQuestionDetected(event: { text: string; questionType: string; confidence: number }): Promise<void> {
+  private async handleQuestionDetected(event: {
+    text: string
+    questionType: string
+    confidence: number
+  }): Promise<void> {
     if (this.isProcessingQuestion) {
-      logger.debug('Already processing a question, skipping', { text: event.text.substring(0, 50) });
-      return;
+      logger.debug('Already processing a question, skipping', {text: event.text.substring(0, 50)})
+      return
     }
 
-    this.isProcessingQuestion = true;
+    this.isProcessingQuestion = true
 
     try {
-      logger.info('Question detected in transcription', { 
+      logger.info('Question detected in transcription', {
         text: event.text.substring(0, 100) + '...',
         type: event.questionType,
-        confidence: event.confidence 
-      });
+        confidence: event.confidence
+      })
 
       // Check if this is a multi-part question
-      const conversationContext = this.conversationHistory.slice(-5);
+      const conversationContext = this.conversationHistory.slice(-5)
       const multiPartResult = await this.multiPartProcessor.processQuestion(
         event.text,
         conversationContext
-      );
+      )
 
       if (multiPartResult.isMultiPart) {
-        logger.info('Multi-part question detected', { 
+        logger.info('Multi-part question detected', {
           strategy: multiPartResult.processingStrategy,
-          partCount: multiPartResult.parts.length 
-        });
+          partCount: multiPartResult.parts.length
+        })
 
         // Process each part separately
         for (const part of multiPartResult.parts) {
-          await this.sendText(part.question);
+          await this.sendText(part.question)
           // Brief pause between parts
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 500))
         }
       } else {
         // Send single question to Gemini
-        await this.sendText(event.text);
+        await this.sendText(event.text)
       }
 
       this.emit('questionDetected', {
@@ -541,43 +593,52 @@ Always prioritize being helpful, accurate, and informative while using tools app
         questionType: event.questionType,
         confidence: event.confidence,
         isMultiPart: multiPartResult.isMultiPart
-      });
-
+      })
     } catch (error) {
-      logger.error('Error handling detected question', { 
+      logger.error('Error handling detected question', {
         error: error instanceof Error ? error.message : String(error),
         text: event.text.substring(0, 50)
-      });
+      })
     } finally {
-      this.isProcessingQuestion = false;
+      this.isProcessingQuestion = false
     }
   }
 
   /**
    * Format search results for conversation history
    */
-  private formatSearchResults(query: string, results: Array<{ title: string; snippet: string; link: string }>): string {
-    const formattedResults = results.slice(0, 5).map((result, index) => 
-      `${index + 1}. ${result.title}\n   ${result.snippet}\n   ${result.link}`
-    ).join('\n\n');
+  private formatSearchResults(
+    query: string,
+    results: Array<{title: string; snippet: string; link: string}>
+  ): string {
+    const formattedResults = results
+      .slice(0, 5)
+      .map(
+        (result, index) => `${index + 1}. ${result.title}\n   ${result.snippet}\n   ${result.link}`
+      )
+      .join('\n\n')
 
-    return `Search results for "${query}":\n\n${formattedResults}`;
+    return `Search results for "${query}":\n\n${formattedResults}`
   }
 
   /**
    * Add entry to conversation history
    */
-  private addToConversationHistory(type: 'user' | 'model' | 'tool', content: string, metadata?: any): void {
+  private addToConversationHistory(
+    type: 'user' | 'model' | 'tool',
+    content: string,
+    metadata?: any
+  ): void {
     this.conversationHistory.push({
       type,
       content,
       timestamp: Date.now(),
       metadata
-    });
+    })
 
     // Keep history manageable
     if (this.conversationHistory.length > 100) {
-      this.conversationHistory = this.conversationHistory.slice(-50);
+      this.conversationHistory = this.conversationHistory.slice(-50)
     }
   }
 
@@ -585,7 +646,7 @@ Always prioritize being helpful, accurate, and informative while using tools app
    * Generate unique ID
    */
   private generateId(): string {
-    return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   }
 
   // Public API methods
@@ -594,28 +655,32 @@ Always prioritize being helpful, accurate, and informative while using tools app
    * Connect to Gemini Live API
    */
   async connect(): Promise<void> {
-    logger.info('Connecting to Gemini Live API with tool calling support');
-    await this.websocketClient.connect();
+    logger.info('Connecting to Gemini Live API with tool calling support')
+    await this.websocketClient.connect()
   }
 
   /**
    * Disconnect from Gemini Live API
    */
   async disconnect(): Promise<void> {
-    logger.info('Disconnecting from Gemini Live API');
-    await this.websocketClient.disconnect();
+    logger.info('Disconnecting from Gemini Live API')
+    await this.websocketClient.disconnect()
   }
 
   /**
    * Process audio transcription
    */
-  async processTranscription(data: { transcript: string; isFinal: boolean; confidence: number }): Promise<void> {
+  async processTranscription(data: {
+    transcript: string
+    isFinal: boolean
+    confidence: number
+  }): Promise<void> {
     // Add to conversation history
     if (data.isFinal) {
-      this.addToConversationHistory('user', data.transcript, { 
-        confidence: data.confidence, 
-        source: 'transcription' 
-      });
+      this.addToConversationHistory('user', data.transcript, {
+        confidence: data.confidence,
+        source: 'transcription'
+      })
     }
 
     // Process through question detection pipeline
@@ -623,21 +688,21 @@ Always prioritize being helpful, accurate, and informative while using tools app
       transcript: data.transcript,
       isFinal: data.isFinal,
       confidence: data.confidence
-    });
+    })
 
     this.emit('transcription', {
       text: data.transcript,
       confidence: data.confidence,
       isFinal: data.isFinal
-    });
+    })
   }
 
   /**
    * Send text message to Gemini
    */
   async sendText(text: string): Promise<void> {
-    this.addToConversationHistory('user', text, { source: 'direct_input' });
-    await this.websocketClient.sendRealtimeInput({ text });
+    this.addToConversationHistory('user', text, {source: 'direct_input'})
+    await this.websocketClient.sendRealtimeInput({text})
   }
 
   /**
@@ -645,39 +710,44 @@ Always prioritize being helpful, accurate, and informative while using tools app
    */
   async sendAudio(audioData: string, mimeType = 'audio/pcm'): Promise<void> {
     await this.websocketClient.sendRealtimeInput({
-      audio: { data: audioData, mimeType }
-    });
+      audio: {data: audioData, mimeType}
+    })
   }
 
   /**
    * Get conversation history
    */
-  getConversationHistory(): Array<{ type: string; content: string; timestamp: number; metadata?: any }> {
-    return [...this.conversationHistory];
+  getConversationHistory(): Array<{
+    type: string
+    content: string
+    timestamp: number
+    metadata?: any
+  }> {
+    return [...this.conversationHistory]
   }
 
   /**
    * Get connection state
    */
   getConnectionState(): ConnectionState {
-    return this.websocketClient.getConnectionState();
+    return this.websocketClient.getConnectionState()
   }
 
   /**
    * Get active tool calls
    */
-  getActiveToolCalls(): Array<{ id: string; name: string; startTime: number; retryCount: number }> {
-    return Array.from(this.activeToolCalls.values());
+  getActiveToolCalls(): Array<{id: string; name: string; startTime: number; retryCount: number}> {
+    return Array.from(this.activeToolCalls.values())
   }
 
   /**
    * Get integration statistics
    */
   getStatistics() {
-    const toolCallHistory = this.conversationHistory.filter(entry => entry.type === 'tool');
-    const toolCallCount = this.activeToolCalls.size;
-    const quotaStatus = this.toolCallHandler.getQuotaStatus();
-    const cacheStats = this.toolCallHandler.getCacheStats();
+    const toolCallHistory = this.conversationHistory.filter(entry => entry.type === 'tool')
+    const toolCallCount = this.activeToolCalls.size
+    const quotaStatus = this.toolCallHandler.getQuotaStatus()
+    const cacheStats = this.toolCallHandler.getCacheStats()
 
     return {
       conversationHistory: this.conversationHistory.length,
@@ -685,32 +755,31 @@ Always prioritize being helpful, accurate, and informative while using tools app
       activeToolCalls: toolCallCount,
       quota: quotaStatus,
       cache: cacheStats
-    };
+    }
   }
 
   /**
    * Cleanup resources
    */
   destroy(): void {
-    logger.info('Destroying Gemini tool call integration service');
-    
+    logger.info('Destroying Gemini tool call integration service')
+
     if (this.websocketClient) {
-      this.websocketClient.disconnect();
-    }
-    
-    if (this.toolCallHandler) {
-      this.toolCallHandler.destroy();
-    }
-    
-    if (this.transcriptionPipeline) {
-      this.transcriptionPipeline.destroy();
+      this.websocketClient.disconnect()
     }
 
-    this.removeAllListeners();
-    this.conversationHistory = [];
-    this.activeToolCalls.clear();
+    if (this.toolCallHandler) {
+      this.toolCallHandler.destroy()
+    }
+
+    if (this.transcriptionPipeline) {
+      this.transcriptionPipeline.destroy()
+    }
+
+    this.removeAllListeners()
+    this.conversationHistory = []
+    this.activeToolCalls.clear()
   }
 }
 
-export { GeminiToolCallIntegrationService, type GeminiToolCallIntegrationConfig };
-export default GeminiToolCallIntegrationService;
+export default GeminiToolCallIntegrationService

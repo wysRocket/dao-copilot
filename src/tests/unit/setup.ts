@@ -8,3 +8,7 @@ global.console = {
   warn: vi.fn(),
   error: vi.fn()
 }
+
+// Provide Jest-compatible globals for legacy tests
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+;(globalThis as any).jest = vi

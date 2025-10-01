@@ -4,6 +4,7 @@
  */
 
 import {GoogleGenAI} from '@google/genai'
+import {readRuntimeEnv} from '../utils/env'
 
 // Configuration for testing
 const GEMINI_LIVE_MODEL = 'gemini-2.5-flash-preview-native-audio-dialog'
@@ -17,7 +18,9 @@ export async function testGCPGeminiConnection(): Promise<boolean> {
     console.log('🔧 Testing GCP Gemini Live API connectivity...')
 
     // Get API key from environment
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
+    const apiKey = readRuntimeEnv('GEMINI_API_KEY', {
+      fallbackKeys: ['GOOGLE_AI_API_KEY']
+    })
     if (!apiKey) {
       console.error(
         '❌ No API key found. Please set GEMINI_API_KEY or GOOGLE_AI_API_KEY environment variable.'
@@ -85,7 +88,9 @@ export async function testLiveAPISession(): Promise<boolean> {
   try {
     console.log('🔧 Testing Live API availability...')
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
+    const apiKey = readRuntimeEnv('GEMINI_API_KEY', {
+      fallbackKeys: ['GOOGLE_AI_API_KEY']
+    })
     if (!apiKey) {
       console.error('❌ No API key found')
       return false

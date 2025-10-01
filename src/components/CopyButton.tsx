@@ -75,6 +75,8 @@ export function CopyButton({
     inline: 'rounded hover:bg-gray-100 dark:hover:bg-gray-700'
   }
 
+  const sizeClass = variant === 'icon' ? sizeClasses[size] : ''
+
   const Icon = () => {
     switch (copyState) {
       case 'success':
@@ -160,7 +162,7 @@ export function CopyButton({
         'flex items-center gap-2 text-gray-500 transition-all duration-200 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
         'focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:outline-none',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        sizeClasses[size],
+        sizeClass,
         variantClasses[variant],
         copyState === 'success' && 'text-green-600 dark:text-green-400',
         copyState === 'error' && 'text-red-600 dark:text-red-400',

@@ -10,12 +10,14 @@ import {
 } from '../services/gemini-tool-call-bridge'
 import {GeminiSearchTools} from '../services/gemini-search-tools'
 import GeminiLiveWebSocketClient from '../services/gemini-live-websocket'
+import {readRuntimeEnv} from '../utils/env'
 
 export interface UseGeminiToolCallsState {
   activeCalls: ToolCallRequest[]
   completedCalls: ToolCallResponse[]
   isConnected: boolean
   isLoading: boolean
+  error?: string
 }
 
 export interface UseGeminiToolCallsOptions {
@@ -36,7 +38,8 @@ export function useGeminiToolCalls(
     activeCalls: [],
     completedCalls: [],
     isConnected: false,
-    isLoading: false
+    isLoading: false,
+    error: undefined
   })
 
   const bridgeRef = useRef<GeminiToolCallBridge | null>(null)
@@ -51,10 +54,29 @@ export function useGeminiToolCalls(
     // Initialize search tools and bridge
     const initializeBridge = async () => {
       try {
+        const googleApiKey = readRuntimeEnv('VITE_GOOGLE_API_KEY', {
+          fallbackKeys: ['GOOGLE_API_KEY', 'GEMINI_API_KEY']
+        })
+        const googleSearchEngineId = readRuntimeEnv('VITE_GOOGLE_SEARCH_ENGINE_ID', {
+          fallbackKeys: ['GOOGLE_SEARCH_ENGINE_ID']
+        })
+
+        if (!googleApiKey) {
+          throw new Error(
+            'Missing VITE_GOOGLE_API_KEY environment variable. Configure Google API access in your Vite environment.'
+          )
+        }
+
+        if (!googleSearchEngineId) {
+          throw new Error(
+            'Missing VITE_GOOGLE_SEARCH_ENGINE_ID environment variable. Provide a Google Custom Search Engine ID.'
+          )
+        }
+
         // Create search tools instance
         searchToolsRef.current = new GeminiSearchTools({
-          googleApiKey: process.env.VITE_GOOGLE_API_KEY || '',
-          googleSearchEngineId: process.env.VITE_GOOGLE_SEARCH_ENGINE_ID || '',
+          apiKey: googleApiKey,
+          searchEngineId: googleSearchEngineId,
           enableCaching: true,
           cacheTtlSeconds: 300
         })
@@ -107,10 +129,15 @@ export function useGeminiToolCalls(
           }
         })
 
-        setState(prev => ({...prev, isConnected: true}))
+        setState(prev => ({...prev, isConnected: true, error: undefined}))
       } catch (error) {
         console.error('Failed to initialize tool call bridge:', error)
-        setState(prev => ({...prev, isConnected: false}))
+        setState(prev => ({
+          ...prev,
+          isConnected: false,
+          isLoading: false,
+          error: error instanceof Error ? error.message : 'Failed to initialize tool call bridge.'
+        }))
       }
     }
 
@@ -127,7 +154,8 @@ export function useGeminiToolCalls(
         activeCalls: [],
         completedCalls: [],
         isConnected: false,
-        isLoading: false
+        isLoading: false,
+        error: undefined
       })
     }
   }, [

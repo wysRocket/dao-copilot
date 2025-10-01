@@ -2,6 +2,7 @@
 // This file helps ensure API keys are properly loaded in Electron's main process
 
 import {validateApiKeys, isProduction, features} from '../utils/environment'
+import {readRuntimeEnv} from '../utils/env'
 
 /**
  * Load environment variables from various sources
@@ -41,7 +42,7 @@ export async function loadEnvironmentConfig(): Promise<void> {
 
     console.log('Checking for API keys in environment:')
     apiKeySources.forEach(key => {
-      const value = process.env[key]
+      const value = readRuntimeEnv(key, {allowEmpty: true})
       if (value) {
         console.log(`✓ ${key}: ${value.substring(0, 8)}...`)
       } else {
@@ -55,18 +56,15 @@ export async function loadEnvironmentConfig(): Promise<void> {
  * Get the Google API key from various possible environment variables
  */
 export function getGoogleApiKey(): string | undefined {
-  // Check if we're in a browser environment and process is not available
-  if (typeof process === 'undefined') {
+  const apiKey = readRuntimeEnv('GOOGLE_API_KEY', {
+    fallbackKeys: ['VITE_GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY']
+  })
+
+  if (!apiKey && typeof window !== 'undefined' && typeof process === 'undefined') {
     console.warn('Running in browser environment - environment variables not available')
-    return undefined
   }
 
-  return (
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    process.env.GEMINI_API_KEY
-  )
+  return apiKey
 }
 
 /**

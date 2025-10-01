@@ -2,8 +2,7 @@ import {EventEmitter} from 'events'
 import {ErrorHandler} from './ErrorHandler'
 import {ErrorTelemetrySystem} from './ErrorTelemetrySystem'
 import {UserErrorMessageSystem} from './UserErrorMessageSystem'
-import {ErrorCategory} from '../types/error-types'
-import type {ClassifiedError, ErrorContext} from '../types/error-types'
+import type {ErrorCategory, ClassifiedError, ErrorContext} from './UserErrorMessageSystem'
 import type {
   LocalizedErrorMessage,
   ErrorDisplayOptions,
@@ -630,6 +629,3 @@ export class ErrorHandlingIntegration extends EventEmitter {
     }
   }
 }
-
-// Export the integration class and types
-export {ErrorHandlingIntegration, type ErrorHandlingIntegrationConfig, type IntegrationStatistics}

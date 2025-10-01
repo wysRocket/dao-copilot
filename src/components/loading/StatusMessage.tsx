@@ -7,6 +7,7 @@
 
 import React from 'react'
 import {cn} from '../../utils/tailwind'
+import {generateSecureId} from '../../utils/secure-random'
 import {TypingIndicator} from './TypingIndicator'
 import {ProgressBar} from './ProgressBar'
 
@@ -301,7 +302,7 @@ export const StatusMessageProvider: React.FC<{children: React.ReactNode}> = ({ch
   const [messages, setMessages] = React.useState<(StatusMessageProps & {id: string})[]>([])
 
   const addMessage = React.useCallback((message: Omit<StatusMessageProps, 'key'>) => {
-    const id = Math.random().toString(36).substr(2, 9)
+    const id = generateSecureId('status-message')
     setMessages(prev => [...prev, {...message, id}])
     return id
   }, [])

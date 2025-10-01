@@ -3,28 +3,36 @@ import {SEARCH_GOOGLE_CHANNEL, SEARCH_GEMINI_ANALYZE_CHANNEL} from './search-cha
 import GeminiSearchTools, {GeminiSearchConfig} from '../../../services/gemini-search-tools'
 import {SearchResult} from '../../../services/tool-call-handler'
 import type {GoogleSearchParams, GeminiAnalyzeParams} from './search-context'
+import {readRuntimeEnv, requireRuntimeEnv} from '../../../utils/env'
 
 let searchTools: GeminiSearchTools | null = null
 
 // Initialize search tools with environment variables from main process
 function initializeSearchTools(): GeminiSearchTools {
   if (!searchTools) {
-    const apiKey =
-      process.env.GOOGLE_API_KEY ||
-      process.env.VITE_GOOGLE_API_KEY ||
-      process.env.GOOGLE_SEARCH_API_KEY ||
-      ''
-    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID || process.env.SEARCH_ENGINE_ID || ''
-    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || ''
+    const apiKey = requireRuntimeEnv('GOOGLE_API_KEY', {
+      fallbackKeys: ['VITE_GOOGLE_API_KEY', 'GOOGLE_SEARCH_API_KEY', 'GEMINI_API_KEY']
+    })
+    const searchEngineId = requireRuntimeEnv('GOOGLE_SEARCH_ENGINE_ID', {
+      fallbackKeys: ['SEARCH_ENGINE_ID']
+    })
+    const geminiApiKey = readRuntimeEnv('GEMINI_API_KEY', {
+      fallbackKeys: ['GOOGLE_API_KEY']
+    })
 
-    console.log('Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.')
+    if (geminiApiKey && geminiApiKey !== apiKey) {
+      console.log(
+        'Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY for search requests.'
+      )
+    }
+
     console.log('API Key configured:', apiKey ? 'Yes' : 'No')
     console.log('Search Engine ID configured:', searchEngineId ? 'Yes' : 'No')
 
     const config: GeminiSearchConfig = {
       apiKey,
       searchEngineId,
-      geminiApiKey,
+      geminiApiKey: geminiApiKey ?? apiKey,
       enableCaching: true,
       cacheTtlSeconds: 3600,
       maxRetries: 2,

@@ -1,6 +1,7 @@
 import {BrowserWindow, app, shell} from 'electron'
 import {join} from 'path'
 import icon from '../../resources/icon.png'
+import {isDevelopmentEnvironment} from '../utils/env'
 
 export type WindowType = 'main' | 'assistant'
 
@@ -496,7 +497,7 @@ export class WindowManager {
   public shouldComponentRenderInWindow(
     componentType: ComponentType,
     windowType: WindowType,
-    isDevelopment: boolean = process.env.NODE_ENV === 'development'
+    isDevelopment: boolean = isDevelopmentEnvironment()
   ): boolean {
     const rule = this.componentRoutingRules.find(r => r.componentType === componentType)
 
@@ -529,7 +530,7 @@ export class WindowManager {
    */
   public getPreferredWindowForComponent(
     componentType: ComponentType,
-    isDevelopment: boolean = process.env.NODE_ENV === 'development'
+    isDevelopment: boolean = isDevelopmentEnvironment()
   ): WindowType | null {
     const rule = this.componentRoutingRules.find(r => r.componentType === componentType)
 

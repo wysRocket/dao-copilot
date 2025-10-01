@@ -7,6 +7,7 @@
 
 import React, {createContext, useContext, useReducer, useCallback} from 'react'
 import {StatusMessageProps} from './StatusMessage'
+import {generateSecureId} from '../../utils/secure-random'
 
 // Types
 export type LoadingOperationType =
@@ -38,7 +39,7 @@ export interface LoadingState {
 
 // Actions
 type LoadingAction =
-  | {type: 'START_OPERATION'; payload: Omit<LoadingOperation, 'id' | 'startTime'>}
+  | {type: 'START_OPERATION'; payload: LoadingOperation}
   | {type: 'UPDATE_OPERATION'; payload: {id: string; updates: Partial<LoadingOperation>}}
   | {type: 'COMPLETE_OPERATION'; payload: {id: string}}
   | {type: 'CLEAR_ALL_OPERATIONS'}
@@ -48,13 +49,7 @@ type LoadingAction =
 function loadingReducer(state: LoadingState, action: LoadingAction): LoadingState {
   switch (action.type) {
     case 'START_OPERATION': {
-      const id = Math.random().toString(36).substr(2, 9)
-      const operation: LoadingOperation = {
-        ...action.payload,
-        id,
-        startTime: Date.now()
-      }
-
+      const operation = action.payload
       const newOperations = [...state.operations, operation]
 
       // Auto-set priority operation if this is high priority or first operation
@@ -182,18 +177,24 @@ export const LoadingStateProvider: React.FC<LoadingStateProviderProps> = ({
 
   const startOperation = useCallback(
     (operation: Omit<LoadingOperation, 'id' | 'startTime'>) => {
+      const operationId = generateSecureId('loading')
+      const operationWithMetadata: LoadingOperation = {
+        ...operation,
+        id: operationId,
+        startTime: Date.now()
+      }
+
       // Remove oldest operation if we exceed max operations
       if (state.operations.length >= maxOperations) {
-        const oldestOperation = state.operations.sort((a, b) => a.startTime - b.startTime)[0]
+        const oldestOperation = [...state.operations].sort((a, b) => a.startTime - b.startTime)[0]
         dispatch({type: 'COMPLETE_OPERATION', payload: {id: oldestOperation.id}})
       }
 
-      dispatch({type: 'START_OPERATION', payload: operation})
+      dispatch({type: 'START_OPERATION', payload: operationWithMetadata})
 
-      // Return the generated ID (we need to simulate it since reducer generates it)
-      return Math.random().toString(36).substr(2, 9)
+      return operationId
     },
-    [state.operations.length, maxOperations]
+    [state.operations, maxOperations]
   )
 
   const updateOperation = useCallback((id: string, updates: Partial<LoadingOperation>) => {
