@@ -1,0 +1,81 @@
+# Task ID: 25
+# Title: Implement Configuration and Feature Flag System
+# Status: cancelled
+# Dependencies: 16, 17, 18, 19, 20
+# Priority: medium
+# Description: Create a flexible configuration system with feature flags to control transcription pipeline behavior and enable safe runtime toggles.
+# Details:
+Develop a configuration system that:
+1. Implements feature flags: enableWAL, enableFallbackReplay, orphanRecoveryIntervalMs, finalizeTimeoutMs, audioPreRollMs
+2. Allows safe runtime toggles via ENV or in-app dev panel
+3. Creates a configuration management service
+4. Implements validation for configuration values
+5. Adds persistence for user configuration preferences
+6. Creates a dev panel UI for toggling features
+7. Implements configuration change event system
+
+Code structure:
+```typescript
+interface TranscriptionConfig {
+  enableWAL: boolean;
+  enableFallbackReplay: boolean;
+  orphanRecoveryIntervalMs: number;
+  finalizeTimeoutMs: number;
+  audioPreRollMs: number;
+  // Additional config options
+}
+
+class ConfigurationManager {
+  private config: TranscriptionConfig;
+  private listeners: Array<(config: TranscriptionConfig) => void>;
+  
+  constructor(initialConfig: Partial<TranscriptionConfig>) {
+    this.config = {
+      enableWAL: true,
+      enableFallbackReplay: true,
+      orphanRecoveryIntervalMs: 2000,
+      finalizeTimeoutMs: 5000,
+      audioPreRollMs: 500,
+      ...initialConfig
+    };
+    this.listeners = [];
+  }
+  
+  getConfig(): TranscriptionConfig {
+    return { ...this.config };
+  }
+  
+  updateConfig(updates: Partial<TranscriptionConfig>): void {
+    this.config = { ...this.config, ...updates };
+    this.notifyListeners();
+  }
+  
+  onConfigChange(listener: (config: TranscriptionConfig) => void): () => void {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
+  }
+  
+  private notifyListeners(): void {
+    const config = this.getConfig();
+    this.listeners.forEach(listener => listener(config));
+  }
+}
+
+const DevPanel: React.FC<{
+  configManager: ConfigurationManager;
+}> = ({ configManager }) => {
+  // UI for toggling feature flags
+};
+```
+
+# Test Strategy:
+1. Unit tests for configuration management
+2. Test feature flag toggling
+3. Verify configuration validation
+4. Test persistence of user preferences
+5. Verify dev panel UI functionality
+6. Test configuration change event system
+7. Integration tests with various configuration combinations
+8. Verify safe runtime toggle behavior

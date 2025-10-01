@@ -1,0 +1,139 @@
+# Task ID: 6
+# Title: Implement Deduplication and Merge Engine
+# Status: pending
+# Dependencies: 1, 2, 4
+# Priority: medium
+# Description: Create a sophisticated deduplication and merge engine to handle overlapping, duplicate, or conflicting transcript segments.
+# Details:
+Develop a TranscriptMergeEngine class that maintains a rolling content hash plus time bucket for each partial sequence. Implement logic to handle content regression (shorter content arriving after longer content) by treating it as a revision and keeping the longest unless confidence dictates replacement. Create a merge algorithm that chooses the most confident consistent growth path when reconciling multiple versions of the same transcript. Implement conflict resolution strategies based on confidence scores, timing, and content consistency. Add telemetry for merge decisions to enable analysis and tuning of the algorithm.
+
+# Test Strategy:
+Unit test the hashing mechanism to verify it correctly identifies duplicate content. Test the merge algorithm with various scenarios of overlapping, conflicting, and regressing content. Create integration tests with real-world examples of problematic merges. Benchmark the merge engine performance to ensure it meets latency requirements. Test edge cases like very short segments, identical confidence scores, and near-simultaneous arrivals.
+
+# Subtasks:
+## 1. Design Content Hashing Algorithm with Time Buckets [pending]
+### Dependencies: None
+### Description: Create a hashing algorithm that generates unique identifiers for transcript segments based on content and time positioning
+### Details:
+Implement a ContentHasher class that:
+1. Generates rolling hashes for transcript content
+2. Incorporates time bucket information to handle temporal positioning
+3. Optimizes for fast comparison operations
+4. Handles different languages and special characters
+5. Includes configurable bucket size parameters
+
+Files to modify:
+- src/engine/ContentHasher.ts
+- src/types/HashTypes.ts
+
+Test coverage:
+- Unit tests for hash generation with various inputs
+- Collision testing with similar content
+- Performance benchmarks for hash generation and comparison
+
+## 2. Implement Content Regression Handling Logic [pending]
+### Dependencies: 6.1
+### Description: Develop logic to handle cases where shorter content arrives after longer content, treating it as a revision
+### Details:
+Create a ContentRegressionHandler class that:
+1. Detects when new content is shorter than previously received content
+2. Implements rules for determining when to keep longer content vs. accept shorter revision
+3. Uses confidence scores to make replacement decisions
+4. Handles edge cases like stuttering and corrections
+5. Maintains version history for potential rollback
+
+Files to modify:
+- src/engine/ContentRegressionHandler.ts
+- src/engine/TranscriptMergeEngine.ts
+
+Test coverage:
+- Unit tests for regression detection
+- Tests for confidence-based replacement decisions
+- Edge case testing with real-world examples
+
+## 3. Create Confidence-Based Selection Algorithm [pending]
+### Dependencies: 6.1, 6.2
+### Description: Develop an algorithm that selects between competing transcript versions based on confidence scores and other quality metrics
+### Details:
+Implement a ConfidenceSelector class that:
+1. Evaluates confidence scores across competing transcript versions
+2. Incorporates linguistic consistency as a selection factor
+3. Handles partial confidence scores within segments
+4. Implements weighted scoring based on multiple factors
+5. Provides configurable thresholds for selection decisions
+
+Files to modify:
+- src/engine/ConfidenceSelector.ts
+- src/engine/TranscriptMergeEngine.ts
+- src/types/ConfidenceTypes.ts
+
+Test coverage:
+- Unit tests for selection algorithm with various confidence patterns
+- Performance testing with large transcript sets
+- Accuracy testing against known-good transcripts
+
+## 4. Develop Consistent Growth Path Determination [pending]
+### Dependencies: 6.1, 6.3
+### Description: Create an algorithm that identifies the most consistent growth path when reconciling multiple versions of the same transcript
+### Details:
+Implement a GrowthPathAnalyzer class that:
+1. Builds a directed graph of possible transcript evolutions
+2. Identifies the most likely/consistent growth path through the graph
+3. Handles branching and merging of potential transcript versions
+4. Optimizes for both accuracy and performance
+5. Implements pruning of unlikely paths to maintain efficiency
+
+Files to modify:
+- src/engine/GrowthPathAnalyzer.ts
+- src/engine/TranscriptMergeEngine.ts
+- src/types/GrowthPathTypes.ts
+
+Test coverage:
+- Unit tests for path determination with various branching scenarios
+- Performance testing with complex transcript histories
+- Integration tests with real-world transcript evolution patterns
+
+## 5. Implement Conflict Resolution Strategies [pending]
+### Dependencies: 6.3, 6.4
+### Description: Develop strategies for resolving conflicts between transcript versions based on confidence scores, timing, and content consistency
+### Details:
+Create a ConflictResolver class that:
+1. Identifies conflicts between competing transcript versions
+2. Implements multiple resolution strategies (confidence-based, timing-based, consistency-based)
+3. Provides a strategy selection mechanism based on conflict type
+4. Handles special cases like speaker changes and non-speech audio events
+5. Maintains an audit trail of resolution decisions
+
+Files to modify:
+- src/engine/ConflictResolver.ts
+- src/engine/TranscriptMergeEngine.ts
+- src/types/ConflictTypes.ts
+
+Test coverage:
+- Unit tests for each resolution strategy
+- Tests for strategy selection logic
+- Integration tests with complex conflict scenarios
+- Performance testing for resolution speed
+
+## 6. Add Telemetry for Merge Decisions [pending]
+### Dependencies: 6.2, 6.3, 6.4, 6.5
+### Description: Implement comprehensive telemetry to track and analyze merge decisions for algorithm tuning and debugging
+### Details:
+Implement a MergeTelemetry system that:
+1. Captures detailed information about each merge decision
+2. Records metrics on hash collisions, conflict frequency, and resolution outcomes
+3. Implements performance tracking for algorithm components
+4. Creates visualizations for merge decision trees
+5. Provides exportable logs for offline analysis
+
+Files to modify:
+- src/telemetry/MergeTelemetry.ts
+- src/engine/TranscriptMergeEngine.ts
+- src/visualization/MergeVisualizer.ts
+
+Test coverage:
+- Unit tests for telemetry data collection
+- Verification of telemetry accuracy
+- Performance impact testing
+- Integration tests with the full merge engine
+

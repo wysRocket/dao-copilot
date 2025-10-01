@@ -8,6 +8,10 @@
  * - Real-time audio streaming preparation
  */
 
+import {readRuntimeEnv} from '../../utils/env'
+
+const isTestEnvironment = () => readRuntimeEnv('NODE_ENV', {allowEmpty: true}) === 'test'
+
 // Define message types for communication
 export enum AudioWorkerMessageType {
   INITIALIZE = 'initialize',
@@ -88,7 +92,7 @@ class AudioProcessingWorker {
     self.addEventListener('message', this.handleMessage.bind(this))
 
     // Don't log in test environment
-    if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+    if (!isTestEnvironment()) {
       this.log('Audio processing worker started')
     }
   }
@@ -403,7 +407,7 @@ class AudioProcessingWorker {
 
   private sendMessage(message: AudioWorkerMessage): void {
     // In test environment, avoid postMessage calls
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    if (isTestEnvironment()) {
       return
     }
 

@@ -11,6 +11,10 @@ import {
   type IntegrationState
 } from '../types/gemini-types'
 import {ConnectionQuality, type ConnectionMetrics} from '../services/gemini-reconnection-manager'
+import {
+  getGeminiTranscriptionBridge,
+  initializeGeminiTranscriptionBridge
+} from '../services/gemini-transcription-bridge'
 import {logger} from '../services/gemini-logger'
 
 export interface UseGeminiConnectionOptions {
@@ -57,7 +61,9 @@ export function useGeminiConnection(
   options: UseGeminiConnectionOptions = {}
 ): [GeminiConnectionState, GeminiConnectionControls] {
   const {
-    apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '',
+    apiKey = (typeof process !== 'undefined'
+      ? process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY
+      : '') || '',
     mode = TranscriptionMode.HYBRID,
     autoConnect = false,
     fallbackToBatch = true,
@@ -66,6 +72,7 @@ export function useGeminiConnection(
 
   const integrationServiceRef = useRef<GeminiLiveIntegrationService | null>(null)
   const clientRef = useRef<GeminiLiveWebSocketClient | null>(null)
+  const bridgeRef = useRef<ReturnType<typeof getGeminiTranscriptionBridge> | null>(null)
 
   const [state, setState] = useState<GeminiConnectionState>({
     connectionState: ConnectionState.DISCONNECTED,
@@ -107,6 +114,19 @@ export function useGeminiConnection(
       // Set up event listeners
       setupEventListeners(integrationService)
 
+      // Get the WebSocket client for bridge integration
+      const client = integrationService.getWebSocketClient()
+      if (client) {
+        clientRef.current = client
+
+        // Initialize transcription bridge
+        bridgeRef.current = initializeGeminiTranscriptionBridge(client)
+
+        if (enableLogging) {
+          logger.info('Gemini transcription bridge initialized')
+        }
+      }
+
       // Initialize state
       setState(prev => ({
         ...prev,
@@ -135,6 +155,12 @@ export function useGeminiConnection(
         integrationServiceRef.current.destroy()
         integrationServiceRef.current = null
         clientRef.current = null
+      }
+
+      // Cleanup bridge
+      if (bridgeRef.current) {
+        bridgeRef.current.disconnect()
+        bridgeRef.current = null
       }
     }
   }, [apiKey, mode, fallbackToBatch, autoConnect, enableLogging])

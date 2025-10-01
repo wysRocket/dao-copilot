@@ -1,0 +1,330 @@
+/**
+ * Accessibility-focused styles for streaming text components
+ * Provides high contrast support, reduced motion preferences, and screen reader optimizations
+ */
+
+/* Base accessible streaming text container */
+.accessible-streaming-text {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Keyboard navigation focus styles */
+.accessible-streaming-text:focus {
+  outline: 2px solid var(--focus-color, #007acc);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.accessible-streaming-text.keyboard-navigable {
+  cursor: pointer;
+}
+
+.accessible-streaming-text.keyboard-navigable:focus {
+  background-color: var(--focus-background, rgba(0, 122, 204, 0.1));
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high), (forced-colors: active) {
+  .accessible-streaming-text.high-contrast {
+    border: 1px solid ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+  }
+
+  .accessible-streaming-text.high-contrast:focus {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+    background: HighlightText;
+    color: Highlight;
+  }
+
+  .accessible-streaming-text.high-contrast .streaming-cursor {
+    color: ButtonText;
+    background: ButtonText;
+  }
+
+  .accessible-streaming-text.high-contrast .streaming-partial {
+    color: GrayText;
+  }
+
+  .accessible-streaming-text.high-contrast .streaming-correction {
+    background: Mark;
+    color: MarkText;
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .accessible-streaming-text.reduced-motion * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .accessible-streaming-text.reduced-motion .streaming-cursor {
+    animation: none !important;
+  }
+
+  .accessible-streaming-text.reduced-motion .streaming-correction {
+    animation: none !important;
+    background-color: var(--highlight-static, rgba(255, 215, 0, 0.3));
+  }
+
+  .accessible-streaming-text.reduced-motion .typewriter-cursor {
+    animation: none !important;
+    border-right: 2px solid currentColor;
+  }
+}
+
+/* Screen reader optimized mode */
+.accessible-streaming-text.screen-reader-optimized {
+  /* Optimize for screen reader performance */
+  font-variant-numeric: normal;
+}
+
+.accessible-streaming-text.screen-reader-optimized .streaming-text-content {
+  /* Ensure proper reading flow */
+  display: block;
+}
+
+/* Enhanced focus management */
+.accessible-streaming-text[tabindex='0'] {
+  /* Ensure keyboard focusability */
+  position: relative;
+}
+
+.accessible-streaming-text[tabindex='0']:focus-visible {
+  /* Modern focus-visible support */
+  outline: 2px solid var(--focus-color, #007acc);
+  outline-offset: 2px;
+}
+
+/* Windows High Contrast Mode specific styles */
+@media screen and (-ms-high-contrast: active) {
+  .accessible-streaming-text {
+    border: 1px solid WindowText;
+    background: Window;
+    color: WindowText;
+  }
+
+  .accessible-streaming-text:focus {
+    outline: 2px solid Highlight;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .streaming-cursor {
+    color: WindowText !important;
+    background: WindowText !important;
+  }
+
+  .streaming-partial {
+    color: GrayText !important;
+  }
+
+  .streaming-correction {
+    background: Highlight !important;
+    color: HighlightText !important;
+  }
+}
+
+/* Print styles for accessibility */
+@media print {
+  .accessible-streaming-text {
+    color: black !important;
+    background: white !important;
+  }
+
+  .streaming-cursor,
+  .typewriter-cursor {
+    display: none !important;
+  }
+
+  .sr-only {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    clip: auto !important;
+    white-space: normal !important;
+    font-size: 0.8em;
+    font-style: italic;
+    color: #666;
+  }
+}
+
+/* Touch and mobile accessibility */
+@media (pointer: coarse) {
+  .accessible-streaming-text.keyboard-navigable {
+    min-height: 44px; /* Minimum touch target size */
+    padding: 8px;
+  }
+
+  .accessible-streaming-text:focus {
+    outline-width: 3px; /* Larger focus outline for touch */
+  }
+}
+
+/* Animation preferences for vestibular disorders */
+@media (prefers-reduced-motion: reduce) {
+  .accessible-streaming-text {
+    /* Ensure no parallax or complex animations */
+    transform: none !important;
+  }
+}
+
+/* Color blindness and vision accessibility */
+.accessible-streaming-text {
+  /* Ensure sufficient color contrast */
+  --text-primary: #000000;
+  --text-secondary: #333333;
+  --background-primary: #ffffff;
+  --focus-color: #007acc;
+  --focus-background: rgba(0, 122, 204, 0.1);
+  --highlight-static: rgba(255, 215, 0, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  .accessible-streaming-text {
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --background-primary: #000000;
+    --focus-color: #4fc3f7;
+    --focus-background: rgba(79, 195, 247, 0.1);
+    --highlight-static: rgba(255, 235, 59, 0.3);
+  }
+}
+
+/* Accessibility debug panel (development only) */
+.accessibility-debug-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--background-primary);
+  border: 1px solid var(--text-secondary);
+  padding: 12px;
+  font-size: 0.75rem;
+  z-index: 1000;
+  max-width: 300px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.accessible-streaming-text:hover .accessibility-debug-panel,
+.accessible-streaming-text:focus .accessibility-debug-panel {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.accessibility-debug-panel h4 {
+  margin: 0 0 8px 0;
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.accessibility-debug-panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.accessibility-debug-panel li {
+  margin: 4px 0;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+/* Ensure proper spacing and readability */
+.accessible-streaming-text .streaming-text-content {
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  word-spacing: 0.1em;
+}
+
+/* Enhanced cursor visibility */
+.accessible-streaming-text .streaming-cursor,
+.accessible-streaming-text .typewriter-cursor {
+  /* Ensure cursor is visible in all contrast modes */
+  background-color: currentColor;
+  opacity: 1;
+}
+
+/* Ensure text is selectable for assistive technology */
+.accessible-streaming-text .streaming-text-content {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* Status indicators for screen readers */
+.accessible-streaming-text[aria-live='polite'] {
+  /* Visual indicator that content is live */
+  position: relative;
+}
+
+.accessible-streaming-text[aria-live='polite']:before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 1px dotted var(--focus-color);
+  border-radius: 4px;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Responsive accessibility */
+@media (max-width: 768px) {
+  .accessible-streaming-text {
+    font-size: 1.1em; /* Slightly larger text on mobile */
+  }
+
+  .accessible-streaming-text:focus {
+    outline-width: 3px; /* Larger focus outline on mobile */
+  }
+}
+
+/* Ensure compatibility with voice control software */
+.accessible-streaming-text[role='log'] {
+  /* Ensure proper semantic role */
+  display: block;
+}
+
+/* Animation safety for photosensitive users */
+@media (prefers-reduced-motion: no-preference) {
+  .accessible-streaming-text .streaming-correction {
+    animation: flash-highlight 0.8s ease-out;
+  }
+}
+
+@keyframes flash-highlight {
+  0% {
+    background-color: var(--highlight-static);
+    box-shadow: 0 0 4px var(--highlight-static);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}

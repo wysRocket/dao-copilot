@@ -1,0 +1,525 @@
+/* Auto-Scroll Components Styles */
+
+/* ==========================================
+   CSS Custom Properties for Auto-Scroll
+   ========================================== */
+:root {
+  --auto-scroll-primary-color: #3b82f6;
+  --auto-scroll-primary-hover: #2563eb;
+  --auto-scroll-background: rgba(255, 255, 255, 0.95);
+  --auto-scroll-border: rgba(0, 0, 0, 0.1);
+  --auto-scroll-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --auto-scroll-text: #374151;
+  --auto-scroll-text-secondary: #6b7280;
+  --auto-scroll-success: #10b981;
+  --auto-scroll-warning: #f59e0b;
+  --auto-scroll-notification: #ef4444;
+
+  --auto-scroll-border-radius: 8px;
+  --auto-scroll-button-size: 40px;
+  --auto-scroll-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --auto-scroll-animation-duration: 0.3s;
+}
+
+/* ==========================================
+   Auto-Scroll Container Base
+   ========================================== */
+
+.auto-scroll-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.auto-scroll-container__content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  padding: 0;
+  margin: 0;
+}
+
+/* Custom scrollbar styling */
+.auto-scroll-container__content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.auto-scroll-container__content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.auto-scroll-container__content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.auto-scroll-container__content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* ==========================================
+   New Content Indicator
+   ========================================== */
+
+.new-content-indicator {
+  position: absolute;
+  z-index: 100;
+  cursor: pointer;
+  transition: var(--auto-scroll-transition);
+  user-select: none;
+  outline: none;
+}
+
+/* Bottom variant */
+.new-content-indicator--bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(
+    135deg,
+    var(--auto-scroll-primary-color),
+    var(--auto-scroll-primary-hover)
+  );
+  color: white;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Floating variant */
+.new-content-indicator--floating {
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--auto-scroll-background);
+  color: var(--auto-scroll-text);
+  padding: 8px 16px;
+  border: 1px solid var(--auto-scroll-border);
+  border-radius: var(--auto-scroll-border-radius);
+  box-shadow: var(--auto-scroll-shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.new-content-indicator__content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.new-content-indicator__message {
+  white-space: nowrap;
+}
+
+.new-content-icon {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+/* Animation variants */
+.new-content-indicator--slide {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
+
+.new-content-indicator--slide.new-content-indicator--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.new-content-indicator--fade {
+  opacity: 0;
+  transform: translateX(-50%);
+}
+
+.new-content-indicator--fade.new-content-indicator--visible {
+  opacity: 1;
+}
+
+.new-content-indicator--bounce {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.8);
+}
+
+.new-content-indicator--bounce.new-content-indicator--visible {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+  animation: new-content-bounce var(--auto-scroll-animation-duration) ease-out;
+}
+
+@keyframes new-content-bounce {
+  0% {
+    transform: translateX(-50%) scale(0.8);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.05);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* Hover states */
+.new-content-indicator:hover {
+  transform: translateX(-50%) translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.new-content-indicator--bottom:hover {
+  transform: translateY(-2px);
+}
+
+.new-content-indicator:focus {
+  outline: 2px solid var(--auto-scroll-primary-color);
+  outline-offset: 2px;
+}
+
+/* ==========================================
+   Scroll Controls
+   ========================================== */
+
+.scroll-controls {
+  position: absolute;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: var(--auto-scroll-transition);
+}
+
+/* Position variants */
+.scroll-controls--top-right {
+  top: 16px;
+  right: 16px;
+}
+
+.scroll-controls--bottom-right {
+  bottom: 16px;
+  right: 16px;
+}
+
+.scroll-controls--floating {
+  bottom: 16px;
+  right: 16px;
+  background: var(--auto-scroll-background);
+  border: 1px solid var(--auto-scroll-border);
+  border-radius: var(--auto-scroll-border-radius);
+  padding: 8px;
+  box-shadow: var(--auto-scroll-shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.scroll-controls__indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.scroll-controls__percentage {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--auto-scroll-text-secondary);
+  min-width: 35px;
+  text-align: center;
+}
+
+.scroll-controls__button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--auto-scroll-button-size);
+  height: var(--auto-scroll-button-size);
+  background: transparent;
+  border: 1px solid var(--auto-scroll-border);
+  border-radius: 6px;
+  color: var(--auto-scroll-text);
+  cursor: pointer;
+  transition: var(--auto-scroll-transition);
+  outline: none;
+}
+
+.scroll-controls__button:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: var(--auto-scroll-primary-color);
+  color: var(--auto-scroll-primary-color);
+  transform: translateY(-1px);
+}
+
+.scroll-controls__button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.scroll-controls__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.scroll-controls__button:focus {
+  border-color: var(--auto-scroll-primary-color);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Button variants */
+.scroll-controls__auto-scroll {
+  border-width: 2px;
+}
+
+.scroll-controls__auto-scroll.scroll-controls__button--active {
+  background: var(--auto-scroll-success);
+  border-color: var(--auto-scroll-success);
+  color: white;
+}
+
+.scroll-controls__auto-scroll.scroll-controls__button--active:hover {
+  background: #059669;
+  border-color: #059669;
+  color: white;
+}
+
+.scroll-controls__button--highlight {
+  background: var(--auto-scroll-notification);
+  border-color: var(--auto-scroll-notification);
+  color: white;
+  animation: scroll-button-pulse 2s ease-in-out infinite;
+}
+
+.scroll-controls__button--highlight:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  animation: none;
+}
+
+@keyframes scroll-button-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+.scroll-controls__notification-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  background: var(--auto-scroll-notification);
+  border: 2px solid white;
+  border-radius: 50%;
+  animation: notification-dot-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes notification-dot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+/* ==========================================
+   Dark Theme Support
+   ========================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --auto-scroll-background: rgba(17, 24, 39, 0.95);
+    --auto-scroll-border: rgba(255, 255, 255, 0.1);
+    --auto-scroll-text: #f9fafb;
+    --auto-scroll-text-secondary: #9ca3af;
+    --auto-scroll-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .auto-scroll-container__content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .auto-scroll-container__content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .auto-scroll-container__content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .scroll-controls__button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .scroll-controls__indicator {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* ==========================================
+   High Contrast Support
+   ========================================== */
+
+@media (prefers-contrast: high) {
+  .scroll-controls__button {
+    border-width: 2px;
+    border-color: currentColor;
+  }
+
+  .new-content-indicator--floating {
+    border-width: 2px;
+    border-color: currentColor;
+  }
+
+  .scroll-controls__notification-dot {
+    border-width: 3px;
+  }
+}
+
+/* ==========================================
+   Reduced Motion Support
+   ========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .auto-scroll-container__content {
+    scroll-behavior: auto;
+  }
+
+  .new-content-indicator,
+  .scroll-controls__button,
+  .scroll-controls {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .new-content-indicator--bounce.new-content-indicator--visible {
+    animation: none !important;
+    transform: translateX(-50%) scale(1) !important;
+  }
+
+  .scroll-controls__button--highlight {
+    animation: none !important;
+  }
+
+  .scroll-controls__notification-dot {
+    animation: none !important;
+  }
+}
+
+/* ==========================================
+   Mobile Responsive Adjustments
+   ========================================== */
+
+@media (max-width: 768px) {
+  :root {
+    --auto-scroll-button-size: 44px; /* Larger touch targets */
+  }
+
+  .scroll-controls--floating {
+    bottom: 12px;
+    right: 12px;
+    padding: 6px;
+  }
+
+  .new-content-indicator--floating {
+    bottom: 70px;
+    left: 50%;
+    right: auto;
+    margin: 0 12px;
+    max-width: calc(100vw - 24px);
+  }
+
+  .new-content-indicator__message {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .scroll-controls__indicator {
+    padding: 6px 10px;
+  }
+
+  .scroll-controls__percentage {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .scroll-controls {
+    gap: 6px;
+  }
+
+  .new-content-indicator--floating {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+  }
+
+  .scroll-controls--floating {
+    padding: 4px;
+  }
+}
+
+/* ==========================================
+   Focus and Keyboard Navigation
+   ========================================== */
+
+.scroll-controls:focus-within {
+  outline: 2px solid var(--auto-scroll-primary-color);
+  outline-offset: 2px;
+  border-radius: var(--auto-scroll-border-radius);
+}
+
+/* ==========================================
+   Print Styles
+   ========================================== */
+
+@media print {
+  .new-content-indicator,
+  .scroll-controls {
+    display: none !important;
+  }
+}
+
+/* ==========================================
+   Performance Optimizations
+   ========================================== */
+
+.scroll-controls,
+.new-content-indicator {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0); /* Force hardware acceleration */
+}
+
+.scroll-controls__button {
+  will-change: transform, background-color, border-color;
+}
+
+/* ==========================================
+   Utility Classes
+   ========================================== */
+
+.auto-scroll-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.auto-scroll-visible {
+  opacity: 1;
+  pointer-events: auto;
+}

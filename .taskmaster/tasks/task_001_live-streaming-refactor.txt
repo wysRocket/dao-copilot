@@ -1,0 +1,68 @@
+# Task ID: 1
+# Title: Fix Transcription Source Conflicts
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Resolve conflicts between WebSocket and batch transcriptions where they overwrite each other. Implement proper source priority system with WebSocket as primary.
+# Details:
+## Problem Analysis
+Current implementation has transcription sources conflicting:
+- WebSocket transcriptions (source: 'websocket-gemini') 
+- Batch transcriptions (source: 'batch')
+- Both are being added to the same transcript array causing overwrites
+
+## Implementation Steps
+1. **Analyze current transcription flow**:
+   - Trace how WebSocket transcriptions are added to state
+   - Trace how batch transcriptions are added to state
+   - Identify conflict points in MultiWindowContext
+
+2. **Implement Source Priority System**:
+   - Create TranscriptionSourceManager class
+   - Define priority levels: WebSocket (1) > Streaming (2) > Batch (3)
+   - Implement routing logic based on source
+
+3. **Fix State Management**:
+   - Separate streaming transcriptions from static transcriptions
+   - Create dedicated state for active streaming content
+   - Prevent batch transcriptions from interrupting WebSocket streams
+
+4. **Update IPC Communication**:
+   - Modify transcription listeners to include source metadata
+   - Route transcriptions to appropriate handlers based on source
+   - Ensure WebSocket transcriptions trigger streaming renderer
+
+## Files to Modify
+- `/src/contexts/MultiWindowContext.tsx` - Fix addTranscript logic
+- `/src/services/main-stt-transcription.ts` - Add source routing
+- `/src/helpers/ipc/transcription/transcription-listeners.ts` - Update IPC handling
+- Create `/src/services/TranscriptionSourceManager.ts` - New routing service
+
+## Testing Criteria
+- WebSocket transcriptions no longer overwrite batch transcriptions
+- Source priority system works correctly
+- No duplicate transcription entries
+- Proper routing to streaming renderer for WebSocket sources
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Analyze Transcription Flow Conflicts [done]
+### Dependencies: None
+### Description: Analyze current transcription flow to identify conflict points between WebSocket and batch transcriptions
+### Details:
+Trace the flow of transcriptions from WebSocket and batch sources to understand where they conflict in the state management system.
+
+## 2. Create TranscriptionSourceManager [done]
+### Dependencies: None
+### Description: Create TranscriptionSourceManager to implement source priority system with WebSocket as primary
+### Details:
+Build a new service that routes transcriptions based on their source, with WebSocket transcriptions taking priority over batch transcriptions.
+
+## 3. Fix MultiWindowContext Source Handling [done]
+### Dependencies: None
+### Description: Fix MultiWindowContext addTranscript to prevent source conflicts and overwrites
+### Details:
+Modify the addTranscript function to handle different transcription sources appropriately and prevent batch transcriptions from overwriting WebSocket transcriptions.
+

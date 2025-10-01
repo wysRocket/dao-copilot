@@ -1,175 +1,384 @@
-# Product Requirements Document: Gemini Live API WebSocket Integration
+# Advanced Voice Assistant Improvements with Gemini Live API - Product Requirements Document
 
-## Overview
-Update the DAO Copilot transcribing flow to integrate with Google's Gemini Live API using WebSocket connections for real-time transcription capabilities. This migration from the current batch-based approach will provide better performance, lower latency, and improved accuracy.
+## Executive Summary
 
-## Background
-The current implementation uses batch-based transcription where audio is recorded in intervals and sent to the Gemini API via HTTP requests. Google has released the Gemini Live API which provides enhanced real-time transcription features through WebSocket connections, offering better performance and lower latency.
+This PRD outlines the development of advanced voice assistant improvements for the DAO Copilot project using the Gemini Live API. The focus is on implementing sophisticated question detection, audio segmentation, conversation state management, tool integration, latency optimization, and error handling to create a production-ready conversational AI system.
 
-## Objectives
-- Replace the current batch-based transcription with real-time WebSocket streaming
-- Implement WebSocket client for Gemini Live API integration
-- Maintain all existing functionality while improving performance
-- Provide seamless user experience with real-time transcription updates
-- Implement robust error handling and reconnection logic
+## Project Background
 
-## Technical Requirements
+The current DAO Copilot project has a basic voice assistant implementation that relies on simple question detection patterns ("?" character) and basic transcription. The system needs significant improvements to handle real-world conversational scenarios with reliable intent classification, proper audio segmentation, interruption handling, and seamless tool integration for web searches.
 
-### 1. WebSocket Implementation
-- Implement WebSocket client for Gemini Live API integration
-- Establish bidirectional communication with the API
-- Handle connection lifecycle (open, close, error events)
-- Implement reconnection logic with exponential backoff
-- Support binary and text message formats
+## Business Objectives
 
-### 2. Real-time Audio Streaming
-- Replace batch audio processing with continuous streaming
-- Implement audio capture using Web Audio API
-- Convert audio data to required format (16-bit PCM)
-- Stream audio chunks in real-time over WebSocket
-- Implement audio buffering and backpressure handling
+### Primary Goals
+1. Create a sophisticated intent classification system that goes beyond simple punctuation-based question detection
+2. Implement proper audio segmentation with stabilized segments for reliable transcription
+3. Develop a conversation state machine for managing complex dialogue flows
+4. Integrate Google Search tools with the Gemini Live API for grounded responses
+5. Optimize response latency with two-stage response strategies
+6. Implement streaming TTS with robust interruption handling
+7. Create comprehensive error handling and fallback mechanisms
 
-### 3. Connection Management
-- Proper WebSocket connection lifecycle management
-- Handle network interruptions gracefully
-- Implement heartbeat mechanism for connection health
-- Support authentication and session management
-- Clean up resources on disconnection
+### Success Metrics
+- Reduce false positive question detection by 80%
+- Improve transcription accuracy by 50% through better audio segmentation
+- Achieve sub-2-second response times for simple queries
+- Handle user interruptions within 200ms
+- Maintain 99.5% uptime for core conversation features
+- Support multiple languages including Russian with specialized processing
 
-### 4. Error Handling and Recovery
-- Graceful handling of WebSocket connection failures
-- Fallback to HTTP-based approach when WebSocket fails
-- Network interruption recovery
-- API error handling and user feedback
-- Connection state management and status indicators
+## Target Audience
 
-### 5. UI/UX Updates
-- Real-time transcription display updates
-- Connection status indicators
-- Streaming progress feedback
-- Smooth animations for live transcription
-- Performance optimizations for continuous updates
+### Primary Users
+- Russian-speaking users requiring high-quality voice transcription and responses
+- Users conducting conversational searches and information retrieval
+- Developers and researchers working with voice AI systems
+- Business users requiring hands-free information access
 
-### 6. Performance Optimization
-- Efficient audio data processing
-- Memory management for continuous streaming
-- CPU usage optimization
-- Network bandwidth optimization
-- Responsive UI during streaming operations
+### User Personas
+1. **Research Professional**: Needs accurate, cited information quickly during meetings or research sessions
+2. **Multilingual User**: Requires support for Russian and English with seamless language switching
+3. **Technical User**: Expects reliable interruption handling and minimal latency
+4. **Business User**: Needs consistent, professional responses with error recovery
 
-## Functional Requirements
+## Product Requirements
 
-### Core Functionality
-1. **Real-time Transcription**: Continuous audio capture and transcription
-2. **WebSocket Communication**: Bidirectional communication with Gemini Live API
-3. **Connection Management**: Robust connection handling and recovery
-4. **Audio Streaming**: Efficient real-time audio data streaming
-5. **Error Recovery**: Graceful degradation and fallback mechanisms
+### Functional Requirements
 
-### User Experience
-1. **Immediate Feedback**: Real-time transcription results displayed instantly
-2. **Connection Status**: Visual indicators for connection state
-3. **Seamless Operation**: No interruption to existing workflow
-4. **Performance**: No degradation in responsiveness
-5. **Reliability**: Consistent operation under various network conditions
+#### 1. Advanced Intent Classification System
+- **Requirement**: Replace simple "?" detection with sophisticated intent classification
+- **Features**:
+  - Natural language understanding for question detection
+  - Multi-intent classification (questions, commands, small talk)
+  - Context-aware intent resolution
+  - Support for embedded questions in longer utterances
+  - Confidence scoring for intent decisions
+- **Acceptance Criteria**:
+  - Correctly identify questions without "?" punctuation
+  - Handle embedded questions in complex sentences
+  - Achieve >95% accuracy on question classification
+  - Process intent classification in <100ms
 
-## Non-Functional Requirements
+#### 2. Audio Segmentation and Stabilization
+- **Requirement**: Implement proper audio segmentation using Live API stabilized segments
+- **Features**:
+  - Voice Activity Detection (VAD) integration
+  - Endpointer implementation with configurable silence thresholds
+  - Audio buffer management for stable segments
+  - Segment boundary detection
+  - Debouncing strategies to prevent double-triggering
+- **Acceptance Criteria**:
+  - Only trigger tool calls on stabilized segments
+  - Implement 200-400ms debounce timeout
+  - Handle segment boundary signals correctly
+  - Reduce transcription errors by 50%
 
-### Performance
-- Latency: < 200ms from audio input to transcription display
-- CPU Usage: No significant increase from current implementation
-- Memory Usage: Efficient memory management for continuous operation
-- Network Usage: Optimized data transmission
+#### 3. Conversation State Machine
+- **Requirement**: Orchestrate conversations with a finite state machine
+- **Features**:
+  - States: Listening → Transcribing → UtteranceDetected → Intent → Plan → Execute → Respond
+  - Interruption handling with immediate state transitions
+  - Context preservation across state changes
+  - Barge-in detection and response cancellation
+  - State persistence for conversation resumption
+- **Acceptance Criteria**:
+  - Handle all defined state transitions correctly
+  - Cancel TTS and tool work on user interruption
+  - Maintain conversation context across interruptions
+  - Resume conversations within 100ms of interruption end
 
-### Reliability
-- 99.9% uptime for WebSocket connections
-- Automatic recovery from network failures
-- Fallback mechanism availability
-- Data integrity during transmission
+#### 4. Google Search Tool Integration
+- **Requirement**: Integrate Google Search with Gemini Live API tool calling
+- **Features**:
+  - google_search(query, country, language, max_results) tool
+  - fetch_page(url) for deeper content analysis
+  - summarize_results(items[], question) for citation generation
+  - Intelligent query optimization
+  - Result caching and deduplication
+- **Acceptance Criteria**:
+  - Register tools correctly in Gemini Live session
+  - Execute searches based on model decisions
+  - Provide cited, grounded responses
+  - Cache results for 5 minutes to avoid duplicate calls
 
-### Scalability
-- Support for extended recording sessions
-- Handle high-frequency audio updates
-- Manage large transcription histories
-- Efficient resource cleanup
+#### 5. Two-Stage Response System
+- **Requirement**: Implement latency optimization with staged responses
+- **Features**:
+  - Stage 1: Immediate acknowledgment within 200ms
+  - Stage 2: Comprehensive, grounded response
+  - Progressive result streaming
+  - Incremental update notifications
+  - Response cancellation on interruption
+- **Acceptance Criteria**:
+  - Provide immediate response in <200ms
+  - Stream comprehensive response progressively
+  - Cancel responses immediately on user interruption
+  - Maintain context between response stages
 
-## Implementation Phases
+#### 6. Streaming TTS with Interruption Handling
+- **Requirement**: Implement interruptible text-to-speech streaming
+- **Features**:
+  - Real-time audio streaming
+  - Voice Activity Detection during TTS playback
+  - Immediate interruption response
+  - Audio queue management
+  - Seamless transition back to listening mode
+- **Acceptance Criteria**:
+  - Detect user speech within 100ms during TTS
+  - Stop TTS playback within 200ms of interruption
+  - Clear audio queue on interruption
+  - Resume listening mode immediately
 
-### Phase 1: WebSocket Client Foundation
-- Implement basic WebSocket client
-- Establish connection to Gemini Live API
-- Handle basic message exchange
-- Implement connection lifecycle management
+#### 7. Enhanced Russian Language Support
+- **Requirement**: Specialized processing for Russian audio and text
+- **Features**:
+  - Russian-specific audio preprocessing
+  - Enhanced grammar pattern correction
+  - Mixed language detection and handling
+  - Cyrillic text processing optimizations
+  - Russian-specific endpointing parameters
+- **Acceptance Criteria**:
+  - Improve Russian transcription accuracy by 40%
+  - Handle mixed Russian-English conversations
+  - Process Cyrillic characters correctly
+  - Apply Russian grammar corrections effectively
 
-### Phase 2: Audio Streaming Integration
-- Update audio recording service for real-time streaming
-- Implement audio format conversion
-- Integrate WebSocket client with audio service
-- Handle audio data transmission
+#### 8. Comprehensive Error Handling
+- **Requirement**: Robust error handling with graceful degradation
+- **Features**:
+  - Centralized error handling system
+  - Retry mechanisms with exponential backoff
+  - Fallback search providers
+  - User-friendly error messages
+  - Error logging and monitoring integration
+- **Acceptance Criteria**:
+  - Retry failed operations up to 3 times
+  - Provide fallback responses when tools fail
+  - Never crash on tool failures
+  - Log all errors for monitoring
 
-### Phase 3: Real-time Transcription Processing
-- Process incoming transcription results
-- Update UI components for real-time display
-- Implement partial result handling
-- Optimize rendering performance
+### Technical Requirements
 
-### Phase 4: Error Handling and Recovery
-- Implement comprehensive error handling
-- Add reconnection logic
-- Create fallback mechanisms
-- Add connection status indicators
+#### Performance Requirements
+- **Response Latency**: <2 seconds for search-based queries
+- **Interruption Response**: <200ms detection and response
+- **Audio Processing**: Real-time with <100ms buffer delay
+- **Memory Usage**: <500MB for conversation state and caches
+- **CPU Usage**: <30% average during active conversations
 
-### Phase 5: Testing and Optimization
-- Performance testing and optimization
-- End-to-end testing
-- Error scenario testing
-- User acceptance testing
+#### Scalability Requirements
+- Support 100+ concurrent conversations
+- Handle 1000+ search requests per hour
+- Cache management for 10,000+ recent queries
+- Scale horizontally with load balancing
 
-## Technical Specifications
+#### Reliability Requirements
+- 99.5% uptime for core conversation features
+- Graceful degradation when external services fail
+- Automatic error recovery within 30 seconds
+- Data persistence for conversation history
 
-### WebSocket Configuration
-- Protocol: WSS (WebSocket Secure)
-- Message Format: JSON and Binary
-- Compression: Optional gzip compression
-- Heartbeat: 30-second intervals
+#### Security Requirements
+- PII redaction before sending to external tools
+- Secure API key management
+- Rate limiting for external API calls
+- Audit logging for sensitive operations
 
-### Audio Specifications
-- Format: 16-bit PCM
-- Sample Rate: 16kHz (configurable)
-- Channels: Mono
-- Chunk Size: 100ms buffers
+## Technical Implementation
 
-### API Integration
-- Endpoint: Gemini Live API WebSocket endpoint
-- Authentication: API key-based
-- Session Management: Connection-based sessions
-- Rate Limiting: Respect API limits
+### Architecture Components
 
-## Dependencies
-- Existing audio capture service (audio-recording.ts)
-- Current transcription infrastructure
-- WebSocket library (ws or native WebSocket API)
-- Electron IPC system
-- React UI components
+#### 1. Enhanced Question Detector
+- NLP-based intent classification using node-nlp
+- Training data for multiple intent categories
+- Confidence scoring and threshold management
+- Context-aware question detection
+
+#### 2. Audio Segmentation Pipeline
+- VAD integration with node-vad
+- Endpointer with configurable thresholds
+- Audio buffer management
+- Segment stability verification
+
+#### 3. Conversation State Machine
+- State enum definition and transition logic
+- Event-driven state management
+- Interruption handling capabilities
+- Context preservation mechanisms
+
+#### 4. Tool Orchestration System
+- Chain of responsibility pattern for tool handling
+- Mediator pattern for tool coordination
+- Strategy pattern for tool selection
+- Error handling and retry logic
+
+#### 5. Two-Stage Response Manager
+- Quick response generation templates
+- Progressive result streaming
+- Incremental update notifications
+- Response cancellation mechanisms
+
+#### 6. Interruptible TTS Manager
+- Streaming TTS service integration
+- VAD-based interruption detection
+- Audio queue management
+- Seamless transition handling
+
+#### 7. Enhanced Russian Processor
+- Russian-specific audio preprocessing
+- Grammar pattern correction
+- Mixed language detection
+- Cyrillic text processing
+
+#### 8. Error Handling Framework
+- Centralized error handling
+- Retry mechanisms with backoff
+- Fallback service integration
+- User-friendly message generation
+
+### Integration Points
+
+#### Existing Services
+- **TranscriptionService**: Enhanced with segmentation and Russian support
+- **QuestionDetector**: Replaced with advanced intent classification
+- **ConversationManager**: Extended with state machine integration
+- **AnswerDisplayManager**: Enhanced with two-stage responses
+- **ToolCallHandler**: Expanded with comprehensive error handling
+
+#### New Services
+- **AudioSegmenter**: New service for audio segmentation
+- **ConversationStateMachine**: New state management service
+- **ToolOrchestrator**: New tool coordination service
+- **InterruptibleTTSManager**: New TTS management service
+- **EnhancedRussianProcessor**: New Russian language service
+
+### Development Phases
+
+#### Phase 1: Foundation (Weeks 1-2)
+- Implement enhanced question detector
+- Set up audio segmentation pipeline
+- Create conversation state machine
+- Basic error handling framework
+
+#### Phase 2: Tool Integration (Weeks 3-4)
+- Implement Google Search tool integration
+- Develop tool orchestration system
+- Create two-stage response system
+- Add comprehensive error handling
+
+#### Phase 3: Advanced Features (Weeks 5-6)
+- Implement streaming TTS with interruption
+- Enhance Russian language support
+- Add performance optimizations
+- Comprehensive testing and debugging
+
+#### Phase 4: Production Readiness (Weeks 7-8)
+- Performance tuning and optimization
+- Security hardening
+- Monitoring and logging integration
+- Documentation and deployment guides
+
+## Testing Strategy
+
+### Unit Testing
+- Individual component testing with 90%+ coverage
+- Mock external dependencies
+- Test error conditions and edge cases
+- Performance benchmarking for critical paths
+
+### Integration Testing
+- End-to-end conversation flow testing
+- Tool integration testing with real APIs
+- Interruption handling scenarios
+- Multi-language conversation testing
+
+### Performance Testing
+- Latency testing under various loads
+- Memory usage profiling
+- Concurrent user simulation
+- Stress testing with edge cases
+
+### User Acceptance Testing
+- Real user conversations with feedback collection
+- Multi-language testing with native speakers
+- Accessibility testing for various user needs
+- A/B testing for response quality
+
+## Deployment and Monitoring
+
+### Deployment Strategy
+- Gradual rollout with feature flags
+- Blue-green deployment for zero downtime
+- Automated testing in staging environment
+- Rollback capabilities for quick recovery
+
+### Monitoring and Observability
+- Real-time performance metrics
+- Error rate tracking and alerting
+- User satisfaction scoring
+- API usage and cost tracking
+
+### Maintenance and Support
+- 24/7 monitoring with automated alerts
+- Regular performance reviews and optimizations
+- User feedback integration for improvements
+- Documentation updates and training materials
 
 ## Risks and Mitigation
-1. **WebSocket Connectivity**: Implement fallback to HTTP-based approach
-2. **Performance Impact**: Thorough performance testing and optimization
-3. **API Changes**: Monitor API documentation and implement version handling
-4. **Network Issues**: Robust reconnection and error handling
-5. **Browser Compatibility**: Test across different Electron versions
+
+### Technical Risks
+1. **API Rate Limits**: Implement caching and fallback mechanisms
+2. **Latency Issues**: Optimize with two-stage responses and caching
+3. **Accuracy Degradation**: Comprehensive testing and monitoring
+4. **Integration Complexity**: Phased development and thorough testing
+
+### Business Risks
+1. **User Adoption**: Gradual rollout with user feedback integration
+2. **Cost Overruns**: Careful monitoring of API usage and costs
+3. **Competitive Pressure**: Focus on unique features and quality
+4. **Scalability Challenges**: Design for horizontal scaling from start
 
 ## Success Criteria
-- Successful WebSocket connection to Gemini Live API
-- Real-time transcription functionality working
-- No degradation in existing features
-- Improved latency compared to batch approach
-- Robust error handling and recovery
-- Comprehensive test coverage
-- Updated documentation
 
-## References
-- [Gemini Live API Documentation](https://ai.google.dev/gemini-api/docs/live#javascript)
-- [Gemini Live API Reference](https://ai.google.dev/api/live)
-- Current implementation in src/services/
-- Existing audio capture system
+### Quantitative Metrics
+- Question detection accuracy: >95%
+- Response latency: <2 seconds average
+- Interruption response time: <200ms
+- Russian transcription accuracy improvement: >40%
+- System uptime: >99.5%
+- User satisfaction score: >4.5/5
+
+### Qualitative Metrics
+- Natural conversation flow
+- Reliable interruption handling
+- Accurate and relevant responses
+- Seamless multi-language support
+- Professional error recovery
+
+## Timeline and Milestones
+
+### Week 1-2: Foundation Development
+- Enhanced question detector implementation
+- Audio segmentation pipeline setup
+- Conversation state machine creation
+- Basic error handling framework
+
+### Week 3-4: Tool Integration
+- Google Search tool implementation
+- Tool orchestration system development
+- Two-stage response system creation
+- Comprehensive error handling
+
+### Week 5-6: Advanced Features
+- Streaming TTS with interruption handling
+- Enhanced Russian language support
+- Performance optimization
+- Comprehensive testing
+
+### Week 7-8: Production Readiness
+- Security hardening and optimization
+- Monitoring and logging integration
+- Documentation and deployment preparation
+- User acceptance testing and feedback integration
+
+This PRD provides a comprehensive roadmap for implementing advanced voice assistant improvements using the Gemini Live API, with clear requirements, technical specifications, and success criteria for each component.

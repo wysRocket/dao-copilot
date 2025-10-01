@@ -1,5 +1,7 @@
 /**
- * Configuration and Environment Setup for Gemini Live API WebSocket Integration
+ * Configuration and Environment Setup for Gemini Live API     fallbackToBatch: false, // Disable batch fallback for real-time streaming
+    realTimeThreshold: 200, // 200ms for immediate real-time response
+    connectionTimeout: 30000, // 30 secondsSocket Integration
  *
  * This module provides comprehensive configuration management for the WebSocket-based
  * Gemini Live API integration, including validation, environment setup, and legacy migration.
@@ -10,6 +12,7 @@ import {
   migrateLegacyEnvironment,
   isLegacyUsagePattern
 } from '../services/transcription-compatibility'
+import {readRuntimeEnv, readBooleanEnv, readNumericEnv} from '../utils/env'
 
 export interface GeminiWebSocketConfig {
   // Core Configuration
@@ -17,6 +20,11 @@ export interface GeminiWebSocketConfig {
   websocketEnabled: boolean
   transcriptionMode: TranscriptionMode
   websocketUrl: string
+
+  // v1beta Model Configuration
+  modelName: string
+  apiVersion: string
+  useV1Beta: boolean
 
   // Fallback and Reliability
   fallbackToBatch: boolean
@@ -49,9 +57,15 @@ export const DEFAULT_CONFIG: Partial<GeminiWebSocketConfig> = {
   websocketEnabled: true,
   transcriptionMode: TranscriptionMode.HYBRID,
   websocketUrl:
-    'wss://generativelanguage.googleapis.com/ws/v1beta/models/gemini-2.5-flash-preview-05-20:streamGenerateContent',
-  fallbackToBatch: true,
-  realTimeThreshold: 3000, // 3 seconds
+    'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
+
+  // v1beta Model Configuration (Using proper live transcription model)
+  modelName: 'gemini-live-2.5-flash-preview', // This is the correct model for live transcription
+  apiVersion: 'v1beta',
+  useV1Beta: true,
+
+  fallbackToBatch: false, // Disable batch fallback for real-time streaming
+  realTimeThreshold: 1000, // 1 second for faster real-time response
   connectionTimeout: 30000, // 30 seconds
   reconnectionEnabled: true,
   maxReconnectionAttempts: 5,
@@ -87,25 +101,36 @@ export function loadConfigFromEnvironment(): GeminiWebSocketConfig {
   const config: GeminiWebSocketConfig = {
     // Core Configuration
     apiKey: getApiKey(),
-    websocketEnabled: process.env.GEMINI_WEBSOCKET_ENABLED !== 'false',
-    transcriptionMode: parseTranscriptionMode(process.env.GEMINI_TRANSCRIPTION_MODE),
-    websocketUrl: process.env.GEMINI_WEBSOCKET_URL || DEFAULT_CONFIG.websocketUrl!,
+    websocketEnabled: readBooleanEnv('GEMINI_WEBSOCKET_ENABLED', true),
+    transcriptionMode: parseTranscriptionMode(readRuntimeEnv('GEMINI_TRANSCRIPTION_MODE')),
+    websocketUrl: readRuntimeEnv('GEMINI_WEBSOCKET_URL', {
+      defaultValue: DEFAULT_CONFIG.websocketUrl
+    })!,
+
+    // v1beta Model Configuration
+    modelName: readRuntimeEnv('GEMINI_MODEL_NAME', {
+      defaultValue: DEFAULT_CONFIG.modelName
+    })!,
+    apiVersion: readRuntimeEnv('GEMINI_API_VERSION', {
+      defaultValue: DEFAULT_CONFIG.apiVersion
+    })!,
+    useV1Beta: readBooleanEnv('GEMINI_USE_V1BETA', true),
 
     // Fallback and Reliability
-    fallbackToBatch: process.env.GEMINI_FALLBACK_TO_BATCH !== 'false',
-    realTimeThreshold: parseInt(process.env.GEMINI_REALTIME_THRESHOLD || '3000', 10),
-    connectionTimeout: parseInt(process.env.GEMINI_CONNECTION_TIMEOUT || '30000', 10),
+    fallbackToBatch: readBooleanEnv('GEMINI_FALLBACK_TO_BATCH', false),
+    realTimeThreshold: readNumericEnv('GEMINI_REALTIME_THRESHOLD', 200),
+    connectionTimeout: readNumericEnv('GEMINI_CONNECTION_TIMEOUT', 30000),
 
     // Reconnection Settings
-    reconnectionEnabled: process.env.GEMINI_RECONNECTION_ENABLED !== 'false',
-    maxReconnectionAttempts: parseInt(process.env.GEMINI_MAX_RECONNECTION_ATTEMPTS || '5', 10),
-    reconnectionDelay: parseInt(process.env.GEMINI_RECONNECTION_DELAY || '1000', 10),
+    reconnectionEnabled: readBooleanEnv('GEMINI_RECONNECTION_ENABLED', true),
+    maxReconnectionAttempts: readNumericEnv('GEMINI_MAX_RECONNECTION_ATTEMPTS', 5),
+    reconnectionDelay: readNumericEnv('GEMINI_RECONNECTION_DELAY', 1000),
 
     // Proxy Configuration
-    proxyUrl: process.env.PROXY_URL || DEFAULT_CONFIG.proxyUrl!,
-    proxyWebSocketEnabled: process.env.PROXY_WEBSOCKET_ENABLED !== 'false',
-    proxyFallbackEnabled: process.env.PROXY_FALLBACK_ENABLED !== 'false',
-    proxyAuthToken: process.env.PROXY_AUTH_TOKEN
+    proxyUrl: readRuntimeEnv('PROXY_URL', {defaultValue: DEFAULT_CONFIG.proxyUrl})!,
+    proxyWebSocketEnabled: readBooleanEnv('PROXY_WEBSOCKET_ENABLED', true),
+    proxyFallbackEnabled: readBooleanEnv('PROXY_FALLBACK_ENABLED', true),
+    proxyAuthToken: readRuntimeEnv('PROXY_AUTH_TOKEN')
   }
 
   return config
@@ -115,13 +140,12 @@ export function loadConfigFromEnvironment(): GeminiWebSocketConfig {
  * Get API key from various environment variable patterns
  */
 function getApiKey(): string {
-  return (
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    ''
-  )
+  const value = readRuntimeEnv('GEMINI_API_KEY', {
+    fallbackKeys: ['GOOGLE_API_KEY', 'VITE_GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY'],
+    allowEmpty: true
+  })
+
+  return value ?? ''
 }
 
 /**
@@ -181,8 +205,10 @@ export function validateConfig(config: GeminiWebSocketConfig): ConfigValidationR
     warnings.push('Connection timeout is very low. Consider using at least 5 seconds.')
   }
 
-  if (config.realTimeThreshold < 1000) {
-    warnings.push('Real-time threshold is very low. This may cause excessive WebSocket usage.')
+  if (config.realTimeThreshold < 100) {
+    warnings.push(
+      'Real-time threshold is very low (under 100ms). This provides immediate updates but may increase processing load.'
+    )
   }
 
   // Validate Reconnection Settings
@@ -206,6 +232,41 @@ export function validateConfig(config: GeminiWebSocketConfig): ConfigValidationR
     } catch {
       errors.push('Invalid proxy URL format.')
     }
+  }
+
+  // Validate v1beta Model Configuration
+  if (config.useV1Beta) {
+    if (config.apiVersion !== 'v1beta') {
+      warnings.push(
+        'useV1Beta is enabled but apiVersion is not set to v1beta. This may cause compatibility issues.'
+      )
+    }
+
+    if (config.modelName && !config.modelName.includes('live-2.5-flash-preview')) {
+      recommendations.push(
+        'Consider using "gemini-live-2.5-flash-preview" for optimal v1beta performance.'
+      )
+    }
+
+    if (config.websocketUrl && !config.websocketUrl.includes('v1beta')) {
+      warnings.push('WebSocket URL should use v1beta endpoint when useV1Beta is enabled.')
+    }
+  } else {
+    if (config.apiVersion === 'v1beta') {
+      recommendations.push('Consider enabling useV1Beta for enhanced features with v1beta API.')
+    }
+  }
+
+  // Check for legacy model names
+  const legacyModels = [
+    'gemini-live-2.5-flash-preview',
+    'gemini-live-experimental',
+    'gemini-pro-vision'
+  ]
+  if (legacyModels.includes(config.modelName)) {
+    recommendations.push(
+      `Model "${config.modelName}" is legacy. Consider upgrading to "gemini-live-2.5-flash-preview" for v1beta compatibility.`
+    )
   }
 
   // Provide Recommendations
@@ -290,6 +351,8 @@ export function getConfigSummary(config: GeminiWebSocketConfig): string {
 Gemini Live API Configuration Summary:
 =====================================
 ✓ API Key: ${config.apiKey ? '***' + config.apiKey.slice(-4) : 'NOT SET'}
+✓ Model Name: ${config.modelName}
+✓ API Version: ${config.apiVersion} ${config.useV1Beta ? '(v1beta optimized)' : ''}
 ✓ WebSocket Enabled: ${config.websocketEnabled}
 ✓ Transcription Mode: ${config.transcriptionMode}
 ✓ WebSocket URL: ${config.websocketUrl}
@@ -306,6 +369,32 @@ Gemini Live API Configuration Summary:
 `.trim()
 }
 
+/**
+ * Generate optimized v1beta configuration
+ */
+export function createOptimizedV1BetaConfig(
+  baseConfig?: Partial<GeminiWebSocketConfig>
+): GeminiWebSocketConfig {
+  const optimizedConfig: GeminiWebSocketConfig = {
+    ...DEFAULT_CONFIG,
+    ...baseConfig,
+    // Force v1beta optimizations
+    modelName: 'gemini-live-2.5-flash-preview',
+    apiVersion: 'v1beta',
+    useV1Beta: true,
+    websocketUrl:
+      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
+    // Optimize settings for v1beta
+    transcriptionMode: TranscriptionMode.HYBRID,
+    fallbackToBatch: true,
+    reconnectionEnabled: true,
+    maxReconnectionAttempts: 3, // Reduced for v1beta reliability
+    connectionTimeout: 15000 // Optimized for v1beta response times
+  } as GeminiWebSocketConfig
+
+  return optimizedConfig
+}
+
 // Export default configuration instance
 export default {
   load: loadConfigFromEnvironment,
@@ -313,5 +402,6 @@ export default {
   getValidated: getValidatedConfig,
   setupDev: setupDevelopmentEnvironment,
   summary: getConfigSummary,
+  createV1Beta: createOptimizedV1BetaConfig,
   defaults: DEFAULT_CONFIG
 }

@@ -1,22 +1,76 @@
 # Task ID: 9
-# Title: Implement Fallback Mechanism
-# Status: pending
-# Dependencies: 3, 6
-# Priority: medium
-# Description: Develop a fallback system to revert to the HTTP-based approach when WebSocket streaming fails.
+# Title: Implement Glass Overlay Effects
+# Status: done
+# Dependencies: 1, 2, 3, 4, 5, 6, 7, 8
+# Priority: low
+# Description: Create and apply glass overlay effects to enhance the overall UI aesthetics.
 # Details:
-1. Create a FallbackService class to manage the transition between WebSocket and HTTP approaches.
-2. Implement logic to detect WebSocket failures and trigger fallback.
-3. Adapt existing HTTP-based transcription code to work alongside WebSocket implementation.
-4. Use the Adapter pattern to create a common interface for both WebSocket and HTTP approaches.
-5. Implement feature flags (use unleash-client-node version 3.x) to control fallback behavior.
-6. Ensure seamless user experience during fallback transitions.
-7. Implement logging and analytics to track fallback occurrences.
-8. Use TypeScript discriminated unions for type-safe handling of different operation modes.
+1. Create a new GlassOverlay component using @rdev/liquid-glass-react
+2. Implement subtle background patterns or gradients
+3. Apply the overlay to the main application container
+4. Ensure the overlay doesn't interfere with user interactions
+5. Optimize the overlay for performance
+6. Implement a toggle for enabling/disabling the overlay (optional)
+7. Ensure the overlay is consistent across all windows in the Electron app
 
 # Test Strategy:
-1. Unit test FallbackService class methods.
-2. Integration test fallback mechanism with simulated WebSocket failures.
-3. Test seamless transition between WebSocket and HTTP modes.
-4. Verify correct functionality in fallback mode.
-5. User acceptance testing for uninterrupted experience during fallbacks.
+1. Verify that the glass overlay renders correctly
+2. Test that the overlay doesn't impact user interactions
+3. Check performance impact of the overlay
+4. Ensure the overlay is consistent across different screen sizes and resolutions
+5. Validate that the overlay maintains its appearance across different operating systems
+
+# Subtasks:
+## 1. Create Base GlassOverlay Component [done]
+### Dependencies: None
+### Description: Develop a reusable GlassOverlay component using @rdev/liquid-glass-react that will serve as the foundation for all glass effects in the application.
+### Details:
+1. Install @rdev/liquid-glass-react package
+2. Create a new component in src/components/ui/GlassOverlay.tsx
+3. Implement configurable props for blur intensity, opacity, and border radius
+4. Add support for custom background patterns/gradients as props
+5. Ensure the component properly handles children elements
+6. Create basic documentation for the component usage
+
+## 2. Implement Background Effects and Patterns [done]
+### Dependencies: None
+### Description: Create subtle background patterns and gradient effects that will enhance the glass overlay aesthetics and provide visual depth.
+### Details:
+1. Design 3-5 subtle background patterns (dots, lines, or noise textures)
+2. Create a gradient generator utility that produces dynamic gradients based on the application theme
+3. Implement a BackgroundEffect component that can be composed with the GlassOverlay
+4. Add animation options for subtle movement in the background patterns
+5. Ensure all effects are optimized for performance
+
+## 3. Create Depth Layers System for Visual Hierarchy [done]
+### Dependencies: None
+### Description: Implement a system of depth layers that uses the glass overlay with varying levels of transparency and blur to create visual hierarchy in the UI.
+### Details:
+1. Define 3-4 standard depth layers (foreground, mid-ground, background)
+2. Create a DepthLayer component that extends GlassOverlay with preset configurations for each layer
+3. Implement z-index management for proper stacking
+4. Add subtle shadow effects to enhance depth perception
+5. Create helper hooks or context for managing depth layers consistently across the application
+
+## 4. Integrate Glass Effects with Existing UI and Add Toggle Control [done]
+### Dependencies: None
+### Description: Apply the glass overlay components to the main application container and ensure proper integration with existing glassmorphism components. Implement a toggle control for enabling/disabling effects.
+### Details:
+1. Identify all application areas where glass effects should be applied
+2. Refactor existing glassmorphism components to use the new GlassOverlay
+3. Implement a global settings toggle for enabling/disabling glass effects
+4. Add an effects intensity slider in the settings
+5. Create a performance monitoring utility to ensure glass effects don't impact application responsiveness
+6. Ensure consistent appearance across all windows in the Electron app
+7. Add fallback styles for when glass effects are disabled
+
+## 5. Debug Assistant Window Glass Effects [in-progress]
+### Dependencies: None
+### Description: Investigate and fix why glass effects are not appearing in the Assistant window
+### Details:
+1. Add debugging to AssistantWindowLayout to check glass config state
+2. Increase opacity of background effects for better visibility
+3. Add fallback gradient background when glass effects are enabled
+4. Add visual indicator showing glass effects status
+5. Test glass effects settings synchronization between windows
+

@@ -1,0 +1,66 @@
+# Task ID: 2
+# Title: Implement WebSocket-First Transcription Routing
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Implement WebSocket-first routing system to ensure WebSocket transcriptions bypass static display and route directly to streaming renderer.
+# Details:
+## Problem Analysis
+WebSocket transcriptions are being treated the same as batch transcriptions and added to static transcript blocks instead of triggering live streaming animations.
+
+## Implementation Steps
+1. **Create WebSocket Detection System**:
+   - Identify transcriptions with source: 'websocket-gemini'
+   - Create isWebSocketTranscription() utility function
+   - Add metadata tracking for transcription sources
+
+2. **Implement Routing Logic**:
+   - Create WebSocketTranscriptionRouter class
+   - Route WebSocket transcriptions to StreamingTextContext
+   - Route non-WebSocket transcriptions to static display
+   - Implement fallback handling for failed WebSocket streams
+
+3. **Update HomePage Integration**:
+   - Modify HomePage to detect WebSocket transcriptions
+   - Trigger streaming renderer for WebSocket sources
+   - Prevent WebSocket transcriptions from appearing in static list until streaming completes
+
+4. **Event Flow Optimization**:
+   - Create transcription-source-detected event
+   - Implement websocket-transcription-received event
+   - Add streaming-animation-requested event
+
+## Files to Modify
+- Create `/src/services/WebSocketTranscriptionRouter.ts` - New routing service
+- `/src/pages/HomePage.tsx` - Update WebSocket detection logic
+- `/src/contexts/StreamingTextContext.tsx` - Add WebSocket handling
+- `/src/hooks/useSharedState.ts` - Add source-aware transcription handling
+
+## Success Criteria
+- WebSocket transcriptions automatically trigger streaming animations
+- No manual intervention required for routing
+- Clear separation between streaming and static transcription flows
+- Robust fallback handling for edge cases
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Create WebSocket Detection Utility [done]
+### Dependencies: None
+### Description: Create WebSocket transcription detection utility to identify websocket-gemini source transcriptions
+### Details:
+Build utility functions to reliably detect when a transcription comes from WebSocket sources and should be routed to streaming renderer.
+
+## 2. Build WebSocketTranscriptionRouter [done]
+### Dependencies: None
+### Description: Build WebSocketTranscriptionRouter to automatically route WebSocket transcriptions to streaming renderer
+### Details:
+Create routing service that intercepts WebSocket transcriptions and directs them to the streaming text system instead of static display.
+
+## 3. Update HomePage WebSocket Integration [done]
+### Dependencies: None
+### Description: Update HomePage to integrate with WebSocket routing and trigger streaming renderer
+### Details:
+Modify HomePage component to use the new routing system and properly trigger streaming animations for WebSocket transcriptions.
+

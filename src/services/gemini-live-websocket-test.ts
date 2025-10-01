@@ -3,13 +3,18 @@
  * This file demonstrates how to use the WebSocket client
  */
 
-import GeminiLiveWebSocketClient, {RealtimeInput} from './gemini-live-websocket'
+import GeminiLiveWebSocketClient, {RealtimeInput, ResponseModality} from './gemini-live-websocket'
+import {readRuntimeEnv} from '../utils/env'
+
+const resolvedApiKey = readRuntimeEnv('GOOGLE_API_KEY', {
+  fallbackKeys: ['GEMINI_API_KEY']
+})
 
 // Test configuration
 const config = {
-  apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '',
-  model: 'gemini-2.0-flash-live-001',
-  responseModalities: ['AUDIO'],
+  apiKey: resolvedApiKey ?? '',
+  model: 'gemini-live-2.5-flash-preview',
+  responseModalities: [ResponseModality.AUDIO],
   systemInstruction: 'You are a helpful assistant for transcription tasks.',
   reconnectAttempts: 3,
   heartbeatInterval: 30000,

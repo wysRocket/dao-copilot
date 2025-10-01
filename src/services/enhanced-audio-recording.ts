@@ -6,26 +6,26 @@
  */
 
 import {Subject, Subscription, interval, BehaviorSubject} from 'rxjs'
-import {buffer, takeUntil} from 'rxjs/operators'
-import {audio_stream} from './audio_capture'
+import {takeUntil} from 'rxjs/operators'
+import {getAudioCapture, type AudioChunkData} from './audio-capture-factory'
 import {
   RealTimeAudioStreamingService,
-  createRealTimeAudioStreaming,
-  type StreamingMetrics
+  createRealTimeAudioStreaming
 } from './real-time-audio-streaming'
 import {GeminiLiveIntegrationService} from './gemini-live-integration'
-import type {TranscriptionResult} from './audio-recording'
-
-// Re-export existing types for compatibility
-export {
-  TranscriptionResult,
-  RecordingState,
+import {sanitizeLogMessage} from './log-sanitizer'
+import type {TranscriptionResult, RecordingState} from './audio-recording'
+import {
   INTERVAL_SECONDS,
   TARGET_SAMPLE_RATE,
   DEVICE_SAMPLE_RATE,
   resampleAudio,
   renderAudioToWav
 } from './audio-recording'
+
+// Re-export existing types for compatibility
+export type {TranscriptionResult, RecordingState}
+export {INTERVAL_SECONDS, TARGET_SAMPLE_RATE, DEVICE_SAMPLE_RATE, resampleAudio, renderAudioToWav}
 
 // Enhanced recording modes
 export enum RecordingMode {
@@ -179,8 +179,8 @@ export class EnhancedAudioRecordingService {
   /**
    * Initialize the enhanced recording service
    */
-  async initialize(integrationService?: GeminiLiveIntegrationService): Promise<void> {
-    this.integrationService = integrationService
+  async initialize(integrationService?: GeminiLiveIntegrationService | null): Promise<void> {
+    this.integrationService = integrationService || null
 
     // Initialize real-time streaming if enabled
     if (this.config.enableRealTimeStreaming) {
@@ -330,9 +330,10 @@ export class EnhancedAudioRecordingService {
       }
     } catch (error) {
       console.error('Failed to start recording:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       this.updateState({
         isRecording: false,
-        status: `Recording error: ${error.message}`
+        status: `Recording error: ${errorMessage}`
       })
       this.cleanup()
     }
@@ -369,22 +370,33 @@ export class EnhancedAudioRecordingService {
     const stopSubject = new Subject<void>()
     this.stopSubject = stopSubject
 
-    // Create an interval observable that emits every intervalSeconds
-    const intervalObservable = interval((this.config.intervalSeconds || 10) * 1000)
+    try {
+      // Get the audio capture service based on current process
+      const audioCapture = await getAudioCapture({
+        sampleRate: 44100,
+        channels: 1,
+        bufferSize: this.config.bufferSize || 4096,
+        intervalSeconds: this.config.intervalSeconds || 10
+      })
 
-    // Start the audio stream
-    const audioObservable = audio_stream()
+      // Set up audio chunk handler
+      const audioChunks: AudioChunkData[] = []
+      audioCapture.on('audioChunk', (chunkData: AudioChunkData) => {
+        audioChunks.push(chunkData)
+      })
 
-    // Subscribe to the audio stream and process chunks at intervals
-    this.recordingSubscription = audioObservable
-      .pipe(buffer(intervalObservable), takeUntil(stopSubject))
-      .subscribe({
-        next: async chunks => {
-          console.log(`Received ${chunks.length} audio chunks for processing`)
-          await this.processAudioChunk(chunks, onTranscription)
+      // Set up interval processing
+      const intervalObservable = interval((this.config.intervalSeconds || 10) * 1000)
+
+      this.recordingSubscription = intervalObservable.pipe(takeUntil(stopSubject)).subscribe({
+        next: async () => {
+          if (audioChunks.length > 0) {
+            console.log(`Processing ${audioChunks.length} audio chunks for interval transcription`)
+            await this.processAudioChunks(audioChunks.splice(0), onTranscription)
+          }
         },
         error: err => {
-          console.error('Recording error:', err)
+          console.error('Interval recording error:', err)
           this.updateState({
             status: `Recording error: ${err.message}`,
             isRecording: false
@@ -392,13 +404,21 @@ export class EnhancedAudioRecordingService {
           this.cleanup()
         },
         complete: () => {
-          console.log('Recording stream completed')
+          console.log('Interval recording completed')
+          audioCapture.destroy()
           this.updateState({
             isRecording: false,
             status: 'Ready to record'
           })
         }
       })
+
+      // Start the audio capture
+      await audioCapture.startCapture()
+    } catch (error) {
+      console.error('Failed to start interval recording:', error)
+      throw error
+    }
   }
 
   /**
@@ -423,10 +443,10 @@ export class EnhancedAudioRecordingService {
   }
 
   /**
-   * Process audio chunk (legacy method for interval recording)
+   * Process audio chunks from the new audio capture system
    */
-  private async processAudioChunk(
-    chunks: number[][],
+  private async processAudioChunks(
+    chunks: AudioChunkData[],
     onTranscription?: (result: TranscriptionResult) => void
   ): Promise<TranscriptionResult | null> {
     try {
@@ -440,36 +460,70 @@ export class EnhancedAudioRecordingService {
         return null
       }
 
-      // Combine all chunks into a single array
-      const combinedAudio = chunks.flat()
+      // Combine all audio buffers from chunks
+      const combinedAudio = chunks.reduce((acc, chunk) => {
+        acc.push(...chunk.buffer)
+        return acc
+      }, [] as number[])
+
       if (combinedAudio.length === 0) {
         console.log('Combined audio is empty')
         return null
       }
 
-      console.log(`Processing ${combinedAudio.length} audio samples`)
+      console.log(
+        `Processing ${sanitizeLogMessage(combinedAudio.length.toString())} audio samples from ${sanitizeLogMessage(chunks.length.toString())} chunks`
+      )
 
       // Convert to Float32Array for processing
       const audioData = new Float32Array(combinedAudio)
 
-      // Resample from device sample rate to target sample rate
-      const {resampleAudio, DEVICE_SAMPLE_RATE, TARGET_SAMPLE_RATE, renderAudioToWav} =
-        await import('./audio-recording')
-      const resampledAudio = resampleAudio(audioData, DEVICE_SAMPLE_RATE, TARGET_SAMPLE_RATE)
+      // Use the sample rate from the first chunk, or default to 44100
+      const sourceSampleRate = chunks[0]?.sampleRate || 44100
+      const targetSampleRate = 16000 // Standard for speech recognition
 
-      console.log(`Resampled audio from ${audioData.length} to ${resampledAudio.length} samples`)
+      // Resample if needed
+      let processedAudio: Float32Array = audioData
+      if (sourceSampleRate !== targetSampleRate) {
+        const {resampleAudio} = await import('./audio-recording')
+        processedAudio = resampleAudio(
+          audioData,
+          sourceSampleRate,
+          targetSampleRate
+        ) as Float32Array
+        console.log(
+          `Resampled audio from ${sanitizeLogMessage(audioData.length.toString())} to ${sanitizeLogMessage(processedAudio.length.toString())} samples`
+        )
+      }
 
       // Convert to WAV format
-      const wavData = await renderAudioToWav(resampledAudio)
-      console.log(`Generated WAV file: ${wavData.length} bytes`)
+      const {renderAudioToWav} = await import('./audio-recording')
+      const wavData = await renderAudioToWav(processedAudio)
+      console.log(`Generated WAV file: ${sanitizeLogMessage(wavData.length.toString())} bytes`)
 
       // Send for transcription via IPC
       if (window.transcriptionAPI?.transcribeAudio) {
         const result = await window.transcriptionAPI.transcribeAudio(wavData)
-        console.log('Transcription result:', result)
 
-        if (onTranscription && result.text.trim()) {
+        if (onTranscription && result?.text?.trim()) {
+          console.log('🎤 EnhancedAudioRecording: ✅ CALLING onTranscription callback with result')
           onTranscription(result)
+          console.log(
+            '🎤 EnhancedAudioRecording: ✅ onTranscription callback completed successfully'
+          )
+        } else {
+          console.error(
+            '🎤 EnhancedAudioRecording: ❌ SKIPPING onTranscription callback because:',
+            {
+              hasCallback: !!onTranscription,
+              hasResult: !!result,
+              hasText: !!result?.text,
+              textValue: result?.text,
+              textTrimmed: result?.text?.trim(),
+              textTrimmedTruthy: !!result?.text?.trim(),
+              conditionResult: !!(onTranscription && result?.text?.trim())
+            }
+          )
         }
 
         return result
@@ -478,7 +532,7 @@ export class EnhancedAudioRecordingService {
         return null
       }
     } catch (error) {
-      console.error('Error processing audio chunk:', error)
+      console.error('Error processing audio chunks:', error)
       this.updateState({status: 'Error processing audio'})
       return null
     } finally {

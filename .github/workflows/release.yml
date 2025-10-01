@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      has-changed: ${{ steps.version.outputs.changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check version change
+        id: version
+        run: |
+          CURRENT_VERSION=$(node -pe "require('./package.json').version")
+          git show HEAD~1:package.json > prev-package.json || echo '{}' > prev-package.json
+          PREV_VERSION=$(node -pe "require('./prev-package.json').version || '0.0.0'")
+
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          if [ "$CURRENT_VERSION" != "$PREV_VERSION" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Version changed from $PREV_VERSION to $CURRENT_VERSION"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "Version unchanged: $CURRENT_VERSION"
+          fi
+
+  create-tag:
+    needs: check-version
+    runs-on: ubuntu-latest
+    if: needs.check-version.outputs.has-changed == 'true' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create and push tag
+        run: |
+          VERSION="v${{ needs.check-version.outputs.version }}"
+          git tag $VERSION
+          git push origin $VERSION
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-release:
+    needs: [check-version, create-tag]
+    uses: ./.github/workflows/build.yml
+    if: needs.check-version.outputs.has-changed == 'true' || github.event_name == 'workflow_dispatch'
+    secrets: inherit

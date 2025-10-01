@@ -1,45 +1,48 @@
 import React from 'react'
-import TranscriptDisplay from '../components/TranscriptDisplay'
-import {TranscriptionResult} from '../services/main-stt-transcription'
-
-// Sample transcript data for demonstration
-const sampleTranscripts: TranscriptionResult[] = [
-  {
-    text: 'Hello, this is a test of the glass transcript display component.',
-    startTime: 0.0,
-    endTime: 3.2,
-    confidence: 0.95,
-    timestamp: Date.now() - 10000
-  },
-  {
-    text: 'The glassmorphism effects create a beautiful, modern interface that adapts to the current theme.',
-    startTime: 3.5,
-    endTime: 8.1,
-    confidence: 0.87,
-    timestamp: Date.now() - 5000
-  },
-  {
-    text: 'Each message bubble has subtle glass effects with smooth animations.',
-    startTime: 8.5,
-    endTime: 11.8,
-    confidence: 0.92,
-    timestamp: Date.now() - 2000
-  }
-]
+import {Link} from '@tanstack/react-router'
+import TranscriptionEventTest from '../components/TranscriptionEventTest'
+import {isDevelopmentEnvironment} from '../utils/env'
 
 export default function HomePage() {
   return (
     <div className="flex h-full flex-col">
-      <div className="flex w-full flex-1 flex-col items-center justify-center p-8">
-        {/* Enhanced Transcript Display Demo */}
-        <div className="flex w-full justify-center">
-          <TranscriptDisplay
-            transcripts={sampleTranscripts}
-            isProcessing={false}
-            autoScroll={true}
-            showScrollToBottom={true}
-          />
+      <div className="flex w-full flex-1 flex-col p-8">
+        {/* Main window content - no transcription display */}
+        <div className="mb-8 flex flex-1 items-center justify-center">
+          <div
+            className="rounded-lg border-2 border-dashed p-8 text-center"
+            style={{
+              borderColor: 'var(--glass-border)',
+              color: 'var(--text-muted)',
+              backgroundColor: 'var(--glass-light)'
+            }}
+          >
+            <div className="mb-4 text-6xl opacity-60">🎙️</div>
+            <div className="mb-2 text-xl font-medium" style={{color: 'var(--text-primary)'}}>
+              DAO Copilot
+            </div>
+            <div className="mb-4 text-sm">Voice transcription and AI assistance ready</div>
+            <div className="mb-4 text-xs">Transcriptions will appear in the assistant window</div>
+
+            {/* Zero-latency transcription test link */}
+            <div className="mt-6">
+              <Link
+                to="/zero-latency-test"
+                className="inline-block rounded-lg bg-green-600 px-6 py-3 font-medium text-white transition-colors hover:bg-green-700"
+              >
+                🚀 Test Zero-Latency Transcription
+              </Link>
+              <div className="mt-2 text-xs text-gray-500">Fix for 20+ second delay issue</div>
+            </div>
+          </div>
         </div>
+
+        {/* Transcription Event Test Component for debugging (only in development) */}
+        {isDevelopmentEnvironment() && (
+          <div className="mt-4">
+            <TranscriptionEventTest />
+          </div>
+        )}
       </div>
     </div>
   )

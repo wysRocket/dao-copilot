@@ -1,0 +1,52 @@
+# Task ID: 17
+# Title: Implement Persistence Layer with WAL
+# Status: cancelled
+# Dependencies: 16
+# Priority: high
+# Description: Create an append-only in-memory ring buffer with Write-Ahead Log (WAL) for transcript persistence that ensures durability across crashes and interruptions.
+# Details:
+Implement a persistence layer with the following components:
+1. Create an in-memory ring buffer with configurable size
+2. Implement WAL (Write-Ahead Log) with binary compact encoding
+3. Set up persistence triggers: every N partials, every 250ms, finalization, session stop, app close, tab visibility change
+4. Implement crash recovery logic to read WAL and replay incomplete sessions
+5. Add marking system for uncertain segments that need retry
+6. Implement buffer rotation after size limit (10MB) or time limit (15 min)
+7. Ensure privacy by clearing ephemeral buffer on session deletion
+
+Code structure:
+```typescript
+interface WALEntry {
+  timestamp: number;
+  operation: 'append' | 'update' | 'finalize' | 'delete';
+  data: Uint8Array; // Serialized transcript data
+  checksum: string;
+}
+
+class PersistenceManager {
+  private ringBuffer: TranscriptSegment[];
+  private wal: WALEntry[];
+  private flushDebounceTimer: number;
+  
+  constructor(options: {
+    bufferSize: number;
+    walPath: string;
+    flushIntervalMs: number;
+    partialThreshold: number;
+  }) {...}
+  
+  append(segment: TranscriptSegment): void {...}
+  flush(): Promise<void> {...}
+  recover(): Promise<RecoveryResult> {...}
+  clearOnDelete(sessionId: string): Promise<void> {...}
+}
+```
+
+# Test Strategy:
+1. Unit tests for ring buffer operations and WAL writing
+2. Test flush triggers under various conditions
+3. Crash recovery tests with corrupted/partial WAL files
+4. Performance benchmarks for WAL size and write latency
+5. Integration tests simulating app crashes at critical points
+6. Verify buffer clearing on session deletion
+7. Test rotation of WAL files after size/time limits

@@ -1,40 +1,222 @@
-import React, {useEffect, useRef, useState} from 'react'
+import React, {useEffect, useRef, useState, useMemo} from 'react'
 import {TranscriptionResult} from '../services/main-stt-transcription'
 import GlassBox from './GlassBox'
 import VirtualizedTranscript from './VirtualizedTranscript'
+import UnifiedLiveStreamingDisplay from './UnifiedLiveStreamingDisplay'
+import {TextStreamBuffer} from '../services/TextStreamBuffer'
+import {useAutoScroll} from '../hooks/useAutoScroll'
+import {NewContentIndicator, ScrollControls} from './AutoScrollComponents'
+import {useAccessibility} from '../hooks/useAccessibility'
 import {cn} from '../utils/tailwind'
+import {processTranscripts, generateTranscriptId} from '../utils/transcript-deduplication'
 
 interface TranscriptDisplayProps {
   transcripts: TranscriptionResult[]
   isProcessing?: boolean
+  // Auto-scroll configuration
+  autoScrollConfig?: {
+    enabled?: boolean
+    showControls?: boolean
+    showNewContentIndicator?: boolean
+    bottomThreshold?: number
+    smooth?: boolean
+  }
+  // Legacy props for backward compatibility
   autoScroll?: boolean
   showScrollToBottom?: boolean
+  // New streaming props
+  enableStreaming?: boolean
+  streamingText?: string
+  isStreamingPartial?: boolean
+  isStreamingActive?: boolean
+  streamingMode?: 'character' | 'word' | 'instant'
+  onStreamingComplete?: () => void
+  // Accessibility props
+  accessibilityConfig?: {
+    enabled?: boolean
+    announceChanges?: boolean
+    verboseStatus?: boolean
+    enableKeyboardControls?: boolean
+    announcementPriority?: 'low' | 'medium' | 'high'
+  }
+  // Callbacks
+  onScrollStateChange?: (state: {
+    isAutoScrolling: boolean
+    hasNewContent: boolean
+    scrollPercentage: number
+  }) => void
 }
 
 const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
   transcripts,
   isProcessing = false,
+  autoScrollConfig = {},
+  // Legacy props (for backward compatibility)
   autoScroll = true,
-  showScrollToBottom = true
+  showScrollToBottom = true,
+  enableStreaming = false,
+  streamingText = '',
+  isStreamingPartial = false,
+  isStreamingActive = false,
+  streamingMode = 'character',
+  onStreamingComplete,
+  // Accessibility configuration
+  accessibilityConfig = {},
+  onScrollStateChange
 }) => {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [showScrollButton, setShowScrollButton] = useState(false)
+  // Process transcripts to ensure no duplicates reach the rendering layer
+  const processedTranscripts = useMemo(() => {
+    if (!Array.isArray(transcripts) || transcripts.length === 0) {
+      return []
+    }
+
+    console.log('🔍 TranscriptDisplay: Processing transcripts for duplicates:', {
+      originalCount: transcripts.length,
+      sampleTranscripts: transcripts.slice(-3).map(t => ({
+        text: t.text?.slice(0, 30) + '...',
+        confidence: t.confidence
+      }))
+    })
+
+    // Convert to compatible format and ensure all have IDs
+    const transcriptsWithIds = transcripts.map((transcript, index) => {
+      const compatibleTranscript = {
+        ...transcript,
+        timestamp: Date.now() + index, // Ensure unique timestamps for ordering
+        id: generateTranscriptId({
+          text: transcript.text,
+          timestamp: Date.now() + index,
+          confidence: transcript.confidence,
+          source: transcript.source
+        })
+      }
+      return compatibleTranscript
+    })
+
+    // Apply duplicate detection
+    const deduplicated = processTranscripts(transcriptsWithIds, {
+      checkIds: true,
+      checkContentAndTimestamp: true,
+      checkFuzzyContent: false, // Disabled for performance in UI
+      fuzzyThreshold: 0.95,
+      timeWindow: 2000 // Shorter window for UI responsiveness
+    })
+
+    const duplicatesRemoved = transcripts.length - deduplicated.length
+    if (duplicatesRemoved > 0) {
+      console.log('🚫 TranscriptDisplay: Removed duplicates before rendering:', {
+        originalCount: transcripts.length,
+        finalCount: deduplicated.length,
+        duplicatesRemoved
+      })
+    }
+
+    // Convert back to the expected format for VirtualizedTranscript
+    const convertedForRendering = deduplicated.map(transcript => ({
+      text: transcript.text,
+      duration: transcript.duration || 0, // Ensure duration is always a number
+      confidence: transcript.confidence,
+      source: transcript.source
+    }))
+
+    return convertedForRendering
+  }, [transcripts])
+
+  // Accessibility configuration with defaults
+  const mergedAccessibilityConfig = {
+    enabled: accessibilityConfig.enabled ?? true,
+    announceChanges: accessibilityConfig.announceChanges ?? true,
+    verboseStatus: accessibilityConfig.verboseStatus ?? false,
+    enableKeyboardControls: accessibilityConfig.enableKeyboardControls ?? true,
+    announcementPriority: accessibilityConfig.announcementPriority ?? 'medium',
+    ...accessibilityConfig
+  }
+
+  // Accessibility hook
+  const accessibility = useAccessibility({
+    autoDetect: true,
+    enableKeyboardHandling: mergedAccessibilityConfig.enableKeyboardControls,
+    enableFocusManagement: true
+  })
+  // Legacy to new config mapping
+  const mergedAutoScrollConfig = {
+    enabled: autoScrollConfig.enabled ?? autoScroll,
+    showControls: autoScrollConfig.showControls ?? showScrollToBottom,
+    showNewContentIndicator: autoScrollConfig.showNewContentIndicator ?? true,
+    bottomThreshold: autoScrollConfig.bottomThreshold ?? 50,
+    smooth: autoScrollConfig.smooth ?? true,
+    ...autoScrollConfig
+  }
+
+  // Auto-scroll hook
+  const {
+    state: autoScrollState,
+    controls: autoScrollControls,
+    containerRef,
+    onNewContent
+  } = useAutoScroll(mergedAutoScrollConfig)
+
+  // Legacy scroll ref for compatibility
+  const scrollRef = containerRef
   const [newMessageIndices, setNewMessageIndices] = useState<Set<number>>(new Set())
   const prevTranscriptCount = useRef(transcripts.length)
+  const streamBufferRef = useRef<TextStreamBuffer | null>(null)
 
-  // Handle auto-scroll and new message detection
+  // Notify parent of scroll state changes
   useEffect(() => {
-    if (transcripts.length > prevTranscriptCount.current) {
+    if (onScrollStateChange) {
+      onScrollStateChange({
+        isAutoScrolling: autoScrollState.isAutoScrolling,
+        hasNewContent: autoScrollState.hasNewContent,
+        scrollPercentage: autoScrollState.scrollPercentage
+      })
+    }
+  }, [
+    autoScrollState.isAutoScrolling,
+    autoScrollState.hasNewContent,
+    autoScrollState.scrollPercentage,
+    onScrollStateChange
+  ])
+
+  // Initialize streaming buffer
+  useEffect(() => {
+    if (enableStreaming && !streamBufferRef.current) {
+      streamBufferRef.current = new TextStreamBuffer({
+        debounceDelay: 100,
+        autoFlush: true,
+        enableCorrectionDetection: true
+      })
+    }
+
+    return () => {
+      if (streamBufferRef.current) {
+        streamBufferRef.current.destroy()
+        streamBufferRef.current = null
+      }
+    }
+  }, [enableStreaming])
+
+  // Handle new messages and trigger auto-scroll
+  useEffect(() => {
+    if (processedTranscripts.length > prevTranscriptCount.current) {
       // Mark new messages for animation
       const newIndices = new Set<number>()
-      for (let i = prevTranscriptCount.current; i < transcripts.length; i++) {
+      for (let i = prevTranscriptCount.current; i < processedTranscripts.length; i++) {
         newIndices.add(i)
       }
       setNewMessageIndices(newIndices)
 
-      // Auto-scroll to bottom if enabled
-      if (autoScroll && scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      // Trigger new content notification for auto-scroll
+      onNewContent()
+
+      // Announce new transcripts to screen readers
+      if (mergedAccessibilityConfig.announceChanges) {
+        const newTranscriptCount = processedTranscripts.length - prevTranscriptCount.current
+        const announcement =
+          newTranscriptCount === 1
+            ? 'New transcript added'
+            : `${newTranscriptCount} new transcripts added`
+        accessibility.announce(announcement, 'low')
       }
 
       // Clear animation flags after animation completes
@@ -43,38 +225,21 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
       }, 500)
     }
 
-    prevTranscriptCount.current = transcripts.length
-  }, [transcripts.length, autoScroll])
-
-  // Handle scroll position to show/hide scroll-to-bottom button
-  useEffect(() => {
-    const scrollElement = scrollRef.current
-    if (!scrollElement || !showScrollToBottom) return
-
-    const handleScroll = () => {
-      const {scrollTop, scrollHeight, clientHeight} = scrollElement
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
-      setShowScrollButton(!isNearBottom && transcripts.length > 0)
-    }
-
-    scrollElement.addEventListener('scroll', handleScroll)
-    handleScroll() // Initial check
-
-    return () => scrollElement.removeEventListener('scroll', handleScroll)
-  }, [transcripts.length, showScrollToBottom])
-
-  const scrollToBottom = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth'
-      })
-    }
-  }
+    prevTranscriptCount.current = processedTranscripts.length
+  }, [
+    processedTranscripts.length,
+    onNewContent,
+    mergedAccessibilityConfig.announceChanges,
+    accessibility
+  ])
 
   return (
     <div className="mx-auto mt-4 w-full max-w-4xl">
-      <h3 className="mb-3 text-center text-lg font-semibold" style={{color: 'var(--text-primary)'}}>
+      <h3
+        className="mb-3 text-center text-lg font-semibold"
+        style={{color: 'var(--text-primary)'}}
+        id="transcript-heading"
+      >
         Live Transcript
       </h3>
 
@@ -86,15 +251,44 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
               'max-h-[400px] min-h-[200px] overflow-y-auto p-4',
               'transcript-scroll glass-container'
             )}
+            role="log"
+            aria-labelledby="transcript-heading"
+            aria-live={enableStreaming && streamingText ? 'polite' : 'off'}
+            aria-relevant="additions text"
+            tabIndex={mergedAccessibilityConfig.enableKeyboardControls ? 0 : -1}
+            onKeyDown={e => {
+              if (mergedAccessibilityConfig.enableKeyboardControls) {
+                // Handle keyboard navigation
+                if (e.key === 'Home') {
+                  e.preventDefault()
+                  autoScrollControls.scrollToTop()
+                } else if (e.key === 'End') {
+                  e.preventDefault()
+                  autoScrollControls.scrollToBottom()
+                } else if (e.key === ' ') {
+                  e.preventDefault()
+                  autoScrollControls.toggleAutoScroll()
+                  accessibility.announce(
+                    `Auto-scroll ${autoScrollState.isAutoScrolling ? 'disabled' : 'enabled'}`,
+                    'medium'
+                  )
+                }
+              }
+            }}
           >
-            {transcripts.length === 0 && !isProcessing ? (
-              <div className="flex h-full min-h-[150px] flex-col items-center justify-center text-center">
+            {processedTranscripts.length === 0 && !isProcessing ? (
+              <div
+                className="flex h-full min-h-[150px] flex-col items-center justify-center text-center"
+                role="status"
+                aria-label="No transcriptions available"
+              >
                 <div
                   className="mb-2 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed"
                   style={{
                     borderColor: 'var(--border-secondary)',
                     color: 'var(--text-muted)'
                   }}
+                  aria-hidden="true"
                 >
                   🎤
                 </div>
@@ -105,18 +299,51 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
             ) : (
               <>
                 <VirtualizedTranscript
-                  transcripts={transcripts}
+                  transcripts={processedTranscripts}
                   newMessageIndices={newMessageIndices}
-                  maxVisibleMessages={100}
                 />
+
+                {/* Live streaming text display */}
+                {enableStreaming && (isStreamingActive || streamingText) && (
+                  <div
+                    className="border-opacity-20 mt-4 border-t pt-4"
+                    style={{borderColor: 'var(--border-secondary)'}}
+                  >
+                    <UnifiedLiveStreamingDisplay
+                      variant="basic"
+                      streamingText={streamingText}
+                      isStreamingActive={isStreamingActive}
+                      isStreamingPartial={isStreamingPartial}
+                      streamingMode={streamingMode}
+                      streamingSource="microphone"
+                      confidence={0.85} // Default confidence, should come from props
+                      accessibilityConfig={mergedAccessibilityConfig}
+                      onStreamingComplete={onStreamingComplete}
+                      onClearStreaming={() => onStreamingComplete?.()}
+                      config={{
+                        enableAnimations: true,
+                        showSourceBadge: true,
+                        showConfidenceScore: true,
+                        persistentDisplay: true, // Keep transcription visible after streaming
+                        immediateDisplay: true
+                      }}
+                      className={cn('streaming-area-transition w-full')}
+                    />
+                  </div>
+                )}
 
                 {isProcessing && (
                   <div className="flex items-center justify-center p-4">
                     <GlassBox variant="light" className="px-4 py-2">
-                      <div className="flex items-center space-x-3">
+                      <div
+                        className="flex items-center space-x-3"
+                        role="status"
+                        aria-label="Processing audio"
+                      >
                         <div
                           className="h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"
                           style={{borderColor: 'var(--text-accent)'}}
+                          aria-hidden="true"
                         ></div>
                         <span className="text-sm" style={{color: 'var(--text-secondary)'}}>
                           Processing audio...
@@ -130,41 +357,50 @@ const TranscriptDisplay: React.FC<TranscriptDisplayProps> = ({
           </div>
         </GlassBox>
 
-        {/* Scroll to bottom button */}
-        {showScrollButton && showScrollToBottom && (
-          <button
-            onClick={scrollToBottom}
-            className={cn(
-              'absolute right-4 bottom-4 rounded-full p-2 transition-all duration-200',
-              'hover:scale-110 active:scale-95'
-            )}
-            style={{
-              backgroundColor: 'var(--glass-medium)',
-              border: '1px solid var(--glass-border)',
-              color: 'var(--text-primary)',
-              backdropFilter: 'blur(10px)',
-              boxShadow: '0 4px 12px var(--glass-shadow)'
+        {/* New Content Indicator */}
+        {mergedAutoScrollConfig.showNewContentIndicator && (
+          <NewContentIndicator
+            visible={autoScrollState.hasNewContent}
+            onClick={() => {
+              autoScrollControls.scrollToBottom()
+              if (mergedAccessibilityConfig.announceChanges) {
+                accessibility.announce('Scrolled to new content', 'low')
+              }
             }}
-            onMouseEnter={e => {
-              e.currentTarget.style.backgroundColor = 'var(--glass-heavy)'
+            variant="floating"
+            animation="bounce"
+            aria-label="New content available, click to scroll to bottom"
+          />
+        )}
+
+        {/* Scroll Controls */}
+        {mergedAutoScrollConfig.showControls && (
+          <ScrollControls
+            isAutoScrolling={autoScrollState.isAutoScrolling}
+            hasNewContent={autoScrollState.hasNewContent}
+            scrollPercentage={autoScrollState.scrollPercentage}
+            isScrollable={autoScrollState.isScrollable}
+            onToggleAutoScroll={() => {
+              autoScrollControls.toggleAutoScroll()
+              if (mergedAccessibilityConfig.announceChanges) {
+                const newState = !autoScrollState.isAutoScrolling
+                accessibility.announce(`Auto-scroll ${newState ? 'enabled' : 'disabled'}`, 'medium')
+              }
             }}
-            onMouseLeave={e => {
-              e.currentTarget.style.backgroundColor = 'var(--glass-medium)'
+            onScrollToTop={() => {
+              autoScrollControls.scrollToTop()
+              if (mergedAccessibilityConfig.announceChanges) {
+                accessibility.announce('Scrolled to top', 'low')
+              }
             }}
-            title="Scroll to bottom"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M7 13l3 3 3-3"></path>
-              <path d="M7 6l3 3 3-3"></path>
-            </svg>
-          </button>
+            onScrollToBottom={() => {
+              autoScrollControls.scrollToBottom()
+              if (mergedAccessibilityConfig.announceChanges) {
+                accessibility.announce('Scrolled to bottom', 'low')
+              }
+            }}
+            position="floating"
+          />
         )}
       </div>
     </div>

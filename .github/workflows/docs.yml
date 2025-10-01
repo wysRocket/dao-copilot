@@ -1,0 +1,153 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create documentation site
+        run: |
+          mkdir -p _site
+
+          # Create index.html for GitHub Pages
+          cat > _site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>DAO Copilot - Documentation</title>
+              <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+              <style>
+                  .glass {
+                      background: rgba(255, 255, 255, 0.1);
+                      backdrop-filter: blur(10px);
+                      border: 1px solid rgba(255, 255, 255, 0.2);
+                  }
+                  body {
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      min-height: 100vh;
+                  }
+              </style>
+          </head>
+          <body class="font-sans">
+              <div class="container mx-auto px-4 py-8">
+                  <header class="text-center mb-12">
+                      <div class="glass rounded-lg p-8">
+                          <h1 class="text-4xl font-bold text-white mb-4">DAO Copilot</h1>
+                          <p class="text-xl text-gray-200">AI Assistant with Glass UI</p>
+                          <p class="text-gray-300 mt-2">Electron-based application for real-time audio transcription and AI assistance</p>
+                      </div>
+                  </header>
+                  
+                  <main class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      <div class="glass rounded-lg p-6">
+                          <h2 class="text-2xl font-semibold text-white mb-4">📖 Documentation</h2>
+                          <ul class="space-y-2 text-gray-200">
+                              <li><a href="./README.html" class="hover:text-white transition-colors">Main README</a></li>
+                              <li><a href="./docs/GCP_SDK_SETUP_GUIDE.html" class="hover:text-white transition-colors">GCP SDK Setup Guide</a></li>
+                              <li><a href="./docs/GCP_SDK_QUICK_REFERENCE.html" class="hover:text-white transition-colors">Quick Reference</a></li>
+                              <li><a href="./docs/GCP_SDK_CHANGELOG.html" class="hover:text-white transition-colors">Changelog</a></li>
+                          </ul>
+                      </div>
+                      
+                      <div class="glass rounded-lg p-6">
+                          <h2 class="text-2xl font-semibold text-white mb-4">🚀 Quick Start</h2>
+                          <pre class="bg-black bg-opacity-50 rounded p-4 text-green-300 text-sm overflow-x-auto"><code>git clone https://github.com/wysRocket/dao-copilot.git
+          cd dao-copilot
+          npm install
+          npm start</code></pre>
+                      </div>
+                      
+                      <div class="glass rounded-lg p-6">
+                          <h2 class="text-2xl font-semibold text-white mb-4">🔗 Links</h2>
+                          <ul class="space-y-2 text-gray-200">
+                              <li><a href="https://github.com/wysRocket/dao-copilot" class="hover:text-white transition-colors">GitHub Repository</a></li>
+                              <li><a href="https://github.com/wysRocket/dao-copilot/releases" class="hover:text-white transition-colors">Releases</a></li>
+                              <li><a href="https://github.com/wysRocket/dao-copilot/issues" class="hover:text-white transition-colors">Issues</a></li>
+                              <li><a href="https://github.com/wysRocket/dao-copilot/discussions" class="hover:text-white transition-colors">Discussions</a></li>
+                          </ul>
+                      </div>
+                  </main>
+                  
+                  <footer class="mt-12 text-center">
+                      <div class="glass rounded-lg p-4">
+                          <p class="text-gray-300">Built with ❤️ using Electron, React, and TypeScript</p>
+                      </div>
+                  </footer>
+              </div>
+          </body>
+          </html>
+          EOF
+
+          # Convert markdown files to HTML
+          if command -v pandoc &> /dev/null; then
+              echo "Converting README.md to HTML..."
+              pandoc README.md -o _site/README.html --standalone --css=https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css
+              
+              echo "Converting documentation files..."
+              for file in docs/*.md; do
+                  if [ -f "$file" ]; then
+                      filename=$(basename "$file" .md)
+                      mkdir -p _site/docs
+                      pandoc "$file" -o "_site/docs/${filename}.html" --standalone --css=https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css
+                  fi
+              done
+          else
+              echo "Pandoc not available, copying markdown files..."
+              cp README.md _site/
+              cp -r docs _site/ 2>/dev/null || echo "No docs directory found"
+          fi
+
+          # Copy any additional static files
+          if [ -d "build" ]; then
+              cp -r build/* _site/
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build-docs
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

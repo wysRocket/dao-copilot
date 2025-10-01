@@ -1,0 +1,191 @@
+/* 
+ * Real-time Answer Display Component Styles
+ * Provides styling for the answer display with glass morphism effects and animations
+ */
+
+/* 
+ * Real-time Answer Display Component Styles
+ * Provides styling for the answer display with glass morphism effects and animations
+ */
+
+/* Glass morphism effect for the main container */
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Answer text container */
+.answer-text-container {
+  /* Smooth scrolling for overflow content */
+  scroll-behavior: smooth;
+
+  /* Custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.answer-text-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.answer-text-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.answer-text-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.answer-text-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Sources section styling */
+.sources-section {
+  /* Smooth transitions for expanding/collapsing */
+  transition: all 0.3s ease-in-out;
+}
+
+.sources-section a {
+  transition: color 0.2s ease-in-out;
+}
+
+.sources-section a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Animation for progress bars */
+@keyframes progress-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.real-time-answer-display [role='progressbar'] > div {
+  transform-origin: left;
+  animation: progress-fill 0.3s ease-out;
+}
+
+/* Confidence indicator animations */
+.confidence-indicator {
+  transition: all 0.3s ease-in-out;
+}
+
+.confidence-indicator.high {
+  color: #10b981; /* green-500 */
+}
+
+.confidence-indicator.medium {
+  color: #f59e0b; /* yellow-500 */
+}
+
+.confidence-indicator.low {
+  color: #ef4444; /* red-500 */
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .real-time-answer-display {
+    padding: 12px;
+  }
+
+  .answer-text-container {
+    max-height: 200px; /* Reduce height on mobile */
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .glass-morphism {
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid white;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .real-time-answer-display *,
+  .real-time-answer-display *::before,
+  .real-time-answer-display *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Focus styles for accessibility */
+.real-time-answer-display button:focus,
+.real-time-answer-display a:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Loading state styles */
+.loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.1) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Debug panel styling */
+.debug-panel {
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.debug-panel details summary {
+  list-style: none;
+}
+
+.debug-panel details summary::-webkit-details-marker {
+  display: none;
+}
+
+.debug-panel details summary::before {
+  content: '▶ ';
+  transition: transform 0.2s ease-in-out;
+}
+
+.debug-panel details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+/* Line clamping utility for text overflow */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
