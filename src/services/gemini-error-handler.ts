@@ -4,7 +4,7 @@
  */
 
 import {EventEmitter} from 'events'
-import {sanitizeForLogging} from '../utils/security-utils'
+import {readBooleanEnv, isDevelopmentEnvironment} from '../utils/env'
 
 export enum ErrorType {
   NETWORK = 'network',
@@ -979,7 +979,8 @@ export class GeminiErrorHandler extends EventEmitter {
     this.emit(`log:${LogLevel[level].toLowerCase()}`, entry)
 
     // Console output for development
-    if (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') {
+    const debugEnabled = readBooleanEnv('DEBUG', false, {fallbackKeys: ['VITE_DEBUG']})
+    if (isDevelopmentEnvironment() || debugEnabled) {
       this.outputToConsole(entry)
     }
   }

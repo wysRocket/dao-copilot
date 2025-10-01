@@ -1,6 +1,7 @@
 import React from 'react'
 import {Link} from '@tanstack/react-router'
 import TranscriptionEventTest from '../components/TranscriptionEventTest'
+import {isDevelopmentEnvironment} from '../utils/env'
 
 export default function HomePage() {
   return (
@@ -37,7 +38,7 @@ export default function HomePage() {
         </div>
 
         {/* Transcription Event Test Component for debugging (only in development) */}
-        {process.env.NODE_ENV === 'development' && (
+        {isDevelopmentEnvironment() && (
           <div className="mt-4">
             <TranscriptionEventTest />
           </div>

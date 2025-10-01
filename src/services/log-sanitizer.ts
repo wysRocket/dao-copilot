@@ -1,6 +1,7 @@
 /**
  * Log sanitization utilities to prevent log injection attacks
  */
+import {isDevelopmentEnvironment} from '../utils/env'
 
 /**
  * Sanitize a log message by removing or encoding potentially harmful characters
@@ -28,12 +29,14 @@ export function sanitizeLogMessage(input: unknown): string {
   }
 
   // Remove or replace potentially harmful characters
-  return message
-    .replace(/[\r\n]+/g, ' ') // Replace newlines and carriage returns with spaces
-    .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove control characters
-    .replace(/\u0000/g, '') // Remove null bytes
-    .trim()
-    .substring(0, 1000) // Limit length to prevent excessive log entries
+  return (
+    message
+      .replace(/[\r\n]+/g, ' ') // Replace newlines and carriage returns with spaces
+      // eslint-disable-next-line no-control-regex -- we intentionally strip control characters to harden logs
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters, including null bytes
+      .trim()
+      .substring(0, 1000)
+  ) // Limit length to prevent excessive log entries
 }
 
 /**
@@ -58,7 +61,7 @@ export class SafeLogger {
   private isDevelopment: boolean
 
   constructor() {
-    this.isDevelopment = process.env.NODE_ENV === 'development'
+    this.isDevelopment = isDevelopmentEnvironment()
   }
 
   log(message: string, ...args: unknown[]): void {

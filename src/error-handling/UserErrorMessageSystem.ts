@@ -1,6 +1,42 @@
-import {ErrorSeverity, ErrorCategory} from '../types/error-types'
-import type {ClassifiedError, ErrorContext} from '../types/error-types'
 import {EventEmitter} from 'events'
+
+/**
+ * Error severity levels
+ */
+export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical'
+
+/**
+ * Error categories
+ */
+export type ErrorCategory =
+  | 'transcription'
+  | 'audio'
+  | 'network'
+  | 'api'
+  | 'system'
+  | 'authentication'
+  | 'rate-limit'
+
+/**
+ * Classified error information
+ */
+export interface ClassifiedError {
+  type: string
+  category: ErrorCategory
+  severity: ErrorSeverity
+  message: string
+  timestamp: number
+}
+
+/**
+ * Error context information
+ */
+export interface ErrorContext {
+  component: string
+  operation: string
+  sessionId?: string
+  metadata?: Record<string, unknown>
+}
 
 /**
  * Supported locales for error messages
@@ -746,7 +782,7 @@ export class UserErrorMessageSystem extends EventEmitter {
   private getTemplateId(error: ClassifiedError): string {
     // Create template ID from category and error type
     const category = error.category.toLowerCase()
-    const errorType = error.type.toLowerCase().replace(/_/g, '.')
+    const errorType = error.type.toLowerCase()
 
     return `${category}.${errorType}`
   }
@@ -1072,15 +1108,4 @@ export class UserErrorMessageSystem extends EventEmitter {
     const localeMap = this.messageTemplates.get(templateId)
     return localeMap ? Array.from(localeMap.keys()) : []
   }
-}
-
-// Export types and classes
-export {
-  UserErrorMessageSystem,
-  type ErrorMessageTemplate,
-  type LocalizedErrorMessage,
-  type ErrorDisplayOptions,
-  type UserErrorMessageConfig,
-  type ErrorMessageAnalytics,
-  type SupportedLocale
 }

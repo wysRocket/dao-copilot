@@ -11,6 +11,9 @@ import GeminiLiveWebSocketClient, {ResponseModality} from './gemini-live-websock
 import {initializeGeminiTranscriptionBridge} from './gemini-transcription-bridge'
 import WindowManager from '../services/window-manager'
 import {transcribeAudioViaProxy} from './proxy-stt-transcription'
+import {createRussianAudioPreprocessor} from './russian-audio-preprocessor'
+import {createRussianTranscriptionCorrector} from './russian-transcription-corrector'
+import {readRuntimeEnv, readBooleanEnv} from '../utils/env'
 
 // Live API model for WebSocket (recommended half-cascade model)
 const DEFAULT_GEMINI_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
@@ -28,6 +31,24 @@ export interface TranscriptionOptions {
   enableWebSocket?: boolean // Feature flag to enable WebSocket functionality
   fallbackToBatch?: boolean // Whether to fallback to batch mode on WebSocket failure
   realTimeThreshold?: number // Minimum audio length for real-time processing (ms)
+  enableRussianPreprocessing?: boolean // Enable Russian language audio preprocessing
+  enableRussianPostProcessing?: boolean // Enable Russian language transcription corrections
+  russianPreprocessorConfig?: {
+    noiseReductionLevel?: number
+    normalizationLevel?: number
+    enableBandpassFilter?: boolean
+    enableRussianPhonemeOptimization?: boolean
+    enableSpeechEnhancement?: boolean
+  }
+  russianCorrectorConfig?: {
+    enableProperNameCorrection?: boolean
+    enableTechnicalTermCorrection?: boolean
+    enableContextualSpelling?: boolean
+    enableGrammarCorrection?: boolean
+    enableCommonPatternFixes?: boolean
+    customDictionary?: Map<string, string>
+    confidenceThreshold?: number
+  }
 }
 
 /**
@@ -446,6 +467,7 @@ async function transcribeAudioViaWebSocket(
 ): Promise<TranscriptionResult> {
   const startTime = Date.now()
   const apiKey = getApiKey(options)
+  const autoTurnComplete = readBooleanEnv('GEMINI_AUTO_TURN_COMPLETE', false)
 
   try {
     // Check for recent quota errors using QuotaManager
@@ -469,7 +491,7 @@ async function transcribeAudioViaWebSocket(
         'You are a speech-to-text transcription system. Listen to the audio input and provide an accurate transcription of the spoken words. Only return the transcribed text, no additional commentary.',
       connectionTimeout: 15000, // Increased timeout for better reliability
       maxQueueSize: 50, // Optimized queue size for transcription
-      apiVersion: process.env.GEMINI_API_VERSION || 'v1beta', // Use configured API version or default to v1beta
+      apiVersion: readRuntimeEnv('GEMINI_API_VERSION', {defaultValue: 'v1beta'})!,
       generationConfig: {
         candidateCount: 1,
         maxOutputTokens: 2048,
@@ -567,23 +589,51 @@ async function transcribeAudioViaWebSocket(
       const originalSampleRate = audioFormat.sampleRate || 16000
       const channels = audioFormat.channels || 1
       const bitDepth = audioFormat.bitDepth || 16
+      let currentSampleRate = originalSampleRate
+
+      // Apply Russian audio preprocessing if enabled
+      if (options.enableRussianPreprocessing) {
+        console.log('🇷🇺 Applying Russian language audio preprocessing...')
+        const preprocessor = createRussianAudioPreprocessor({
+          sampleRate: 16000, // Target Gemini's required sample rate directly
+          channels: channels,
+          bitDepth: bitDepth,
+          ...options.russianPreprocessorConfig
+        })
+
+        try {
+          const preprocessingResult = await preprocessor.process(pcmData)
+          pcmData = preprocessingResult.processedAudio
+          currentSampleRate = preprocessor.getConfig().sampleRate // Update current rate
+
+          console.log(
+            `📊 Russian preprocessing complete: Applied ${preprocessingResult.applied.join(', ')}`
+          )
+          console.log(
+            `📈 Audio quality metrics: SNR=${preprocessingResult.metrics.signalToNoiseRatio.toFixed(1)}dB, ` +
+              `Max=${preprocessingResult.metrics.maxAmplitude}, ` +
+              `Russian frequencies detected=${preprocessingResult.metrics.containsRussianFrequencies}`
+          )
+        } catch (preprocessingError) {
+          console.error(
+            '⚠️ Russian preprocessing failed, continuing with original audio:',
+            preprocessingError
+          )
+          // Continue with original audio if preprocessing fails
+        }
+      }
 
       // Gemini Live API requires 16000Hz sample rate
       const targetSampleRate = 16000
 
-      if (originalSampleRate !== targetSampleRate) {
+      // Check if we need additional resampling after preprocessing
+      if (currentSampleRate !== targetSampleRate) {
         console.log(
-          `Resampling audio from ${originalSampleRate}Hz to ${targetSampleRate}Hz for Gemini Live API compatibility`
+          `Resampling audio from ${currentSampleRate}Hz to ${targetSampleRate}Hz for Gemini Live API compatibility`
         )
-        pcmData = resamplePcmAudio(
-          pcmData,
-          originalSampleRate,
-          targetSampleRate,
-          channels,
-          bitDepth
-        )
+        pcmData = resamplePcmAudio(pcmData, currentSampleRate, targetSampleRate, channels, bitDepth)
       } else {
-        // Audio sample rate is already correct
+        console.log(`✅ Audio sample rate is already ${targetSampleRate}Hz - no resampling needed`)
       }
 
       // Validate audio format for Gemini Live API compatibility
@@ -644,7 +694,7 @@ async function transcribeAudioViaWebSocket(
 
         // Optionally send explicit turn completion (controlled by env flag, default OFF for v1beta)
         // NOTE: Using audioStreamEnd with variant 17 is sufficient - redundant turn completion causes 1007 errors
-        if (process.env.GEMINI_AUTO_TURN_COMPLETE === 'true') {
+        if (autoTurnComplete) {
           try {
             console.log('✅ Sending turn completion signal to trigger transcription response')
             await client.sendTurnCompletion()
@@ -682,7 +732,7 @@ async function transcribeAudioViaWebSocket(
           console.warn('Failed to send audioStreamEnd flag (single chunk):', endErr)
         }
 
-        if (process.env.GEMINI_AUTO_TURN_COMPLETE === 'true') {
+        if (autoTurnComplete) {
           try {
             console.log('✅ Sending turn completion signal (single chunk)')
             await client.sendTurnCompletion()
@@ -715,16 +765,35 @@ async function transcribeAudioViaWebSocket(
         async (response: {
           type?: string
           content?: string
-          metadata?: {confidence?: number; isPartial?: boolean}
+          metadata?: {
+            confidence?: number
+            isPartial?: boolean
+            modelTurn?: boolean
+            inputTranscription?: boolean
+          }
         }) => {
-          console.log('🔥 RECEIVED GEMINI RESPONSE:', {
+          console.group('🔥 GEMINI RESPONSE HANDLER (LEGACY)')
+          console.log('📦 Raw response:', {
             type: response.type,
-            content: response.content?.substring(0, 100),
+            content: response.content?.substring(0, 100) + '...',
             hasMetadata: !!response.metadata,
             metadata: response.metadata,
             audioSent,
             responseKeys: Object.keys(response)
           })
+
+          // ===== CRITICAL FIX: Block modelTurn responses =====
+          if (response.metadata?.modelTurn === true) {
+            console.warn('🚨 BLOCKING modelTurn response from being broadcast as transcription!')
+            console.warn('🚨 This should be handled by chatResponse event listener')
+            console.warn('🚨 Content preview:', response.content?.substring(0, 200) + '...')
+            console.groupEnd()
+            return // Block AI responses/search results from transcription channel
+          }
+
+          // Allow all non-modelTurn responses to be processed as potential transcriptions
+          console.log('✅ Processing non-modelTurn response in legacy handler')
+          console.groupEnd()
 
           // Early return for non-text responses to reduce processing overhead
           if (!audioSent || response.type !== 'text' || !response.content?.trim()) {
@@ -794,7 +863,7 @@ async function transcribeAudioViaWebSocket(
       client.on(
         'transcriptionUpdate',
         (update: {text: string; confidence: number; isFinal: boolean}) => {
-          console.log('🎯 RECEIVED TRANSCRIPTION UPDATE:', {
+          console.log('🎯 RECEIVED TRANSCRIPTION UPDATE (USER SPEECH):', {
             text: update.text,
             textLength: update.text?.length || 0,
             confidence: update.confidence,
@@ -811,6 +880,25 @@ async function transcribeAudioViaWebSocket(
             finalTranscriptionText = update.text
             transcriptionCompleted = true
           }
+        }
+      )
+
+      // Listen for chatResponse events but do NOT rebroadcast them as transcriptions
+      // These are for Google Search results and should go to ChatPage only
+      client.on(
+        'chatResponse',
+        (response: {text: string; metadata?: Record<string, unknown>; isFinal: boolean}) => {
+          console.log('🤖 RECEIVED CHAT RESPONSE (SEARCH/AI):', {
+            text: response.text?.slice(0, 200) + '...',
+            textLength: response.text?.length || 0,
+            isFinal: response.isFinal,
+            metadata: response.metadata,
+            timestamp: Date.now()
+          })
+
+          // Do NOT rebroadcast as streaming-transcription
+          // ChatPage will handle these directly via bridge
+          console.log('💬 Chat response handled separately, not rebroadcasted as transcription')
         }
       )
 
@@ -862,18 +950,57 @@ async function transcribeAudioViaWebSocket(
         }
       }, 1000) // 1 second after completing
 
+      // Apply Russian post-processing corrections if enabled
+      let processedTranscriptionText = finalTranscriptionText || ''
+
+      if (options.enableRussianPostProcessing && processedTranscriptionText.length > 0) {
+        console.log('🇷🇺 Applying Russian transcription post-processing corrections...')
+
+        try {
+          const corrector = createRussianTranscriptionCorrector({
+            ...options.russianCorrectorConfig
+          })
+
+          const correctionResult = await corrector.correct(processedTranscriptionText)
+          processedTranscriptionText = correctionResult.correctedText
+
+          console.log(
+            `📝 Russian post-processing complete: ${correctionResult.corrections.length} corrections applied in ${correctionResult.processingTimeMs}ms`
+          )
+
+          if (correctionResult.corrections.length > 0) {
+            console.log(
+              '🔧 Applied corrections:',
+              correctionResult.corrections
+                .map(c => `"${c.original}" → "${c.corrected}" (${c.type})`)
+                .join(', ')
+            )
+          }
+
+          console.log(
+            `📊 Post-processing confidence: ${(correctionResult.confidence * 100).toFixed(1)}%`
+          )
+        } catch (correctionError) {
+          console.error(
+            '⚠️ Russian post-processing failed, using original transcription:',
+            correctionError
+          )
+          // Continue with original transcription if post-processing fails
+        }
+      }
+
       // Return the final transcription result
       const transcriptionResult = {
-        text: finalTranscriptionText || '', // Return the actual transcribed text
+        text: processedTranscriptionText, // Use processed text instead of original
         duration: Date.now() - startTime,
         source: 'websocket' as const,
-        confidence: finalTranscriptionText ? 0.8 : 0.0
+        confidence: processedTranscriptionText ? 0.8 : 0.0
       }
 
       console.log('🎯 WebSocket transcription completed:', {
-        hasText: !!finalTranscriptionText,
-        textLength: finalTranscriptionText.length,
-        textPreview: finalTranscriptionText.substring(0, 50),
+        hasText: !!processedTranscriptionText,
+        textLength: processedTranscriptionText.length,
+        textPreview: processedTranscriptionText.substring(0, 50),
         duration: transcriptionResult.duration
       })
 
@@ -914,10 +1041,9 @@ async function transcribeAudioViaWebSocket(
 function getApiKey(options: TranscriptionOptions): string {
   const apiKey =
     options.apiKey ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    process.env.GEMINI_API_KEY
+    readRuntimeEnv('GOOGLE_API_KEY', {
+      fallbackKeys: ['VITE_GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY']
+    })
 
   if (!apiKey) {
     console.error(
@@ -941,7 +1067,7 @@ function getApiKey(options: TranscriptionOptions): string {
  */
 function shouldUseWebSocket(options: TranscriptionOptions): boolean {
   // Check feature flag
-  const webSocketEnabled = process.env.GEMINI_WEBSOCKET_ENABLED !== 'false'
+  const webSocketEnabled = readBooleanEnv('GEMINI_WEBSOCKET_ENABLED', true)
 
   // Check explicit option
   if (options.enableWebSocket !== undefined) {

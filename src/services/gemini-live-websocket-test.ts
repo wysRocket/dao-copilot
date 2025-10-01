@@ -4,10 +4,15 @@
  */
 
 import GeminiLiveWebSocketClient, {RealtimeInput, ResponseModality} from './gemini-live-websocket'
+import {readRuntimeEnv} from '../utils/env'
+
+const resolvedApiKey = readRuntimeEnv('GOOGLE_API_KEY', {
+  fallbackKeys: ['GEMINI_API_KEY']
+})
 
 // Test configuration
 const config = {
-  apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '',
+  apiKey: resolvedApiKey ?? '',
   model: 'gemini-live-2.5-flash-preview',
   responseModalities: [ResponseModality.AUDIO],
   systemInstruction: 'You are a helpful assistant for transcription tasks.',

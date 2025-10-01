@@ -4,9 +4,12 @@
  */
 
 import GeminiLiveWebSocketClient, {ConnectionState, ResponseModality} from './gemini-live-websocket'
+import {readRuntimeEnv} from '../utils/env'
 
 async function testGeminiWebSocket() {
-  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY
+  const apiKey = readRuntimeEnv('GOOGLE_API_KEY', {
+    fallbackKeys: ['GEMINI_API_KEY']
+  })
 
   if (!apiKey) {
     console.error(
@@ -26,7 +29,7 @@ async function testGeminiWebSocket() {
     reconnectAttempts: 3,
     heartbeatInterval: 30000,
     connectionTimeout: 15000,
-    apiVersion: process.env.GEMINI_API_VERSION || 'v1beta' // Use configured API version or default to v1beta
+    apiVersion: readRuntimeEnv('GEMINI_API_VERSION', {defaultValue: 'v1beta'})!
   })
 
   // Set up event listeners

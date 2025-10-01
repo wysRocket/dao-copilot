@@ -1,20 +1,22 @@
-import {addThemeEventListeners} from './theme/theme-listeners';
-import {addWindowEventListeners} from './window/window-listeners';
-import {addAudioEventListeners} from './audio/audio-listeners';
-import {addTranscriptionEventListeners} from './transcription/transcription-listeners';
+import {addThemeEventListeners} from './theme/theme-listeners'
+import {addWindowEventListeners} from './window/window-listeners'
+import {addAudioEventListeners} from './audio/audio-listeners'
+import {addTranscriptionEventListeners} from './transcription/transcription-listeners'
+// import {addSearchEventListeners} from './search/search-listeners'; // Disabled: Using built-in Gemini search grounding
 
-let listenersRegistered = false;
+let listenersRegistered = false
 
 export default function registerListeners() {
   // Only register listeners once globally
   if (listenersRegistered) {
-    return;
+    return
   }
 
-  addWindowEventListeners();
-  addThemeEventListeners();
-  addAudioEventListeners();
-  addTranscriptionEventListeners();
+  addWindowEventListeners()
+  addThemeEventListeners()
+  addAudioEventListeners()
+  addTranscriptionEventListeners()
+  // addSearchEventListeners(); // Disabled: Using built-in Gemini search grounding
 
-  listenersRegistered = true;
+  listenersRegistered = true
 }

@@ -118,6 +118,11 @@ export class GeminiTranscriptionBridge extends EventEmitter {
       this.handleTranscriptionUpdate(data)
     })
 
+    // Listen for chat responses (search results and model responses)
+    this.client.on('chatResponse', (data: TextResponseData) => {
+      this.handleChatResponse(data)
+    })
+
     // Listen for turn completion events
     this.client.on('turnComplete', (data: {metadata?: Record<string, unknown>}) => {
       this.handleTurnComplete(data)
@@ -178,9 +183,9 @@ export class GeminiTranscriptionBridge extends EventEmitter {
 
     this.forwardToMiddleware(transcriptionEvent)
 
-  // Diagnostics capture for finals / modelTurn style messages
-  const len = (data.content || '').length
-  this.recordLength(len, !!data.isPartial)
+    // Diagnostics capture for finals / modelTurn style messages
+    const len = (data.content || '').length
+    this.recordLength(len, !!data.isPartial)
 
     if (this.config.enableLogging) {
       logger.debug('Bridge: Forwarded text response', {
@@ -210,9 +215,9 @@ export class GeminiTranscriptionBridge extends EventEmitter {
 
     this.forwardToMiddleware(transcriptionEvent)
 
-  // Diagnostics capture for partial updates
-  const len = (data.text || '').length
-  this.recordLength(len, !data.isFinal)
+    // Diagnostics capture for partial updates
+    const len = (data.text || '').length
+    this.recordLength(len, !data.isFinal)
 
     if (this.config.enableLogging) {
       logger.debug('Bridge: Forwarded transcription update', {
@@ -243,6 +248,35 @@ export class GeminiTranscriptionBridge extends EventEmitter {
 
     if (this.config.enableLogging) {
       logger.debug('Bridge: Forwarded turn completion event')
+    }
+  }
+
+  /**
+   * Handle chat responses (search results and model responses)
+   */
+  private handleChatResponse(data: TextResponseData): void {
+    if (!this.config.enableEventForwarding) return
+
+    // For chat responses, we emit a different event to route to Chat tab
+    const chatEvent = {
+      text: data.content || '',
+      timestamp: Date.now(),
+      confidence: data.metadata?.confidence || 0.95,
+      source: 'chat-response',
+      metadata: {
+        type: 'chat_response',
+        ...data.metadata
+      }
+    }
+
+    // Emit chat-specific event instead of going through transcription middleware
+    this.emit('chatResponse', chatEvent)
+
+    if (this.config.enableLogging) {
+      logger.debug('Bridge: Forwarded chat response', {
+        textLength: chatEvent.text.length,
+        source: chatEvent.source
+      })
     }
   }
 
@@ -299,7 +333,7 @@ export class GeminiTranscriptionBridge extends EventEmitter {
     this.partialHistory.push({
       len,
       ts: now,
-  sample: (isPartial ? 'P:' : 'F:') + String(len),
+      sample: (isPartial ? 'P:' : 'F:') + String(len),
       isFinal: !isPartial
     })
     if (this.partialHistory.length > 300) this.partialHistory.shift()

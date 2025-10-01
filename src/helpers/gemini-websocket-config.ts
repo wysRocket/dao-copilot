@@ -12,6 +12,7 @@ import {
   migrateLegacyEnvironment,
   isLegacyUsagePattern
 } from '../services/transcription-compatibility'
+import {readRuntimeEnv, readBooleanEnv, readNumericEnv} from '../utils/env'
 
 export interface GeminiWebSocketConfig {
   // Core Configuration
@@ -58,8 +59,8 @@ export const DEFAULT_CONFIG: Partial<GeminiWebSocketConfig> = {
   websocketUrl:
     'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
 
-  // v1beta Model Configuration
-  modelName: 'gemini-live-2.5-flash-preview',
+  // v1beta Model Configuration (Using proper live transcription model)
+  modelName: 'gemini-live-2.5-flash-preview', // This is the correct model for live transcription
   apiVersion: 'v1beta',
   useV1Beta: true,
 
@@ -100,30 +101,36 @@ export function loadConfigFromEnvironment(): GeminiWebSocketConfig {
   const config: GeminiWebSocketConfig = {
     // Core Configuration
     apiKey: getApiKey(),
-    websocketEnabled: process.env.GEMINI_WEBSOCKET_ENABLED !== 'false',
-    transcriptionMode: parseTranscriptionMode(process.env.GEMINI_TRANSCRIPTION_MODE),
-    websocketUrl: process.env.GEMINI_WEBSOCKET_URL || DEFAULT_CONFIG.websocketUrl!,
+    websocketEnabled: readBooleanEnv('GEMINI_WEBSOCKET_ENABLED', true),
+    transcriptionMode: parseTranscriptionMode(readRuntimeEnv('GEMINI_TRANSCRIPTION_MODE')),
+    websocketUrl: readRuntimeEnv('GEMINI_WEBSOCKET_URL', {
+      defaultValue: DEFAULT_CONFIG.websocketUrl
+    })!,
 
     // v1beta Model Configuration
-    modelName: process.env.GEMINI_MODEL_NAME || DEFAULT_CONFIG.modelName!,
-    apiVersion: process.env.GEMINI_API_VERSION || DEFAULT_CONFIG.apiVersion!,
-    useV1Beta: process.env.GEMINI_USE_V1BETA !== 'false',
+    modelName: readRuntimeEnv('GEMINI_MODEL_NAME', {
+      defaultValue: DEFAULT_CONFIG.modelName
+    })!,
+    apiVersion: readRuntimeEnv('GEMINI_API_VERSION', {
+      defaultValue: DEFAULT_CONFIG.apiVersion
+    })!,
+    useV1Beta: readBooleanEnv('GEMINI_USE_V1BETA', true),
 
     // Fallback and Reliability
-    fallbackToBatch: process.env.GEMINI_FALLBACK_TO_BATCH !== 'false',
-    realTimeThreshold: parseInt(process.env.GEMINI_REALTIME_THRESHOLD || '200', 10),
-    connectionTimeout: parseInt(process.env.GEMINI_CONNECTION_TIMEOUT || '30000', 10),
+    fallbackToBatch: readBooleanEnv('GEMINI_FALLBACK_TO_BATCH', false),
+    realTimeThreshold: readNumericEnv('GEMINI_REALTIME_THRESHOLD', 200),
+    connectionTimeout: readNumericEnv('GEMINI_CONNECTION_TIMEOUT', 30000),
 
     // Reconnection Settings
-    reconnectionEnabled: process.env.GEMINI_RECONNECTION_ENABLED !== 'false',
-    maxReconnectionAttempts: parseInt(process.env.GEMINI_MAX_RECONNECTION_ATTEMPTS || '5', 10),
-    reconnectionDelay: parseInt(process.env.GEMINI_RECONNECTION_DELAY || '1000', 10),
+    reconnectionEnabled: readBooleanEnv('GEMINI_RECONNECTION_ENABLED', true),
+    maxReconnectionAttempts: readNumericEnv('GEMINI_MAX_RECONNECTION_ATTEMPTS', 5),
+    reconnectionDelay: readNumericEnv('GEMINI_RECONNECTION_DELAY', 1000),
 
     // Proxy Configuration
-    proxyUrl: process.env.PROXY_URL || DEFAULT_CONFIG.proxyUrl!,
-    proxyWebSocketEnabled: process.env.PROXY_WEBSOCKET_ENABLED !== 'false',
-    proxyFallbackEnabled: process.env.PROXY_FALLBACK_ENABLED !== 'false',
-    proxyAuthToken: process.env.PROXY_AUTH_TOKEN
+    proxyUrl: readRuntimeEnv('PROXY_URL', {defaultValue: DEFAULT_CONFIG.proxyUrl})!,
+    proxyWebSocketEnabled: readBooleanEnv('PROXY_WEBSOCKET_ENABLED', true),
+    proxyFallbackEnabled: readBooleanEnv('PROXY_FALLBACK_ENABLED', true),
+    proxyAuthToken: readRuntimeEnv('PROXY_AUTH_TOKEN')
   }
 
   return config
@@ -133,13 +140,12 @@ export function loadConfigFromEnvironment(): GeminiWebSocketConfig {
  * Get API key from various environment variable patterns
  */
 function getApiKey(): string {
-  return (
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    ''
-  )
+  const value = readRuntimeEnv('GEMINI_API_KEY', {
+    fallbackKeys: ['GOOGLE_API_KEY', 'VITE_GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY'],
+    allowEmpty: true
+  })
+
+  return value ?? ''
 }
 
 /**

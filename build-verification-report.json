@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-09-25T20:19:56.420Z",
+  "platform": "macOS (darwin-arm64)",
+  "buildType": "production",
+  "artifacts": [
+    {
+      "path": "out/capture-darwin-arm64",
+      "status": "exists",
+      "size": 0
+    },
+    {
+      "path": "out/make/zip/darwin/arm64/capture-darwin-arm64-1.0.0.zip",
+      "status": "exists",
+      "size": 142761
+    }
+  ],
+  "totalSizeMB": 139.42,
+  "status": "passed"
+}

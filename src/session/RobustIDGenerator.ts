@@ -719,17 +719,18 @@ export class RobustIDGenerator extends EventEmitter {
    */
   private generateDeviceFingerprint(): DeviceFingerprint {
     const components = {
-      platform: process.platform,
-      arch: process.arch,
-      nodeVersion: process.version,
-      processId: process.pid,
-      hostname: require('os').hostname(),
+      platform: this.getBrowserSafePlatform(),
+      arch: this.getBrowserSafeArch(),
+      nodeVersion: this.getBrowserSafeNodeVersion(),
+      processId: this.getBrowserSafeProcessId(),
+      hostname: this.getBrowserSafeHostname(),
       machineId: this.generateMachineId(),
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Node.js',
       screenResolution:
         typeof screen !== 'undefined' ? `${screen.width}x${screen.height}` : 'unknown',
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      language: typeof navigator !== 'undefined' ? navigator.language : process.env.LANG || 'en',
+      language:
+        typeof navigator !== 'undefined' ? navigator.language : this.getBrowserSafeLanguage(),
       hash: ''
     }
 
@@ -744,8 +745,48 @@ export class RobustIDGenerator extends EventEmitter {
    */
   private generateMachineId(): string {
     try {
-      const os = require('os')
-      const networkInterfaces = os.networkInterfaces()
+      if (typeof process !== 'undefined') {
+        // Node.js environment - use dynamic import to avoid linting issues
+        return this.generateNodeMachineId()
+      } else {
+        // Browser environment - use available browser APIs
+        const browserInfo = {
+          userAgent: navigator.userAgent,
+          language: navigator.language,
+          platform: navigator.platform || this.getBrowserSafePlatform(),
+          cookieEnabled: navigator.cookieEnabled,
+          doNotTrack: navigator.doNotTrack,
+          hardwareConcurrency: navigator.hardwareConcurrency || 4,
+          maxTouchPoints: navigator.maxTouchPoints || 0,
+          screen:
+            typeof screen !== 'undefined'
+              ? {
+                  width: screen.width,
+                  height: screen.height,
+                  colorDepth: screen.colorDepth,
+                  pixelDepth: screen.pixelDepth
+                }
+              : {},
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          hostname: typeof window !== 'undefined' ? window.location?.hostname : 'localhost'
+        }
+
+        return this.hashObject(browserInfo).substring(0, 16)
+      }
+    } catch (error) {
+      logger.warn('Failed to generate machine ID, using fallback', {error})
+      return this.generateRandomString(16)
+    }
+  }
+
+  /**
+   * Generate machine ID in Node.js environment
+   */
+  private generateNodeMachineId(): string {
+    try {
+      // Dynamic require to avoid linting issues in browser context
+      const osModule = eval('require')('os')
+      const networkInterfaces = osModule.networkInterfaces()
 
       // Use MAC addresses as part of machine ID
       const macAddresses: string[] = []
@@ -760,16 +801,16 @@ export class RobustIDGenerator extends EventEmitter {
       }
 
       const machineInfo = {
-        hostname: os.hostname(),
-        platform: os.platform(),
-        arch: os.arch(),
+        hostname: osModule.hostname(),
+        platform: osModule.platform(),
+        arch: osModule.arch(),
         macs: macAddresses.sort(),
-        cpus: os.cpus().length
+        cpus: osModule.cpus().length
       }
 
       return this.hashObject(machineInfo).substring(0, 16)
     } catch (error) {
-      logger.warn('Failed to generate machine ID, using fallback', {error})
+      logger.warn('Failed to generate Node.js machine ID', {error})
       return this.generateRandomString(16)
     }
   }
@@ -1152,6 +1193,88 @@ export class RobustIDGenerator extends EventEmitter {
 
     // Remove all listeners
     this.removeAllListeners()
+  }
+
+  /**
+   * Browser-safe platform detection
+   */
+  private getBrowserSafePlatform(): string {
+    if (typeof process !== 'undefined' && process.platform) {
+      return process.platform
+    }
+    if (typeof navigator !== 'undefined') {
+      const userAgent = navigator.userAgent.toLowerCase()
+      if (userAgent.includes('win')) return 'win32'
+      if (userAgent.includes('mac')) return 'darwin'
+      if (userAgent.includes('linux')) return 'linux'
+    }
+    return 'unknown'
+  }
+
+  /**
+   * Browser-safe architecture detection
+   */
+  private getBrowserSafeArch(): string {
+    if (typeof process !== 'undefined' && process.arch) {
+      return process.arch
+    }
+    if (typeof navigator !== 'undefined') {
+      const userAgent = navigator.userAgent.toLowerCase()
+      if (userAgent.includes('x64') || userAgent.includes('amd64')) return 'x64'
+      if (userAgent.includes('arm64')) return 'arm64'
+      if (userAgent.includes('arm')) return 'arm'
+    }
+    return 'unknown'
+  }
+
+  /**
+   * Browser-safe Node version detection
+   */
+  private getBrowserSafeNodeVersion(): string {
+    if (typeof process !== 'undefined' && process.version) {
+      return process.version
+    }
+    return 'browser'
+  }
+
+  /**
+   * Browser-safe process ID
+   */
+  private getBrowserSafeProcessId(): number {
+    if (typeof process !== 'undefined' && process.pid) {
+      return process.pid
+    }
+    // Generate a pseudo-random process ID for browser
+    return Math.floor(Math.random() * 100000) + 1000
+  }
+
+  /**
+   * Browser-safe hostname detection
+   */
+  private getBrowserSafeHostname(): string {
+    if (typeof process !== 'undefined') {
+      try {
+        // Dynamic require to avoid linting issues
+        const osModule = eval('require')('os')
+        return osModule.hostname()
+      } catch {
+        // Fall through to browser detection
+      }
+    }
+    if (typeof window !== 'undefined' && window.location) {
+      return window.location.hostname || 'localhost'
+    }
+    return 'unknown'
+  }
+
+  /**
+   * Browser-safe language detection
+   */
+  private getBrowserSafeLanguage(): string {
+    if (typeof process !== 'undefined' && process.env && process.env.LANG) {
+      return process.env.LANG
+    }
+    return 'en'
   }
 }
 

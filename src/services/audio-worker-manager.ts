@@ -13,7 +13,6 @@ import {
   type ProcessChunkPayload,
   type ConversionResult
 } from './workers/audio-processing-worker'
-import * as crypto from 'crypto'
 
 // Response types
 export interface WorkerResponse {
@@ -500,10 +499,20 @@ export class AudioWorkerManager {
    */
   private generateSecureWorkerId(): string {
     try {
-      if (crypto.randomUUID) {
+      // Use Web Crypto API for browser compatibility
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return `worker-${Date.now()}-${crypto.randomUUID()}`
+      } else if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        const array = new Uint8Array(8)
+        crypto.getRandomValues(array)
+        const hex = Array.from(array)
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('')
+        return `worker-${Date.now()}-${hex}`
       } else {
-        return `worker-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`
+        // Fallback using Math.random()
+        const random = Math.random().toString(36).substring(2, 15)
+        return `worker-${Date.now()}-${random}`
       }
     } catch {
       // Fallback using high-resolution timestamp

@@ -1,6 +1,9 @@
 // Environment configuration helper for the main process
 // This file helps ensure API keys are properly loaded in Electron's main process
 
+import {validateApiKeys, isProduction, features} from '../utils/environment'
+import {readRuntimeEnv} from '../utils/env'
+
 /**
  * Load environment variables from various sources
  * This is especially important in Electron where environment variables
@@ -12,47 +15,56 @@ export async function loadEnvironmentConfig(): Promise<void> {
     // Try to load dotenv if available (for development)
     const dotenv = await import('dotenv')
     dotenv.config()
-    console.log('Environment variables loaded from .env file')
+
+    if (features.consoleLogging) {
+      console.log('Environment variables loaded from .env file')
+    }
   } catch {
     // dotenv is not installed or .env file doesn't exist
-    console.log('No .env file found or dotenv not installed, using system environment variables')
+    if (features.consoleLogging) {
+      console.log('No .env file found or dotenv not installed, using system environment variables')
+    }
+  }
+
+  // Validate API keys for production
+  if (isProduction && !validateApiKeys()) {
+    throw new Error('Missing required API keys for production deployment')
   }
 
   // Log available API key sources (without revealing the actual keys)
-  const apiKeySources = [
-    'GOOGLE_API_KEY',
-    'VITE_GOOGLE_API_KEY',
-    'GOOGLE_GENERATIVE_AI_API_KEY',
-    'GEMINI_API_KEY'
-  ]
+  if (features.consoleLogging) {
+    const apiKeySources = [
+      'GOOGLE_API_KEY',
+      'VITE_GOOGLE_API_KEY',
+      'GOOGLE_GENERATIVE_AI_API_KEY',
+      'GEMINI_API_KEY'
+    ]
 
-  console.log('Checking for API keys in environment:')
-  apiKeySources.forEach(key => {
-    const value = process.env[key]
-    if (value) {
-      console.log(`✓ ${key}: ${value.substring(0, 8)}...`)
-    } else {
-      console.log(`✗ ${key}: not found`)
-    }
-  })
+    console.log('Checking for API keys in environment:')
+    apiKeySources.forEach(key => {
+      const value = readRuntimeEnv(key, {allowEmpty: true})
+      if (value) {
+        console.log(`✓ ${key}: ${value.substring(0, 8)}...`)
+      } else {
+        console.log(`✗ ${key}: not found`)
+      }
+    })
+  }
 }
 
 /**
  * Get the Google API key from various possible environment variables
  */
 export function getGoogleApiKey(): string | undefined {
-  // Check if we're in a browser environment and process is not available
-  if (typeof process === 'undefined') {
+  const apiKey = readRuntimeEnv('GOOGLE_API_KEY', {
+    fallbackKeys: ['VITE_GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY']
+  })
+
+  if (!apiKey && typeof window !== 'undefined' && typeof process === 'undefined') {
     console.warn('Running in browser environment - environment variables not available')
-    return undefined
   }
 
-  return (
-    process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    process.env.GEMINI_API_KEY
-  )
+  return apiKey
 }
 
 /**

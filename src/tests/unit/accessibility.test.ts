@@ -2,6 +2,8 @@
  * @jest-environment jsdom
  */
 
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+
 import {
   detectAccessibilityPreferences,
   isScreenReaderDetected,
@@ -10,12 +12,28 @@ import {
   KeyboardUtils
 } from '../../utils/accessibility'
 
+const jest = vi
+
+type TestWindow = Omit<typeof window, 'matchMedia' | 'speechSynthesis'> & {
+  matchMedia: ReturnType<typeof vi.fn>
+  speechSynthesis?: {getVoices: () => Array<{name: string}>} | undefined
+}
+
+const testWindow = window as unknown as TestWindow
+
 // Mock window.matchMedia
 const mockMatchMedia = (matches: boolean) => ({
   matches,
-  addEventLis: jest.fn(),
+  addEventListener: jest.fn(),
   removeEventListener: jest.fn()
 })
+
+const setOffsetParent = (element: HTMLElement, parent: HTMLElement | null = document.body) => {
+  Object.defineProperty(element, 'offsetParent', {
+    configurable: true,
+    value: parent
+  })
+}
 
 describe('Accessibility Utils', () => {
   beforeEach(() => {
@@ -23,7 +41,7 @@ describe('Accessibility Utils', () => {
     document.body.innerHTML = ''
 
     // Mock window.matchMedia
-    ;(window as any).matchMedia = jest.fn().mockImplementation(() => mockMatchMedia(false))
+    testWindow.matchMedia = jest.fn().mockImplementation(() => mockMatchMedia(false))
   })
 
   afterEach(() => {
@@ -32,7 +50,7 @@ describe('Accessibility Utils', () => {
 
   describe('detectAccessibilityPreferences', () => {
     it('should detect reduced motion preference', () => {
-      ;(window as any).matchMedia = jest.fn().mockImplementation((query: string) => {
+      testWindow.matchMedia = jest.fn().mockImplementation((query: string) => {
         if (query === '(prefers-reduced-motion: reduce)') {
           return mockMatchMedia(true)
         }
@@ -44,7 +62,7 @@ describe('Accessibility Utils', () => {
     })
 
     it('should detect high contrast preference', () => {
-      ;(window as any).matchMedia = jest.fn().mockImplementation((query: string) => {
+      testWindow.matchMedia = jest.fn().mockImplementation((query: string) => {
         if (query === '(prefers-contrast: high)') {
           return mockMatchMedia(true)
         }
@@ -56,7 +74,7 @@ describe('Accessibility Utils', () => {
     })
 
     it('should detect forced colors preference', () => {
-      ;(window as any).matchMedia = jest.fn().mockImplementation((query: string) => {
+      testWindow.matchMedia = jest.fn().mockImplementation((query: string) => {
         if (query === '(forced-colors: active)') {
           return mockMatchMedia(true)
         }
@@ -68,7 +86,7 @@ describe('Accessibility Utils', () => {
     })
 
     it('should handle matchMedia errors gracefully', () => {
-      ;(window as any).matchMedia = jest.fn().mockImplementation(() => {
+      testWindow.matchMedia = jest.fn().mockImplementation(() => {
         throw new Error('matchMedia not supported')
       })
 
@@ -87,7 +105,7 @@ describe('Accessibility Utils', () => {
   describe('isScreenReaderDetected', () => {
     it('should detect screen reader when speechSynthesis is available', () => {
       // Mock speechSynthesis
-      ;(window as any).speechSynthesis = {
+      testWindow.speechSynthesis = {
         getVoices: jest.fn().mockReturnValue([{name: 'Test Voice'}])
       }
 
@@ -96,7 +114,7 @@ describe('Accessibility Utils', () => {
     })
 
     it('should detect screen reader with high contrast mode', () => {
-      ;(window as any).matchMedia = jest.fn().mockImplementation((query: string) => {
+      testWindow.matchMedia = jest.fn().mockImplementation((query: string) => {
         if (query === '(-ms-high-contrast: active)') {
           return mockMatchMedia(true)
         }
@@ -108,14 +126,14 @@ describe('Accessibility Utils', () => {
     })
 
     it('should return false when no indicators are present', () => {
-      delete (window as any).speechSynthesis
+      testWindow.speechSynthesis = undefined
 
       const isDetected = isScreenReaderDetected()
       expect(isDetected).toBe(false)
     })
 
     it('should handle errors gracefully', () => {
-      ;(window as any).speechSynthesis = {
+      testWindow.speechSynthesis = {
         getVoices: jest.fn().mockImplementation(() => {
           throw new Error('Speech synthesis error')
         })
@@ -146,11 +164,16 @@ describe('Accessibility Utils', () => {
     })
 
     it('should announce text to appropriate regions', async () => {
-      const spy = jest.spyOn(manager as any, 'processQueue')
+      jest.useFakeTimers()
 
       manager.announce('Test message', 'medium')
 
-      expect(spy).toHaveBeenCalled()
+      await jest.runAllTimersAsync()
+
+      const politeRegion = document.querySelector('[aria-live="polite"]')
+      expect(politeRegion?.textContent).toBe('Test message')
+
+      jest.useRealTimers()
     })
 
     it('should handle high priority announcements', async () => {
@@ -181,21 +204,25 @@ describe('Accessibility Utils', () => {
     })
 
     it('should ignore empty announcements', () => {
-      const spy = jest.spyOn(manager as any, 'processQueue')
-
       manager.announce('', 'medium')
       manager.announce('   ', 'medium')
 
-      expect(spy).not.toHaveBeenCalled()
+      expect(document.querySelector('[aria-live="polite"]')?.textContent).toBe('')
     })
 
     it('should queue multiple announcements', async () => {
+      jest.useFakeTimers()
+
       manager.announce('First message', 'medium')
       manager.announce('Second message', 'medium')
       manager.announce('Third message', 'medium')
 
-      // Check that queue contains multiple items
-      expect((manager as any).announceQueue.length).toBe(3)
+      await jest.runAllTimersAsync()
+
+      const politeRegion = document.querySelector('[aria-live="polite"]')
+      expect(politeRegion?.textContent).toBe('Third message')
+
+      jest.useRealTimers()
     })
   })
 
@@ -211,10 +238,12 @@ describe('Accessibility Utils', () => {
       button1 = document.createElement('button')
       button1.textContent = 'Button 1'
       document.body.appendChild(button1)
+      setOffsetParent(button1)
 
       button2 = document.createElement('button')
       button2.textContent = 'Button 2'
       document.body.appendChild(button2)
+      setOffsetParent(button2)
     })
 
     it('should set focus on element', () => {
@@ -255,6 +284,11 @@ describe('Accessibility Utils', () => {
       container.appendChild(disabledButton)
       document.body.appendChild(container)
 
+      setOffsetParent(container)
+      setOffsetParent(input, container)
+      setOffsetParent(select, container)
+      setOffsetParent(disabledButton, null)
+
       const focusableElements = manager.getFocusableElements(container)
 
       expect(focusableElements).toContain(input)
@@ -271,6 +305,10 @@ describe('Accessibility Utils', () => {
       container.appendChild(lastButton)
       document.body.appendChild(container)
 
+      setOffsetParent(container)
+      setOffsetParent(firstButton, container)
+      setOffsetParent(lastButton, container)
+
       manager.trapFocus(container)
 
       // Simulate Tab key on last element
@@ -278,8 +316,8 @@ describe('Accessibility Utils', () => {
       const tabEvent = new KeyboardEvent('keydown', {key: 'Tab'})
       container.dispatchEvent(tabEvent)
 
-      // Should not move focus (would need to be mocked for full test)
-      expect(document.activeElement).toBe(lastButton)
+      // Focus should wrap to the first element in the trap
+      expect(document.activeElement).toBe(firstButton)
 
       manager.releaseFocusTrap()
     })
@@ -293,6 +331,10 @@ describe('Accessibility Utils', () => {
       container.appendChild(lastButton)
       document.body.appendChild(container)
 
+      setOffsetParent(container)
+      setOffsetParent(firstButton, container)
+      setOffsetParent(lastButton, container)
+
       manager.trapFocus(container)
 
       // Simulate Shift+Tab key on first element
@@ -302,6 +344,8 @@ describe('Accessibility Utils', () => {
         shiftKey: true
       })
       container.dispatchEvent(shiftTabEvent)
+
+      expect(document.activeElement).toBe(lastButton)
 
       manager.releaseFocusTrap()
     })
