@@ -6,7 +6,7 @@
  * seamlessly with the new WebSocket-enabled implementation.
  */
 
-import {TranscriptionMode} from './gemini-live-integration'
+import {TranscriptionMode} from '../types/gemini-types'
 import type {TranscriptionOptions} from './main-stt-transcription'
 import type {ProxyTranscriptionOptions} from './proxy-stt-transcription'
 

@@ -22,12 +22,10 @@ import {convertFloat32ToPCM16, validateAudioFormat} from './gemini-audio-utils'
 import {logger} from './gemini-logger'
 import {isAudioCaptureSupported, isNodeEnvironment} from '../helpers/environment-config'
 import type {ProcessedMessage} from './gemini-message-handler'
+import {TranscriptionMode} from '../types/gemini-types'
 
-export enum TranscriptionMode {
-  BATCH = 'batch', // Traditional batch processing
-  WEBSOCKET = 'websocket', // Real-time WebSocket
-  HYBRID = 'hybrid' // Fallback between WebSocket and batch
-}
+// Re-export for backward compatibility
+export {TranscriptionMode}
 
 export interface IntegrationConfig extends GeminiLiveConfig {
   mode: TranscriptionMode

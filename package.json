@@ -2,6 +2,7 @@
   "name": "capture",
   "version": "1.0.0",
   "description": "sound+mic capture",
+  "license": "MIT",
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
@@ -89,7 +90,7 @@
     "limiter": "^3.0.0",
     "liquid-glass-react": "^1.1.1",
     "lru-cache": "^11.1.0",
-    "lucide-react": "^0.525.0",
+    "lucide-react": "^0.544.0",
     "node-cache": "^5.1.2",
     "node-fetch": "^3.0.0",
     "react": "^19.1.0",
@@ -124,7 +125,7 @@
     "@types/node": "^22.15.3",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
-    "electron": "^37.0.0",
+    "electron": "^38.0.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-playwright-helpers": "^1.7.1",
     "electron-vite": "^4.0.0",
@@ -134,7 +135,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-compiler": "^19.1.0-rc.1",
     "globals": "^16.0.0",
-    "jsdom": "^26.0.0",
+    "jsdom": "^27.0.0",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^4.1.4",
@@ -142,7 +143,7 @@
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.31.0",
-    "vite": "^6.3.5",
+    "vite": "^7.1.5",
     "vitest": "^3.1.2"
   }
 }
