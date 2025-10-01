@@ -19,7 +19,7 @@ jobs:
       has-changed: ${{ steps.version.outputs.changed }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
@@ -46,7 +46,7 @@ jobs:
     if: needs.check-version.outputs.has-changed == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create and push tag
         run: |
