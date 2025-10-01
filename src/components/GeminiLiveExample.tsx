@@ -1,14 +1,17 @@
 /**
  * Example usage of Gemini Live WebSocket UI components
  * This component demonstrates how to integrate connection status indicators
+ * 
+ * NOTE: This is currently disabled to avoid importing main process services
+ * in the renderer process. This should be refactored to use IPC communication.
  */
 
 import React from 'react'
 import {WindowStatus} from '../components/ui/window-status'
 import WebSocketConnectionStatus from '../components/WebSocketConnectionStatus'
 import GeminiConnectionIndicator from '../components/GeminiConnectionIndicator'
-import useGeminiConnection from '../hooks/useGeminiConnection'
-import {TranscriptionMode} from '../services/gemini-live-integration'
+// import useGeminiConnection from '../hooks/useGeminiConnection'
+import {TranscriptionMode} from '../types/gemini-types'
 import {cn} from '@/utils/tailwind'
 
 export interface GeminiLiveExampleProps {
@@ -17,17 +20,23 @@ export interface GeminiLiveExampleProps {
 }
 
 export const GeminiLiveExample: React.FC<GeminiLiveExampleProps> = ({className, apiKey}) => {
-  // Use the Gemini connection hook
-  const [connectionState, controls] = useGeminiConnection({
-    apiKey,
-    mode: TranscriptionMode.HYBRID,
-    autoConnect: false,
-    fallbackToBatch: true,
-    enableLogging: true
-  })
+  // TODO: Refactor to use IPC communication instead of direct service imports
+  // const [connectionState, controls] = useGeminiConnection({
+  //   apiKey,
+  //   mode: TranscriptionMode.HYBRID,
+  //   autoConnect: false,
+  //   fallbackToBatch: true,
+  //   enableLogging: true
+  // })
 
   return (
     <div className={cn('space-y-6 p-4', className)}>
+      <div className="text-center text-gray-500">
+        Gemini Live Example Component
+        <br />
+        <small>Currently disabled - needs IPC refactoring</small>
+      </div>
+    </div>
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">Gemini Live WebSocket Integration</h2>
 

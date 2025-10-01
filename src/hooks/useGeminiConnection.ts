@@ -4,12 +4,12 @@
  */
 
 import {useEffect, useState, useCallback, useRef} from 'react'
-import GeminiLiveWebSocketClient, {ConnectionState} from '../services/gemini-live-websocket'
-import GeminiLiveIntegrationService, {
+import {ConnectionState} from '../services/gemini-live-websocket'
+import {
   TranscriptionMode,
   type IntegrationConfig,
   type IntegrationState
-} from '../services/gemini-live-integration'
+} from '../types/gemini-types'
 import {ConnectionQuality, type ConnectionMetrics} from '../services/gemini-reconnection-manager'
 import {logger} from '../services/gemini-logger'
 

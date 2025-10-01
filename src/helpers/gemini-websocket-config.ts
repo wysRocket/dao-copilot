@@ -5,7 +5,7 @@
  * Gemini Live API integration, including validation, environment setup, and legacy migration.
  */
 
-import {TranscriptionMode} from '../services/gemini-live-integration'
+import {TranscriptionMode} from '../types/gemini-types'
 import {
   migrateLegacyEnvironment,
   isLegacyUsagePattern
