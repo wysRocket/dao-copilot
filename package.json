@@ -59,7 +59,9 @@
     "sync:project:fetch": "tsx scripts/github-projects-sync.ts fetch",
     "sync:project:list": "tsx scripts/github-projects-sync.ts list",
     "sync:project:sync": "tsx scripts/github-projects-sync.ts sync",
-    "sync:project:sync:live": "tsx scripts/github-projects-sync.ts sync --live"
+    "sync:project:sync:live": "tsx scripts/github-projects-sync.ts sync --live",
+    "sync:project:demo": "./scripts/demo-github-sync.sh",
+    "sync:project:example": "tsx scripts/example-github-sync.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",

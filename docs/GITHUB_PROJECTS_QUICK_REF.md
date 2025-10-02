@@ -30,6 +30,7 @@ npm run sync:project:sync:live
 ## Common Workflows
 
 ### Initial Setup
+
 ```bash
 # 1. View project structure
 npm run sync:project:fetch
@@ -42,6 +43,7 @@ npm run sync:project:sync:live
 ```
 
 ### Regular Updates
+
 ```bash
 # After adding/updating tasks in Taskmaster
 task-master list
@@ -49,6 +51,7 @@ npm run sync:project:sync:live
 ```
 
 ### Before Major Changes
+
 ```bash
 # Always preview first
 npm run sync:project:sync
@@ -60,6 +63,7 @@ npm run sync:project:sync:live
 ## Troubleshooting
 
 ### "Authentication Error"
+
 ```bash
 # Verify token is set
 echo $GITHUB_TOKEN
@@ -69,6 +73,7 @@ echo $GITHUB_TOKEN
 ```
 
 ### "No items synced"
+
 ```bash
 # Check existing items
 npm run sync:project:list
@@ -78,6 +83,7 @@ ls -la .taskmaster/tasks/tasks.json
 ```
 
 ### "GraphQL Error"
+
 - Verify project number is correct (3)
 - Check project owner (wysRocket)
 - Ensure project is accessible

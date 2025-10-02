@@ -5,22 +5,26 @@ This guide explains how to synchronize Taskmaster tasks with GitHub Projects V2.
 ## Prerequisites
 
 1. **GitHub Personal Access Token**: You need a GitHub token with the following permissions:
+
    - `project` (read/write access to projects)
    - `read:org` (if the project is in an organization)
    - `read:user` (if the project is in a user account)
 
 2. **Create a token**:
+
    - Go to https://github.com/settings/tokens
    - Click "Generate new token (classic)"
    - Select the permissions mentioned above
    - Copy the token
 
 3. **Set the token as an environment variable**:
+
    ```bash
    export GITHUB_TOKEN=your_token_here
    ```
 
    Or add it to your `.env` file:
+
    ```bash
    GITHUB_TOKEN=your_token_here
    ```
@@ -36,6 +40,7 @@ npm run sync:project:fetch
 ```
 
 This will display:
+
 - Project title and description
 - All fields configured in the project
 - Available options for select fields (like Status, Priority, etc.)
@@ -49,6 +54,7 @@ npm run sync:project:list
 ```
 
 This shows:
+
 - All issues, pull requests, and draft issues in the project
 - Field values for each item
 - Direct links to GitHub items
@@ -62,6 +68,7 @@ npm run sync:project:sync
 ```
 
 This performs a **dry run** that:
+
 - Analyzes all Taskmaster tasks
 - Compares with existing project items
 - Shows what would be created
@@ -76,6 +83,7 @@ npm run sync:project:sync:live
 ```
 
 This will:
+
 - Create draft issues for each Taskmaster task not already in the project
 - Set appropriate field values based on task status and priority
 - Link dependencies in task descriptions
@@ -99,7 +107,8 @@ When synced, each task becomes a draft issue with:
 
 **Title**: `Task {id}: {title}`
 
-**Body**: 
+**Body**:
+
 - Description
 - Details section (if available)
 - Test Strategy (if available)
@@ -113,6 +122,7 @@ When synced, each task becomes a draft issue with:
 ### Duplicate Prevention
 
 The sync tool automatically prevents duplicates by:
+
 - Checking if a task title already exists
 - Looking for tasks with the same Taskmaster ID
 - Skipping tasks that are already in the project
@@ -120,24 +130,27 @@ The sync tool automatically prevents duplicates by:
 ### Status Mapping
 
 Taskmaster statuses map to GitHub Project statuses:
+
 - `pending` → Pending/To Do
 - `in-progress` → In Progress
 - `done` → Done/Completed
 - `blocked` → Blocked
 - `deferred` → Backlog
 
-*Note: The exact status names depend on your project's configuration*
+_Note: The exact status names depend on your project's configuration_
 
 ### Priority Mapping
 
 If your project has a Priority field:
+
 - `high` → High
-- `medium` → Medium  
+- `medium` → Medium
 - `low` → Low
 
 ## Configuration
 
 The sync tool uses these defaults:
+
 - **Owner**: `wysRocket`
 - **Project Number**: `3`
 - **Tasks File**: `.taskmaster/tasks/tasks.json`
@@ -145,9 +158,9 @@ The sync tool uses these defaults:
 To modify these, edit `scripts/github-projects-sync.ts`:
 
 ```typescript
-const owner = 'wysRocket';        // GitHub username or org
-const projectNumber = 3;           // Project number from URL
-const tasksFilePath = path.join(process.cwd(), '.taskmaster/tasks/tasks.json');
+const owner = 'wysRocket' // GitHub username or org
+const projectNumber = 3 // Project number from URL
+const tasksFilePath = path.join(process.cwd(), '.taskmaster/tasks/tasks.json')
 ```
 
 ## Troubleshooting
@@ -155,6 +168,7 @@ const tasksFilePath = path.join(process.cwd(), '.taskmaster/tasks/tasks.json');
 ### Authentication Errors
 
 If you see authentication errors:
+
 1. Verify your token has the correct permissions
 2. Check that `GITHUB_TOKEN` is set in your environment
 3. Try regenerating your token if it's expired
@@ -162,6 +176,7 @@ If you see authentication errors:
 ### GraphQL Errors
 
 If you encounter GraphQL errors:
+
 1. Verify the project number is correct
 2. Ensure the project is accessible to your token
 3. Check that the owner (user/org) is correct
@@ -169,6 +184,7 @@ If you encounter GraphQL errors:
 ### No Items Synced
 
 If no items are synced:
+
 1. Run `npm run sync:project:list` to see existing items
 2. Check if tasks already exist with similar titles
 3. Verify the tasks.json file has tasks in the `master` tag
@@ -194,6 +210,27 @@ npm run sync:project:sync:live
 npm run sync:project:list
 ```
 
+### Interactive Demo
+
+Run the included demo script for a guided walkthrough:
+
+```bash
+# Set your token
+export GITHUB_TOKEN=your_token_here
+
+# Run the demo
+./scripts/demo-github-sync.sh
+```
+
+### Programmatic Usage Example
+
+See `scripts/example-github-sync.ts` for a complete programmatic example:
+
+```bash
+# Run the example
+npx tsx scripts/example-github-sync.ts
+```
+
 ### Updating Project Info
 
 ```bash
@@ -216,21 +253,21 @@ npm run sync:project update-description "DAO Copilot development tasks managed b
 You can import and use the sync class in your own scripts:
 
 ```typescript
-import { GitHubProjectsSync } from './scripts/github-projects-sync';
+import {GitHubProjectsSync} from './scripts/github-projects-sync'
 
-const sync = new GitHubProjectsSync(token, owner, projectNumber);
+const sync = new GitHubProjectsSync(token, owner, projectNumber)
 
 // Fetch project details
-const project = await sync.fetchProjectDetails();
+const project = await sync.fetchProjectDetails()
 
 // List items
-const { items } = await sync.listProjectItems();
+const {items} = await sync.listProjectItems()
 
 // Sync tasks (dry run)
-await sync.syncTasksToProject(tasksFilePath, true);
+await sync.syncTasksToProject(tasksFilePath, true)
 
 // Sync tasks (live)
-await sync.syncTasksToProject(tasksFilePath, false);
+await sync.syncTasksToProject(tasksFilePath, false)
 ```
 
 ## Integration with Taskmaster Workflow
@@ -238,6 +275,7 @@ await sync.syncTasksToProject(tasksFilePath, false);
 This sync tool integrates with the standard Taskmaster workflow:
 
 1. **Create/Update tasks in Taskmaster** using standard commands:
+
    ```bash
    task-master list
    task-master add-task --prompt="New feature"
@@ -245,6 +283,7 @@ This sync tool integrates with the standard Taskmaster workflow:
    ```
 
 2. **Sync to GitHub Projects**:
+
    ```bash
    npm run sync:project:sync:live
    ```
@@ -256,6 +295,7 @@ This sync tool integrates with the standard Taskmaster workflow:
 ## Future Enhancements
 
 Planned features:
+
 - Bi-directional sync (GitHub → Taskmaster)
 - Automatic sync on task changes
 - GitHub Actions integration for CI/CD sync
