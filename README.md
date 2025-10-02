@@ -57,6 +57,21 @@ npm run prebuild
 | `npm run format:write` | Fix code formatting |
 | `npm run clean` | Clean build artifacts |
 
+### GitHub Projects Synchronization
+
+Sync Taskmaster tasks with GitHub Projects for visual board management:
+
+| Command | Description |
+|---------|-------------|
+| `npm run sync:project:fetch` | Fetch project fields and structure |
+| `npm run sync:project:list` | List all items in the project |
+| `npm run sync:project:sync` | Preview task sync (dry run) |
+| `npm run sync:project:sync:live` | Actually sync tasks to project |
+| `npm run sync:project:demo` | Run interactive demo |
+| `npm run sync:project:example` | Run programmatic example |
+
+See [GitHub Projects Sync Documentation](./docs/GITHUB_PROJECTS_SYNC.md) for detailed usage.
+
 ### Release Management
 
 ```bash

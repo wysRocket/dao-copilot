@@ -54,7 +54,14 @@
     "validate:medium": "grep GEMINI_SIGNAL_VALIDATE app.log > logs/realtime-validation-session2.log || true; node scripts/parse-validation-metrics.mjs logs/realtime-validation-session2.log",
     "validate:long": "grep GEMINI_SIGNAL_VALIDATE app.log > logs/realtime-validation-session3.log || true; node scripts/parse-validation-metrics.mjs logs/realtime-validation-session3.log",
     "validate:all": "npm run validate:short && npm run validate:medium && npm run validate:long",
-    "start:validate": "GEMINI_SIGNAL_VALIDATE=1 electron-forge start 2>&1 | tee -a app.log"
+    "start:validate": "GEMINI_SIGNAL_VALIDATE=1 electron-forge start 2>&1 | tee -a app.log",
+    "sync:project": "tsx scripts/github-projects-sync.ts",
+    "sync:project:fetch": "tsx scripts/github-projects-sync.ts fetch",
+    "sync:project:list": "tsx scripts/github-projects-sync.ts list",
+    "sync:project:sync": "tsx scripts/github-projects-sync.ts sync",
+    "sync:project:sync:live": "tsx scripts/github-projects-sync.ts sync --live",
+    "sync:project:demo": "./scripts/demo-github-sync.sh",
+    "sync:project:example": "tsx scripts/example-github-sync.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
@@ -116,6 +123,8 @@
     "@electron/fuses": "^1.8.0",
     "@eslint/compat": "^1.2.9",
     "@eslint/js": "^9.25.1",
+    "@octokit/auth-token": "^6.0.0",
+    "@octokit/graphql": "^9.0.2",
     "@playwright/test": "^1.52.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -140,7 +149,7 @@
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^4.1.4",
     "ts-node": "^10.9.2",
-    "tsx": "^4.20.3",
+    "tsx": "^4.20.6",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.31.0",
     "vite": "^6.3.5",
