@@ -1,6 +1,18 @@
 import {ElectronAPI} from '@electron-toolkit/preload';
 import {TranscriptionResult} from './services/main-stt-transcription';
 
+export interface MCPServer {
+  name: string;
+  command: string;
+  args: string[];
+  source: 'cursor' | 'windsurf';
+}
+
+export interface MCPServersResponse {
+  servers: MCPServer[];
+  error?: string;
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI;
@@ -19,6 +31,9 @@ declare global {
       setTheme: (theme: 'light' | 'dark' | 'system') => void;
       getTheme: () => Promise<string>;
       onThemeChanged: (callback: (theme: string) => void) => void;
+    };
+    mcpAPI: {
+      getServers: () => Promise<MCPServersResponse>;
     };
     windowAPI: {
       minimize: () => void;
