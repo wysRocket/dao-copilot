@@ -468,8 +468,8 @@
       {
         "id": 17,
         "title": "Implement Transport Fallback & Replay (WebSocket ↔ Batch)",
-        "description": "Automatic fallback between live WebSocket and batch transcription with deterministic replay of buffered audio / partials.",
-        "details": "Context:\\nCurrent pipeline assumes healthy WebSocket. Need resilience: automatic downgrade to batch on sustained WS failure & upgrade back when stable, leveraging WAL + metrics. Ensure continuity (no user-visible gaps) and deduplicate after replay.\\n\\nGoals:\\n1. Detect degraded WS: consecutive errors, high latency spikes, missing heartbeats, partial starvation (no partials for N ms).\\n2. On degrade: switch to batch mode capturing audio segments; when batch returns final, merge seamlessly (avoid duplicate final if WS recovers).\\n3. On recovery criteria (stable p95 latency, heartbeat present, low error rate) auto-upgrade to WS.\\n4. Replay buffered unsent audio through new WS session when upgrading (if within retention window) to obtain richer partials.\\n5. All transitions recorded in WAL to maintain audit & recovery sequence.\\n\\nComponents:\\n- TransportState enum: {WEBSOCKET_ACTIVE, WEBSOCKET_DEGRADED, FALLBACK_BATCH_ACTIVE, RECOVERY_PENDING}.\\n- TransportSupervisor: monitors metrics (latencies, error counters, heartbeat timestamps) + FSM events -> decides transitions.\\n- AudioBufferRetainer: rolling audio buffer (e.g. few seconds) for replay on WS recovery (configurable).\\n- ReplayOrchestrator: when WS recovers, re-stream retained audio (tagged replay=true) while keeping user-visible transcript stable (avoid duplicate partial flicker).\\n- DedupStrategy: match final transcript text via content similarity (or ID) to prevent double display; if WS later produces final same as batch, suppress.\\n\\nDetection Heuristics (initial config):\\n- Degrade if: (ws_error_count_last_30s > 3) OR (heartbeat_gap_ms > 2000) OR (partial_stall_ms > 1500)\\n- Recover if: (timeouts=0 & errors=0 over last 10s) AND (partial cadence restored <500ms avg)\\n\\nIntegration Points:\\n- Metrics layer supplies rolling window stats (extend previous task).\\n- WAL records transport_state_change events.\\n- FSM unaffected logically; only event sources differ.\\n\\nFeature Flag: ENABLE_TRANSPORT_FALLBACK (default false).\\n\\nImplementation Steps:\\n1. Types & config interfaces in /src/transcription/transport/TransportTypes.ts.\\n2. Metrics additions: ws_heartbeat_gap_ms, ws_consecutive_errors, transport_state_changes_total.\\n3. TransportSupervisor.ts: periodic evaluate() (interval 250ms) reading metrics & timers -> state transitions. Emits events.\\n4. AudioBufferRetainer.ts: ring buffer of PCM chunks (timestamped). Provide replayStream() that yields sequential frames.\\n5. ReplayOrchestrator.ts: on upgrade event, streams buffer into WS connection (respecting rate) while marking outputs as replay to suppress UI duplicate partials.\\n6. Dedup integration: before emitting final to UI, check if identical content already finalized (track hash/content).\\n7. Batch fallback integration: on degrade, begin submitting periodic batch jobs (existing path) while continuing to accumulate audio.\\n8. Configuration surface: thresholds & buffer durations.\\n9. Logging & metrics for decisions with reason codes.\\n10. Docs: docs/TRANSPORT_FALLBACK.md (state diagram, heuristics, tuning).\\n\\nTesting Strategy:\\n- Unit: supervisor decision matrix across synthetic metric snapshots; audio buffer push/pop ordering; replay orchestrator timing.\\n- Integration: simulate WS failure (mock error flood) -> verify batch final arrives; then simulate recovery -> replay partials and suppress duplicate final.\\n- Chaos: random failure injection frequency, ensure no oscillation (introduce hysteresis min dwell times).\\n- Performance: ensure evaluation loop <0.1ms average.\\n\\nRisks & Mitigations:\\n- Oscillation between states -> hysteresis & min dwell timers.\\n- Replay causing user confusion -> suppress UI duplication, mark replays internal only.\\n- Batch latency spikes -> continue measuring; if both degraded, surface status indicator.\\n\\nSuccess Criteria:\\n- Controlled test: kill WS -> batch covers gap with <2s added latency; restore WS -> partial richness returns without duplicated finals.\\n- Metrics show accurate transport_state_changes and stable counts after hysteresis.\\n",
+        "description": "Automatic fallback between live WebSocket and batch transcription with deterministic replay of buffered audio / partials. [Updated: 10/13/2025]",
+        "details": "Context:\\nCurrent pipeline assumes healthy WebSocket. Need resilience: automatic downgrade to batch on sustained WS failure & upgrade back when stable, leveraging WAL + metrics. Ensure continuity (no user-visible gaps) and deduplicate after replay.\\n\\nGoals:\\n1. Detect degraded WS: consecutive errors, high latency spikes, missing heartbeats, partial starvation (no partials for N ms).\\n2. On degrade: switch to batch mode capturing audio segments; when batch returns final, merge seamlessly (avoid duplicate final if WS recovers).\\n3. On recovery criteria (stable p95 latency, heartbeat present, low error rate) auto-upgrade to WS.\\n4. Replay buffered unsent audio through new WS session when upgrading (if within retention window) to obtain richer partials.\\n5. All transitions recorded in WAL to maintain audit & recovery sequence.\\n\\nComponents:\\n- TransportState enum: {WEBSOCKET_ACTIVE, WEBSOCKET_DEGRADED, FALLBACK_BATCH_ACTIVE, RECOVERY_PENDING}.\\n- TransportSupervisor: monitors metrics (latencies, error counters, heartbeat timestamps) + FSM events -> decides transitions.\\n- AudioBufferRetainer: rolling audio buffer (e.g. few seconds) for replay on WS recovery (configurable).\\n- ReplayOrchestrator: when WS recovers, re-stream retained audio (tagged replay=true) while keeping user-visible transcript stable (avoid duplicate partial flicker).\\n- DedupStrategy: match final transcript text via content similarity (or ID) to prevent double display; if WS later produces final same as batch, suppress.\\n\\nDetection Heuristics (initial config):\\n- Degrade if: (ws_error_count_last_30s > 3) OR (heartbeat_gap_ms > 2000) OR (partial_stall_ms > 1500)\\n- Recover if: (timeouts=0 & errors=0 over last 10s) AND (partial cadence restored <500ms avg)\\n\\nIntegration Points:\\n- Metrics layer supplies rolling window stats (extend previous task).\\n- WAL records transport_state_change events.\\n- FSM unaffected logically; only event sources differ.\\n\\nFeature Flag: ENABLE_TRANSPORT_FALLBACK (default false).\\n\\nImplementation Steps:\\n1. Types & config interfaces in /src/transcription/transport/TransportTypes.ts.\\n2. Metrics additions: ws_heartbeat_gap_ms, ws_consecutive_errors, transport_state_changes_total.\\n3. TransportSupervisor.ts: periodic evaluate() (interval 250ms) reading metrics & timers -> state transitions. Emits events.\\n4. AudioBufferRetainer.ts: ring buffer of PCM chunks (timestamped). Provide replayStream() that yields sequential frames.\\n5. ReplayOrchestrator.ts: on upgrade event, streams buffer into WS connection (respecting rate) while marking outputs as replay to suppress UI duplicate partials.\\n6. Dedup integration: before emitting final to UI, check if identical content already finalized (track hash/content).\\n7. Batch fallback integration: on degrade, begin submitting periodic batch jobs (existing path) while continuing to accumulate audio.\\n8. Configuration surface: thresholds & buffer durations.\\n9. Logging & metrics for decisions with reason codes.\\n10. Docs: docs/TRANSPORT_FALLBACK.md (state diagram, heuristics, tuning).\\n\\nTesting Strategy:\\n- Unit: supervisor decision matrix across synthetic metric snapshots; audio buffer push/pop ordering; replay orchestrator timing.\\n- Integration: simulate WS failure (mock error flood) -> verify batch final arrives; then simulate recovery -> replay partials and suppress duplicate final.\\n- Chaos: random failure injection frequency, ensure no oscillation (introduce hysteresis min dwell times).\\n- Performance: ensure evaluation loop <0.1ms average.\\n\\nRisks & Mitigations:\\n- Oscillation between states -> hysteresis & min dwell timers.\\n- Replay causing user confusion -> suppress UI duplication, mark replays internal only.\\n- Batch latency spikes -> continue measuring; if both degraded, surface status indicator.\\n\\nSuccess Criteria:\\n- Controlled test: kill WS -> batch covers gap with <2s added latency; restore WS -> partial richness returns without duplicated finals.\\n- Metrics show accurate transport_state_changes and stable counts after hysteresis.\\n\n<info added on 2025-10-13T19:23:11.457Z>\nTracking for this feature is now available in GitHub issue #353.\n</info added on 2025-10-13T19:23:11.457Z>",
         "testStrategy": "Decision table tests for supervisor; integration harness simulating timeline of errors/heartbeats; replay correctness test verifies no duplicate finals; hysteresis test prevents flapping under borderline metrics.",
         "status": "pending",
         "dependencies": [],
@@ -565,8 +565,8 @@
       {
         "id": 35,
         "title": "Design Unified LiveTranscriptionDisplay Component",
-        "description": "Create a design and technical specification for a unified LiveTranscriptionDisplay component that will replace existing duplicate components.",
-        "details": "Use React 18 features like useDeferredValue for smoother updates. Implement useCallback and useMemo for optimized rendering. Consider using react-window for virtualized rendering of long transcripts. Ensure the component is fully typed with TypeScript. Use the latest version of React (18.2.0 as of now) and TypeScript (4.9.5).",
+        "description": "Create a design and technical specification for a unified LiveTranscriptionDisplay component that will replace existing duplicate components. [Updated: 10/13/2025]",
+        "details": "Use React 18 features like useDeferredValue for smoother updates. Implement useCallback and useMemo for optimized rendering. Consider using react-window for virtualized rendering of long transcripts. Ensure the component is fully typed with TypeScript. Use the latest version of React (18.2.0 as of now) and TypeScript (4.9.5).\n<info added on 2025-10-13T19:17:02.323Z>\nCreated GitHub issue #325 to track progress and discussions related to this task.\n</info added on 2025-10-13T19:17:02.323Z>",
         "testStrategy": "Create a comprehensive test suite using React Testing Library. Include unit tests for individual functions and integration tests for the full component.",
         "priority": "high",
         "dependencies": [
@@ -578,8 +578,8 @@
       {
         "id": 36,
         "title": "Implement Unified LiveTranscriptionDisplay Component",
-        "description": "Develop the unified LiveTranscriptionDisplay component based on the design specification.",
-        "details": "Use functional components with hooks. Implement proper cleanup in useEffect hooks to prevent memory leaks. Use React.memo for child components that don't need frequent re-renders. Utilize the latest React 18 concurrent features for improved performance. Consider using libraries like immer for immutable state updates.",
+        "description": "Develop the unified LiveTranscriptionDisplay component based on the design specification. [Updated: 10/13/2025]",
+        "details": "Use functional components with hooks. Implement proper cleanup in useEffect hooks to prevent memory leaks. Use React.memo for child components that don't need frequent re-renders. Utilize the latest React 18 concurrent features for improved performance. Consider using libraries like immer for immutable state updates.\n<info added on 2025-10-13T19:17:11.352Z>\nCreated GitHub issue #326 to track progress and discussions related to this implementation.\n</info added on 2025-10-13T19:17:11.352Z>",
         "testStrategy": "Implement unit tests for each subcomponent and function. Use React Testing Library for integration tests. Perform performance testing using React DevTools Profiler.",
         "priority": "high",
         "dependencies": [
@@ -591,8 +591,8 @@
       {
         "id": 37,
         "title": "Optimize GlassComponent Library",
-        "description": "Consolidate and optimize the glass effect components into a reusable library.",
-        "details": "Create a new `GlassComponent` that uses React.forwardRef for proper ref handling. Implement customizable blur and transparency options. Use CSS variables for easy theming. Consider using CSS Modules or styled-components for scoped styling. Ensure compatibility with Tailwind by using @apply directives where necessary.",
+        "description": "Consolidate and optimize the glass effect components into a reusable library. [Updated: 10/13/2025]",
+        "details": "Create a new `GlassComponent` that uses React.forwardRef for proper ref handling. Implement customizable blur and transparency options. Use CSS variables for easy theming. Consider using CSS Modules or styled-components for scoped styling. Ensure compatibility with Tailwind by using @apply directives where necessary.\n<info added on 2025-10-13T19:17:22.905Z>\nCreated GitHub issue #327 to track progress and discussions related to the GlassComponent library optimization.\n</info added on 2025-10-13T19:17:22.905Z>",
         "testStrategy": "Create visual regression tests using tools like Percy or Chromatic. Implement unit tests for component props and styling variations.",
         "priority": "medium",
         "dependencies": [
@@ -604,8 +604,8 @@
       {
         "id": 38,
         "title": "Implement Responsive Layout System",
-        "description": "Develop a responsive layout system that works across all screen sizes, with a focus on mobile optimization.",
-        "details": "Use CSS Grid and Flexbox for layout. Implement a mobile-first approach with progressive enhancement. Use Tailwind's responsive prefixes for breakpoint-specific styling. Consider using react-responsive for conditional rendering based on screen size. Implement touch-friendly interactions for mobile devices.",
+        "description": "Develop a responsive layout system that works across all screen sizes, with a focus on mobile optimization. [Updated: 10/13/2025]",
+        "details": "Use CSS Grid and Flexbox for layout. Implement a mobile-first approach with progressive enhancement. Use Tailwind's responsive prefixes for breakpoint-specific styling. Consider using react-responsive for conditional rendering based on screen size. Implement touch-friendly interactions for mobile devices.\n<info added on 2025-10-13T19:17:34.744Z>\nCreated GitHub issue #328 for tracking this task.\n</info added on 2025-10-13T19:17:34.744Z>",
         "testStrategy": "Test layouts across various devices and screen sizes. Use browser dev tools for responsive design testing. Implement end-to-end tests using Cypress to verify layout changes across breakpoints.",
         "priority": "high",
         "dependencies": [
@@ -617,8 +617,8 @@
       {
         "id": 39,
         "title": "Develop Accessibility Wrapper Components",
-        "description": "Create reusable accessibility wrapper components to enhance the app's overall accessibility.",
-        "details": "Implement components like AccessibleButton, AccessibleForm, and AccessibleModal. Use aria-* attributes and roles appropriately. Implement keyboard navigation support. Use the latest WAI-ARIA 1.2 specifications. Consider using libraries like react-aria for complex accessible components.",
+        "description": "Create reusable accessibility wrapper components to enhance the app's overall accessibility. [Updated: 10/13/2025]",
+        "details": "Implement components like AccessibleButton, AccessibleForm, and AccessibleModal. Use aria-* attributes and roles appropriately. Implement keyboard navigation support. Use the latest WAI-ARIA 1.2 specifications. Consider using libraries like react-aria for complex accessible components.\n<info added on 2025-10-13T19:17:48.053Z>\nCreated GitHub issue #329 for tracking progress and discussions related to this task.\n</info added on 2025-10-13T19:17:48.053Z>",
         "testStrategy": "Use jest-axe for automated accessibility testing. Perform manual testing with screen readers (e.g., NVDA, VoiceOver). Implement keyboard navigation tests.",
         "priority": "high",
         "dependencies": [
@@ -630,8 +630,8 @@
       {
         "id": 40,
         "title": "Optimize Transcription State Management",
-        "description": "Consolidate and optimize the transcription state management logic.",
-        "details": "Create a custom hook `useTranscriptionState` to manage all transcription-related state. Use the useReducer hook for complex state logic. Implement proper state synchronization between windows using Electron's IPC. Consider using a library like Recoil or Jotai for atomic state management if needed.",
+        "description": "Consolidate and optimize the transcription state management logic. [Updated: 10/13/2025]",
+        "details": "Create a custom hook `useTranscriptionState` to manage all transcription-related state. Use the useReducer hook for complex state logic. Implement proper state synchronization between windows using Electron's IPC. Consider using a library like Recoil or Jotai for atomic state management if needed.\n<info added on 2025-10-13T19:17:57.550Z>\nCreated GitHub issue #330 for tracking progress and discussions related to transcription state management optimization.\n</info added on 2025-10-13T19:17:57.550Z>",
         "testStrategy": "Implement unit tests for the state management logic. Create integration tests to verify state consistency across components. Use React Testing Library for testing hooks.",
         "priority": "high",
         "dependencies": [
@@ -644,8 +644,8 @@
       {
         "id": 41,
         "title": "Implement Memory-Efficient State Updates",
-        "description": "Optimize state updates to be memory-efficient and prevent unnecessary re-renders.",
-        "details": "Use immutable update patterns with the spread operator or libraries like immer. Implement batched updates using React 18's automatic batching or unstable_batchedUpdates for older versions. Use the useCallback hook to memoize callback functions. Consider using a virtual DOM recycling library like react-virtualized for long lists.",
+        "description": "Optimize state updates to be memory-efficient and prevent unnecessary re-renders. [Updated: 10/13/2025]",
+        "details": "Use immutable update patterns with the spread operator or libraries like immer. Implement batched updates using React 18's automatic batching or unstable_batchedUpdates for older versions. Use the useCallback hook to memoize callback functions. Consider using a virtual DOM recycling library like react-virtualized for long lists.\n<info added on 2025-10-13T19:18:08.568Z>\nCreated GitHub issue #331 to track progress and discussions related to this task.\n</info added on 2025-10-13T19:18:08.568Z>",
         "testStrategy": "Perform memory profiling using Chrome DevTools. Implement performance tests to measure render times and update frequency. Use React DevTools Profiler for identifying unnecessary re-renders.",
         "priority": "high",
         "dependencies": [
@@ -657,8 +657,8 @@
       {
         "id": 42,
         "title": "Develop Consistent Styling System",
-        "description": "Implement a consistent styling system using Tailwind CSS and design tokens.",
-        "details": "Create a `tailwind.config.js` file with custom design tokens. Use CSS variables for dynamic theming. Implement a dark mode using Tailwind's dark: variant. Consider using `@apply` directives for complex, reusable styles. Use PurgeCSS to remove unused styles in production.",
+        "description": "Implement a consistent styling system using Tailwind CSS and design tokens. [Updated: 10/13/2025]",
+        "details": "Create a `tailwind.config.js` file with custom design tokens. Use CSS variables for dynamic theming. Implement a dark mode using Tailwind's dark: variant. Consider using `@apply` directives for complex, reusable styles. Use PurgeCSS to remove unused styles in production.\n<info added on 2025-10-13T19:18:20.117Z>\nCreated GitHub issue #332 for tracking progress and discussions related to this task.\n</info added on 2025-10-13T19:18:20.117Z>",
         "testStrategy": "Implement visual regression tests using Percy or Chromatic. Create unit tests for utility classes and custom plugins. Perform bundle size analysis to ensure optimal CSS output.",
         "priority": "medium",
         "dependencies": [
@@ -671,8 +671,8 @@
       {
         "id": 43,
         "title": "Implement Code Splitting and Lazy Loading",
-        "description": "Optimize bundle size through code splitting and implement lazy loading for components.",
-        "details": "Use React.lazy() for component-level code splitting. Implement Suspense boundaries for loading states. Use dynamic imports for route-based code splitting. Consider using libraries like loadable-components for advanced code splitting scenarios. Optimize the splitting strategy based on user interaction patterns.",
+        "description": "Optimize bundle size through code splitting and implement lazy loading for components. [Updated: 10/13/2025]",
+        "details": "Use React.lazy() for component-level code splitting. Implement Suspense boundaries for loading states. Use dynamic imports for route-based code splitting. Consider using libraries like loadable-components for advanced code splitting scenarios. Optimize the splitting strategy based on user interaction patterns.\n<info added on 2025-10-13T19:18:32.237Z>\nCreated GitHub issue #333 for tracking this task.\n</info added on 2025-10-13T19:18:32.237Z>",
         "testStrategy": "Measure initial load time and subsequent navigation times. Use Lighthouse for performance scoring. Implement end-to-end tests to verify lazy-loaded components render correctly.",
         "priority": "medium",
         "dependencies": [
@@ -687,8 +687,8 @@
       {
         "id": 44,
         "title": "Enhance WebSocket Communication",
-        "description": "Optimize the WebSocket communication for live transcription updates.",
-        "details": "Implement a custom hook for WebSocket management. Use the latest WebSocket API with proper error handling and reconnection logic. Consider using libraries like socket.io-client for advanced features. Implement message queuing for offline support. Ensure proper cleanup of WebSocket connections in useEffect.",
+        "description": "Optimize the WebSocket communication for live transcription updates. [Updated: 10/13/2025]",
+        "details": "Implement a custom hook for WebSocket management. Use the latest WebSocket API with proper error handling and reconnection logic. Consider using libraries like socket.io-client for advanced features. Implement message queuing for offline support. Ensure proper cleanup of WebSocket connections in useEffect.\n<info added on 2025-10-13T19:18:44.027Z>\nCreated GitHub issue #334 for tracking progress and discussions related to this task.\n</info added on 2025-10-13T19:18:44.027Z>",
         "testStrategy": "Create unit tests for WebSocket logic. Implement integration tests simulating various network conditions. Use tools like Postman or Insomnia for WebSocket testing.",
         "priority": "high",
         "dependencies": [
@@ -701,8 +701,8 @@
       {
         "id": 45,
         "title": "Implement Proper Cleanup in useEffect Hooks",
-        "description": "Audit and fix all useEffect hooks to ensure proper cleanup and prevent memory leaks.",
-        "details": "Review all useEffect hooks in the application. Implement cleanup functions for subscriptions, timers, and event listeners. Use AbortController for cancelling fetch requests. Consider using custom hooks for common cleanup patterns. Use the eslint-plugin-react-hooks for automated checks.",
+        "description": "Audit and fix all useEffect hooks to ensure proper cleanup and prevent memory leaks. [Updated: 10/13/2025]",
+        "details": "Review all useEffect hooks in the application. Implement cleanup functions for subscriptions, timers, and event listeners. Use AbortController for cancelling fetch requests. Consider using custom hooks for common cleanup patterns. Use the eslint-plugin-react-hooks for automated checks.\n<info added on 2025-10-13T19:18:55.052Z>\nCreated GitHub issue #335 for tracking progress and discussion related to this task.\n</info added on 2025-10-13T19:18:55.052Z>",
         "testStrategy": "Create unit tests for cleanup logic. Use tools like why-did-you-render to identify unnecessary re-renders. Perform memory profiling in Chrome DevTools to verify absence of leaks.",
         "priority": "high",
         "dependencies": [
@@ -714,8 +714,8 @@
       {
         "id": 46,
         "title": "Optimize Component Reusability",
-        "description": "Enhance the reusability of components by implementing proper prop types and default props.",
-        "details": "Use TypeScript interfaces for defining prop types. Implement default props using ES6 default parameters. Create higher-order components (HOCs) or render props for shared functionality. Use the latest TypeScript features like const assertions and template literal types for more precise prop typing.",
+        "description": "Enhance the reusability of components by implementing proper prop types and default props. [Updated: 10/13/2025]",
+        "details": "Use TypeScript interfaces for defining prop types. Implement default props using ES6 default parameters. Create higher-order components (HOCs) or render props for shared functionality. Use the latest TypeScript features like const assertions and template literal types for more precise prop typing.\n<info added on 2025-10-13T19:19:08.374Z>\nCreated GitHub issue #336 for tracking this task and related discussions.\n</info added on 2025-10-13T19:19:08.374Z>",
         "testStrategy": "Implement unit tests for different prop combinations. Create documentation and example usage for each reusable component. Use tools like Storybook for visual testing and documentation.",
         "priority": "medium",
         "dependencies": [
@@ -730,8 +730,8 @@
       {
         "id": 47,
         "title": "Implement Comprehensive Error Handling",
-        "description": "Develop a robust error handling system for the application.",
-        "details": "Implement error boundaries using React's ErrorBoundary component. Create a global error handler for unhandled exceptions. Use try-catch blocks for async operations. Implement proper error logging and reporting. Consider using a service like Sentry for error tracking in production.",
+        "description": "Develop a robust error handling system for the application. [Updated: 10/13/2025]",
+        "details": "Implement error boundaries using React's ErrorBoundary component. Create a global error handler for unhandled exceptions. Use try-catch blocks for async operations. Implement proper error logging and reporting. Consider using a service like Sentry for error tracking in production.\n<info added on 2025-10-13T19:19:18.768Z>\nCreated GitHub issue #337 to track progress and discussions related to this task.\n</info added on 2025-10-13T19:19:18.768Z>",
         "testStrategy": "Create unit tests for error handling logic. Implement integration tests that simulate various error scenarios. Perform chaos engineering tests to verify system resilience.",
         "priority": "high",
         "dependencies": [
@@ -759,8 +759,8 @@
       {
         "id": 49,
         "title": "Implement Proper Focus Management",
-        "description": "Develop a system for managing focus in dynamic content and modal dialogs.",
-        "details": "Use refs and the focus() method for programmatic focus management. Implement a focus trap for modal dialogs. Use aria-live regions for announcing dynamic content changes. Consider using libraries like focus-trap-react for complex scenarios. Ensure proper focus restoration after route changes.",
+        "description": "Develop a system for managing focus in dynamic content and modal dialogs. [Updated: 10/13/2025]",
+        "details": "Use refs and the focus() method for programmatic focus management. Implement a focus trap for modal dialogs. Use aria-live regions for announcing dynamic content changes. Consider using libraries like focus-trap-react for complex scenarios. Ensure proper focus restoration after route changes.\n<info added on 2025-10-13T19:19:31.086Z>\nCreated GitHub issue #338 to track progress and discussions related to this task.\n</info added on 2025-10-13T19:19:31.086Z>",
         "testStrategy": "Create unit tests for focus management logic. Perform manual testing with keyboard navigation. Implement end-to-end tests using tools like Cypress to verify focus behavior.",
         "priority": "high",
         "dependencies": [
@@ -772,8 +772,8 @@
       {
         "id": 50,
         "title": "Optimize Bundle Size",
-        "description": "Analyze and optimize the application's bundle size.",
-        "details": "Use tools like webpack-bundle-analyzer to identify large dependencies. Implement dynamic imports for route-based code splitting. Use tree shaking to eliminate dead code. Consider using smaller alternatives for large libraries. Optimize images and assets using tools like imagemin.",
+        "description": "Analyze and optimize the application's bundle size. [Updated: 10/13/2025]",
+        "details": "Use tools like webpack-bundle-analyzer to identify large dependencies. Implement dynamic imports for route-based code splitting. Use tree shaking to eliminate dead code. Consider using smaller alternatives for large libraries. Optimize images and assets using tools like imagemin.\n<info added on 2025-10-13T19:19:43.370Z>\nCreated GitHub issue #339 for tracking this task and related discussions.\n</info added on 2025-10-13T19:19:43.370Z>",
         "testStrategy": "Measure bundle size using tools like source-map-explorer. Set up CI/CD checks for bundle size limits. Perform lighthouse audits to verify performance improvements.",
         "priority": "medium",
         "dependencies": [
@@ -785,8 +785,8 @@
       {
         "id": 51,
         "title": "Implement Comprehensive Testing Suite",
-        "description": "Develop a comprehensive testing suite covering unit, integration, and end-to-end tests.",
-        "details": "Use Jest as the test runner. Implement unit tests using React Testing Library. Use Cypress for end-to-end testing. Implement visual regression tests using Percy or Chromatic. Use react-hooks-testing-library for testing custom hooks. Aim for at least 80% code coverage.",
+        "description": "Develop a comprehensive testing suite covering unit, integration, and end-to-end tests. [Updated: 10/13/2025]",
+        "details": "Use Jest as the test runner. Implement unit tests using React Testing Library. Use Cypress for end-to-end testing. Implement visual regression tests using Percy or Chromatic. Use react-hooks-testing-library for testing custom hooks. Aim for at least 80% code coverage.\n<info added on 2025-10-13T19:19:54.785Z>\nCreated GitHub issue #340 for tracking progress and discussions related to this task.\n</info added on 2025-10-13T19:19:54.785Z>",
         "testStrategy": "Set up CI/CD pipeline for automated testing. Implement code coverage reporting. Perform regular test audits to ensure test quality and relevance.",
         "priority": "high",
         "dependencies": [
@@ -804,8 +804,8 @@
       {
         "id": 52,
         "title": "Optimize Electron Desktop Application",
-        "description": "Optimize the Electron-based desktop application for performance and resource usage.",
-        "details": "Use the latest Electron version (currently 24.2.0) for improved performance. Implement proper IPC communication between main and renderer processes. Use preload scripts for secure bridge between renderer and main processes. Optimize main process memory usage. Consider using electron-builder for packaging and distribution.",
+        "description": "Optimize the Electron-based desktop application for performance and resource usage. [Updated: 10/13/2025]",
+        "details": "Use the latest Electron version (currently 24.2.0) for improved performance. Implement proper IPC communication between main and renderer processes. Use preload scripts for secure bridge between renderer and main processes. Optimize main process memory usage. Consider using electron-builder for packaging and distribution.\n<info added on 2025-10-13T19:20:07.239Z>\nCreated GitHub issue #341 for tracking this task and related discussions.\n</info added on 2025-10-13T19:20:07.239Z>",
         "testStrategy": "Perform memory and CPU profiling using Electron's built-in tools. Implement automated tests for IPC communication. Perform cross-platform testing on macOS, Windows, and Linux.",
         "priority": "medium",
         "dependencies": [
@@ -818,8 +818,8 @@
       {
         "id": 53,
         "title": "Implement Offline Support",
-        "description": "Develop offline support for critical application features.",
-        "details": "Use Service Workers for caching static assets. Implement IndexedDB for offline data storage. Use background sync for offline-to-online data synchronization. Consider using libraries like Workbox for advanced offline capabilities. Ensure proper error handling and user feedback for offline scenarios.",
+        "description": "Develop offline support for critical application features. [Updated: 10/13/2025]",
+        "details": "Use Service Workers for caching static assets. Implement IndexedDB for offline data storage. Use background sync for offline-to-online data synchronization. Consider using libraries like Workbox for advanced offline capabilities. Ensure proper error handling and user feedback for offline scenarios.\n<info added on 2025-10-13T19:20:18.426Z>\nCreated GitHub issue #342 to track progress and discussions related to this task.\n</info added on 2025-10-13T19:20:18.426Z>",
         "testStrategy": "Create unit tests for offline storage and sync logic. Implement integration tests simulating offline scenarios. Perform manual testing under various network conditions.",
         "priority": "medium",
         "dependencies": [
@@ -833,8 +833,8 @@
       {
         "id": 54,
         "title": "Develop Design System Documentation",
-        "description": "Create comprehensive documentation for the application's design system and component library.",
-        "details": "Use Storybook for component documentation and visual testing. Implement MDX for combining Markdown and live examples. Create a style guide detailing design tokens, typography, and color usage. Document accessibility guidelines and best practices. Consider using tools like react-docgen for automated prop documentation.",
+        "description": "Create comprehensive documentation for the application's design system and component library. [Updated: 10/13/2025]",
+        "details": "Use Storybook for component documentation and visual testing. Implement MDX for combining Markdown and live examples. Create a style guide detailing design tokens, typography, and color usage. Document accessibility guidelines and best practices. Consider using tools like react-docgen for automated prop documentation.\n<info added on 2025-10-13T19:20:30.844Z>\nCreated GitHub issue #343 to track progress and discussions related to this task.\n</info added on 2025-10-13T19:20:30.844Z>",
         "testStrategy": "Perform regular audits to ensure documentation accuracy. Implement automated checks for documentation coverage. Gather feedback from the development team on documentation clarity and completeness.",
         "priority": "low",
         "dependencies": [
@@ -850,8 +850,8 @@
       {
         "id": 55,
         "title": "Implement Performance Monitoring",
-        "description": "Set up a system for ongoing performance monitoring and alerting.",
-        "details": "Implement React Profiler API for component performance tracking. Use Web Vitals for monitoring core web vitals. Set up error tracking and performance monitoring using services like Sentry or New Relic. Implement custom performance marks and measures using the Performance API. Consider using PerformanceObserver for ongoing performance tracking.",
+        "description": "Set up a system for ongoing performance monitoring and alerting. [Updated: 10/13/2025]",
+        "details": "Implement React Profiler API for component performance tracking. Use Web Vitals for monitoring core web vitals. Set up error tracking and performance monitoring using services like Sentry or New Relic. Implement custom performance marks and measures using the Performance API. Consider using PerformanceObserver for ongoing performance tracking.\n<info added on 2025-10-13T19:20:43.903Z>\nCreated GitHub issue #344 to track progress and discussions related to this task.\n</info added on 2025-10-13T19:20:43.903Z>",
         "testStrategy": "Create baseline performance metrics. Implement automated performance regression testing. Set up alerts for performance degradation. Regularly review and act on performance data.",
         "priority": "medium",
         "dependencies": [
@@ -866,8 +866,8 @@
       {
         "id": 56,
         "title": "Conduct Security Audit",
-        "description": "Perform a comprehensive security audit of the application.",
-        "details": "Use static analysis tools like ESLint with security plugins. Perform dependency vulnerability scanning using tools like npm audit or Snyk. Implement Content Security Policy (CSP) headers. Ensure proper input validation and sanitization. Review and secure Electron's IPC communication. Consider using OWASP ZAP for automated security testing.",
+        "description": "Perform a comprehensive security audit of the application. [Updated: 10/13/2025]",
+        "details": "Use static analysis tools like ESLint with security plugins. Perform dependency vulnerability scanning using tools like npm audit or Snyk. Implement Content Security Policy (CSP) headers. Ensure proper input validation and sanitization. Review and secure Electron's IPC communication. Consider using OWASP ZAP for automated security testing.\n<info added on 2025-10-13T19:20:57.369Z>\nCreated GitHub issue #345 for tracking progress and discussions related to this security audit task.\n</info added on 2025-10-13T19:20:57.369Z>",
         "testStrategy": "Conduct regular penetration testing. Implement security unit tests for critical functions. Perform third-party security audits. Set up automated security scanning in the CI/CD pipeline.",
         "priority": "high",
         "dependencies": [
@@ -881,8 +881,8 @@
       {
         "id": 57,
         "title": "Implement Internationalization (i18n)",
-        "description": "Add support for multiple languages and locales in the application.",
-        "details": "Use react-intl or react-i18next for internationalization. Implement a system for managing translation files. Use ICU message format for complex translations. Ensure proper handling of RTL languages. Consider using tools like Crowdin for translation management.",
+        "description": "Add support for multiple languages and locales in the application. [Updated: 10/13/2025]",
+        "details": "Use react-intl or react-i18next for internationalization. Implement a system for managing translation files. Use ICU message format for complex translations. Ensure proper handling of RTL languages. Consider using tools like Crowdin for translation management.\n<info added on 2025-10-13T19:21:09.243Z>\nCreated GitHub issue #346 to track progress and discussions related to this task.\n</info added on 2025-10-13T19:21:09.243Z>",
         "testStrategy": "Create unit tests for translation functions. Implement visual regression tests for different languages. Perform manual testing with native speakers. Automate locale switching in end-to-end tests.",
         "priority": "low",
         "dependencies": [
@@ -895,8 +895,8 @@
       {
         "id": 58,
         "title": "Optimize Build and Deployment Pipeline",
-        "description": "Streamline and optimize the build and deployment process.",
-        "details": "Implement Docker for consistent build environments. Use GitHub Actions or GitLab CI for automated CI/CD. Optimize webpack configuration for faster builds. Implement proper environment variable management. Consider using tools like Nx for monorepo management if applicable.",
+        "description": "Streamline and optimize the build and deployment process. [Updated: 10/13/2025]",
+        "details": "Implement Docker for consistent build environments. Use GitHub Actions or GitLab CI for automated CI/CD. Optimize webpack configuration for faster builds. Implement proper environment variable management. Consider using tools like Nx for monorepo management if applicable.\n<info added on 2025-10-13T19:21:20.521Z>\nCreated GitHub issue #347 for tracking this task and related discussions.\n</info added on 2025-10-13T19:21:20.521Z>",
         "testStrategy": "Measure and optimize build times. Implement smoke tests for deployed versions. Set up automated rollback procedures. Perform regular audits of the deployment process.",
         "priority": "medium",
         "dependencies": [
@@ -910,8 +910,8 @@
       {
         "id": 59,
         "title": "Fix Transcription Duplication Bug in Recent Topics Sidebar",
-        "description": "Fix a bug where multiple identical transcriptions appear in the RECENT TOPICS sidebar when a user clicks the REC button only once, by modifying the TranscriptionStateManager.addStaticTranscript() method to check for duplicates.",
-        "details": "1. Locate the TranscriptionStateManager class and the addStaticTranscript() method.\n2. Implement duplicate detection logic before adding new transcriptions to the array:\n   ```typescript\n   addStaticTranscript(transcript: Transcript): void {\n     // Check if transcript with same content already exists in the array\n     const isDuplicate = this.transcripts.some(existingTranscript => \n       existingTranscript.content === transcript.content && \n       existingTranscript.timestamp === transcript.timestamp\n     );\n     \n     // Only add if not a duplicate\n     if (!isDuplicate) {\n       this.transcripts.push(transcript);\n       this.notifyListeners();\n     }\n   }\n   ```\n3. Consider adding a more robust equality check if transcripts have unique IDs:\n   ```typescript\n   const isDuplicate = this.transcripts.some(existingTranscript => \n     existingTranscript.id === transcript.id\n   );\n   ```\n4. Update any related unit tests to verify duplicate prevention.\n5. Ensure the fix works with the existing state management pattern.\n6. Add logging to help diagnose when duplicate transcriptions are attempted.\n7. Consider adding a debug mode option that logs when duplicates are detected.\n8. Review other similar methods in the TranscriptionStateManager to ensure they also handle duplicates properly.",
+        "description": "Fix a bug where multiple identical transcriptions appear in the RECENT TOPICS sidebar when a user clicks the REC button only once, by modifying the TranscriptionStateManager.addStaticTranscript() method to check for duplicates. [Updated: 10/13/2025]",
+        "details": "1. Locate the TranscriptionStateManager class and the addStaticTranscript() method.\n2. Implement duplicate detection logic before adding new transcriptions to the array:\n   ```typescript\n   addStaticTranscript(transcript: Transcript): void {\n     // Check if transcript with same content already exists in the array\n     const isDuplicate = this.transcripts.some(existingTranscript => \n       existingTranscript.content === transcript.content && \n       existingTranscript.timestamp === transcript.timestamp\n     );\n     \n     // Only add if not a duplicate\n     if (!isDuplicate) {\n       this.transcripts.push(transcript);\n       this.notifyListeners();\n     }\n   }\n   ```\n3. Consider adding a more robust equality check if transcripts have unique IDs:\n   ```typescript\n   const isDuplicate = this.transcripts.some(existingTranscript => \n     existingTranscript.id === transcript.id\n   );\n   ```\n4. Update any related unit tests to verify duplicate prevention.\n5. Ensure the fix works with the existing state management pattern.\n6. Add logging to help diagnose when duplicate transcriptions are attempted.\n7. Consider adding a debug mode option that logs when duplicates are detected.\n8. Review other similar methods in the TranscriptionStateManager to ensure they also handle duplicates properly.\n<info added on 2025-10-13T19:21:33.680Z>\nCreated GitHub issue #348 for tracking this bug and its resolution.\n</info added on 2025-10-13T19:21:33.680Z>",
         "testStrategy": "1. Create unit tests for the TranscriptionStateManager.addStaticTranscript() method:\n   - Test adding a unique transcription (should be added)\n   - Test adding a duplicate transcription (should not be added)\n   - Test adding multiple transcriptions with varying content (should all be added)\n   - Test edge cases like empty transcriptions or transcriptions with only whitespace\n\n2. Create integration tests:\n   - Simulate clicking the REC button once and verify only one transcription appears in the RECENT TOPICS sidebar\n   - Test rapid consecutive clicks to ensure no duplicates appear\n   - Test the interaction between live transcription and static transcription to ensure no duplicates\n\n3. Manual testing:\n   - Click the REC button once and verify only one entry appears in the sidebar\n   - Test across different operating systems and browsers to ensure consistent behavior\n   - Test with different transcription lengths and content types\n\n4. Regression testing:\n   - Verify that existing functionality still works correctly after the fix\n   - Ensure that legitimate duplicate recordings (when user intentionally records the same content twice) are still handled correctly",
         "status": "pending",
         "dependencies": [
@@ -1191,8 +1191,8 @@
       {
         "id": 63,
         "title": "Optimize Recording Button Click Latency",
-        "description": "Fix the latency issue where transcription doesn't start immediately when the REC button is clicked, ensuring instant recording start and immediate WebSocket connection establishment.",
-        "details": "1. Analyze current implementation:\n   - Use Chrome DevTools Performance tab to profile the button click event\n   - Identify bottlenecks in the click handler, WebSocket initialization, and audio capture start\n\n2. Optimize button click handler:\n   - Implement debouncing to prevent multiple rapid clicks\n   - Use React.useCallback to memoize the click handler function\n   ```typescript\n   const handleRecClick = React.useCallback(() => {\n     // Existing logic here\n   }, [dependencies]);\n   ```\n\n3. Improve WebSocket connection:\n   - Implement connection pooling to maintain a pre-established WebSocket connection\n   - Use a state machine to manage WebSocket lifecycle (CONNECTING, OPEN, CLOSING, CLOSED)\n   ```typescript\n   const [wsState, setWsState] = useState('CLOSED');\n   useEffect(() => {\n     const ws = new WebSocket(URL);\n     ws.onopen = () => setWsState('OPEN');\n     // Other event handlers\n     return () => ws.close();\n   }, []);\n   ```\n\n4. Optimize audio capture:\n   - Use Web Audio API for low-latency audio processing\n   - Implement a circular buffer for efficient audio data management\n   ```typescript\n   const audioContext = new (window.AudioContext || window.webkitAudioContext)();\n   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });\n   const source = audioContext.createMediaStreamSource(stream);\n   // Connect source to processing nodes\n   ```\n\n5. Implement parallel processing:\n   - Start WebSocket connection and audio capture concurrently\n   - Use Promise.all to wait for both to be ready before enabling the REC button\n   ```typescript\n   Promise.all([initWebSocket(), initAudioCapture()])\n     .then(() => setRecordingReady(true))\n     .catch(handleError);\n   ```\n\n6. Optimize state management:\n   - Use React Context or Redux for global state management\n   - Implement optimistic UI updates to give instant feedback on button click\n\n7. Refactor TranscriptionStateManager:\n   - Modify addStaticTranscript method to handle real-time updates\n   - Implement a buffer for incoming transcription data\n\n8. Update LiveTranscriptionDisplay component:\n   - Implement virtualized rendering for efficient updates\n   - Use React.memo to prevent unnecessary re-renders\n\n9. Implement error handling and fallback mechanisms:\n   - Add try-catch blocks around critical operations\n   - Implement a fallback UI for scenarios where instant start fails\n\n10. Performance monitoring:\n    - Implement custom performance metrics using Performance API\n    - Set up logging for timing data to identify ongoing issues",
+        "description": "Fix the latency issue where transcription doesn't start immediately when the REC button is clicked, ensuring instant recording start and immediate WebSocket connection establishment. [Updated: 10/13/2025]",
+        "details": "1. Analyze current implementation:\n   - Use Chrome DevTools Performance tab to profile the button click event\n   - Identify bottlenecks in the click handler, WebSocket initialization, and audio capture start\n\n2. Optimize button click handler:\n   - Implement debouncing to prevent multiple rapid clicks\n   - Use React.useCallback to memoize the click handler function\n   ```typescript\n   const handleRecClick = React.useCallback(() => {\n     // Existing logic here\n   }, [dependencies]);\n   ```\n\n3. Improve WebSocket connection:\n   - Implement connection pooling to maintain a pre-established WebSocket connection\n   - Use a state machine to manage WebSocket lifecycle (CONNECTING, OPEN, CLOSING, CLOSED)\n   ```typescript\n   const [wsState, setWsState] = useState('CLOSED');\n   useEffect(() => {\n     const ws = new WebSocket(URL);\n     ws.onopen = () => setWsState('OPEN');\n     // Other event handlers\n     return () => ws.close();\n   }, []);\n   ```\n\n4. Optimize audio capture:\n   - Use Web Audio API for low-latency audio processing\n   - Implement a circular buffer for efficient audio data management\n   ```typescript\n   const audioContext = new (window.AudioContext || window.webkitAudioContext)();\n   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });\n   const source = audioContext.createMediaStreamSource(stream);\n   // Connect source to processing nodes\n   ```\n\n5. Implement parallel processing:\n   - Start WebSocket connection and audio capture concurrently\n   - Use Promise.all to wait for both to be ready before enabling the REC button\n   ```typescript\n   Promise.all([initWebSocket(), initAudioCapture()])\n     .then(() => setRecordingReady(true))\n     .catch(handleError);\n   ```\n\n6. Optimize state management:\n   - Use React Context or Redux for global state management\n   - Implement optimistic UI updates to give instant feedback on button click\n\n7. Refactor TranscriptionStateManager:\n   - Modify addStaticTranscript method to handle real-time updates\n   - Implement a buffer for incoming transcription data\n\n8. Update LiveTranscriptionDisplay component:\n   - Implement virtualized rendering for efficient updates\n   - Use React.memo to prevent unnecessary re-renders\n\n9. Implement error handling and fallback mechanisms:\n   - Add try-catch blocks around critical operations\n   - Implement a fallback UI for scenarios where instant start fails\n\n10. Performance monitoring:\n    - Implement custom performance metrics using Performance API\n    - Set up logging for timing data to identify ongoing issues\n<info added on 2025-10-13T19:21:43.980Z>\nCreated GitHub issue #349 for tracking this task and related discussions.\n</info added on 2025-10-13T19:21:43.980Z>",
         "testStrategy": "1. Unit Testing:\n   - Create unit tests for the optimized button click handler\n   - Test WebSocket connection management functions\n   - Verify audio capture initialization and management\n\n2. Integration Testing:\n   - Implement end-to-end tests simulating user clicking the REC button\n   - Verify that transcription starts immediately after button click\n   - Test WebSocket connection establishment time\n\n3. Performance Testing:\n   - Use Jest with jsdom to measure time between click event and transcription start\n   - Implement automated performance tests in CI/CD pipeline\n   - Use Lighthouse in CI to measure and track performance metrics\n\n4. User Experience Testing:\n   - Conduct A/B testing with a focus group to compare old and new implementations\n   - Use tools like FullStory or Hotjar to analyze user interactions and identify any remaining issues\n\n5. Cross-browser Testing:\n   - Verify functionality and performance across different browsers (Chrome, Firefox, Safari, Edge)\n   - Test on different devices (desktop, mobile, tablet) to ensure consistent performance\n\n6. Network Condition Testing:\n   - Simulate various network conditions (3G, 4G, Wi-Fi) using Chrome DevTools\n   - Verify graceful degradation under poor network conditions\n\n7. Error Handling Testing:\n   - Simulate WebSocket connection failures and verify error handling\n   - Test scenarios where audio capture fails or is delayed\n\n8. Accessibility Testing:\n   - Ensure that the optimized button click handling doesn't affect accessibility\n   - Verify that screen readers correctly announce the recording state\n\n9. Load Testing:\n   - Simulate multiple concurrent users starting recordings\n   - Verify server-side performance under increased load\n\n10. Regression Testing:\n    - Ensure that optimizations haven't introduced new bugs in related functionality\n    - Verify that existing tests for related components still pass",
         "status": "pending",
         "dependencies": [
@@ -1265,8 +1265,8 @@
       {
         "id": 64,
         "title": "Optimize Gemini Live API WebSocket Streaming Intervals",
-        "description": "Implement fine-grained streaming with partial text updates arriving every 100-200ms instead of several seconds for the Gemini Live API WebSocket connection, providing a smoother real-time transcription experience.",
-        "details": "1. Analyze current WebSocket implementation:\n   - Review the existing WebSocket connection setup in the `useTranscriptionState` hook\n   - Identify the current message processing logic and update intervals\n\n2. Modify WebSocket connection parameters:\n   - Update the WebSocket connection URL to include parameters for more frequent updates:\n     ```typescript\n     const wsUrl = `wss://api.gemini.com/v1/marketdata/BTCUSD?heartbeat=true&top_of_book=true&trades=true&auctions=true&updateFrequency=100`;\n     ```\n\n3. Implement a buffer for incoming messages:\n   ```typescript\n   const messageBuffer: string[] = [];\n   const bufferInterval = 100; // ms\n\n   socket.onmessage = (event) => {\n     messageBuffer.push(event.data);\n   };\n\n   setInterval(() => {\n     if (messageBuffer.length > 0) {\n       processMessages(messageBuffer);\n       messageBuffer.length = 0;\n     }\n   }, bufferInterval);\n   ```\n\n4. Optimize message processing:\n   ```typescript\n   function processMessages(messages: string[]) {\n     const updates = messages.map(msg => JSON.parse(msg));\n     // Merge updates if necessary\n     const mergedUpdate = mergeUpdates(updates);\n     updateTranscriptionState(mergedUpdate);\n   }\n   ```\n\n5. Implement efficient state updates:\n   - Use React's `useReducer` for complex state updates\n   - Implement batched updates using React 18's automatic batching\n\n6. Optimize rendering performance:\n   - Use `React.memo` to prevent unnecessary re-renders of child components\n   - Implement virtualization for long transcripts using `react-window`\n\n7. Handle potential increased server load:\n   - Implement exponential backoff for reconnection attempts\n   - Add rate limiting on the client side to prevent overwhelming the server\n\n8. Update error handling and connection management:\n   ```typescript\n   socket.onerror = (error) => {\n     console.error('WebSocket Error:', error);\n     reconnectWithBackoff();\n   };\n\n   socket.onclose = (event) => {\n     if (event.wasClean) {\n       console.log(`Connection closed cleanly, code=${event.code}, reason=${event.reason}`);\n     } else {\n       console.error('Connection died');\n       reconnectWithBackoff();\n     }\n   };\n   ```\n\n9. Implement proper cleanup:\n   ```typescript\n   useEffect(() => {\n     // WebSocket setup here\n\n     return () => {\n       socket.close();\n       clearInterval(bufferInterval);\n     };\n   }, []);\n   ```\n\n10. Update the `LiveTranscriptionDisplay` component to handle more frequent updates:\n    - Implement a debounce mechanism for rendering updates\n    - Use `useDeferredValue` for smoother UI updates with frequent changes\n\n11. Optimize memory usage:\n    - Implement a sliding window for transcript history to prevent unbounded growth\n    - Use Web Workers for heavy processing tasks to keep the main thread responsive",
+        "description": "Implement fine-grained streaming with partial text updates arriving every 100-200ms instead of several seconds for the Gemini Live API WebSocket connection, providing a smoother real-time transcription experience. [Updated: 10/13/2025]",
+        "details": "1. Analyze current WebSocket implementation:\n   - Review the existing WebSocket connection setup in the `useTranscriptionState` hook\n   - Identify the current message processing logic and update intervals\n\n2. Modify WebSocket connection parameters:\n   - Update the WebSocket connection URL to include parameters for more frequent updates:\n     ```typescript\n     const wsUrl = `wss://api.gemini.com/v1/marketdata/BTCUSD?heartbeat=true&top_of_book=true&trades=true&auctions=true&updateFrequency=100`;\n     ```\n\n3. Implement a buffer for incoming messages:\n   ```typescript\n   const messageBuffer: string[] = [];\n   const bufferInterval = 100; // ms\n\n   socket.onmessage = (event) => {\n     messageBuffer.push(event.data);\n   };\n\n   setInterval(() => {\n     if (messageBuffer.length > 0) {\n       processMessages(messageBuffer);\n       messageBuffer.length = 0;\n     }\n   }, bufferInterval);\n   ```\n\n4. Optimize message processing:\n   ```typescript\n   function processMessages(messages: string[]) {\n     const updates = messages.map(msg => JSON.parse(msg));\n     // Merge updates if necessary\n     const mergedUpdate = mergeUpdates(updates);\n     updateTranscriptionState(mergedUpdate);\n   }\n   ```\n\n5. Implement efficient state updates:\n   - Use React's `useReducer` for complex state updates\n   - Implement batched updates using React 18's automatic batching\n\n6. Optimize rendering performance:\n   - Use `React.memo` to prevent unnecessary re-renders of child components\n   - Implement virtualization for long transcripts using `react-window`\n\n7. Handle potential increased server load:\n   - Implement exponential backoff for reconnection attempts\n   - Add rate limiting on the client side to prevent overwhelming the server\n\n8. Update error handling and connection management:\n   ```typescript\n   socket.onerror = (error) => {\n     console.error('WebSocket Error:', error);\n     reconnectWithBackoff();\n   };\n\n   socket.onclose = (event) => {\n     if (event.wasClean) {\n       console.log(`Connection closed cleanly, code=${event.code}, reason=${event.reason}`);\n     } else {\n       console.error('Connection died');\n       reconnectWithBackoff();\n     }\n   };\n   ```\n\n9. Implement proper cleanup:\n   ```typescript\n   useEffect(() => {\n     // WebSocket setup here\n\n     return () => {\n       socket.close();\n       clearInterval(bufferInterval);\n     };\n   }, []);\n   ```\n\n10. Update the `LiveTranscriptionDisplay` component to handle more frequent updates:\n    - Implement a debounce mechanism for rendering updates\n    - Use `useDeferredValue` for smoother UI updates with frequent changes\n\n11. Optimize memory usage:\n    - Implement a sliding window for transcript history to prevent unbounded growth\n    - Use Web Workers for heavy processing tasks to keep the main thread responsive\n<info added on 2025-10-13T19:21:55.513Z>\nCreated GitHub issue #350 for tracking this task and related discussions.\n</info added on 2025-10-13T19:21:55.513Z>",
         "testStrategy": "1. Unit Testing:\n   - Create unit tests for the WebSocket message handling logic\n   - Test the message buffering and processing functions\n   - Verify proper handling of various update frequencies\n\n2. Integration Testing:\n   - Implement end-to-end tests simulating WebSocket messages at high frequencies\n   - Verify that the UI updates smoothly with frequent partial updates\n   - Test error handling and reconnection logic\n\n3. Performance Testing:\n   - Use React DevTools Profiler to measure render times and update frequency\n   - Implement performance tests to ensure the application can handle high-frequency updates without lag\n   - Use Chrome DevTools Performance tab to profile CPU and memory usage\n\n4. Stress Testing:\n   - Simulate extremely high update frequencies to ensure the application remains stable\n   - Test with large volumes of data to verify memory management and performance\n\n5. Network Condition Testing:\n   - Use browser developer tools to simulate various network conditions (3G, 4G, etc.)\n   - Verify that the application degrades gracefully under poor network conditions\n\n6. Cross-browser Testing:\n   - Ensure consistent behavior across different browsers (Chrome, Firefox, Safari, Edge)\n\n7. Mobile Device Testing:\n   - Verify performance and battery usage on mobile devices with frequent updates\n\n8. Accessibility Testing:\n   - Ensure that screen readers can keep up with the increased update frequency\n   - Verify that the more frequent updates do not cause issues for users with cognitive disabilities\n\n9. User Experience Testing:\n   - Conduct user tests to gather feedback on the smoother update experience\n   - Compare side-by-side with the old implementation to quantify improvement\n\n10. Automated Monitoring:\n    - Implement logging and monitoring for WebSocket connection stability and update frequencies in production\n    - Set up alerts for abnormal behavior or performance degradation",
         "status": "pending",
         "dependencies": [
@@ -1336,8 +1336,8 @@
       {
         "id": 65,
         "title": "Fix Initial 30-Second Transcription Delay",
-        "description": "Investigate and resolve the 30-second initial delay before transcriptions start appearing by optimizing the startup sequence for immediate transcription display.",
-        "details": "1. Analyze the current startup sequence:\n   - Use Chrome DevTools Performance tab to profile the application startup\n   - Identify bottlenecks in WebSocket connection establishment\n   - Analyze audio capture initialization timing\n   - Measure initial transcription processing delays\n\n2. Optimize WebSocket connection establishment:\n   ```typescript\n   // Implement eager connection initialization\n   const useEagerWebSocketConnection = () => {\n     const [socket, setSocket] = useState(null);\n     \n     useEffect(() => {\n       // Initialize connection immediately on component mount\n       const newSocket = new WebSocket(API_ENDPOINT);\n       \n       // Set up event handlers with proper error handling\n       newSocket.onopen = () => console.log('WebSocket connected');\n       newSocket.onerror = (error) => console.error('WebSocket error:', error);\n       \n       setSocket(newSocket);\n       \n       return () => {\n         if (newSocket && newSocket.readyState === WebSocket.OPEN) {\n           newSocket.close();\n         }\n       };\n     }, []);\n     \n     return socket;\n   };\n   ```\n\n3. Implement audio capture preinitialization:\n   ```typescript\n   // Preinitialize audio capture on app startup\n   const useAudioCapture = () => {\n     const [audioContext, setAudioContext] = useState(null);\n     const [stream, setStream] = useState(null);\n     \n     useEffect(() => {\n       // Create AudioContext immediately\n       const context = new (window.AudioContext || window.webkitAudioContext)();\n       setAudioContext(context);\n       \n       // Request microphone access on component mount\n       navigator.mediaDevices.getUserMedia({ audio: true })\n         .then(mediaStream => {\n           setStream(mediaStream);\n         })\n         .catch(error => {\n           console.error('Error accessing microphone:', error);\n         });\n         \n       return () => {\n         if (stream) {\n           stream.getTracks().forEach(track => track.stop());\n         }\n         if (audioContext) {\n           audioContext.close();\n         }\n       };\n     }, []);\n     \n     return { audioContext, stream };\n   };\n   ```\n\n4. Optimize transcription processing initialization:\n   - Implement a warm-up mechanism for the transcription engine\n   - Remove any unnecessary initialization steps\n   - Parallelize initialization tasks where possible\n   - Implement progressive loading of transcription components\n\n5. Implement UI feedback during initialization:\n   ```typescript\n   const TranscriptionInitializer = () => {\n     const [initStatus, setInitStatus] = useState('initializing');\n     const socket = useEagerWebSocketConnection();\n     const { audioContext, stream } = useAudioCapture();\n     \n     useEffect(() => {\n       if (socket && audioContext && stream) {\n         setInitStatus('ready');\n       }\n     }, [socket, audioContext, stream]);\n     \n     return (\n       <div className=\"transcription-status\">\n         {initStatus === 'initializing' ? (\n           <ProgressIndicator message=\"Preparing transcription...\" />\n         ) : (\n           <ReadyIndicator message=\"Ready to transcribe\" />\n         )}\n       </div>\n     );\n   };\n   ```\n\n6. Implement a connection health monitoring system:\n   - Add heartbeat mechanism to detect connection issues early\n   - Implement automatic reconnection with exponential backoff\n   - Add telemetry to track connection establishment times\n\n7. Optimize the TranscriptionStateManager to handle immediate transcription:\n   - Modify state initialization to be ready for immediate transcription\n   - Remove any artificial delays or batching in the initial state setup\n   - Ensure state updates are processed immediately for the first transcription",
+        "description": "Investigate and resolve the 30-second initial delay before transcriptions start appearing by optimizing the startup sequence for immediate transcription display. [Updated: 10/13/2025]",
+        "details": "1. Analyze the current startup sequence:\n   - Use Chrome DevTools Performance tab to profile the application startup\n   - Identify bottlenecks in WebSocket connection establishment\n   - Analyze audio capture initialization timing\n   - Measure initial transcription processing delays\n\n2. Optimize WebSocket connection establishment:\n   ```typescript\n   // Implement eager connection initialization\n   const useEagerWebSocketConnection = () => {\n     const [socket, setSocket] = useState(null);\n     \n     useEffect(() => {\n       // Initialize connection immediately on component mount\n       const newSocket = new WebSocket(API_ENDPOINT);\n       \n       // Set up event handlers with proper error handling\n       newSocket.onopen = () => console.log('WebSocket connected');\n       newSocket.onerror = (error) => console.error('WebSocket error:', error);\n       \n       setSocket(newSocket);\n       \n       return () => {\n         if (newSocket && newSocket.readyState === WebSocket.OPEN) {\n           newSocket.close();\n         }\n       };\n     }, []);\n     \n     return socket;\n   };\n   ```\n\n3. Implement audio capture preinitialization:\n   ```typescript\n   // Preinitialize audio capture on app startup\n   const useAudioCapture = () => {\n     const [audioContext, setAudioContext] = useState(null);\n     const [stream, setStream] = useState(null);\n     \n     useEffect(() => {\n       // Create AudioContext immediately\n       const context = new (window.AudioContext || window.webkitAudioContext)();\n       setAudioContext(context);\n       \n       // Request microphone access on component mount\n       navigator.mediaDevices.getUserMedia({ audio: true })\n         .then(mediaStream => {\n           setStream(mediaStream);\n         })\n         .catch(error => {\n           console.error('Error accessing microphone:', error);\n         });\n         \n       return () => {\n         if (stream) {\n           stream.getTracks().forEach(track => track.stop());\n         }\n         if (audioContext) {\n           audioContext.close();\n         }\n       };\n     }, []);\n     \n     return { audioContext, stream };\n   };\n   ```\n\n4. Optimize transcription processing initialization:\n   - Implement a warm-up mechanism for the transcription engine\n   - Remove any unnecessary initialization steps\n   - Parallelize initialization tasks where possible\n   - Implement progressive loading of transcription components\n\n5. Implement UI feedback during initialization:\n   ```typescript\n   const TranscriptionInitializer = () => {\n     const [initStatus, setInitStatus] = useState('initializing');\n     const socket = useEagerWebSocketConnection();\n     const { audioContext, stream } = useAudioCapture();\n     \n     useEffect(() => {\n       if (socket && audioContext && stream) {\n         setInitStatus('ready');\n       }\n     }, [socket, audioContext, stream]);\n     \n     return (\n       <div className=\"transcription-status\">\n         {initStatus === 'initializing' ? (\n           <ProgressIndicator message=\"Preparing transcription...\" />\n         ) : (\n           <ReadyIndicator message=\"Ready to transcribe\" />\n         )}\n       </div>\n     );\n   };\n   ```\n\n6. Implement a connection health monitoring system:\n   - Add heartbeat mechanism to detect connection issues early\n   - Implement automatic reconnection with exponential backoff\n   - Add telemetry to track connection establishment times\n\n7. Optimize the TranscriptionStateManager to handle immediate transcription:\n   - Modify state initialization to be ready for immediate transcription\n   - Remove any artificial delays or batching in the initial state setup\n   - Ensure state updates are processed immediately for the first transcription\n<info added on 2025-10-13T19:22:07.407Z>\nCreated GitHub issue #351 for tracking progress and discussions related to the initial 30-second transcription delay optimization.\n</info added on 2025-10-13T19:22:07.407Z>",
         "testStrategy": "1. Automated Performance Testing:\n   - Implement Jest performance tests to measure the time from application start to first transcription display\n   - Create benchmarks for WebSocket connection establishment time\n   - Measure audio capture initialization time\n   - Track time to first transcription byte\n\n2. User Experience Testing:\n   - Conduct A/B testing with users to verify the perceived improvement\n   - Implement a timing mechanism to measure actual delay in production\n   - Create a user feedback form specifically about startup performance\n\n3. Integration Testing:\n   - Create end-to-end tests using Cypress or Playwright that:\n     - Start the application\n     - Begin audio capture\n     - Measure time until first transcription appears\n     - Verify transcription accuracy is not affected by optimization\n\n4. Unit Testing:\n   - Test the WebSocket connection establishment function\n   - Verify audio capture initialization works correctly\n   - Test the transcription processing initialization\n   - Ensure proper error handling during initialization\n\n5. Cross-browser and Cross-platform Testing:\n   - Test on Chrome, Firefox, Safari, and Edge\n   - Verify performance on Windows, macOS, and Linux\n   - Test on different hardware configurations\n\n6. Network Condition Testing:\n   - Test under various network conditions (fast, slow, unstable)\n   - Implement network throttling in tests to simulate poor connections\n   - Verify graceful degradation under poor network conditions\n\n7. Regression Testing:\n   - Ensure optimizations don't negatively impact other functionality\n   - Verify transcription quality remains consistent\n   - Check that WebSocket reconnection still works properly",
         "status": "pending",
         "dependencies": [
@@ -1408,8 +1408,8 @@
       {
         "id": 66,
         "title": "Optimize Transcription Latency for Real-Time Performance",
-        "description": "Analyze and optimize the transcription pipeline to match YouTube's real-time performance, reducing noticeable delays in the current implementation.",
-        "details": "1. Benchmark current performance:\n   - Use Chrome DevTools Performance tab to profile the entire transcription pipeline\n   - Measure end-to-end latency from audio input to transcript display\n   - Identify bottlenecks in audio capture, WebSocket communication, and rendering\n\n2. Optimize WebSocket communication:\n   - Implement a custom hook for efficient WebSocket management\n   - Use the latest WebSocket API with proper error handling and reconnection logic\n   - Consider using libraries like socket.io-client for advanced features\n   ```typescript\n   const useWebSocket = (url: string) => {\n     const [socket, setSocket] = useState<WebSocket | null>(null);\n     useEffect(() => {\n       const ws = new WebSocket(url);\n       ws.onopen = () => console.log('Connected');\n       ws.onmessage = (event) => {\n         // Handle incoming messages\n       };\n       ws.onerror = (error) => {\n         console.error('WebSocket error:', error);\n         // Implement reconnection logic\n       };\n       setSocket(ws);\n       return () => ws.close();\n     }, [url]);\n     return socket;\n   };\n   ```\n\n3. Implement efficient state updates:\n   - Use React 18's automatic batching for performance improvements\n   - Implement useDeferredValue for non-critical UI updates\n   - Use immutable update patterns with immer for efficient state management\n   ```typescript\n   import { produce } from 'immer';\n   import { useDeferredValue } from 'react';\n\n   const [transcripts, setTranscripts] = useState([]);\n   const deferredTranscripts = useDeferredValue(transcripts);\n\n   const updateTranscripts = (newTranscript) => {\n     setTranscripts(produce(draft => {\n       draft.push(newTranscript);\n     }));\n   };\n   ```\n\n4. Optimize rendering performance:\n   - Implement virtualization for long transcripts using react-window\n   - Use React.memo and useMemo to prevent unnecessary re-renders\n   ```typescript\n   import { FixedSizeList as List } from 'react-window';\n\n   const MemoizedTranscriptItem = React.memo(({ data, index, style }) => (\n     <div style={style}>{data[index]}</div>\n   ));\n\n   const TranscriptList = ({ items }) => (\n     <List\n       height={400}\n       itemCount={items.length}\n       itemSize={35}\n       width={300}\n       itemData={items}\n     >\n       {MemoizedTranscriptItem}\n     </List>\n   );\n   ```\n\n5. Enhance audio processing:\n   - Use Web Audio API for low-latency audio capture and processing\n   - Implement a circular buffer for efficient audio data management\n   ```typescript\n   class AudioBuffer {\n     private buffer: Float32Array;\n     private writePointer: number = 0;\n\n     constructor(private size: number) {\n       this.buffer = new Float32Array(size);\n     }\n\n     write(data: Float32Array) {\n       const remaining = this.size - this.writePointer;\n       if (data.length <= remaining) {\n         this.buffer.set(data, this.writePointer);\n         this.writePointer += data.length;\n       } else {\n         const firstPart = data.subarray(0, remaining);\n         const secondPart = data.subarray(remaining);\n         this.buffer.set(firstPart, this.writePointer);\n         this.buffer.set(secondPart, 0);\n         this.writePointer = secondPart.length;\n       }\n     }\n\n     read(): Float32Array {\n       return this.buffer;\n     }\n   }\n   ```\n\n6. Implement partial updates:\n   - Modify the Gemini Live API integration to support partial transcript updates\n   - Update the UI to smoothly incorporate partial updates\n   ```typescript\n   const handleWebSocketMessage = (event: MessageEvent) => {\n     const data = JSON.parse(event.data);\n     if (data.type === 'partial') {\n       updatePartialTranscript(data.text);\n     } else if (data.type === 'final') {\n       updateFinalTranscript(data.text);\n     }\n   };\n   ```\n\n7. Optimize Electron IPC communication:\n   - Use Electron's latest IPC methods for efficient main-to-renderer process communication\n   - Implement proper error handling and timeout mechanisms\n   ```typescript\n   // In the main process\n   ipcMain.handle('transcription-update', async (event, transcriptData) => {\n     // Process transcription data\n     return processedData;\n   });\n\n   // In the renderer process\n   const updateTranscription = async (data) => {\n     try {\n       const result = await ipcRenderer.invoke('transcription-update', data);\n       updateUI(result);\n     } catch (error) {\n       console.error('IPC communication error:', error);\n     }\n   };\n   ```\n\n8. Implement caching and memoization:\n   - Use memoization techniques to cache expensive computations\n   - Implement a caching layer for frequently accessed data\n   ```typescript\n   const memoizedProcessTranscript = useMemo(() => {\n     return (transcript: string) => {\n       // Expensive processing logic here\n     };\n   }, [/* dependencies */]);\n   ```\n\n9. Optimize build and bundle size:\n   - Use code splitting and lazy loading to reduce initial load time\n   - Implement tree shaking to eliminate dead code\n   ```typescript\n   const TranscriptionComponent = React.lazy(() => import('./TranscriptionComponent'));\n\n   function App() {\n     return (\n       <React.Suspense fallback={<div>Loading...</div>}>\n         <TranscriptionComponent />\n       </React.Suspense>\n     );\n   }\n   ```\n\n10. Continuous performance monitoring:\n    - Implement performance tracking using tools like Sentry Performance or New Relic\n    - Set up alerts for performance regressions\n    - Regularly review and optimize based on gathered metrics",
+        "description": "Analyze and optimize the transcription pipeline to match YouTube's real-time performance, reducing noticeable delays in the current implementation. [Updated: 10/13/2025]",
+        "details": "1. Benchmark current performance:\n   - Use Chrome DevTools Performance tab to profile the entire transcription pipeline\n   - Measure end-to-end latency from audio input to transcript display\n   - Identify bottlenecks in audio capture, WebSocket communication, and rendering\n\n2. Optimize WebSocket communication:\n   - Implement a custom hook for efficient WebSocket management\n   - Use the latest WebSocket API with proper error handling and reconnection logic\n   - Consider using libraries like socket.io-client for advanced features\n   ```typescript\n   const useWebSocket = (url: string) => {\n     const [socket, setSocket] = useState<WebSocket | null>(null);\n     useEffect(() => {\n       const ws = new WebSocket(url);\n       ws.onopen = () => console.log('Connected');\n       ws.onmessage = (event) => {\n         // Handle incoming messages\n       };\n       ws.onerror = (error) => {\n         console.error('WebSocket error:', error);\n         // Implement reconnection logic\n       };\n       setSocket(ws);\n       return () => ws.close();\n     }, [url]);\n     return socket;\n   };\n   ```\n\n3. Implement efficient state updates:\n   - Use React 18's automatic batching for performance improvements\n   - Implement useDeferredValue for non-critical UI updates\n   - Use immutable update patterns with immer for efficient state management\n   ```typescript\n   import { produce } from 'immer';\n   import { useDeferredValue } from 'react';\n\n   const [transcripts, setTranscripts] = useState([]);\n   const deferredTranscripts = useDeferredValue(transcripts);\n\n   const updateTranscripts = (newTranscript) => {\n     setTranscripts(produce(draft => {\n       draft.push(newTranscript);\n     }));\n   };\n   ```\n\n4. Optimize rendering performance:\n   - Implement virtualization for long transcripts using react-window\n   - Use React.memo and useMemo to prevent unnecessary re-renders\n   ```typescript\n   import { FixedSizeList as List } from 'react-window';\n\n   const MemoizedTranscriptItem = React.memo(({ data, index, style }) => (\n     <div style={style}>{data[index]}</div>\n   ));\n\n   const TranscriptList = ({ items }) => (\n     <List\n       height={400}\n       itemCount={items.length}\n       itemSize={35}\n       width={300}\n       itemData={items}\n     >\n       {MemoizedTranscriptItem}\n     </List>\n   );\n   ```\n\n5. Enhance audio processing:\n   - Use Web Audio API for low-latency audio capture and processing\n   - Implement a circular buffer for efficient audio data management\n   ```typescript\n   class AudioBuffer {\n     private buffer: Float32Array;\n     private writePointer: number = 0;\n\n     constructor(private size: number) {\n       this.buffer = new Float32Array(size);\n     }\n\n     write(data: Float32Array) {\n       const remaining = this.size - this.writePointer;\n       if (data.length <= remaining) {\n         this.buffer.set(data, this.writePointer);\n         this.writePointer += data.length;\n       } else {\n         const firstPart = data.subarray(0, remaining);\n         const secondPart = data.subarray(remaining);\n         this.buffer.set(firstPart, this.writePointer);\n         this.buffer.set(secondPart, 0);\n         this.writePointer = secondPart.length;\n       }\n     }\n\n     read(): Float32Array {\n       return this.buffer;\n     }\n   }\n   ```\n\n6. Implement partial updates:\n   - Modify the Gemini Live API integration to support partial transcript updates\n   - Update the UI to smoothly incorporate partial updates\n   ```typescript\n   const handleWebSocketMessage = (event: MessageEvent) => {\n     const data = JSON.parse(event.data);\n     if (data.type === 'partial') {\n       updatePartialTranscript(data.text);\n     } else if (data.type === 'final') {\n       updateFinalTranscript(data.text);\n     }\n   };\n   ```\n\n7. Optimize Electron IPC communication:\n   - Use Electron's latest IPC methods for efficient main-to-renderer process communication\n   - Implement proper error handling and timeout mechanisms\n   ```typescript\n   // In the main process\n   ipcMain.handle('transcription-update', async (event, transcriptData) => {\n     // Process transcription data\n     return processedData;\n   });\n\n   // In the renderer process\n   const updateTranscription = async (data) => {\n     try {\n       const result = await ipcRenderer.invoke('transcription-update', data);\n       updateUI(result);\n     } catch (error) {\n       console.error('IPC communication error:', error);\n     }\n   };\n   ```\n\n8. Implement caching and memoization:\n   - Use memoization techniques to cache expensive computations\n   - Implement a caching layer for frequently accessed data\n   ```typescript\n   const memoizedProcessTranscript = useMemo(() => {\n     return (transcript: string) => {\n       // Expensive processing logic here\n     };\n   }, [/* dependencies */]);\n   ```\n\n9. Optimize build and bundle size:\n   - Use code splitting and lazy loading to reduce initial load time\n   - Implement tree shaking to eliminate dead code\n   ```typescript\n   const TranscriptionComponent = React.lazy(() => import('./TranscriptionComponent'));\n\n   function App() {\n     return (\n       <React.Suspense fallback={<div>Loading...</div>}>\n         <TranscriptionComponent />\n       </React.Suspense>\n     );\n   }\n   ```\n\n10. Continuous performance monitoring:\n    - Implement performance tracking using tools like Sentry Performance or New Relic\n    - Set up alerts for performance regressions\n    - Regularly review and optimize based on gathered metrics\n<info added on 2025-10-13T19:22:22.492Z>\n11. GitHub Issue Tracking:\n    - Created GitHub issue #352 for tracking optimization progress and discussions\n    - Use the issue for coordinating performance testing results, benchmarking data, and optimization decisions\n    - Document performance improvements and regressions in the issue for team visibility\n    - Link pull requests implementing specific optimizations to the issue for traceability\n</info added on 2025-10-13T19:22:22.492Z>",
         "testStrategy": "1. Automated Performance Testing:\n   - Implement Jest performance tests to measure rendering time of the LiveTranscriptionDisplay component\n   - Use Puppeteer to automate end-to-end performance testing, measuring time from audio input to transcript display\n   ```javascript\n   const puppeteer = require('puppeteer');\n\n   test('Transcription latency', async () => {\n     const browser = await puppeteer.launch();\n     const page = await browser.newPage();\n     await page.goto('http://localhost:3000');\n\n     const startTime = Date.now();\n     await page.click('#start-transcription-button');\n     await page.waitForSelector('#transcription-result');\n     const endTime = Date.now();\n\n     const latency = endTime - startTime;\n     expect(latency).toBeLessThan(200); // Adjust threshold as needed\n\n     await browser.close();\n   });\n   ```\n\n2. Real-Time Latency Measurement:\n   - Implement a custom performance metric to measure transcription latency in real-time\n   - Log and analyze these metrics over time to identify performance trends\n\n3. Comparative Analysis:\n   - Conduct side-by-side comparisons with YouTube's transcription feature\n   - Record and analyze differences in responsiveness and accuracy\n\n4. Load Testing:\n   - Use tools like Artillery or k6 to simulate high concurrent user loads\n   - Verify that performance remains consistent under various load conditions\n\n5. Network Condition Testing:\n   - Use browser dev tools to simulate different network conditions (3G, 4G, etc.)\n   - Ensure the application degrades gracefully under poor network conditions\n\n6. Cross-Browser and Cross-Platform Testing:\n   - Test the optimized transcription feature across different browsers and operating systems\n   - Use services like BrowserStack or Sauce Labs for comprehensive coverage\n\n7. Memory Leak Detection:\n   - Use Chrome DevTools Memory tab to profile memory usage over time\n   - Implement long-running tests to detect any memory leaks\n\n8. Continuous Integration Performance Checks:\n   - Integrate performance tests into the CI/CD pipeline\n   - Set performance budgets and fail builds that exceed these budgets\n\n9. User Perception Testing:\n   - Conduct user testing sessions to gather qualitative feedback on the perceived responsiveness\n   - Use tools like Lighthouse to measure and track Core Web Vitals\n\n10. A/B Testing:\n    - Implement A/B tests to compare the optimized version against the current implementation\n    - Analyze user engagement metrics and transcription accuracy between versions\n\n11. Error Rate Monitoring:\n    - Track and compare error rates (e.g., transcription inaccuracies) before and after optimization\n    - Ensure that performance improvements don't come at the cost of accuracy\n\n12. Accessibility Testing:\n    - Verify that the optimized implementation maintains or improves accessibility\n    - Use tools like axe-core to automate accessibility checks\n\n13. Regression Testing:\n    - Develop a comprehensive suite of regression tests to ensure existing functionality remains intact\n    - Automate these tests and run them after each optimization iteration",
         "status": "pending",
         "dependencies": [
@@ -1780,7 +1780,7 @@
         "testStrategy": "Create unit tests for each state transition, including valid and invalid transitions. Test edge cases like late-arriving partials after finalization. Mock time to test timeout-based transitions. Verify telemetry events are emitted correctly. Create integration tests that simulate real transcript flows through the complete lifecycle.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -1789,7 +1789,8 @@
             "dependencies": [],
             "details": "Define TypeScript interfaces for each state (pending-partial, streaming-active, awaiting-final, finalized, aborted, recovered). Create type definitions for valid state transitions. Implement type guards to enforce state validity at compile time. Define event types for state transitions. Create a comprehensive state diagram documenting all possible transitions and their conditions.",
             "status": "in-progress",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 2,
@@ -1798,7 +1799,8 @@
             "dependencies": [],
             "details": "Implement the TranscriptLifecycle class with internal state management. Create methods for each valid state transition with validation logic. Implement error handling for invalid state transitions. Add support for the state transition history. Create unit tests for all valid and invalid state transitions. Ensure the FSM is the single source of truth for transcript state.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 3,
@@ -1807,7 +1809,8 @@
             "dependencies": [],
             "details": "Research and select an appropriate UUID generation library or implement a custom solution. Ensure UUIDs are assigned on first partial receipt and remain stable throughout the transcript lifecycle. Add storage and retrieval mechanisms for transcript UUIDs. Implement tests to verify UUID stability across state transitions. Document the UUID format and generation approach.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 4,
@@ -1816,7 +1819,8 @@
             "dependencies": [],
             "details": "Create a logging strategy for state transitions with appropriate detail levels. Implement telemetry event emission for each state change. Add performance metrics for transition timing. Create a visualization mechanism for state transition history. Implement configurable logging levels. Ensure all edge cases and errors are properly logged with context.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 5,
@@ -1825,9 +1829,14 @@
             "dependencies": [],
             "details": "Implement logic to detect and ignore late-arriving partials after finalization. Create the orphan detection system for transcripts stuck in awaiting-final state. Add timeout-based transition logic for stalled states. Implement recovery mechanisms for orphaned transcripts. Create comprehensive tests for all edge cases. Document recovery strategies and their limitations.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           }
-        ]
+        ],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of the Transcript Lifecycle FSM into subtasks including: 1) Define state interfaces and transition types, 2) Implement core FSM class with validation logic, 3) Add UUID generation and assignment, 4) Implement telemetry and logging for transitions, and 5) Create handlers for edge cases like late-arriving partials.",
+        "updatedAt": "2025-10-13T16:34:34.851Z"
       },
       {
         "id": 2,
@@ -1837,7 +1846,7 @@
         "testStrategy": "Unit test the ring buffer operations and WAL write/read functionality. Create integration tests that simulate crashes at various points (mid-partial, pre-final flush, during WAL write) and verify recovery. Benchmark WAL IO overhead to ensure it meets performance constraints. Test WAL rotation and verify old data is properly cleaned up. Verify privacy requirements by testing session deletion clears all associated buffers.",
         "priority": "high",
         "dependencies": [
-          1
+          "1"
         ],
         "status": "pending",
         "subtasks": [
@@ -1848,7 +1857,8 @@
             "dependencies": [],
             "details": "Implement the TranscriptRingBuffer class that maintains active transcripts in memory with the following features:\n- Fixed-size circular buffer with configurable capacity\n- Thread-safe append operations with atomic updates\n- Efficient read/write operations with minimal locking\n- Transcript metadata indexing for quick lookups\n- Buffer overflow handling with appropriate warnings\n\nFiles to modify:\n- src/persistence/TranscriptRingBuffer.ts (new)\n- src/persistence/TranscriptPersistenceManager.ts (new)\n\nTest coverage:\n- Unit tests for all ring buffer operations\n- Overflow tests with high-volume data\n- Thread safety tests with concurrent operations",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 2,
@@ -1857,7 +1867,8 @@
             "dependencies": [],
             "details": "Develop a binary encoding format for WAL entries with these requirements:\n- Compact representation to minimize IO overhead\n- Include record type, timestamp, session ID, and payload\n- Support for partial and complete transcript entries\n- CRC32 checksums for data integrity verification\n- Version field for future format evolution\n\nFiles to modify:\n- src/persistence/WalEncoder.ts (new)\n- src/persistence/WalDecoder.ts (new)\n- src/persistence/WalEntry.ts (new)\n\nTest coverage:\n- Unit tests for encoding/decoding all entry types\n- Round-trip tests to verify data integrity\n- Benchmark tests to measure encoding/decoding performance\n- Size comparison tests against JSON alternatives",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 3,
@@ -1866,7 +1877,8 @@
             "dependencies": [],
             "details": "Implement the WalWriter class with the following features:\n- Write operations that append to the current WAL file\n- Flush triggers based on:\n  * Every N partial transcripts\n  * Time-based interval (every 250ms)\n  * Transcript finalization events\n  * Session stop events\n  * App close events\n  * Tab visibility changes (after 10s in background)\n- Asynchronous flush operations to minimize UI thread blocking\n\nFiles to modify:\n- src/persistence/WalWriter.ts (new)\n- src/persistence/FlushPolicy.ts (new)\n- src/events/AppLifecycleEvents.ts (modify to add hooks)\n\nTest coverage:\n- Unit tests for each flush trigger type\n- Timing tests to verify flush intervals\n- Integration tests with simulated app lifecycle events",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 4,
@@ -1875,7 +1887,8 @@
             "dependencies": [],
             "details": "Create the WalRecoveryManager with these capabilities:\n- Read and parse WAL files on startup\n- Identify incomplete sessions that need recovery\n- Replay transcript segments in correct order\n- Mark uncertain segments for potential retry\n- Reconcile recovered data with the in-memory buffer\n- Generate recovery metrics and logs\n\nFiles to modify:\n- src/persistence/WalRecoveryManager.ts (new)\n- src/persistence/TranscriptPersistenceManager.ts (modify)\n- src/startup/AppBootstrap.ts (modify to add recovery step)\n\nTest coverage:\n- Unit tests for WAL parsing and recovery logic\n- Integration tests with simulated crashes at various points\n- Recovery performance benchmarks with large WAL files\n- Edge case tests with corrupted WAL entries",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 5,
@@ -1884,7 +1897,8 @@
             "dependencies": [],
             "details": "Implement WAL rotation and cleanup with these features:\n- Rotate WAL files after reaching 10MB size threshold\n- Time-based rotation every 15 minutes\n- Maintain a configurable number of historical WAL files\n- Implement cleanup of old WAL files after successful processing\n- Add storage usage monitoring and warnings\n- Implement emergency cleanup if storage limits are approached\n\nFiles to modify:\n- src/persistence/WalRotationManager.ts (new)\n- src/persistence/StorageMonitor.ts (new)\n- src/persistence/WalWriter.ts (modify)\n\nTest coverage:\n- Unit tests for rotation triggers and cleanup logic\n- Storage usage tests with simulated large files\n- Integration tests for rotation during active transcription\n- Stress tests with rapid rotation scenarios",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 6,
@@ -1893,9 +1907,13 @@
             "dependencies": [],
             "details": "Create privacy-compliant buffer clearing functionality with these requirements:\n- Immediate clearing of in-memory buffers when a session is deleted\n- Secure overwriting of WAL entries for deleted sessions\n- Verification that all traces of deleted sessions are removed\n- Audit logging of deletion operations for compliance\n- Support for both user-initiated and retention policy deletions\n\nFiles to modify:\n- src/persistence/PrivacyManager.ts (new)\n- src/persistence/TranscriptRingBuffer.ts (modify)\n- src/persistence/WalWriter.ts (modify)\n- src/persistence/TranscriptPersistenceManager.ts (modify)\n\nTest coverage:\n- Unit tests for buffer clearing operations\n- Verification tests to ensure no data remains after deletion\n- Integration tests with the session deletion workflow\n- Performance tests to measure deletion time for large sessions",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           }
-        ]
+        ],
+        "complexity": 8,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Break down the implementation of the Persistence Layer with WAL into subtasks including: 1) Design and implement in-memory ring buffer, 2) Create binary WAL encoding format, 3) Implement WAL write/flush triggers, 4) Develop crash recovery functionality, 5) Implement WAL rotation and cleanup, and 6) Add privacy-compliant buffer clearing."
       },
       {
         "id": 3,
@@ -1905,10 +1923,13 @@
         "testStrategy": "Unit test connection pool management, including creation, verification, and recycling of connections. Test the audio pre-roll buffer with various audio inputs to verify it correctly captures speech onset. Create integration tests that simulate recording start with both ready and not-ready connections. Measure and verify that the first utterance clipping is eliminated. Test connection heartbeat and verify dead connections are properly detected and replaced.",
         "priority": "high",
         "dependencies": [
-          1
+          "1"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of Connection Management and Pre-Roll Buffer into subtasks including: 1) Implement WebSocket connection pool, 2) Create connection heartbeat verification, 3) Develop audio pre-roll buffer with 500ms retention, 4) Implement partial queueing mechanism for not-ready connections, and 5) Add connection recycling and resource management."
       },
       {
         "id": 4,
@@ -1918,9 +1939,9 @@
         "testStrategy": "Unit test each fallback tier and the transition logic between tiers. Test the retry policy with simulated failures to verify correct backoff behavior. Create integration tests that simulate various network conditions (disconnects, high latency, packet loss) to verify the fallback mechanism correctly preserves transcripts. Test the circuit breaker functionality and verify proper degradation to batch-only mode. Verify that the UI banner is correctly displayed when in degraded mode.",
         "priority": "high",
         "dependencies": [
-          1,
-          2,
-          3
+          "1",
+          "2",
+          "3"
         ],
         "status": "pending",
         "subtasks": [
@@ -1931,7 +1952,8 @@
             "dependencies": [],
             "details": "Implement ConnectionMonitor class in src/network/ConnectionMonitor.ts that detects WebSocket disconnections, timeouts, and errors. Add event listeners for connection state changes. Create a heartbeat mechanism to detect silent failures. Implement metrics collection for connection quality and interruption frequency. Add unit tests in tests/network/ConnectionMonitor.test.ts to verify detection works under various failure scenarios.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 2,
@@ -1940,7 +1962,8 @@
             "dependencies": [],
             "details": "Create FallbackManager class in src/fallback/FallbackManager.ts that orchestrates transitions between connection modes. Implement TransportStrategy interface with concrete implementations for each tier (WebSocketTransport, StreamingHttpTransport, BatchApiTransport). Add state machine to track current transport mode. Implement smooth transition logic that preserves in-flight data. Create tests in tests/fallback/FallbackManager.test.ts that verify correct transitions between tiers.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 3,
@@ -1949,7 +1972,8 @@
             "dependencies": [],
             "details": "Create RetryPolicy class in src/fallback/RetryPolicy.ts implementing exponential backoff (250ms, 500ms, 1s, 2s, 5s). Add jitter to prevent thundering herd problems. Implement retry count tracking and timeout calculation. Create RetryContext to maintain state across retry attempts. Add unit tests in tests/fallback/RetryPolicy.test.ts to verify timing sequences and retry behavior.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 4,
@@ -1958,7 +1982,8 @@
             "dependencies": [],
             "details": "Implement CircuitBreaker class in src/fallback/CircuitBreaker.ts with Open, Half-Open, and Closed states. Add failure threshold configuration (5 failures). Implement automatic degradation to batch-only mode when circuit is open. Create recovery logic to test connections and restore service. Add UI notification system integration in src/ui/StatusNotifier.ts. Create tests in tests/fallback/CircuitBreaker.test.ts to verify state transitions and recovery behavior.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 5,
@@ -1967,7 +1992,8 @@
             "dependencies": [],
             "details": "Implement ReplayEngine class in src/fallback/ReplayEngine.ts that buffers recent audio segments. Create AudioSegmentBuffer to store audio data with timestamps and sequence IDs. Implement replay prioritization logic to handle backlog efficiently. Add reconciliation with existing partial transcripts. Create cleanup policy for expired segments. Add tests in tests/fallback/ReplayEngine.test.ts to verify correct buffering and replay behavior.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 6,
@@ -1976,7 +2002,8 @@
             "dependencies": [],
             "details": "Create TranscriptReconciler class in src/fallback/TranscriptReconciler.ts to maintain transcript identity across transport changes. Implement UUID preservation in all transport implementations. Add logic to merge partial transcripts from different sources. Create conflict resolution for overlapping segments. Implement tests in tests/fallback/TranscriptReconciler.test.ts to verify transcript continuity across transport changes.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 7,
@@ -1985,35 +2012,42 @@
             "dependencies": [],
             "details": "Implement ConnectionStatusBanner component in src/ui/ConnectionStatusBanner.tsx that displays current connection state. Create StatusIndicator component for subtle status display. Add internationalization support for error messages. Implement toast notifications for transient issues. Create status event system to propagate connection state changes to UI. Add tests in tests/ui/ConnectionStatusBanner.test.tsx to verify correct rendering of different states.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           }
-        ]
+        ],
+        "complexity": 9,
+        "recommendedSubtasks": 7,
+        "expansionPrompt": "Break down the implementation of the Fallback and Replay Mechanism into subtasks including: 1) Implement WebSocket interruption detection, 2) Create multi-tier fallback strategy (WebSocket → HTTP → Batch), 3) Develop exponential backoff retry policy, 4) Implement circuit breaker logic, 5) Create audio segment replay engine, 6) Add reconciliation for transcript UUIDs, and 7) Implement UI indicators for degraded modes."
       },
       {
         "id": 5,
         "title": "Create Orphan and Gap Detection Worker",
-        "description": "Implement a background worker that detects and recovers orphaned transcripts and identifies gaps in transcription.",
-        "details": "Develop an OrphanDetectionWorker class that runs every 2 seconds to perform the following tasks: 1) Scan for partials with no update for more than 4 seconds and attempt to finalize them via forced flush call, 2) Scan for sessions with trailing partial < 150 chars and no final within 3 seconds and attempt to finalize them, 3) Emit telemetry events when recovery is performed. The worker should use a non-blocking approach to avoid impacting the main thread performance. Make timeout thresholds configurable via feature flags. Implement a GapDetector that uses audio alignment heuristics to identify potential missed segments. Create recovery strategies for each type of detected issue.",
+        "description": "Implement a background worker that detects and recovers orphaned transcripts and identifies gaps in transcription. [Updated: 10/10/2025]",
+        "details": "Develop an OrphanDetectionWorker class that runs every 2 seconds to perform the following tasks: 1) Scan for partials with no update for more than 4 seconds and attempt to finalize them via forced flush call, 2) Scan for sessions with trailing partial < 150 chars and no final within 3 seconds and attempt to finalize them, 3) Emit telemetry events when recovery is performed. The worker should use a non-blocking approach to avoid impacting the main thread performance. Make timeout thresholds configurable via feature flags. Implement a GapDetector that uses audio alignment heuristics to identify potential missed segments. Create recovery strategies for each type of detected issue.\n<info added on 2025-10-10T18:10:20.555Z>\nCreated GitHub issue #311 to track progress and discussions related to the implementation of the Orphan and Gap Detection Worker.\n</info added on 2025-10-10T18:10:20.555Z>",
         "testStrategy": "Unit test the orphan detection logic with various scenarios of stuck partials and sessions. Test the gap detection algorithm with known audio samples containing intentional gaps. Create integration tests that simulate orphaned transcripts and verify recovery. Measure performance impact to ensure the worker doesn't affect main thread responsiveness. Test telemetry emission to verify correct reporting of recovery actions.",
         "priority": "medium",
         "dependencies": [
-          1,
-          2
+          "1",
+          "2"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of the Orphan and Gap Detection Worker into subtasks including: 1) Implement background worker with configurable scan interval, 2) Create detection logic for partials with no updates, 3) Develop finalization logic for orphaned partials, 4) Implement gap detection using audio alignment heuristics, and 5) Add telemetry for recovery operations."
       },
       {
         "id": 6,
         "title": "Implement Deduplication and Merge Engine",
-        "description": "Create a sophisticated deduplication and merge engine to handle overlapping, duplicate, or conflicting transcript segments.",
-        "details": "Develop a TranscriptMergeEngine class that maintains a rolling content hash plus time bucket for each partial sequence. Implement logic to handle content regression (shorter content arriving after longer content) by treating it as a revision and keeping the longest unless confidence dictates replacement. Create a merge algorithm that chooses the most confident consistent growth path when reconciling multiple versions of the same transcript. Implement conflict resolution strategies based on confidence scores, timing, and content consistency. Add telemetry for merge decisions to enable analysis and tuning of the algorithm.",
+        "description": "Create a sophisticated deduplication and merge engine to handle overlapping, duplicate, or conflicting transcript segments. [Updated: 10/10/2025]",
+        "details": "Develop a TranscriptMergeEngine class that maintains a rolling content hash plus time bucket for each partial sequence. Implement logic to handle content regression (shorter content arriving after longer content) by treating it as a revision and keeping the longest unless confidence dictates replacement. Create a merge algorithm that chooses the most confident consistent growth path when reconciling multiple versions of the same transcript. Implement conflict resolution strategies based on confidence scores, timing, and content consistency. Add telemetry for merge decisions to enable analysis and tuning of the algorithm.\n<info added on 2025-10-10T18:10:33.245Z>\nGitHub issue #312 has been created to track implementation progress, discussions, and any related technical decisions for this task. All relevant code changes, design updates, and test results should be referenced in this issue. The issue will serve as the central coordination point for cross-team communication and to ensure visibility of the deduplication and merge engine development.\n</info added on 2025-10-10T18:10:33.245Z>",
         "testStrategy": "Unit test the hashing mechanism to verify it correctly identifies duplicate content. Test the merge algorithm with various scenarios of overlapping, conflicting, and regressing content. Create integration tests with real-world examples of problematic merges. Benchmark the merge engine performance to ensure it meets latency requirements. Test edge cases like very short segments, identical confidence scores, and near-simultaneous arrivals.",
         "priority": "medium",
         "dependencies": [
-          1,
-          2,
-          4
+          "1",
+          "2",
+          "4"
         ],
         "status": "pending",
         "subtasks": [
@@ -2024,7 +2058,8 @@
             "dependencies": [],
             "details": "Implement a ContentHasher class that:\n1. Generates rolling hashes for transcript content\n2. Incorporates time bucket information to handle temporal positioning\n3. Optimizes for fast comparison operations\n4. Handles different languages and special characters\n5. Includes configurable bucket size parameters\n\nFiles to modify:\n- src/engine/ContentHasher.ts\n- src/types/HashTypes.ts\n\nTest coverage:\n- Unit tests for hash generation with various inputs\n- Collision testing with similar content\n- Performance benchmarks for hash generation and comparison",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 2,
@@ -2035,7 +2070,8 @@
             ],
             "details": "Create a ContentRegressionHandler class that:\n1. Detects when new content is shorter than previously received content\n2. Implements rules for determining when to keep longer content vs. accept shorter revision\n3. Uses confidence scores to make replacement decisions\n4. Handles edge cases like stuttering and corrections\n5. Maintains version history for potential rollback\n\nFiles to modify:\n- src/engine/ContentRegressionHandler.ts\n- src/engine/TranscriptMergeEngine.ts\n\nTest coverage:\n- Unit tests for regression detection\n- Tests for confidence-based replacement decisions\n- Edge case testing with real-world examples",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 3,
@@ -2047,7 +2083,8 @@
             ],
             "details": "Implement a ConfidenceSelector class that:\n1. Evaluates confidence scores across competing transcript versions\n2. Incorporates linguistic consistency as a selection factor\n3. Handles partial confidence scores within segments\n4. Implements weighted scoring based on multiple factors\n5. Provides configurable thresholds for selection decisions\n\nFiles to modify:\n- src/engine/ConfidenceSelector.ts\n- src/engine/TranscriptMergeEngine.ts\n- src/types/ConfidenceTypes.ts\n\nTest coverage:\n- Unit tests for selection algorithm with various confidence patterns\n- Performance testing with large transcript sets\n- Accuracy testing against known-good transcripts",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 4,
@@ -2059,7 +2096,8 @@
             ],
             "details": "Implement a GrowthPathAnalyzer class that:\n1. Builds a directed graph of possible transcript evolutions\n2. Identifies the most likely/consistent growth path through the graph\n3. Handles branching and merging of potential transcript versions\n4. Optimizes for both accuracy and performance\n5. Implements pruning of unlikely paths to maintain efficiency\n\nFiles to modify:\n- src/engine/GrowthPathAnalyzer.ts\n- src/engine/TranscriptMergeEngine.ts\n- src/types/GrowthPathTypes.ts\n\nTest coverage:\n- Unit tests for path determination with various branching scenarios\n- Performance testing with complex transcript histories\n- Integration tests with real-world transcript evolution patterns",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 5,
@@ -2071,7 +2109,8 @@
             ],
             "details": "Create a ConflictResolver class that:\n1. Identifies conflicts between competing transcript versions\n2. Implements multiple resolution strategies (confidence-based, timing-based, consistency-based)\n3. Provides a strategy selection mechanism based on conflict type\n4. Handles special cases like speaker changes and non-speech audio events\n5. Maintains an audit trail of resolution decisions\n\nFiles to modify:\n- src/engine/ConflictResolver.ts\n- src/engine/TranscriptMergeEngine.ts\n- src/types/ConflictTypes.ts\n\nTest coverage:\n- Unit tests for each resolution strategy\n- Tests for strategy selection logic\n- Integration tests with complex conflict scenarios\n- Performance testing for resolution speed",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           },
           {
             "id": 6,
@@ -2085,26 +2124,33 @@
             ],
             "details": "Implement a MergeTelemetry system that:\n1. Captures detailed information about each merge decision\n2. Records metrics on hash collisions, conflict frequency, and resolution outcomes\n3. Implements performance tracking for algorithm components\n4. Creates visualizations for merge decision trees\n5. Provides exportable logs for offline analysis\n\nFiles to modify:\n- src/telemetry/MergeTelemetry.ts\n- src/engine/TranscriptMergeEngine.ts\n- src/visualization/MergeVisualizer.ts\n\nTest coverage:\n- Unit tests for telemetry data collection\n- Verification of telemetry accuracy\n- Performance impact testing\n- Integration tests with the full merge engine",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "",
+            "parentId": "undefined"
           }
-        ]
+        ],
+        "complexity": 8,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Break down the implementation of the Deduplication and Merge Engine into subtasks including: 1) Design content hashing algorithm with time buckets, 2) Implement content regression handling logic, 3) Create confidence-based selection algorithm, 4) Develop consistent growth path determination, 5) Implement conflict resolution strategies, and 6) Add telemetry for merge decisions."
       },
       {
         "id": 7,
         "title": "Implement Comprehensive Telemetry and Observability",
-        "description": "Develop a telemetry system to track key metrics, detect anomalies, and provide observability into the transcription pipeline.",
-        "details": "Create a TranscriptionTelemetry class that tracks the following metrics: partial_count, final_count, orphan_recovered, fallback_used, late_partial_ignored, wal_flush_ms, finalize_latency_ms (histogram), and completeness_estimate. Implement alert thresholds for orphan_recovered > X/hr or fallback_used spikes. Add detailed logging for all critical operations with appropriate sampling to prevent excessive log volume. Implement an anomaly detection system that can identify unusual patterns in the metrics. Create dashboards for monitoring the health of the transcription system. Add distributed tracing for end-to-end visibility into transcript processing.",
+        "description": "Develop a telemetry system to track key metrics, detect anomalies, and provide observability into the transcription pipeline. [Updated: 10/10/2025]",
+        "details": "Create a TranscriptionTelemetry class that tracks the following metrics: partial_count, final_count, orphan_recovered, fallback_used, late_partial_ignored, wal_flush_ms, finalize_latency_ms (histogram), and completeness_estimate. Implement alert thresholds for orphan_recovered > X/hr or fallback_used spikes. Add detailed logging for all critical operations with appropriate sampling to prevent excessive log volume. Implement an anomaly detection system that can identify unusual patterns in the metrics. Create dashboards for monitoring the health of the transcription system. Add distributed tracing for end-to-end visibility into transcript processing.\n<info added on 2025-10-10T18:10:44.915Z>\nCreated GitHub issue #313 to track progress and discussions related to this task.\n</info added on 2025-10-10T18:10:44.915Z>",
         "testStrategy": "Unit test the telemetry emission for each metric to ensure correct values are reported. Test the alert threshold logic with simulated metric spikes. Create integration tests that generate known patterns of activity and verify the telemetry correctly captures them. Test sampling logic to ensure it doesn't miss important events. Verify dashboard visualizations correctly represent the system state.",
         "priority": "medium",
         "dependencies": [
-          1,
-          2,
-          4,
-          5,
-          6
+          "1",
+          "2",
+          "4",
+          "5",
+          "6"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of Comprehensive Telemetry and Observability into subtasks including: 1) Implement core metrics collection system, 2) Create histogram tracking for latency metrics, 3) Develop alert thresholds and notification system, 4) Implement logging with appropriate sampling, and 5) Create dashboard visualizations for system health."
       },
       {
         "id": 8,
@@ -2114,13 +2160,16 @@
         "testStrategy": "Meta-test the test framework itself by verifying it correctly detects known issues in test implementations. Validate that the chaos tests produce consistent results across multiple runs. Verify that the audio tail loss test correctly identifies missing content. Test the CI integration to ensure tests run correctly in the automated environment. Benchmark the test suite itself to ensure it completes within reasonable time limits.",
         "priority": "medium",
         "dependencies": [
-          1,
-          2,
-          3,
-          4
+          "1",
+          "2",
+          "3",
+          "4"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 8,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Break down the development of the Testing Framework and Chaos Suite into subtasks including: 1) Create network condition simulation (drop, jitter, latency), 2) Implement crash injection capabilities, 3) Develop audio tail loss test harness, 4) Create deterministic test scenarios, 5) Implement CI integration for nightly runs, and 6) Develop test results dashboard."
       },
       {
         "id": 9,
@@ -2130,12 +2179,15 @@
         "testStrategy": "Unit test the React components with various transcript states to verify correct rendering. Test the invariant check with known good and bad states. Create visual regression tests to ensure status indicators appear correctly across different browsers and screen sizes. Test accessibility of the status indicators to ensure they work with screen readers and other assistive technologies. Test performance to ensure adding status indicators doesn't impact rendering speed.",
         "priority": "medium",
         "dependencies": [
-          1,
-          4,
-          6
+          "1",
+          "4",
+          "6"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 6,
+        "recommendedSubtasks": 4,
+        "expansionPrompt": "Break down the enhancement of UI Integrity and Status Indicators into subtasks including: 1) Audit and enhance React component key stability, 2) Implement invariant checks for transcript count consistency, 3) Create visual status indicators for transcript states, and 4) Implement smooth transitions for state changes."
       },
       {
         "id": 10,
@@ -2145,100 +2197,118 @@
         "testStrategy": "Unit test configuration loading from different sources (environment, dev panel). Test validation of configuration values with valid and invalid inputs. Create integration tests that verify system behavior changes appropriately when feature flags are toggled. Test the runtime toggle capability to ensure it safely updates system behavior. Verify configuration persistence across page reloads.",
         "priority": "medium",
         "dependencies": [
-          1,
-          2,
-          3,
-          4,
-          5
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 6,
+        "recommendedSubtasks": 4,
+        "expansionPrompt": "Break down the implementation of the Configuration and Feature Flag System into subtasks including: 1) Create core configuration management system, 2) Implement feature flags for key system behaviors, 3) Develop configuration loading from multiple sources, and 4) Create developer panel for runtime configuration changes."
       },
       {
         "id": 11,
         "title": "Implement Session and ID Management",
-        "description": "Enhance session management and ID handling to prevent orphaned partials and ensure consistent transcript identification.",
-        "details": "Create a SessionManager class that handles session lifecycle and ensures consistent ID assignment. Implement safeguards against session ID reuse or mismatch that could lead to orphaned partials. Add session boundary detection and handling to ensure clean transitions between sessions. Create a robust ID generation mechanism that guarantees uniqueness even in offline or disconnected scenarios. Implement session recovery for interrupted sessions to prevent data loss. Add telemetry for session events to track session health and identify problematic patterns.",
+        "description": "Enhance session management and ID handling to prevent orphaned partials and ensure consistent transcript identification. [Updated: 10/10/2025]",
+        "details": "Create a SessionManager class that handles session lifecycle and ensures consistent ID assignment. Implement safeguards against session ID reuse or mismatch that could lead to orphaned partials. Add session boundary detection and handling to ensure clean transitions between sessions. Create a robust ID generation mechanism that guarantees uniqueness even in offline or disconnected scenarios. Implement session recovery for interrupted sessions to prevent data loss. Add telemetry for session events to track session health and identify problematic patterns.\n<info added on 2025-10-10T18:10:56.877Z>\nCreated GitHub issue #314 to track implementation progress and related discussions.\n</info added on 2025-10-10T18:10:56.877Z>",
         "testStrategy": "Unit test session creation, termination, and ID generation. Test session boundary handling with rapid stop/start sequences. Create integration tests that simulate various session interruption scenarios and verify recovery. Test ID uniqueness under high concurrency. Verify telemetry correctly captures session lifecycle events.",
         "priority": "high",
         "dependencies": [
-          1,
-          2
+          "1",
+          "2"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of Session and ID Management into subtasks including: 1) Design robust ID generation mechanism, 2) Implement session lifecycle management, 3) Create safeguards against ID reuse or mismatch, 4) Develop session recovery for interruptions, and 5) Add telemetry for session events."
       },
       {
         "id": 12,
         "title": "Develop Backpressure and Buffer Management",
-        "description": "Implement backpressure mechanisms and buffer management to handle high load and prevent buffer saturation.",
-        "details": "Create a BufferManager class that implements backpressure mechanisms to handle high burst input without losing data. Implement buffer saturation detection and mitigation strategies to prevent the oldest partials from not being finalized. Add adaptive buffer sizing based on available memory and current load. Implement prioritization for buffer processing to ensure critical operations (like finalization) take precedence during high load. Create a buffer health monitoring system to track buffer utilization and detect potential issues before they cause data loss.",
+        "description": "Implement backpressure mechanisms and buffer management to handle high load and prevent buffer saturation. [Updated: 10/10/2025]",
+        "details": "Create a BufferManager class that implements backpressure mechanisms to handle high burst input without losing data. Implement buffer saturation detection and mitigation strategies to prevent the oldest partials from not being finalized. Add adaptive buffer sizing based on available memory and current load. Implement prioritization for buffer processing to ensure critical operations (like finalization) take precedence during high load. Create a buffer health monitoring system to track buffer utilization and detect potential issues before they cause data loss.\n<info added on 2025-10-10T18:11:09.313Z>\nCreated GitHub issue #315 for tracking progress and discussion related to this task.\n</info added on 2025-10-10T18:11:09.313Z>",
         "testStrategy": "Unit test buffer operations under various load conditions. Test backpressure mechanisms with simulated high input rates. Create integration tests that push the system to buffer saturation and verify no data is lost. Benchmark buffer performance to ensure it meets throughput requirements. Test adaptive sizing to verify it correctly responds to changing conditions.",
         "priority": "medium",
         "dependencies": [
-          1,
-          2,
-          3
+          "1",
+          "2",
+          "3"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the development of Backpressure and Buffer Management into subtasks including: 1) Implement buffer saturation detection, 2) Create backpressure mechanisms for high load, 3) Develop adaptive buffer sizing based on available memory, 4) Implement prioritization for buffer processing, and 5) Create buffer health monitoring system."
       },
       {
         "id": 13,
         "title": "Implement Error Detection, Classification, and Recovery",
-        "description": "Create a comprehensive error handling system that detects, classifies, and recovers from various error conditions.",
-        "details": "Develop an ErrorHandler class that can detect and classify errors into categories (network, auth refresh, model quota, etc.). Implement specific recovery strategies for each error category. Add retroactive recovery for errors that previously aborted silently. Create an error telemetry system to track error rates and patterns. Implement circuit breakers for external dependencies to prevent cascading failures. Add user-facing error messages that provide appropriate information without exposing system details.",
+        "description": "Create a comprehensive error handling system that detects, classifies, and recovers from various error conditions. [Updated: 10/10/2025]",
+        "details": "Develop an ErrorHandler class that can detect and classify errors into categories (network, auth refresh, model quota, etc.). Implement specific recovery strategies for each error category. Add retroactive recovery for errors that previously aborted silently. Create an error telemetry system to track error rates and patterns. Implement circuit breakers for external dependencies to prevent cascading failures. Add user-facing error messages that provide appropriate information without exposing system details.\n<info added on 2025-10-10T18:11:24.965Z>\nCreated GitHub issue #316 to track progress and discussions related to this task.\n</info added on 2025-10-10T18:11:24.965Z>",
         "testStrategy": "Unit test error detection and classification with various error types. Test recovery strategies for each error category. Create integration tests that simulate different error conditions and verify recovery. Test circuit breaker behavior under sustained error conditions. Verify user-facing error messages are appropriate and helpful.",
         "priority": "high",
         "dependencies": [
-          1,
-          2,
-          3,
-          4
+          "1",
+          "2",
+          "3",
+          "4"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 8,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Break down the implementation of Error Detection, Classification, and Recovery into subtasks including: 1) Create error detection and classification system, 2) Implement specific recovery strategies for each error category, 3) Develop retroactive recovery for silent failures, 4) Create error telemetry system, 5) Implement circuit breakers for external dependencies, and 6) Add user-facing error messages."
       },
       {
         "id": 14,
         "title": "Develop Audio Alignment and Completeness Verification",
-        "description": "Create a system to verify transcription completeness by aligning with the original audio.",
-        "details": "Implement an AudioAlignmentVerifier class that uses audio fingerprinting or other heuristics to align transcription with original audio. Create a completeness calculation algorithm that can estimate what percentage of verbal content was successfully transcribed. Implement a verification process that can be run both in real-time and as a post-processing step. Add telemetry for completeness metrics to track system performance against the 99.95% target. Create visualization tools for debugging alignment issues.",
+        "description": "Create a system to verify transcription completeness by aligning with the original audio. [Updated: 10/10/2025]",
+        "details": "Implement an AudioAlignmentVerifier class that uses audio fingerprinting or other heuristics to align transcription with original audio. Create a completeness calculation algorithm that can estimate what percentage of verbal content was successfully transcribed. Implement a verification process that can be run both in real-time and as a post-processing step. Add telemetry for completeness metrics to track system performance against the 99.95% target. Create visualization tools for debugging alignment issues.\n<info added on 2025-10-10T18:11:34.083Z>\nA GitHub issue (#317) has been created to track the development and implementation of the AudioAlignmentVerifier class and related tasks. This issue will serve as a central point for updates, discussions, and progress tracking regarding the audio alignment and completeness verification system.\n</info added on 2025-10-10T18:11:34.083Z>",
         "testStrategy": "Test alignment algorithm with known audio samples and transcripts. Create a test suite with intentionally incomplete transcriptions to verify detection accuracy. Benchmark alignment performance to ensure it doesn't add significant overhead. Test with various audio qualities, accents, and speaking styles to verify robustness. Create integration tests that verify end-to-end completeness measurement.",
         "priority": "medium",
         "dependencies": [
-          1,
-          3,
-          8
+          "1",
+          "3",
+          "8"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 8,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the development of Audio Alignment and Completeness Verification into subtasks including: 1) Research and implement audio fingerprinting algorithm, 2) Create alignment mechanism between audio and transcription, 3) Develop completeness calculation algorithm, 4) Implement real-time and post-processing verification, and 5) Create visualization tools for alignment debugging."
       },
       {
         "id": 15,
         "title": "Implement Feature Flag Rollout and Acceptance Testing",
-        "description": "Create a controlled rollout process with acceptance testing to safely deploy the new transcription pipeline.",
-        "details": "Develop a RolloutManager class that implements progressive feature flag enabling based on user segments or other criteria. Create an acceptance test suite that verifies all success metrics are met: capture completeness >= 99.95%, partial→final orphan rate < 0.05%, finalization latency < 1.5s (95th percentile), missed tail-on-stop < 100ms average, recovery success >= 99%, zero duplicate visual artifacts per 10k entries, and persistence durability losing < 1s of recent audio on crash. Implement a canary deployment process that monitors metrics for 48 hours before wider rollout. Create a rollback mechanism in case issues are detected during rollout.",
+        "description": "Create a controlled rollout process with acceptance testing to safely deploy the new transcription pipeline. [Updated: 10/10/2025]",
+        "details": "Develop a RolloutManager class that implements progressive feature flag enabling based on user segments or other criteria. Create an acceptance test suite that verifies all success metrics are met: capture completeness >= 99.95%, partial→final orphan rate < 0.05%, finalization latency < 1.5s (95th percentile), missed tail-on-stop < 100ms average, recovery success >= 99%, zero duplicate visual artifacts per 10k entries, and persistence durability losing < 1s of recent audio on crash. Implement a canary deployment process that monitors metrics for 48 hours before wider rollout. Create a rollback mechanism in case issues are detected during rollout.\n<info added on 2025-10-10T18:11:45.351Z>\nCreated GitHub issue #318 to track implementation progress and related discussions for this task.\n</info added on 2025-10-10T18:11:45.351Z>",
         "testStrategy": "Test the feature flag rollout mechanism with various user segments. Verify the acceptance test suite correctly measures all required metrics. Create integration tests that simulate the canary deployment process. Test the rollback mechanism to ensure it correctly reverts to the previous system state. Verify metrics collection during the canary period is accurate and complete.",
         "priority": "medium",
         "dependencies": [
-          1,
-          2,
-          3,
-          4,
-          5,
-          6,
-          7,
-          8,
-          9,
-          10,
-          11,
-          12,
-          13,
-          14
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of Feature Flag Rollout and Acceptance Testing into subtasks including: 1) Create progressive feature flag enabling based on user segments, 2) Develop comprehensive acceptance test suite for success metrics, 3) Implement canary deployment process with monitoring, 4) Create rollback mechanism for issues, and 5) Develop reporting dashboard for rollout status."
       },
       {
         "id": 16,
@@ -2249,7 +2319,10 @@
         "priority": "high",
         "dependencies": [],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of the Transcript Lifecycle FSM into subtasks including: 1) Define TranscriptState enum and interfaces, 2) Implement UUID generation for utterances, 3) Create state transition validation logic, 4) Add logging and telemetry for state changes, and 5) Implement late-arriving partial handling."
       },
       {
         "id": 17,
@@ -2259,10 +2332,13 @@
         "testStrategy": "1. Unit tests for ring buffer operations and WAL writing\n2. Test flush triggers under various conditions\n3. Crash recovery tests with corrupted/partial WAL files\n4. Performance benchmarks for WAL size and write latency\n5. Integration tests simulating app crashes at critical points\n6. Verify buffer clearing on session deletion\n7. Test rotation of WAL files after size/time limits",
         "priority": "high",
         "dependencies": [
-          16
+          "16"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 8,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Break down the implementation of the Persistence Layer with WAL into subtasks including: 1) Create in-memory ring buffer implementation, 2) Design binary compact encoding for WAL, 3) Implement persistence triggers and flush logic, 4) Develop crash recovery and replay functionality, 5) Add WAL rotation and size management, and 6) Implement privacy-compliant buffer clearing."
       },
       {
         "id": 18,
@@ -2272,10 +2348,13 @@
         "testStrategy": "1. Unit tests for connection pool management\n2. Test heartbeat verification and reconnection logic\n3. Verify audio pre-roll buffer captures correct amount of audio\n4. Test partial queuing and flushing when connection becomes ready\n5. Simulate network conditions to test connection status transitions\n6. Integration tests with mock audio input to verify end-to-end flow\n7. Stress test with rapid connection cycling",
         "priority": "high",
         "dependencies": [
-          16
+          "16"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the development of Connection Management and Audio Pre-Roll Buffer into subtasks including: 1) Implement WebSocket connection pool, 2) Create heartbeat verification system, 3) Develop audio pre-roll buffer with configurable retention, 4) Implement partial queuing for not-ready connections, and 5) Add connection recycling and resource management."
       },
       {
         "id": 19,
@@ -2285,11 +2364,14 @@
         "testStrategy": "1. Unit tests for interruption detection and handling\n2. Test batch API fallback mechanism\n3. Verify reconciliation of batch results with existing utterances\n4. Test retry policy with various failure scenarios\n5. Verify circuit breaker functionality and degradation to batch-only mode\n6. Integration tests simulating network failures at different points\n7. Test UI notification system for degraded mode\n8. Verify end-to-end recovery from various failure modes",
         "priority": "high",
         "dependencies": [
-          16,
-          18
+          "16",
+          "18"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 9,
+        "recommendedSubtasks": 7,
+        "expansionPrompt": "Break down the implementation of the Fallback and Replay Mechanism into subtasks including: 1) Create WebSocket interruption detection, 2) Implement multi-tier fallback strategy, 3) Develop batch API sending mechanism, 4) Create exponential backoff retry policy with circuit breaker, 5) Implement result reconciliation logic, 6) Add replay mechanism for missed segments, and 7) Create UI notification for degraded modes."
       },
       {
         "id": 20,
@@ -2299,11 +2381,14 @@
         "testStrategy": "1. Unit tests for orphan detection logic\n2. Test trailing partial detection\n3. Verify recovery mechanisms for different scenarios\n4. Test telemetry emission on recovery attempts\n5. Integration tests with simulated orphaned partials\n6. Verify worker scheduling and execution timing\n7. Test statistics tracking for recovery attempts\n8. Performance testing to ensure minimal impact on main thread",
         "priority": "medium",
         "dependencies": [
-          16,
-          17
+          "16",
+          "17"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the creation of the Orphan and Gap Detection Worker into subtasks including: 1) Implement background worker with configurable scan interval, 2) Create detection logic for stale partials, 3) Implement forced finalization for orphaned partials, 4) Develop trailing partial detection and handling, and 5) Add telemetry for recovery operations."
       },
       {
         "id": 21,
@@ -2313,11 +2398,14 @@
         "testStrategy": "1. Unit tests for hash generation and comparison\n2. Test duplicate detection with various content similarities\n3. Verify content regression handling\n4. Test merge algorithm with different confidence levels\n5. Verify consistent growth path determination\n6. Test conflict resolution with competing transcripts\n7. Integration tests with real-world transcript patterns\n8. Performance testing with large volumes of similar transcripts",
         "priority": "medium",
         "dependencies": [
-          16,
-          17
+          "16",
+          "17"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 8,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Break down the implementation of the Deduplication and Merge Engine into subtasks including: 1) Create rolling content hash with time bucket implementation, 2) Develop content regression handling logic, 3) Implement confidence-based selection algorithm, 4) Create consistent growth path determination, 5) Add conflict resolution for competing transcripts, and 6) Implement telemetry for merge decisions."
       },
       {
         "id": 22,
@@ -2327,13 +2415,16 @@
         "testStrategy": "1. Unit tests for metric tracking and histogram recording\n2. Test alert threshold detection\n3. Verify sampling and aggregation logic\n4. Test telemetry emission with various sample rates\n5. Verify context-aware logging\n6. Integration tests to ensure metrics are captured correctly\n7. Test dashboard data flow\n8. Performance impact testing to ensure minimal overhead",
         "priority": "medium",
         "dependencies": [
-          16,
-          17,
-          19,
-          20
+          "16",
+          "17",
+          "19",
+          "20"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of Comprehensive Telemetry and Observability into subtasks including: 1) Create core metrics tracking system, 2) Implement histogram recording for latency metrics, 3) Develop alert thresholds and notification system, 4) Add context-aware logging with sampling, and 5) Create dashboard for real-time monitoring."
       },
       {
         "id": 23,
@@ -2343,13 +2434,16 @@
         "testStrategy": "1. Verify network simulation accurately reproduces real-world conditions\n2. Test crash injection at various critical points\n3. Validate audio tail loss harness against known reference transcripts\n4. Verify chaos suite integration with CI\n5. Test deterministic scenarios for reproducibility\n6. Verify performance benchmarking accuracy\n7. Test the test framework itself for reliability\n8. Ensure minimal false positives/negatives in test results",
         "priority": "medium",
         "dependencies": [
-          16,
-          17,
-          18,
-          19
+          "16",
+          "17",
+          "18",
+          "19"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 8,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Break down the development of the Testing Framework and Chaos Suite into subtasks including: 1) Implement network simulation capabilities, 2) Create crash injection system for critical points, 3) Develop audio tail loss test harness, 4) Implement deterministic test scenarios, 5) Add CI integration for automated testing, and 6) Create test results dashboard and reporting."
       },
       {
         "id": 24,
@@ -2359,12 +2453,15 @@
         "testStrategy": "1. Unit tests for UI components with various transcript states\n2. Test stable key generation and usage\n3. Verify status indicators display correctly\n4. Test dev-mode assertions\n5. Visual regression tests for UI components\n6. Integration tests with transcript state changes\n7. Verify smooth transitions during updates\n8. Test UI performance with large transcript volumes",
         "priority": "medium",
         "dependencies": [
-          16,
-          19,
-          21
+          "16",
+          "19",
+          "21"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 6,
+        "recommendedSubtasks": 4,
+        "expansionPrompt": "Break down the implementation of UI Integrity and Status Indicators into subtasks including: 1) Ensure stable React keys for transcript components, 2) Create visual status indicators for transcript states, 3) Implement invariant checking for transcript count consistency, and 4) Add smooth transitions for transcript updates."
       },
       {
         "id": 25,
@@ -2374,14 +2471,17 @@
         "testStrategy": "1. Unit tests for configuration management\n2. Test feature flag toggling\n3. Verify configuration validation\n4. Test persistence of user preferences\n5. Verify dev panel UI functionality\n6. Test configuration change event system\n7. Integration tests with various configuration combinations\n8. Verify safe runtime toggle behavior",
         "priority": "medium",
         "dependencies": [
-          16,
-          17,
-          18,
-          19,
-          20
+          "16",
+          "17",
+          "18",
+          "19",
+          "20"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 6,
+        "recommendedSubtasks": 4,
+        "expansionPrompt": "Break down the implementation of the Configuration and Feature Flag System into subtasks including: 1) Create core configuration management service, 2) Implement feature flags for key system behaviors, 3) Add configuration loading from multiple sources, and 4) Develop dev panel UI for toggling features."
       },
       {
         "id": 26,
@@ -2391,12 +2491,15 @@
         "testStrategy": "1. Unit tests for session ID generation and validation\n2. Test session cleanup procedures\n3. Verify orphaned partial handling during transitions\n4. Test session metadata tracking\n5. Verify session boundary event hooks\n6. Test session recovery for interrupted sessions\n7. Integration tests with multiple sequential sessions\n8. Verify no ID collisions under high volume",
         "priority": "high",
         "dependencies": [
-          16,
-          17,
-          20
+          "16",
+          "17",
+          "20"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of Session Boundary Handling into subtasks including: 1) Create unique session ID generation and validation, 2) Implement session lifecycle management, 3) Develop cleanup procedures for session end, 4) Add handling for orphaned partials during transitions, and 5) Implement session recovery for interruptions."
       },
       {
         "id": 27,
@@ -2406,12 +2509,15 @@
         "testStrategy": "1. Unit tests for error detection and classification\n2. Test retry strategies for different error types\n3. Verify replay mechanism for recoverable errors\n4. Test user feedback for non-recoverable errors\n5. Verify error telemetry and logging\n6. Test error boundary components\n7. Integration tests with simulated errors\n8. Verify system resilience under various error conditions",
         "priority": "high",
         "dependencies": [
-          16,
-          17,
-          19
+          "16",
+          "17",
+          "19"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 8,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Break down the implementation of Error Detection, Classification and Replay into subtasks including: 1) Create error detection and classification system, 2) Implement recovery strategies for different error types, 3) Develop replay mechanism for recoverable errors, 4) Add circuit breakers for external dependencies, 5) Implement error telemetry and logging, and 6) Create user-facing error messages."
       },
       {
         "id": 28,
@@ -2421,12 +2527,15 @@
         "testStrategy": "1. Unit tests for buffer management functions\n2. Test backpressure mechanisms\n3. Verify oldest partial finalization before eviction\n4. Test high burst input handling\n5. Verify buffer overflow protection\n6. Test prioritization logic\n7. Integration tests with simulated buffer pressure\n8. Performance testing with various buffer sizes and input rates",
         "priority": "medium",
         "dependencies": [
-          16,
-          17,
-          20
+          "16",
+          "17",
+          "20"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of Buffer Management and Backpressure Handling into subtasks including: 1) Create buffer size monitoring and management, 2) Implement backpressure mechanisms for high load, 3) Develop buffer overflow protection, 4) Add prioritization for buffer entries, and 5) Create buffer utilization telemetry."
       },
       {
         "id": 29,
@@ -2436,18 +2545,21 @@
         "testStrategy": "1. Verify accuracy of each metric measurement\n2. Test with various reference datasets\n3. Verify automated acceptance criteria validation\n4. Test dashboard accuracy\n5. Verify continuous monitoring\n6. Test regression detection\n7. Verify canary deployment validation\n8. End-to-end system test with real-world usage patterns",
         "priority": "high",
         "dependencies": [
-          16,
-          17,
-          18,
-          19,
-          20,
-          21,
-          23,
-          27,
-          28
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "23",
+          "27",
+          "28"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 8,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Break down the implementation of End-to-End Verification and Acceptance Testing into subtasks including: 1) Create reference audio and transcript datasets, 2) Implement tests for all success metrics, 3) Develop automated verification against acceptance criteria, 4) Create dashboard for tracking metrics, 5) Implement continuous monitoring system, and 6) Develop regression test suite."
       },
       {
         "id": 30,
@@ -2457,18 +2569,28 @@
         "testStrategy": "1. Unit tests for rollout percentage calculation\n2. Test monitoring of key metrics\n3. Verify canary testing functionality\n4. Test automatic rollback triggers\n5. Verify A/B testing capabilities\n6. Test dashboard data accuracy\n7. Verify user segmentation for targeted rollouts\n8. Integration tests with simulated metric degradation",
         "priority": "medium",
         "dependencies": [
-          22,
-          25,
-          29
+          "22",
+          "25",
+          "29"
         ],
         "status": "cancelled",
-        "subtasks": []
+        "subtasks": [],
+        "complexity": 7,
+        "recommendedSubtasks": 5,
+        "expansionPrompt": "Break down the implementation of Feature Flag Rollout and Monitoring System into subtasks including: 1) Create gradual feature flag rollout capabilities, 2) Implement monitoring for key metrics during rollout, 3) Develop canary testing for new features, 4) Add automatic rollback triggers for metric degradation, and 5) Create dashboards for rollout progress and impact."
       }
     ],
     "metadata": {
-      "created": "2025-08-09T11:36:29.769Z",
-      "updated": "2025-08-09T12:01:37.447Z",
-      "description": "Tasks for transcription-loss-plan context"
+      "version": "1.0.0",
+      "lastModified": "2025-10-13T16:34:34.855Z",
+      "taskCount": 30,
+      "completedCount": 0,
+      "tags": [
+        "transcription-loss-plan"
+      ],
+      "created": "2025-10-13T17:10:08.041Z",
+      "description": "Tasks for transcription-loss-plan context",
+      "updated": "2025-10-13T17:10:08.041Z"
     }
   },
   "transcription-loss-elimination": {
@@ -4571,8 +4693,8 @@
       {
         "id": 16,
         "title": "Debug TranscriptionQuestionBridge and Fix Production Transcription Issues",
-        "description": "Investigate and resolve critical production issues in the TranscriptionQuestionBridge, addressing poor transcription quality, answer generation failures, and persistence problems between Transcripts and Chat pages.",
-        "details": "1. Set up a debugging environment:\n   - Enable verbose logging in production for TranscriptionQuestionBridge\n   - Implement distributed tracing using OpenTelemetry for end-to-end visibility\n\n2. Investigate mixed language transcription issues:\n   - Enhance RussianPostProcessor to handle mixed language segments:\n   ```typescript\n   class RussianPostProcessor {\n     private languageDetector: LanguageDetector;\n\n     constructor() {\n       this.languageDetector = new LanguageDetector(['ru', 'en', 'hi']);\n     }\n\n     processMixedLanguage(text: string): string {\n       const segments = this.languageDetector.detectLanguageSegments(text);\n       return segments.map(segment => {\n         switch(segment.language) {\n           case 'ru': return this.processRussian(segment.text);\n           case 'en': return this.processEnglish(segment.text);\n           case 'hi': return this.processHindi(segment.text);\n           default: return segment.text;\n         }\n       }).join(' ');\n     }\n   }\n   ```\n\n3. Fix answer generation in Chat page:\n   - Debug QuestionDetector integration:\n   ```typescript\n   class TranscriptionQuestionBridge {\n     private questionDetector: QuestionDetector;\n\n     constructor() {\n       this.questionDetector = new QuestionDetector();\n     }\n\n     processTranscription(transcription: string): void {\n       const questions = this.questionDetector.extractQuestions(transcription);\n       if (questions.length > 0) {\n         this.triggerAnswerGeneration(questions);\n       }\n     }\n\n     private triggerAnswerGeneration(questions: string[]): void {\n       // Implement answer generation logic\n     }\n   }\n   ```\n\n4. Implement persistence between Transcripts and Chat pages:\n   - Use Redux for state management:\n   ```typescript\n   // Define action types\n   const SET_TRANSCRIPTION = 'SET_TRANSCRIPTION';\n   const SET_CHAT_MESSAGES = 'SET_CHAT_MESSAGES';\n\n   // Define reducer\n   const rootReducer = combineReducers({\n     transcription: (state = '', action) => {\n       if (action.type === SET_TRANSCRIPTION) return action.payload;\n       return state;\n     },\n     chatMessages: (state = [], action) => {\n       if (action.type === SET_CHAT_MESSAGES) return action.payload;\n       return state;\n     }\n   });\n\n   // Create store\n   const store = createStore(rootReducer);\n   ```\n\n5. Optimize transcription quality:\n   - Implement adaptive noise reduction:\n   ```typescript\n   class AdaptiveNoiseReducer {\n     private fftSize: number;\n     private smoothingTimeConstant: number;\n\n     constructor(fftSize = 2048, smoothingTimeConstant = 0.8) {\n       this.fftSize = fftSize;\n       this.smoothingTimeConstant = smoothingTimeConstant;\n     }\n\n     reduceNoise(audioBuffer: AudioBuffer): AudioBuffer {\n       const context = new OfflineAudioContext(1, audioBuffer.length, audioBuffer.sampleRate);\n       const source = context.createBufferSource();\n       source.buffer = audioBuffer;\n\n       const analyser = context.createAnalyser();\n       analyser.fftSize = this.fftSize;\n       analyser.smoothingTimeConstant = this.smoothingTimeConstant;\n\n       const noiseReducer = context.createScriptProcessor(this.fftSize, 1, 1);\n       noiseReducer.onaudioprocess = this.processAudio.bind(this);\n\n       source.connect(analyser);\n       analyser.connect(noiseReducer);\n       noiseReducer.connect(context.destination);\n\n       source.start();\n       return context.startRendering();\n     }\n\n     private processAudio(event: AudioProcessingEvent): void {\n       // Implement noise reduction algorithm\n     }\n   }\n   ```\n\n6. Implement comprehensive error handling and logging:\n   ```typescript\n   class ErrorHandler {\n     private logger: Logger;\n\n     constructor(logger: Logger) {\n       this.logger = logger;\n     }\n\n     handleError(error: Error, context: string): void {\n       this.logger.error(`Error in ${context}: ${error.message}`, {\n         stack: error.stack,\n         context: context\n       });\n\n       // Implement error reporting to a centralized system (e.g., Sentry)\n       Sentry.captureException(error);\n     }\n   }\n   ```\n\n7. Implement real-time monitoring and alerting:\n   - Set up Prometheus for metrics collection\n   - Configure Grafana dashboards for visualization\n   - Implement alerting rules for critical issues",
+        "description": "Investigate and resolve critical production issues in the TranscriptionQuestionBridge, addressing poor transcription quality, answer generation failures, and persistence problems between Transcripts and Chat pages. [Updated: 10/13/2025]",
+        "details": "1. Set up a debugging environment:\n   - Enable verbose logging in production for TranscriptionQuestionBridge\n   - Implement distributed tracing using OpenTelemetry for end-to-end visibility\n\n2. Investigate mixed language transcription issues:\n   - Enhance RussianPostProcessor to handle mixed language segments:\n   ```typescript\n   class RussianPostProcessor {\n     private languageDetector: LanguageDetector;\n\n     constructor() {\n       this.languageDetector = new LanguageDetector(['ru', 'en', 'hi']);\n     }\n\n     processMixedLanguage(text: string): string {\n       const segments = this.languageDetector.detectLanguageSegments(text);\n       return segments.map(segment => {\n         switch(segment.language) {\n           case 'ru': return this.processRussian(segment.text);\n           case 'en': return this.processEnglish(segment.text);\n           case 'hi': return this.processHindi(segment.text);\n           default: return segment.text;\n         }\n       }).join(' ');\n     }\n   }\n   ```\n\n3. Fix answer generation in Chat page:\n   - Debug QuestionDetector integration:\n   ```typescript\n   class TranscriptionQuestionBridge {\n     private questionDetector: QuestionDetector;\n\n     constructor() {\n       this.questionDetector = new QuestionDetector();\n     }\n\n     processTranscription(transcription: string): void {\n       const questions = this.questionDetector.extractQuestions(transcription);\n       if (questions.length > 0) {\n         this.triggerAnswerGeneration(questions);\n       }\n     }\n\n     private triggerAnswerGeneration(questions: string[]): void {\n       // Implement answer generation logic\n     }\n   }\n   ```\n\n4. Implement persistence between Transcripts and Chat pages:\n   - Use Redux for state management:\n   ```typescript\n   // Define action types\n   const SET_TRANSCRIPTION = 'SET_TRANSCRIPTION';\n   const SET_CHAT_MESSAGES = 'SET_CHAT_MESSAGES';\n\n   // Define reducer\n   const rootReducer = combineReducers({\n     transcription: (state = '', action) => {\n       if (action.type === SET_TRANSCRIPTION) return action.payload;\n       return state;\n     },\n     chatMessages: (state = [], action) => {\n       if (action.type === SET_CHAT_MESSAGES) return action.payload;\n       return state;\n     }\n   });\n\n   // Create store\n   const store = createStore(rootReducer);\n   ```\n\n5. Optimize transcription quality:\n   - Implement adaptive noise reduction:\n   ```typescript\n   class AdaptiveNoiseReducer {\n     private fftSize: number;\n     private smoothingTimeConstant: number;\n\n     constructor(fftSize = 2048, smoothingTimeConstant = 0.8) {\n       this.fftSize = fftSize;\n       this.smoothingTimeConstant = smoothingTimeConstant;\n     }\n\n     reduceNoise(audioBuffer: AudioBuffer): AudioBuffer {\n       const context = new OfflineAudioContext(1, audioBuffer.length, audioBuffer.sampleRate);\n       const source = context.createBufferSource();\n       source.buffer = audioBuffer;\n\n       const analyser = context.createAnalyser();\n       analyser.fftSize = this.fftSize;\n       analyser.smoothingTimeConstant = this.smoothingTimeConstant;\n\n       const noiseReducer = context.createScriptProcessor(this.fftSize, 1, 1);\n       noiseReducer.onaudioprocess = this.processAudio.bind(this);\n\n       source.connect(analyser);\n       analyser.connect(noiseReducer);\n       noiseReducer.connect(context.destination);\n\n       source.start();\n       return context.startRendering();\n     }\n\n     private processAudio(event: AudioProcessingEvent): void {\n       // Implement noise reduction algorithm\n     }\n   }\n   ```\n\n6. Implement comprehensive error handling and logging:\n   ```typescript\n   class ErrorHandler {\n     private logger: Logger;\n\n     constructor(logger: Logger) {\n       this.logger = logger;\n     }\n\n     handleError(error: Error, context: string): void {\n       this.logger.error(`Error in ${context}: ${error.message}`, {\n         stack: error.stack,\n         context: context\n       });\n\n       // Implement error reporting to a centralized system (e.g., Sentry)\n       Sentry.captureException(error);\n     }\n   }\n   ```\n\n7. Implement real-time monitoring and alerting:\n   - Set up Prometheus for metrics collection\n   - Configure Grafana dashboards for visualization\n   - Implement alerting rules for critical issues\n<info added on 2025-10-13T19:16:37.504Z>\nCreated GitHub issue #324 for tracking progress, discussion, and documentation of all debugging and production fixes related to TranscriptionQuestionBridge. All updates, findings, and resolution steps should be cross-referenced in the GitHub issue to ensure centralized visibility and collaboration.\n</info added on 2025-10-13T19:16:37.504Z>",
         "testStrategy": "1. Unit Testing:\n   - Test RussianPostProcessor with mixed language input\n   - Verify QuestionDetector accuracy with various question formats\n   - Test AdaptiveNoiseReducer with different audio samples\n\n2. Integration Testing:\n   - Verify end-to-end flow from transcription to answer generation\n   - Test persistence between Transcripts and Chat pages\n   - Validate error handling and logging across components\n\n3. Performance Testing:\n   - Measure transcription latency and accuracy\n   - Benchmark answer generation response times\n   - Test system under high load conditions\n\n4. User Acceptance Testing:\n   - Conduct tests with native Russian, English, and Hindi speakers\n   - Verify transcription quality improvements\n   - Ensure seamless user experience between Transcripts and Chat pages\n\n5. Monitoring and Alerting:\n   - Verify real-time metrics collection in Prometheus\n   - Test alerting rules with simulated error conditions\n   - Validate Grafana dashboards for accuracy and usefulness\n\n6. Regression Testing:\n   - Ensure fixes don't introduce new issues in existing functionality\n   - Verify compatibility with all supported browsers and devices\n\n7. Security Testing:\n   - Conduct penetration testing on the updated components\n   - Verify proper handling of sensitive user data\n\n8. Localization Testing:\n   - Test with various language inputs to ensure proper handling\n   - Verify correct display of non-Latin characters\n\n9. Accessibility Testing:\n   - Ensure updates maintain or improve accessibility standards\n   - Test with screen readers and other assistive technologies\n\n10. Continuous Integration/Continuous Deployment (CI/CD):\n    - Implement automated tests in the CI pipeline\n    - Verify successful deployment and rollback procedures",
         "status": "pending",
         "dependencies": [

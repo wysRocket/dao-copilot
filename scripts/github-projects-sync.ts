@@ -279,15 +279,29 @@ class GitHubProjectsSync {
   /**
    * Sync Taskmaster tasks to GitHub Project
    */
-  async syncTasksToProject(tasksFilePath: string, dryRun: boolean = true) {
+  async syncTasksToProject(tasksFilePath: string, dryRun: boolean = true, tagName?: string) {
     console.log('\n🔄 Starting task synchronization...')
     console.log(`   Mode: ${dryRun ? 'DRY RUN' : 'LIVE'}`)
 
     // Load Taskmaster tasks
     const tasksData = JSON.parse(fs.readFileSync(tasksFilePath, 'utf-8')) as TaskmasterData
-    const tasks = tasksData.master?.tasks || []
 
-    console.log(`\n📚 Loaded ${tasks.length} tasks from Taskmaster`)
+    // Load state to get current tag if not specified
+    const stateFilePath = path.join(path.dirname(tasksFilePath), '..', 'state.json')
+    let currentTag = 'master'
+    try {
+      if (!tagName && fs.existsSync(stateFilePath)) {
+        const state = JSON.parse(fs.readFileSync(stateFilePath, 'utf-8'))
+        currentTag = state.currentTag || 'master'
+      }
+    } catch (error) {
+      console.log('⚠️  Could not read state file, using master tag')
+    }
+
+    const tag = tagName || currentTag
+    const tasks = tasksData[tag]?.tasks || []
+
+    console.log(`\n📚 Loaded ${tasks.length} tasks from Taskmaster (tag: ${tag})`)
 
     // Get project details
     const project = await this.fetchProjectDetails()
