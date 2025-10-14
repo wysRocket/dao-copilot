@@ -1,6 +1,7 @@
 import React, {useState, useEffect} from 'react'
 import {useWindowState} from '../../contexts/WindowStateProvider'
 import {useGlassEffects} from '../../contexts/GlassEffectsProvider'
+import MCPServersSection from '../../components/MCPServersSection'
 
 const DEFAULT_SETTINGS = {
   theme: 'auto',
@@ -407,6 +408,9 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            {/* MCP Servers Section */}
+            <MCPServersSection />
 
             {/* Save Button */}
             <div className="border-t pt-4" style={{borderColor: 'var(--glass-border)'}}>
