@@ -1,0 +1,605 @@
+/**
+ * Advanced Animations Stylesheet
+ *
+ * Styles for advanced animation features including text correction highlighting,
+ * animation controls, and confidence visualization
+ */
+
+/* ========================
+   Advanced Animation Engine
+   ======================== */
+
+.advanced-animation-engine {
+  position: relative;
+  display: inline-block;
+}
+
+.animated-text {
+  display: inline;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.animated-cursor {
+  display: inline-block;
+  margin-left: 2px;
+  animation: cursor-blink 1s step-end infinite;
+  color: currentColor;
+  font-weight: bold;
+}
+
+@keyframes cursor-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Animation mode variations */
+.animated-text-character {
+  /* Default character-by-character style */
+}
+
+.animated-text-word {
+  /* Word-by-word animation */
+}
+
+.animated-text-sentence {
+  /* Sentence-by-sentence animation */
+}
+
+.animated-text-confidence {
+  /* Confidence-based animation */
+  transition: color 0.3s ease;
+}
+
+.animated-text-realistic {
+  /* Realistic typing animation */
+}
+
+.animated-text-instant {
+  /* Instant display (no animation) */
+}
+
+/* ========================
+   Text Correction Highlighter
+   ======================== */
+
+.text-correction-highlighter {
+  display: inline;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+/* Correction segment base styles */
+.correction-segment {
+  display: inline;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Correction type styles */
+.correction-type-insert {
+  background-color: rgba(0, 255, 0, 0.2);
+  border-bottom: 2px solid rgb(0, 200, 0);
+  color: rgb(0, 150, 0);
+  font-weight: 500;
+}
+
+.correction-type-delete {
+  background-color: rgba(255, 0, 0, 0.2);
+  text-decoration: line-through;
+  color: rgb(200, 0, 0);
+  opacity: 0.7;
+}
+
+.correction-type-replace {
+  background-color: rgba(255, 215, 0, 0.3);
+  border-bottom: 2px solid rgb(255, 180, 0);
+  color: rgb(180, 120, 0);
+  font-weight: 500;
+}
+
+.correction-type-unchanged {
+  /* No special styling for unchanged text */
+}
+
+/* Correction phase animations */
+.correction-phase-highlight {
+  animation: highlight-flash 0.3s ease-out;
+}
+
+@keyframes highlight-flash {
+  0% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgba(255, 255, 100, 0.6);
+  }
+  100% {
+    background-color: rgba(255, 255, 100, 0.3);
+  }
+}
+
+.correction-phase-replace {
+  animation: replace-fade 0.5s ease-out;
+}
+
+@keyframes replace-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.correction-phase-complete {
+  animation: complete-settle 0.2s ease-out;
+}
+
+@keyframes complete-settle {
+  0% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Active highlighting state */
+.correction-highlighting {
+  animation: pulse-highlight 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Replacing state */
+.correction-replacing {
+  animation: slide-in 0.4s ease-out;
+}
+
+@keyframes slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Confidence badge */
+.confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.confidence-badge:hover {
+  transform: scale(1.1);
+}
+
+/* Correction legend */
+.correction-legend {
+  display: flex;
+  gap: 16px;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  margin: 8px 0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-color {
+  display: inline-block;
+  width: 20px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.legend-color.correction-type-insert {
+  background-color: rgba(0, 255, 0, 0.5);
+}
+
+.legend-color.correction-type-delete {
+  background-color: rgba(255, 0, 0, 0.5);
+}
+
+.legend-color.correction-type-replace {
+  background-color: rgba(255, 215, 0, 0.5);
+}
+
+.legend-label {
+  color: inherit;
+  font-weight: 500;
+}
+
+/* ========================
+   Animation Controls
+   ======================== */
+
+.animation-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.controls-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Control buttons */
+.control-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control-button:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.control-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.control-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.control-button svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* Progress bar */
+.controls-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 150px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: progress-shimmer 2s infinite;
+}
+
+@keyframes progress-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.progress-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: inherit;
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Settings panel */
+.controls-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  animation: settings-slide-down 0.3s ease-out;
+}
+
+@keyframes settings-slide-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Setting item */
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: inherit;
+}
+
+.setting-value {
+  font-weight: 700;
+  color: #4CAF50;
+}
+
+/* Speed slider */
+.setting-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.2);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.setting-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.setting-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #66BB6A;
+}
+
+.setting-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.setting-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  background: #66BB6A;
+}
+
+.setting-slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.slider-marks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 4px;
+}
+
+/* Mode selector */
+.setting-select {
+  width: 100%;
+  padding: 8px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.setting-select:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.setting-select:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.setting-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.setting-description {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  font-style: italic;
+}
+
+/* ========================
+   Responsive Design
+   ======================== */
+
+@media (max-width: 640px) {
+  .animation-controls {
+    padding: 8px;
+  }
+
+  .controls-main {
+    gap: 6px;
+  }
+
+  .control-button {
+    width: 28px;
+    height: 28px;
+  }
+
+  .controls-progress {
+    min-width: 100px;
+  }
+
+  .correction-legend {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* ========================
+   Accessibility
+   ======================== */
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .correction-type-insert {
+    background-color: rgba(0, 255, 0, 0.4);
+    border-bottom-width: 3px;
+  }
+
+  .correction-type-delete {
+    background-color: rgba(255, 0, 0, 0.4);
+    text-decoration-thickness: 2px;
+  }
+
+  .correction-type-replace {
+    background-color: rgba(255, 215, 0, 0.5);
+    border-bottom-width: 3px;
+  }
+
+  .control-button {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .correction-phase-highlight,
+  .correction-phase-replace,
+  .correction-phase-complete,
+  .correction-highlighting,
+  .correction-replacing,
+  .animated-cursor,
+  .progress-fill::after,
+  .settings-slide-down {
+    animation: none;
+  }
+
+  .control-button:hover:not(:disabled),
+  .setting-slider::-webkit-slider-thumb:hover,
+  .setting-slider::-moz-range-thumb:hover,
+  .confidence-badge:hover {
+    transform: none;
+  }
+
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus visible styles for keyboard navigation */
+.control-button:focus-visible,
+.setting-slider:focus-visible,
+.setting-select:focus-visible {
+  outline: 2px solid #4CAF50;
+  outline-offset: 2px;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .animation-controls {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .controls-settings {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+
+  .setting-select {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+
+  .correction-legend {
+    background-color: rgba(0, 0, 0, 0.15);
+  }
+}
