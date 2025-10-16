@@ -90,7 +90,7 @@
     "limiter": "^3.0.0",
     "liquid-glass-react": "^1.1.1",
     "lru-cache": "^11.1.0",
-    "lucide-react": "^0.544.0",
+    "lucide-react": "^0.546.0",
     "node-cache": "^5.1.2",
     "node-fetch": "^3.0.0",
     "react": "^19.1.0",
